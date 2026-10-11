@@ -3,12 +3,13 @@
 A weekly kanban planner application. The point is to provide flexible planning without strict time boxing.
 
 Main features include:
+
 - A kanban board per week where each day is a column and tasks are the items under them. The board is like a table in that it has rows for the 3 states (Todo, In progress, Done), but those rows are dynamic in height depending on how many items belong to them.
 - The board always has a starting column called "Weekly backlog"
 - A new board is automatically created every week. Repeating tasks get placed on the new board according to their scheduling. Carry-over tasks will get placed in the weekly backlog.
 - Tasks can be configured to repeat on a schedule
 - Tasks can be in 3 states: Todo, in progress, done
-- Tasks can have notes attached that belong to an instance if the task is a repeating one, but previous (or following) instances' notes can be easily viewed on any instance of a repeating task 
+- Tasks can have notes attached that belong to an instance if the task is a repeating one, but previous (or following) instances' notes can be easily viewed on any instance of a repeating task
 - If the week ends with a task being in an incomplete state the following can happen based on the tasks configuration:
   - If the task is configured to stay on the board until done, it moves to the weekly backlog of the new week's board
   - If the task is configured to be dismissed at the end of the week if incomplete (The default for repeating tasks), it won't get added to the new week's board
@@ -25,6 +26,7 @@ Main features include:
 - Multi-profile support: Separate profiles have separate tasks and settings, but there is an option to import/clone another profile's settings
 
 Non-functional requirements:
+
 - Offline desktop application
 - Single user at any given time, but supports multiple user profiles
 - Modern, accessible, clean UI (WCAG AA)
@@ -32,6 +34,7 @@ Non-functional requirements:
 - As fast and small as possible without sacrificing maintainability
 
 Tech stack:
+
 - Tauri application: Rust "backend", React frontend (built with Vite)
 - Tailwind CSS + shadcn/ui
 - SQLite database
@@ -57,6 +60,7 @@ Spent time: The time spent on the task (Optional)
 Audit information: Created at, updated at
 
 **Acceptance Criteria:**
+
 - The above information is stored in the database
 - Non-audit information can be set by the user
 - Audit information is set automatically
@@ -83,6 +87,7 @@ When a repeating task instance is edited, the user must choose if they want tot 
 When a repeating task instance is deleted, the same choice has to be made but for deletion.
 
 **Acceptance Criteria:**
+
 - Tasks can be created from the backlog view and the kanban view
 - Task can be scheduled for future weeks
 - Carry over rule is empty by default
@@ -95,6 +100,7 @@ When a repeating task instance is deleted, the same choice has to be made but fo
 Task duration must be specified in hours and minutes. Both for estimation and spent time.
 
 **Acceptance Criteria:**
+
 - Estimated time can be specified in hours and minutes
 - Spent time can be specified in hours and minutes
 - There is no minimum, it can be skipped, but if specified it has to be a positive value
@@ -103,6 +109,7 @@ Task duration must be specified in hours and minutes. Both for estimation and sp
 ### Scheduling task repetition
 
 When creating or editing a task, it should be allowed to set to repeat weekly, monthly, daily and in some more advanced ways described by the following examples:
+
 - The second Monday each month
 - The last Friday each month
 - Every 3 days
@@ -118,6 +125,7 @@ For repetition scheduling, a "workday" is a day of the week the user has marked 
 A start date must be set by the user; specifying an end date is optional. By default the start date is the current date or the next fitting date (e.g. if the schedule is every Monday, and today is not a Monday, than the start date will default to the next Monday). The end date can ommitted, in which case the task will repeat indefinitely. This is the default.
 
 **Acceptance Criteria:**
+
 - Repetitions can be set when creating or editing a task
 - The repetitions work as they are set up by the user
 - If the current month is shorter than the expected date, the last valid date is selected in the month
@@ -146,6 +154,7 @@ When a user chooses the deletion option in the task details view, they also need
 When the entire series is deleted, that affects all past and future instances.
 
 **Acceptance Criteria:**
+
 - Users can specify a schedule on task creation and moficiation with a start and end date
 - If a schedule is specified, a series is created
 - Instances are created when a user delibiretly edits a future instance or when a kanban board is created for a week, where an instance of the series should be created
@@ -162,6 +171,7 @@ Tasks can belong to no categories or multiple ones at the same time. Categories 
 Categories can be used for filtering and setting up custom time thresholds. Both are detailed below.
 
 **Acceptance Criteria:**
+
 - Categories can be set on tasks
 - Categories can be removed from tasks
 
@@ -175,6 +185,7 @@ Categories hold the following information (This is not a database schema, just t
 - Audit information: Created at, updated at
 
 **Acceptance Criteria:**
+
 - The above information is stored in the database
 - Non-audit information can be set by the user
 - Audit information is set automatically
@@ -198,6 +209,7 @@ Categories can be removed from tasks at any time, but completely deleting a cate
 When a category is deleted, it is removed from the category list of all associated tasks.
 
 **Acceptance Criteria:**
+
 - Categories view is available
 - Categories can be created, edited and deleted from the categories view
 - The category list view displays the title, the audit information and the count of associated tasks and task series
@@ -226,6 +238,7 @@ Tasks can also be deleted from this view. The same rule applies for deletion as 
 Notes are show in 2 tabs. "Current instance" and "Series". All can be added, updated or deleted, the user is expected to make the modifications on the right tab.
 
 **Acceptance Criteria:**
+
 - When clicking a task on a kanban board or in the backlog, the task view opens
 - The backlog view allows for pagination. By default it displays 50 items on one page.
 - Title, description, categories, notes and audit information is shown in the view
@@ -255,11 +268,11 @@ Notes can be added, edited or deleted freely in this view. In the case of repeat
 There is no special rule for upadting or deleting notes. If a series note is updated, it won't affect individual instances, if an instance note is updated, it won't affect the series. If a note is deleted it is simply removed.
 
 **Acceptance Criteria:**
+
 - Notes can be viewed on tasks
 - On repeating tasks, the notes are displayed on 2 tabs (instance and series)
 - Notes can be edited or deleted freely
 - The upper limit on note length is 10, 000 characters (adjustable if causes issues)
-
 
 ### Time estimations and thresholds
 
@@ -274,6 +287,7 @@ If multiple thresholds are reached for a given day, the background of the column
 There is another detail to threshold settings and it's relevant for both of the above threshold types: A per week day dimension is also available. E.g. On Sunday the user may have more time available for anything. Or Saturday is hobby day, so the hobby category can have a higher threshold.
 
 **Acceptance Criteria:**
+
 - A global per day estimated time threshold can be set up
 - A color can be set for that threshold
 - By default the color set for the global per day threshold is red
@@ -298,6 +312,7 @@ The board displays total estimated and total spent time and the task count for e
 There is a navigation option to step backwards and forwards between weeks and a calendar option which allows for larger jumps. Past boards display the recorded information, future boards only display repeating task instances and pre-scheduled tasks.
 
 **Acceptance Criteria:**
+
 - The kanban board is displayed with 8 columns and 3 dynamic rows
 - The 8 columns include the weekly backlog and the 7 days of the week
 - The start of the week respects global user settings
@@ -324,12 +339,12 @@ If it's the start of a new week, and not just the user perusing future weeks, ca
 All incomplete tasks from past weeks, that are set to carry over should appear in the weekly backlog of the currently viewed week.
 
 **Acceptance Criteria:**
+
 - Weeks are not a technical entity, but a filter for date and possibly date-range driven data - I know it's more of an architectural decision, but it's important to cement to avoid starting off the wrong foot.
 - When according to the global settings a new week has started, all incomplete tasks from previous weeks that have carry over set to true are added to the weekly backlog column of the current week's board
 - Those incomplete tasks that have the carry over rule set to discard, aren't added to the weekly backlog of the current board
 - The user is prompted about those incomplete tasks, that don't have a carry over rule set
 - Repeating task instances are auto-populated
-
 
 ### Filtering, searching, sorting and organizing views
 
@@ -342,6 +357,7 @@ The kanban board should have a setting for reversing row and column roles. Meani
 Settings shouldn't include any sorting or filtering features yet, as there aren't many options.
 
 **Acceptance Criteria:**
+
 - The backlog and kanban view allow for filtering and sorting tasks based on their properties
 - The kanban boards strict display rules aren't violated by those settings
 - The kanban board allows to display task statuses as columns and days of the week as rows if the user so chooses, but it can't be the default
@@ -357,6 +373,7 @@ The application allows for multiple user profiles. Each profile has it's own set
 As mentioned, settings and tasks belong to profiles, but it would feel wrong to include those in this list.
 
 **Acceptance Criteria:**
+
 - The above information is stored in the database
 - Non-audit information can be set by the user
 - Audit information is set automatically
@@ -373,6 +390,7 @@ To edit a profile, click edit on it's entry in the profile settings page. You ca
 To delete, click the delete button on it's entry in the profile settings. A prompt should pop up asking for confirmation by typing in: "DELETE <profile name> AND ALL ACCOMPANYING DATA". This will delete not just the profile but all related tasks and settings.
 
 **Acceptance Criteria:**
+
 - Profiles can be switched from the main navigation
 - Profiles can be edited and deleted from the settings
 - Editing a profile allows for changing it's name and importing settings from a different profile
@@ -384,6 +402,7 @@ To delete, click the delete button on it's entry in the profile settings. A prom
 The settings page should have an option for selecting the database file to load. This should allow for portability and better testing options. Loading a new file should unload everything currently in memory. It should handle possible compatibility issues gracefully. Ideally it only unloads everything if the chosen file is verified as compatible.
 
 **Acceptance Criteria:**
+
 - The settings page allows for selecting a database file to load
 - The application handles incompatibilities gracefully
 - The default setting is the default name for the embedded db

@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: true
+  commands:
+    cargo-fmt:
+      run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+    cargo-clippy:
+      run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+    prettier:
+      run: npx prettier --check .
+    eslint:
+      run: npx eslint .
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}

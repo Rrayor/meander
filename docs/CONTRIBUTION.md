@@ -1,6 +1,7 @@
 # How to Contribute
 
 Use the following checklist:
+
 - [ ] Add acceptance tests
 - [ ] Implement changes (If it's a UI task create a design with stitch first)
 - [ ] Add unit tests

@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:smoke": "wdio run ./wdio.conf.ts"
+    "test:smoke": "wdio run ./wdio.conf.ts",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -26,6 +28,9 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2",
@@ -40,9 +45,17 @@
     "@wdio/mocha-framework": "^10.0.1",
     "@wdio/spec-reporter": "^10.0.1",
     "@wdio/tauri-service": "^1.5.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
     "jsdom": "^30.1.2",
+    "lefthook": "^2.2.1",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
-    "typescript": "~7.0.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
     "vite": "^8.0.16",
     "vitest": "^5.0.3"
   }

@@ -6,12 +6,13 @@ import { test as base } from "@playwright/test";
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(() => {
-      (window as unknown as { __TAURI_INTERNALS__: object }).__TAURI_INTERNALS__ =
-        {
-          invoke: async (cmd: string) => {
-            throw new Error(`unmocked tauri command: ${cmd}`);
-          },
-        };
+      (
+        window as unknown as { __TAURI_INTERNALS__: object }
+      ).__TAURI_INTERNALS__ = {
+        invoke: async (cmd: string) => {
+          throw new Error(`unmocked tauri command: ${cmd}`);
+        },
+      };
     });
     await use(page);
   },
