@@ -12,8 +12,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let config = config::load(&app.path().app_config_dir()?);
-            let path = config.database_path()?;
-            let state = tauri::async_runtime::block_on(state::AppState::new(&path))?;
+            let state = tauri::async_runtime::block_on(state::AppState::from_config(
+                &config,
+                &db::default_path()?,
+            ))?;
             tauri::async_runtime::block_on(db::seed(&state.pool()))?;
             app.manage(state);
             Ok(())
