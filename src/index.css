@@ -13,6 +13,7 @@
   --color-border: #2e3338;
   --color-primary: #2dd4bf;
   --color-on-primary: #0b1b19;
+  --color-danger: #f87171;
 
   /* Threshold tint palette — user-configurable (palette pick or custom color
      picker per spec); defaults drawn from here, always ~10-20% alpha tints */

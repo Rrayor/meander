@@ -26,6 +26,8 @@ The frontend is a React application built with Vite, styled with Tailwind CSS an
 - Backend communication is isolated in an API layer wrapping Tauri `invoke` calls in typed functions. Components never call `invoke` directly; they consume backend state through hooks. TypeScript types for backend entities are declared in one shared place so they stay in sync with the Rust objects.
 - Consistent with the backend boundary: the Rust side owns state consistency and validation. The frontend may mirror validation for UX (e.g. form feedback) but never duplicates business rules.
 - shadcn/ui primitives live in `src/components/ui` and aren't modified in place. Shared composed components live in `src/components` and reusable cross-feature hooks in `src/hooks`.
+- Every Tauri command is async server state: consume it through TanStack Query — `useQuery` for loads, `useMutation` for writes — never `useEffect` + manual promise handling. Errors surface declaratively from `query.error`/`mutation.error`; `onError` callbacks are for side effects (toasts, logging), not for rendering errors.
+- Frontend error handling has three tiers: _expected, actionable_ failures (incompatible db file, validation) render inline near the action via `role="alert"`; _unexpected_ backend failures route through the `QueryClient` global error handlers (`queryCache.onError`/`mutationCache.onError`) to a shared notification channel; _render crashes_ are caught by an error boundary around the router outlet. The global tier and boundary are introduced with the first feature that produces a second error surface.
 - UI work is designed with Stitch first (see `docs/CONTRIBUTION.md`): generated screens are converted into modular components following the above conventions rather than copied as raw markup.
 
 ## Migrations
@@ -36,7 +38,8 @@ We use database migrations for maintainability and future proofing.
 
 - `src-tauri/src/db/` is the connection layer: `db::connect(path)` opens (or creates) a SQLite file with WAL + foreign keys and applies all pending migrations from `src-tauri/migrations/` via sqlx; `db::default_path()` resolves the conventional location.
 - The default database is portable: `meander.db` at the repository root in dev builds (gitignored), next to the executable in release builds.
-- `src-tauri/src/state.rs` (`AppState`, managed by Tauri) owns the active pool and path; `reconnect` swaps the pool only after a candidate connects successfully.
+- `src-tauri/src/state.rs` (`AppState`, managed by Tauri) owns the active pool and path; `reconnect` validates the candidate with `db::check_compatible` (requires `meander_meta` and an applied-migration set contained in the app's known migrations) and swaps the pool only on success — the current database is untouched on any failure.
+- `src-tauri/src/config.rs` persists application-level settings (`config.json` in the app config dir): the selected database path, needed before a db can be opened. Missing/corrupt config, a deleted file, or a file that fails to connect all fall back to the default path at startup (`AppState::from_config`); only a failed default fails startup. Profile-scoped settings live inside the database, keyed to a profile.
 - Tauri commands live in `src-tauri/src/commands/` and stay thin (deserialize → service → serialize).
 
 ## Testing

@@ -1,3 +1,5 @@
+import { DatabaseSection } from "@/features/settings/DatabaseSection";
+
 export function SettingsPage() {
   return (
     <>
@@ -6,9 +8,9 @@ export function SettingsPage() {
           Settings
         </h1>
       </header>
-      <section className="flex flex-1 items-center justify-center p-6">
-        <p className="text-sm text-text-muted">Settings will appear here.</p>
-      </section>
+      <div className="flex-1 overflow-y-auto p-6">
+        <DatabaseSection />
+      </div>
     </>
   );
 }
