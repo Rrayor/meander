@@ -181,6 +181,29 @@ fn reads_original(world: &mut MeanderWorld) {
     assert_eq!(origin, "original");
 }
 
+#[then("the profile list contains exactly the default profile")]
+fn profile_list(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    assert_eq!(profiles.len(), 1, "expected exactly one profile");
+    assert_eq!(profiles[0].name, "Default");
+}
+
+#[then("the default profile has audit timestamps")]
+fn profile_audit(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    let profile = profiles.first().expect("no profile");
+    assert!(!profile.created_at.is_empty());
+    assert!(!profile.updated_at.is_empty());
+}
+
 fn main() {
     futures::executor::block_on(MeanderWorld::run("tests/features"));
 }

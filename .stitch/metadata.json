@@ -19,6 +19,14 @@
       "files": ["designs/app-shell.html", "designs/app-shell.png"],
       "implemented": true,
       "notes": "Left-rail shell: wordmark, Board/Backlog/Settings nav, profile footer slot, quiet empty state"
+    },
+    {
+      "id": "d476865cf375443295d630ca59879bac",
+      "title": "Meander — Settings",
+      "deviceType": "DESKTOP",
+      "files": ["designs/settings.html", "designs/settings.png"],
+      "implemented": false,
+      "notes": "Settings page: Profiles section (list rows, Current badge) + Database section. Generated extras omitted from implementation: Storage & Privacy section, row action buttons"
     }
   ]
 }

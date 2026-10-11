@@ -1,42 +1,19 @@
-import type { Page } from "@playwright/test";
-
+import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
+import { stubError, stubTauriCommands } from "./tauri";
 
 const settingsPath = ROUTES.find((r) => r.label === "Settings")!.path;
-
-function stubBackend(page: Page, options: { selectError?: string } = {}) {
-  return page.addInitScript(
-    ({ selectError }) => {
-      (
-        window as unknown as {
-          __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<unknown> };
-        }
-      ).__TAURI_INTERNALS__ = {
-        invoke: async (cmd: string) => {
-          switch (cmd) {
-            case "current_db_path":
-              return "/data/meander.db";
-            case "plugin:dialog|open":
-              return "/data/other.db";
-            case "select_database_file":
-              if (selectError) throw new Error(selectError);
-              return "/data/other.db";
-            default:
-              throw new Error(`unmocked tauri command: ${cmd}`);
-          }
-        },
-      };
-    },
-    { selectError: options.selectError },
-  );
-}
 
 test("settings shows the current database and swaps it on selection", async ({
   page,
 }) => {
-  await stubBackend(page);
+  await stubTauriCommands(page, {
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+    [COMMANDS.dialogOpen]: "/data/other.db",
+    [COMMANDS.selectDatabaseFile]: "/data/other.db",
+  });
   await page.goto(`/#${settingsPath}`);
 
   await expect(page.getByText("/data/meander.db")).toBeVisible();
@@ -48,7 +25,11 @@ test("settings shows the current database and swaps it on selection", async ({
 test("a failed selection shows an error and keeps the current path", async ({
   page,
 }) => {
-  await stubBackend(page, { selectError: "not a Meander database" });
+  await stubTauriCommands(page, {
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+    [COMMANDS.dialogOpen]: "/data/other.db",
+    [COMMANDS.selectDatabaseFile]: stubError("not a Meander database"),
+  });
   await page.goto(`/#${settingsPath}`);
 
   await page.getByRole("button", { name: "Choose database file" }).click();
