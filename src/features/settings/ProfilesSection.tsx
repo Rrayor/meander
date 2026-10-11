@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { createProfile, currentProfile, listProfiles } from "@/api/profiles";
+import { QUERY_KEYS } from "@/api/queryKeys";
 
 const formatDate = (iso: string) =>
   new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(undefined, {
@@ -19,18 +20,18 @@ export function ProfilesSection() {
   const [validationError, setValidationError] = useState<string>();
 
   const { data: profiles } = useQuery({
-    queryKey: ["profiles"],
+    queryKey: QUERY_KEYS.profiles,
     queryFn: listProfiles,
   });
   const { data: current } = useQuery({
-    queryKey: ["current-profile"],
+    queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
   const create = useMutation({
     mutationFn: createProfile,
     onSuccess: () => {
       setName("");
-      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
     },
   });
 

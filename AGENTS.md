@@ -18,6 +18,14 @@ For any UI task, create the design with Stitch before implementing:
 3. Save generated assets under `.stitch/designs/` and keep `.stitch/metadata.json` up to date after each sync.
 4. Convert designs into modular React + Tailwind + shadcn/ui components (the `react-components` skill documents the conventions) — don't paste raw Stitch HTML into the app.
 
+## Conventions
+
+- No magic values: shared literals live in constants, never inline. Existing
+  registries: `src/lib/routes.ts` (paths/labels), `src/api/commands.ts`
+  (Tauri command names), `src/api/queryKeys.ts` (TanStack cache keys). Add
+  to the registry rather than introducing a new one-off constant, and use
+  the constants in tests as well.
+
 ## Workflow
 
 - Branch + pull request for every change; conventional commits.
