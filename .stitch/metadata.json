@@ -1,0 +1,24 @@
+{
+  "projectId": "13913036167073079695",
+  "title": "Meander",
+  "designSystem": {
+    "assetId": "253fc21b06474514bc22c4c97e83a667",
+    "previousAssetId": "91a79d7ca61041f8bf672d92e3cd1459",
+    "source": ".stitch/DESIGN.md",
+    "displayName": "Meander",
+    "colorMode": "DARK (default; light variant + user switch planned)",
+    "revisions": [
+      "2026-10-11: 12-color threshold palette + palette-or-custom-picker rule per updated spec"
+    ]
+  },
+  "screens": [
+    {
+      "id": "ef4d2e752da940fcbc48cdbfcc4d4302",
+      "title": "Meander — Application Shell",
+      "deviceType": "DESKTOP",
+      "files": ["designs/app-shell.html", "designs/app-shell.png"],
+      "implemented": true,
+      "notes": "Left-rail shell: wordmark, Board/Backlog/Settings nav, profile footer slot, quiet empty state"
+    }
+  ]
+}

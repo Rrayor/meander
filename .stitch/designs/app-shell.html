@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — Offline Planner</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "primary-fixed-dim": "#3cddc7",
+            "secondary-container": "#46494e",
+            "text-muted": "#9AA0A6",
+            "on-surface": "#dde4e1",
+            "surface-dim": "#0e1513",
+            "inverse-on-surface": "#2b3230",
+            "error-container": "#93000a",
+            "on-primary-container": "#00574d",
+            "surface-container-high": "#242b2a",
+            "surface-container-highest": "#2f3634",
+            "on-error": "#690005",
+            "threshold-orange": "#FB923C",
+            "on-tertiary-fixed": "#2d1600",
+            "on-tertiary-container": "#744000",
+            "surface": "#1A1D21",
+            "primary-fixed": "#62fae3",
+            "on-secondary-fixed": "#191c20",
+            "threshold-blue": "#60A5FA",
+            "tertiary-fixed": "#ffdcc0",
+            "on-primary": "#0B1B19",
+            "threshold-violet": "#A78BFA",
+            "tertiary": "#ffd1aa",
+            "threshold-red": "#F87171",
+            "on-tertiary": "#4b2800",
+            "surface-bright": "#333b39",
+            "tertiary-container": "#ffac5a",
+            "surface-container": "#1a211f",
+            "border": "#2E3338",
+            "on-secondary-container": "#b6b8be",
+            "on-error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#ffb875",
+            "on-secondary": "#2e3135",
+            "inverse-surface": "#dde4e1",
+            "on-secondary-fixed-variant": "#44474b",
+            "surface-container-lowest": "#09100e",
+            "on-surface-variant": "#bacac5",
+            "surface-variant": "#2f3634",
+            "on-primary-fixed": "#00201c",
+            "background": "#121417",
+            "surface-raised": "#22262B",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "text": "#E8EAED",
+            "outline": "#859490",
+            "secondary-fixed": "#e1e2e8",
+            "primary": "#57f1db",
+            "primary-container": "#2dd4bf",
+            "secondary": "#c5c6cc",
+            "secondary-fixed-dim": "#c5c6cc",
+            "outline-variant": "#3c4a46",
+            "inverse-primary": "#006b5f",
+            "error": "#ffb4ab",
+            "on-primary-fixed-variant": "#005047",
+            "threshold-green": "#4ADE80",
+            "on-background": "#dde4e1",
+            "surface-container-low": "#161d1b",
+            "surface-tint": "#3cddc7"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "gutter": "16px",
+            "space-xl": "24px",
+            "space-xs": "4px",
+            "space-lg": "16px",
+            "space-md": "12px",
+            "margin": "24px",
+            "space-sm": "8px"
+          },
+          "fontFamily": {
+            "body": [
+              "Inter", "sans-serif"
+            ],
+            "display": [
+              "Inter", "sans-serif"
+            ],
+            "title": [
+              "Inter", "sans-serif"
+            ],
+            "label": [
+              "Inter", "sans-serif"
+            ]
+          },
+          "fontSize": {
+            "body": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "fontWeight": "400"
+              }
+            ],
+            "display": [
+              "24px",
+              {
+                "lineHeight": "32px",
+                "fontWeight": "600"
+              }
+            ],
+            "title": [
+              "16px",
+              {
+                "lineHeight": "24px",
+                "fontWeight": "600"
+              }
+            ],
+            "label": [
+              "12px",
+              {
+                "lineHeight": "16px",
+                "fontWeight": "500"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background text-text font-body antialiased selection:bg-surface-raised selection:text-primary">
+<div class="flex h-screen w-screen overflow-hidden">
+<!-- Left Navigation Rail (SideNavBar Shared Component) -->
+<aside class="w-56 h-screen flex flex-col justify-between p-space-lg bg-surface dark:bg-surface border-r border-border dark:border-border shrink-0 select-none">
+<!-- Top Section: Brand Anchor & Navigation Links -->
+<div class="flex flex-col gap-space-xl">
+<!-- Wordmark & Calm Offline Status -->
+<div class="flex items-center justify-between px-space-xs pt-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="font-title text-title font-semibold text-text dark:text-text tracking-tight">Meander</span>
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-primary" title="Offline and synced locally"></span>
+</div>
+<span class="font-label text-label text-text-muted tracking-tight">Offline</span>
+</div>
+<!-- Navigation Destination List -->
+<nav aria-label="Main Navigation" class="flex flex-col gap-1">
+<!-- Active Tab: Board -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg bg-surface-raised dark:bg-surface-raised text-primary dark:text-primary font-body text-body transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="calendar_view_week">calendar_view_week</span>
+<span class="font-body text-body font-medium text-text">Board</span>
+</a>
+<!-- Inactive Tab: Backlog -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted dark:text-text-muted font-body text-body hover:bg-surface-raised dark:hover:bg-surface-raised hover:text-text dark:hover:text-text transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="inventory_2">inventory_2</span>
+<span class="font-body text-body">Backlog</span>
+</a>
+<!-- Inactive Tab: Settings -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted dark:text-text-muted font-body text-body hover:bg-surface-raised dark:hover:bg-surface-raised hover:text-text dark:hover:text-text transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="settings">settings</span>
+<span class="font-body text-body">Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer Section: Workspace / Profile Switcher -->
+<div class="pt-space-md">
+<button class="w-full flex items-center justify-between px-space-md py-space-sm rounded-lg bg-surface-raised/40 hover:bg-surface-raised text-text-muted hover:text-text transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary border border-transparent hover:border-border" type="button">
+<div class="flex items-center gap-space-sm truncate">
+<span class="material-symbols-outlined text-[16px] text-text-muted shrink-0" data-icon="folder_open">folder_open</span>
+<span class="font-label text-label truncate">Default</span>
+</div>
+<span class="material-symbols-outlined text-[16px] text-text-muted shrink-0" data-icon="unfold_more">unfold_more</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 h-screen flex flex-col bg-background dark:bg-background overflow-hidden">
+<!-- TopNavBar Shared Component -->
+<header class="flex justify-between items-center w-full px-margin py-space-md bg-background dark:bg-background border-b border-border dark:border-border shrink-0">
+<!-- Canvas Title -->
+<div class="flex items-center gap-space-md">
+<h1 class="font-display text-display font-semibold text-text dark:text-text tracking-tight">Board</h1>
+<span class="font-label text-label text-text-muted px-2 py-0.5 rounded bg-surface border border-border/50">Week 42</span>
+</div>
+<!-- Trailing Calm Controls -->
+<div class="flex items-center gap-space-sm">
+<button aria-label="View options" class="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-raised transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="tune">tune</span>
+</button>
+<button aria-label="More actions" class="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-raised transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_horiz">more_horiz</span>
+</button>
+<div class="h-4 w-px bg-border mx-1"></div>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-raised text-text font-body text-body border border-border transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary" data-icon="add">add</span>
+<span>Add Task</span>
+</button>
+</div>
+</header>
+<!-- Center Work Surface: Calm Empty State -->
+<section class="flex-1 flex flex-col items-center justify-center p-margin overflow-auto">
+<div class="max-w-md w-full flex flex-col items-center text-center p-space-xl rounded-xl border border-border/40 bg-surface/30">
+<div class="w-10 h-10 rounded-lg bg-surface-raised flex items-center justify-center mb-space-md border border-border/60">
+<span class="material-symbols-outlined text-[20px] text-text-muted" data-icon="calendar_view_week">calendar_view_week</span>
+</div>
+<p class="font-body text-body text-text-muted">Your weekly board will appear here.</p>
+</div>
+</section>
+</main>
+</div>
+</body></html>
