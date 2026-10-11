@@ -1,4 +1,4 @@
-import { ROUTES } from "../../src/lib/routes";
+import { ROUTES } from "@/lib/routes";
 
 describe("Meander smoke", () => {
   it("launches and navigates between pages", async () => {

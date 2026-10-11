@@ -1,4 +1,4 @@
-import { ROUTES } from "../../src/lib/routes";
+import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
 

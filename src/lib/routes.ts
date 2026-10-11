@@ -1,10 +1,8 @@
 import { Inbox, Kanban, Settings } from "lucide-react";
 
-// Relative imports: test runners (Playwright, WebdriverIO) compile this module
-// without Vite, so the "@/" alias isn't available to them.
-import { BacklogPage } from "../pages/BacklogPage";
-import { BoardPage } from "../pages/BoardPage";
-import { SettingsPage } from "../pages/SettingsPage";
+import { BacklogPage } from "@/pages/BacklogPage";
+import { BoardPage } from "@/pages/BoardPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 
 export const ROUTES = [
   { path: "/", label: "Board", icon: Kanban, end: true, Component: BoardPage },
