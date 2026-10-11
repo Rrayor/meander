@@ -2,10 +2,14 @@
   "projectId": "13913036167073079695",
   "title": "Meander",
   "designSystem": {
-    "assetId": "91a79d7ca61041f8bf672d92e3cd1459",
+    "assetId": "253fc21b06474514bc22c4c97e83a667",
+    "previousAssetId": "91a79d7ca61041f8bf672d92e3cd1459",
     "source": ".stitch/DESIGN.md",
     "displayName": "Meander",
-    "colorMode": "DARK (default; light variant + user switch planned)"
+    "colorMode": "DARK (default; light variant + user switch planned)",
+    "revisions": [
+      "2026-10-11: 12-color threshold palette + palette-or-custom-picker rule per updated spec"
+    ]
   },
   "screens": [
     {

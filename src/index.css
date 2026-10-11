@@ -14,12 +14,20 @@
   --color-primary: #2dd4bf;
   --color-on-primary: #0b1b19;
 
-  /* Threshold tint pool (defaults only — user-configurable, always ~10-20% alpha) */
+  /* Threshold tint palette — user-configurable (palette pick or custom color
+     picker per spec); defaults drawn from here, always ~10-20% alpha tints */
   --color-threshold-red: #f87171;
   --color-threshold-orange: #fb923c;
-  --color-threshold-violet: #a78bfa;
-  --color-threshold-blue: #60a5fa;
+  --color-threshold-amber: #fbbf24;
+  --color-threshold-lime: #a3e635;
   --color-threshold-green: #4ade80;
+  --color-threshold-emerald: #34d399;
+  --color-threshold-cyan: #22d3ee;
+  --color-threshold-blue: #60a5fa;
+  --color-threshold-indigo: #818cf8;
+  --color-threshold-violet: #a78bfa;
+  --color-threshold-fuchsia: #e879f9;
+  --color-threshold-pink: #f472b6;
 }
 
 body {

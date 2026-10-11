@@ -280,7 +280,11 @@ Each task can have a time estimate. In case of repeated tasks the owning task ca
 
 Thresholds can be set up to help the user notice if they planned too much for any given day. The most basic setup is a single global threshold. The user can choose to plan at most X hours of stuff each day (need to sleep some time :D). When the threshold is reached by the estimation total for the day, the background of the column turns to a certain color. The color can be set by the user, but in this most simple case a default red seems sensible.
 
-Thresholds can be set per category too. In this case a per day threshold is set up per category which is also displayed on the kanban board. When a category threshold is reached for a given day, the column background changes to the color set for the threshold. However, in this case the cards belonging to that category will also get a background tint of that color to highlight which items are problematic. For per-category thresholds the colors can also be set by the user but the defaults could be random based on a contrast ratio. (chosen from a predefined set of colors or calculated on the fly to contrast).
+Threshold colors are always user-configurable — this holds for the global threshold and every per-category threshold. When choosing a color, the user can either pick one from a predefined palette or define a fully custom color via a color picker. The predefined palette contains at least 10–12 distinct colors that stay legible and distinguishable on the application surfaces.
+
+Thresholds can be set per category too. In this case a per day threshold is set up per category which is also displayed on the kanban board. When a category threshold is reached for a given day, the column background changes to the color set for the threshold. However, in this case the cards belonging to that category will also get a background tint of that color to highlight which items are problematic. Default colors for per-category thresholds are assigned from the predefined palette (distinct hues for distinct categories).
+
+Wherever threshold "background colors" are mentioned, they are background tints: the threshold color rendered as a muted, low-opacity overlay on the surface — never a saturated solid fill. The same holds for gradients between multiple reached thresholds.
 
 If multiple thresholds are reached for a given day, the background of the column will be a gradient between the set colors.
 
@@ -294,8 +298,10 @@ There is another detail to threshold settings and it's relevant for both of the 
 - When the global threshold is reached the background tint of the column representing the day changes to the given color for that threshold
 - Per category thresholds can be set up
 - A color can be set for each per category threshold
-- By default the colors for per category thresholds are random
-- The random colors for per category thresholds are contrasty enough (Either chosen from a predefined set or calculated on the fly)
+- By default the colors for per category thresholds are assigned from the predefined palette
+- The predefined color palette contains at least 10-12 distinct colors that remain legible and distinguishable on the app surfaces
+- For every threshold the user can choose a color from the palette or define a custom color via a color picker
+- Threshold colors are applied as background tints — muted, low-opacity overlays — never as saturated solid fills
 - When a per category threshold is reached for a day, the background tint for the column representing the day changes to the color of the threshold
 - When a per category threshold is reached for a day, the background tint for the cards belonging to the category change to the color of the threshold
 - If multiple thresholds are reached at the same time, the bacground tints become a gradient between the colors involved

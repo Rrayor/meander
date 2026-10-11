@@ -31,19 +31,29 @@ user-switchable. Treat dark as the primary canvas in all generated screens.
 
 ### Threshold tint palette
 
-Threshold colors are **user-configurable**; this palette is the pool that
-default per-category colors are drawn from, and the global threshold's default
-is `threshold-red`. All threshold colors apply exclusively as **tints** —
-the color at 10–20% alpha over the surface, never as saturated fills. Columns,
-cards, and gradients between multiple reached thresholds all follow this rule.
-No traffic-light semantics: a tint means "this threshold was reached", nothing
+Threshold colors are **always user-configurable**: for every threshold the user
+either picks from this predefined palette or defines a fully custom color via a
+color picker. The palette is the pool that default per-category colors are
+drawn from, and the global threshold's default is `threshold-red`.
+
+All threshold colors apply exclusively as **tints** — the color at 10–20%
+alpha over the surface, never as saturated fills. Columns, cards, and
+gradients between multiple reached thresholds all follow this rule. No
+traffic-light semantics: a tint means "this threshold was reached", nothing
 else.
 
 - `threshold-red` — `#F87171`
 - `threshold-orange` — `#FB923C`
-- `threshold-violet` — `#A78BFA`
-- `threshold-blue` — `#60A5FA`
+- `threshold-amber` — `#FBBF24`
+- `threshold-lime` — `#A3E635`
 - `threshold-green` — `#4ADE80`
+- `threshold-emerald` — `#34D399`
+- `threshold-cyan` — `#22D3EE`
+- `threshold-blue` — `#60A5FA`
+- `threshold-indigo` — `#818CF8`
+- `threshold-violet` — `#A78BFA`
+- `threshold-fuchsia` — `#E879F9`
+- `threshold-pink` — `#F472B6`
 
 ## 3. Typography
 
