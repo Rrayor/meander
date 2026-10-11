@@ -44,6 +44,46 @@ pub async fn connect(path: &Path) -> Result<SqlitePool> {
     Ok(pool)
 }
 
+/// Opens `path` read-only and verifies it is a compatible Meander database:
+/// `meander_meta` must exist and every applied migration must be in the
+/// app's known migration set. The candidate is never modified — the check
+/// does not run migrations.
+pub async fn check_compatible(path: &Path) -> Result<()> {
+    let options = SqliteConnectOptions::new().filename(path).read_only(true);
+    let pool = SqlitePool::connect_with(options).await?;
+    let has_table = |name: &'static str| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
+            )
+            .bind(name)
+            .fetch_one(&pool)
+            .await
+        }
+    };
+    if !has_table("meander_meta").await? {
+        return Err(DbError::Incompatible("missing meander_meta table".into()));
+    }
+    if has_table("_sqlx_migrations").await? {
+        let applied: Vec<i64> =
+            sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success = 1")
+                .fetch_all(&pool)
+                .await?;
+        let known: std::collections::HashSet<i64> = sqlx::migrate!("./migrations")
+            .migrations
+            .iter()
+            .map(|m| m.version)
+            .collect();
+        if let Some(&v) = applied.iter().find(|v| !known.contains(v)) {
+            return Err(DbError::Incompatible(format!(
+                "database was created by a newer version (unknown migration {v})"
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

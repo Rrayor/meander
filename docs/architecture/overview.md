@@ -36,7 +36,8 @@ We use database migrations for maintainability and future proofing.
 
 - `src-tauri/src/db/` is the connection layer: `db::connect(path)` opens (or creates) a SQLite file with WAL + foreign keys and applies all pending migrations from `src-tauri/migrations/` via sqlx; `db::default_path()` resolves the conventional location.
 - The default database is portable: `meander.db` at the repository root in dev builds (gitignored), next to the executable in release builds.
-- `src-tauri/src/state.rs` (`AppState`, managed by Tauri) owns the active pool and path; `reconnect` swaps the pool only after a candidate connects successfully.
+- `src-tauri/src/state.rs` (`AppState`, managed by Tauri) owns the active pool and path; `reconnect` validates the candidate with `db::check_compatible` (requires `meander_meta` and an applied-migration set contained in the app's known migrations) and swaps the pool only on success — the current database is untouched on any failure.
+- `src-tauri/src/config.rs` persists application-level settings (`config.json` in the app config dir): the selected database path, needed before a db can be opened. Missing, corrupt, or pointing-at-a-deleted-file config falls back to the default path. Profile-scoped settings live inside the database, keyed to a profile.
 - Tauri commands live in `src-tauri/src/commands/` and stay thin (deserialize → service → serialize).
 
 ## Testing

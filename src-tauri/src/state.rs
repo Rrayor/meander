@@ -7,6 +7,7 @@ use crate::db::{self, Result};
 
 /// Application state managed by Tauri. Holds the active database pool and
 /// the path it was opened from.
+#[derive(Debug)]
 pub struct AppState {
     pool: RwLock<SqlitePool>,
     path: RwLock<PathBuf>,
@@ -29,9 +30,11 @@ impl AppState {
         self.path.read().expect("db path lock poisoned").clone()
     }
 
-    /// Opens a candidate database and swaps the active pool only if the
-    /// connection succeeds.
+    /// Swaps the active pool to `path` only if the candidate passes the
+    /// compatibility check and connects cleanly — the current pool is
+    /// untouched on any failure.
     pub async fn reconnect(&self, path: &Path) -> Result<()> {
+        db::check_compatible(path).await?;
         let pool = db::connect(path).await?;
         *self.pool.write().expect("db pool lock poisoned") = pool;
         *self.path.write().expect("db path lock poisoned") = path.to_path_buf();
