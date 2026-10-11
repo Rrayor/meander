@@ -1,21 +1,18 @@
-import { expect, test } from "./fixtures";
+import { ROUTES } from "../../src/lib/routes";
 
-const pages = [
-  { label: "Board", url: "/#/" },
-  { label: "Backlog", url: "/#/backlog" },
-  { label: "Settings", url: "/#/settings" },
-] as const;
+import { expect, test } from "./fixtures";
 
 test("main navigation exposes every page", async ({ page }) => {
   await page.goto("/");
 
   const nav = page.getByRole("navigation", { name: "Main Navigation" });
-  for (const { label } of pages) {
+  for (const { label } of ROUTES) {
     await expect(nav.getByRole("link", { name: label })).toBeVisible();
   }
 });
 
-for (const { label, url } of pages) {
+for (const { label, path } of ROUTES) {
+  const url = `/#${path}`;
   test(`navigates to ${label}`, async ({ page }) => {
     await page.goto("/");
 

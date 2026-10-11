@@ -1,11 +1,7 @@
-import { Inbox, Kanban, Settings } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
-const items = [
-  { to: "/", label: "Board", icon: Kanban, end: true },
-  { to: "/backlog", label: "Backlog", icon: Inbox, end: false },
-  { to: "/settings", label: "Settings", icon: Settings, end: false },
-];
+import { ROUTES } from "@/lib/routes";
 
 export function SideNav() {
   return (
@@ -17,10 +13,10 @@ export function SideNav() {
           </span>
         </div>
         <nav aria-label="Main Navigation" className="flex flex-col gap-1">
-          {items.map(({ to, label, icon: Icon, end }) => (
+          {ROUTES.map(({ path, label, icon: Icon, end }) => (
             <NavLink
-              key={to}
-              to={to}
+              key={path}
+              to={path}
               end={end}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary ${
