@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { COMMANDS } from "@/api/commands";
+
 export interface Profile {
   id: number;
   name: string;
@@ -7,6 +9,6 @@ export interface Profile {
   updated_at: string;
 }
 
-export const listProfiles = () => invoke<Profile[]>("list_profiles");
+export const listProfiles = () => invoke<Profile[]>(COMMANDS.listProfiles);
 
-export const currentProfile = () => invoke<Profile>("current_profile");
+export const currentProfile = () => invoke<Profile>(COMMANDS.currentProfile);

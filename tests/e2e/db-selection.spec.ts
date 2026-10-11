@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
@@ -8,7 +9,7 @@ const settingsPath = ROUTES.find((r) => r.label === "Settings")!.path;
 
 function stubBackend(page: Page, options: { selectError?: string } = {}) {
   return page.addInitScript(
-    ({ selectError }) => {
+    ({ selectError, commands }) => {
       (
         window as unknown as {
           __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<unknown> };
@@ -16,11 +17,11 @@ function stubBackend(page: Page, options: { selectError?: string } = {}) {
       ).__TAURI_INTERNALS__ = {
         invoke: async (cmd: string) => {
           switch (cmd) {
-            case "current_db_path":
+            case commands.currentDbPath:
               return "/data/meander.db";
-            case "plugin:dialog|open":
+            case commands.dialogOpen:
               return "/data/other.db";
-            case "select_database_file":
+            case commands.selectDatabaseFile:
               if (selectError) throw new Error(selectError);
               return "/data/other.db";
             default:
@@ -29,7 +30,7 @@ function stubBackend(page: Page, options: { selectError?: string } = {}) {
         },
       };
     },
-    { selectError: options.selectError },
+    { selectError: options.selectError, commands: COMMANDS },
   );
 }
 
