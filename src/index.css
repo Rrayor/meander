@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-sans: "Inter Variable", "Inter", sans-serif;
+
+  /* Dark theme (default) — from .stitch/DESIGN.md */
+  --color-background: #121417;
+  --color-surface: #1a1d21;
+  --color-surface-raised: #22262b;
+  --color-text: #e8eaed;
+  --color-text-muted: #9aa0a6;
+  --color-border: #2e3338;
+  --color-primary: #2dd4bf;
+  --color-on-primary: #0b1b19;
+
+  /* Threshold tint pool (defaults only — user-configurable, always ~10-20% alpha) */
+  --color-threshold-red: #f87171;
+  --color-threshold-orange: #fb923c;
+  --color-threshold-violet: #a78bfa;
+  --color-threshold-blue: #60a5fa;
+  --color-threshold-green: #4ade80;
+}
+
+body {
+  @apply bg-background text-text font-sans antialiased;
+}
