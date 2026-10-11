@@ -11,18 +11,9 @@ export function SideNav() {
   return (
     <aside className="flex h-screen w-56 shrink-0 select-none flex-col justify-between border-r border-border bg-surface p-4">
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between px-1 pt-1">
-          <div className="flex items-center gap-2">
-            <span className="text-base font-semibold tracking-tight text-text">
-              Meander
-            </span>
-            <span
-              className="inline-block h-1.5 w-1.5 rounded-full bg-primary"
-              title="Offline"
-            />
-          </div>
-          <span className="text-xs font-medium tracking-tight text-text-muted">
-            Offline
+        <div className="px-1 pt-1">
+          <span className="text-base font-semibold tracking-tight text-text">
+            Meander
           </span>
         </div>
         <nav aria-label="Main Navigation" className="flex flex-col gap-1">
