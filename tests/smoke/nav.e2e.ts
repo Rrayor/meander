@@ -11,4 +11,11 @@ describe("Meander smoke", () => {
       await expect($("h1")).toHaveText(label);
     }
   });
+
+  it("shows the active profile in the footer switcher", async () => {
+    const switcher = await $("aside").$("aria/Default");
+    await expect(switcher).toExist();
+    await switcher.click();
+    await expect($("ul[role='listbox']")).toExist();
+  });
 });

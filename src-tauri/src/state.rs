@@ -61,6 +61,14 @@ impl AppState {
             .expect("active profile lock poisoned")
     }
 
+    /// Selects `id` as the active profile if it exists — the current
+    /// selection is untouched when it does not.
+    pub async fn switch_profile(&self, id: i64) -> Result<()> {
+        profiles::get(&self.pool(), id).await?;
+        self.set_active_profile(id);
+        Ok(())
+    }
+
     pub fn set_active_profile(&self, id: i64) {
         *self
             .active_profile_id
