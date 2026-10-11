@@ -98,9 +98,4 @@ jobs:
         run: cargo build --release --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol
 
       - name: Smoke tests (WebdriverIO)
-        run: |
-          if ! compgen -G 'tests/smoke/*.ts' > /dev/null; then
-            echo "No smoke specs yet — skipping"
-            exit 0
-          fi
-          xvfb-run -a npm run test:smoke
+        run: xvfb-run -a npm run test:smoke
