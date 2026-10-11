@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TAURI_DEPS: >-
+    libwebkit2gtk-4.1-dev
+    libgtk-3-dev
+    libsoup-3.0-dev
+    libayatana-appindicator3-dev
+    librsvg2-dev
+    libssl-dev
+    webkit2gtk-driver
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $TAURI_DEPS
+
+      - name: Format
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Tests (unit + cucumber acceptance)
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint (eslint + prettier)
+        run: npm run lint
+
+      - name: Unit tests (vitest)
+        run: npm run test
+
+      - name: Playwright e2e
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $TAURI_DEPS xvfb
+
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+
+      - run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build release binary (custom-protocol embeds the frontend)
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol
+
+      - name: Smoke tests (WebdriverIO)
+        run: xvfb-run -a npm run test:smoke
