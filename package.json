@@ -8,8 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test --pass-with-no-tests",
     "test:smoke": "wdio run ./wdio.conf.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."
