@@ -13,6 +13,10 @@ const CONFIG_FILENAME: &str = "config.json";
 pub struct Config {
     #[serde(default)]
     pub database_path: Option<PathBuf>,
+    /// Restored at startup so the app reopens with the profile in use
+    /// when it was last closed.
+    #[serde(default)]
+    pub last_profile_id: Option<i64>,
 }
 
 impl Config {

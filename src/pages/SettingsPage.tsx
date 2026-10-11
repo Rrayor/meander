@@ -1,4 +1,5 @@
 import { DatabaseSection } from "@/features/settings/DatabaseSection";
+import { ProfilesSection } from "@/features/settings/ProfilesSection";
 
 export function SettingsPage() {
   return (
@@ -9,7 +10,10 @@ export function SettingsPage() {
         </h1>
       </header>
       <div className="flex-1 overflow-y-auto p-6">
-        <DatabaseSection />
+        <div className="flex max-w-3xl flex-col gap-8">
+          <ProfilesSection />
+          <DatabaseSection />
+        </div>
       </div>
     </>
   );

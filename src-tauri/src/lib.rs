@@ -3,6 +3,7 @@ use tauri::Manager;
 pub mod commands;
 pub mod config;
 pub mod db;
+pub mod profiles;
 pub mod state;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,13 +17,14 @@ pub fn run() {
                 &config,
                 &db::default_path()?,
             ))?;
-            tauri::async_runtime::block_on(db::seed(&state.pool()))?;
             app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::current_db_path,
-            commands::select_database_file
+            commands::select_database_file,
+            commands::list_profiles,
+            commands::current_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
