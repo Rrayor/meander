@@ -4,5 +4,4 @@ src-tauri
 playwright-report
 test-results
 package-lock.json
-src-tauri/Cargo.lock
 .superpowers
