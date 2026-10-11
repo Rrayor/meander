@@ -2,11 +2,13 @@
 
 ## Technological stack
 
-- Tauri application: Rust "backend", Angular frontend
-- Angular Material
+- Tauri application: Rust "backend", React frontend (built with Vite)
+- Tailwind CSS + shadcn/ui
 - SQLite database
-- Playwright for e2e testing
-- Cucumber for acceptance testing
+- Vitest + React Testing Library for frontend unit/component tests
+- Playwright for frontend e2e testing (against the Vite dev server)
+- cucumber-rs for acceptance testing (Rust service layer)
+- WebdriverIO (`@wdio/tauri-service`) for real-app smoke tests
 - GitHub actions for CI/CD
 - Starlight for user guides
 
@@ -18,7 +20,13 @@ This is both for separation of concerns and to allow for a possible migration to
 
 Database interactions need to be more robust for this reason than the minimum requirement of interacting with SQLite. We have a persistence layer responsible for transforming Rust objects into database entities and vice versa, a connection layer that currently only allows for connecting to SQLite but it is set up so in the future other SQL databases can be easily connected as well. And we have a service layer, where every operation happens with the involvement of Rust objects representing database entities. Business logic and validation happen here.
 
-The frontend is an Angular Material application which already comes with it's own strict modularization requirements and conventions.
+The frontend is a React application built with Vite, styled with Tailwind CSS and composed from shadcn/ui components. React doesn't enforce structure the way Angular does, so the frontend follows explicit conventions:
+
+- Feature-based structure: `src/features/<domain>` (kanban, backlog, categories, profiles, settings, ...) holds that domain's components, hooks and API calls. Route-level views stay thin — they compose feature components and hold no logic themselves.
+- Backend communication is isolated in an API layer wrapping Tauri `invoke` calls in typed functions. Components never call `invoke` directly; they consume backend state through hooks. TypeScript types for backend entities are declared in one shared place so they stay in sync with the Rust objects.
+- Consistent with the backend boundary: the Rust side owns state consistency and validation. The frontend may mirror validation for UX (e.g. form feedback) but never duplicates business rules.
+- shadcn/ui primitives live in `src/components/ui` and aren't modified in place. Shared composed components live in `src/components` and reusable cross-feature hooks in `src/hooks`.
+- UI work is designed with Stitch first (see `docs/CONTRIBUTION.md`): generated screens are converted into modular components following the above conventions rather than copied as raw markup.
 
 ## Migrations
 
@@ -26,7 +34,14 @@ We use database migrations for maintainability and future proofing.
 
 ## Testing
 
-As the development is AI assisted testing is an even more pronounced requirement. Every development has to be validated through thorough unit testing, e2e testing via playwright and acceptance testing via Cucumber.
+As the development is AI assisted testing is an even more pronounced requirement. Testing is layered:
+
+- **Unit tests**: `cargo test` for the backend, Vitest + React Testing Library for frontend components.
+- **Acceptance tests**: cucumber-rs runs Gherkin `.feature` files under `cargo test` directly against the service layer and the seeded test database. Most acceptance criteria are business rules, so they are validated where the logic lives — not through the UI.
+- **Frontend e2e tests**: Playwright runs against the Vite dev server with the Tauri API layer mocked. Fast and stable for UI behavior like drag and drop and board rendering.
+- **Real-app smoke tests**: a thin WebdriverIO suite via `@wdio/tauri-service` (embedded webdriver provider) verifies the actual binary and webview — app startup and a small number of end-to-end flows against the real backend.
+
+Tauri command handlers are kept thin (deserialize -> service -> serialize) so service layer tests cover the business logic.
 
 Benchmarks are also set up to guard performance.
 

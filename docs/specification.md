@@ -14,6 +14,7 @@ Main features include:
   - If the task is configured to be dismissed at the end of the week if incomplete (The default for repeating tasks), it won't get added to the new week's board
   - If the configuration is missing on the task, the user will be asked to choose an action of the above when they open the new week's board
 - The application can be configured to start the weeks on any day, but the default week start is Monday.
+- The days of the week that count as work days can be configured (Default: Monday-Friday). Used by workday-aware repetition schedules (e.g. "the first workday after the 11th of the month").
 - Tasks can be scheduled and moved between states via drag and drop or state changing buttons in their details view (where any attached notes can also be viewed)
 - Tasks can have duration estimates which are displayed on the cards and the task details. The daily total estimate is also displayed for each day.
 - The user can specify global thresholds for time estimates which will result in color coding background tint for the columns. (e.g. 4 hours: blue, 8 hours: green, 12 hours: red). The thresholds and colors are user specified, but some sensible defaults can be provided. Different rules can apply for different days of the week, but by default a single setting is used for all days.
@@ -31,11 +32,12 @@ Non-functional requirements:
 - As fast and small as possible without sacrificing maintainability
 
 Tech stack:
-- Tauri application: Rust "backend", Angular frontend
-- Angular Material
+- Tauri application: Rust "backend", React frontend (built with Vite)
+- Tailwind CSS + shadcn/ui
 - SQLite database
-- Playwright for e2e testing
-- Cucumber for acceptance testing
+- Playwright for frontend e2e testing (Vite dev server, Tauri API mocked)
+- cucumber-rs for acceptance testing (Rust service layer)
+- WebdriverIO (@wdio/tauri-service) for real-app smoke tests
 
 ## Feature specifications
 
@@ -109,7 +111,11 @@ When creating or editing a task, it should be allowed to set to repeat weekly, m
 
 If a repetition schedule is set that would conflict with the calendar (for example the schedule would require the 31st of a 30 day month), the last valid day before the desired date should be chosen (in the example before the 30th or a 28th/29th in a february).
 
-A start and end date must be set by the user. By default the start date is the current date or the next fitting date (e.g. if the schedule is every Monday, and today is not a Monday, than the start date will default to the next Monday). The end date can ommitted, in which case the task will repeat indefinitely. This is the default.
+The examples above define the minimum required expressiveness; the exact closed set of supported recurrence options is to be finalized during implementation planning.
+
+For repetition scheduling, a "workday" is a day of the week the user has marked as a work day in the application settings. By default Monday through Friday count as work days.
+
+A start date must be set by the user; specifying an end date is optional. By default the start date is the current date or the next fitting date (e.g. if the schedule is every Monday, and today is not a Monday, than the start date will default to the next Monday). The end date can ommitted, in which case the task will repeat indefinitely. This is the default.
 
 **Acceptance Criteria:**
 - Repetitions can be set when creating or editing a task
@@ -119,6 +125,7 @@ A start and end date must be set by the user. By default the start date is the c
 - A start and end date can be specified. The start date defaults based on the described rule
 - The end date can be ommitted
 - If the end date is ommitted, the task will repeat indefinitely
+- The days of the week that count as work days can be configured in the application settings (Default: Monday-Friday)
 
 ### Creating/updating/deleting repeating tasks
 
