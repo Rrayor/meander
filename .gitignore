@@ -33,3 +33,7 @@ rustc-ice-*.txt
 playwright-report
 test-results
 node_modules
+
+# Local database
+data/
+meander.db*

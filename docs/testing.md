@@ -24,6 +24,10 @@ Feature files live in `src-tauri/tests/features/`, step definitions and the
 `harness = false`). Steps call `meander_lib` functions directly — Tauri command
 handlers stay thin so business logic is covered here, not through the UI.
 
+Tests that need a database use `tests/support` helpers: `temp_db_path()` gives
+each scenario a unique file under the system temp dir, so databases never touch
+the working tree. `db::seed` marks a fresh database via `meander_meta`.
+
 ## Smoke tests (WebdriverIO)
 
 `npm run test:smoke` launches the real Tauri binary through `tauri-driver` and

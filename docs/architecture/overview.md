@@ -32,6 +32,13 @@ The frontend is a React application built with Vite, styled with Tailwind CSS an
 
 We use database migrations for maintainability and future proofing.
 
+## Persistence layer
+
+- `src-tauri/src/db/` is the connection layer: `db::connect(path)` opens (or creates) a SQLite file with WAL + foreign keys and applies all pending migrations from `src-tauri/migrations/` via sqlx; `db::default_path()` resolves the conventional location.
+- The default database is portable: `meander.db` at the repository root in dev builds (gitignored), next to the executable in release builds.
+- `src-tauri/src/state.rs` (`AppState`, managed by Tauri) owns the active pool and path; `reconnect` swaps the pool only after a candidate connects successfully.
+- Tauri commands live in `src-tauri/src/commands/` and stay thin (deserialize → service → serialize).
+
 ## Testing
 
 As the development is AI assisted testing is an even more pronounced requirement. Testing is layered:
