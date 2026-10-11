@@ -36,11 +36,13 @@
 Implements repo-plan step 1. Branch: `chore/step-01-tauri-scaffold`.
 
 **Files:**
+
 - Create: entire app scaffold — `package.json`, `index.html`, `vite.config.ts`, `tsconfig*.json`, `src/`, `src-tauri/` (moved in from a temp scaffold dir)
 - Create: `src/test/setup.ts`, `src/App.test.tsx`
 - Modify: `vite.config.ts` (tailwind + test config), `src/index.css` (tailwind import), `src/App.tsx` (demo component), `tsconfig.json` + `tsconfig.app.json` (`@/` path alias), `vite.config.ts` (resolve alias)
 
 **Interfaces:**
+
 - Produces: `npm run dev` serves on `http://localhost:1420`; `npm run test` runs Vitest; `cargo test --manifest-path src-tauri/Cargo.toml` runs Rust tests; `src-tauri/src/lib.rs` exposes `pub fn run()` and `pub fn health() -> &'static str` (dummy, returns `"ok"`); `npm run tauri dev` opens a window showing a heading and a shadcn `Button`.
 
 - [ ] **Step 1: Update Rust toolchain**
@@ -54,6 +56,7 @@ Expected: rustc >= 1.85.
 npx create-tauri-app@latest meander-scaffold -t react-ts -m npm --identifier com.github.rrayor.meander -y
 mv meander-scaffold/* meander-scaffold/.[!.]* . && rmdir meander-scaffold
 ```
+
 Verify: `ls` shows `package.json`, `src/`, `src-tauri/` at repo root alongside `docs/`; `git status` shows only new files, no modifications to `docs/` or `AGENTS.md`.
 
 - [ ] **Step 3: Install deps and verify the bare scaffold**
@@ -71,6 +74,7 @@ Expected: dev server starts, webview opens, no panic in output before timeout ki
 ```bash
 npm i -D tailwindcss @tailwindcss/vite
 ```
+
 In `vite.config.ts` add `tailwindcss()` to plugins. Replace `src/App.css` contents (or create `src/index.css` and import it in `main.tsx`) with `@import "tailwindcss";` and remove template CSS that fights it.
 Verify: `npm run dev` still builds; `class="bg-red-500"` on any element visibly applies.
 
@@ -82,6 +86,7 @@ Add to `tsconfig.json` `compilerOptions`: `"baseUrl": ".", "paths": { "@/*": [".
 npx shadcn@latest init -d -y
 npx shadcn@latest add button
 ```
+
 Expected: `components.json` created; `src/components/ui/button.tsx` exists.
 
 - [ ] **Step 7: Demo component in App.tsx**
@@ -97,6 +102,7 @@ In `src-tauri/src/lib.rs` add `pub fn health() -> &'static str { "ok" }` next to
 ```bash
 npm i -D vitest @testing-library/react @testing-library/jest-dom jsdom
 ```
+
 Add to `vite.config.ts`: `test: { environment: 'jsdom', globals: true, setupFiles: './src/test/setup.ts' }` and a `/// <reference types="vitest" />` reference. Create `src/test/setup.ts` with `import '@testing-library/jest-dom'`. Create `src/App.test.tsx` asserting the `Meander` heading and `It works` button render. Add `"test": "vitest run"` to `package.json` scripts.
 Run: `npm run test` — Expected: PASS.
 
@@ -106,6 +112,7 @@ Run: `npm run test` — Expected: PASS.
 git add -A && git commit -m "chore: scaffold tauri 2 + react + tailwind + shadcn/ui"
 git push -u origin chore/step-01-tauri-scaffold
 ```
+
 Tell the user the branch is pushed and the PR is ready to open against `main`.
 
 ---
@@ -115,10 +122,12 @@ Tell the user the branch is pushed and the PR is ready to open against `main`.
 Implements repo-plan step 2. Branch: `test/step-02-playwright`.
 
 **Files:**
+
 - Create: `playwright.config.ts`, `tests/e2e/fixtures.ts`, `tests/e2e/demo.spec.ts`
 - Modify: `package.json` (add `test:e2e` script)
 
 **Interfaces:**
+
 - Consumes: `npm run dev` on port 1420 (Task 1).
 - Produces: `test:e2e` script; `tests/e2e/fixtures.ts` exporting a `test` object that stubs `window.__TAURI_INTERNALS__.invoke` — later plans import this fixture instead of `@playwright/test` directly.
 
@@ -127,6 +136,7 @@ Implements repo-plan step 2. Branch: `test/step-02-playwright`.
 ```bash
 npm i -D @playwright/test && npx playwright install chromium
 ```
+
 Expected: browser downloads. If launch later fails on missing libs, give the user the `dnf install` line from Global Constraints — do not sudo.
 
 - [ ] **Step 2: Config**
@@ -159,10 +169,12 @@ git push -u origin test/step-02-playwright
 Implements repo-plan step 3. Branch: `test/step-03-cucumber`.
 
 **Files:**
+
 - Create: `src-tauri/tests/cucumber.rs`, `src-tauri/tests/features/dummy.feature` (features dir lives next to the test target per cucumber-rs convention)
 - Modify: `src-tauri/Cargo.toml` (dev-dependencies + `[[test]]` entry)
 
 **Interfaces:**
+
 - Consumes: `health() -> &'static str` from `src-tauri/src/lib.rs` (Task 1).
 - Produces: `cargo test --test cucumber` runs `.feature` files against the crate's library API — the pattern every service-layer acceptance test follows (World struct + `#[given]/#[when]/#[then]` + `tokio::runtime` or futures executor).
 
@@ -171,6 +183,7 @@ Implements repo-plan step 3. Branch: `test/step-03-cucumber`.
 ```bash
 cd src-tauri && cargo add cucumber --dev
 ```
+
 Add to `Cargo.toml`: `[[test]] name = "cucumber" harness = false` and confirm a `[lib]` target exists (Tauri 2 template provides one; if not, add `path = "src/lib.rs"`).
 
 - [ ] **Step 2: Dummy feature**
@@ -200,10 +213,12 @@ git push -u origin test/step-03-cucumber
 Implements repo-plan step 4. Branch: `test/step-04-wdio-smoke`.
 
 **Files:**
+
 - Create: `wdio.conf.ts`, `tests/smoke/app.e2e.ts`
 - Modify: `package.json` (`test:smoke` script), `.gitignore` if the service writes artifacts
 
 **Interfaces:**
+
 - Consumes: the scaffolded app binary (Task 1).
 - Produces: `npm run test:smoke` launches the real Tauri app under tauri-driver and runs `tests/smoke/*.e2e.ts`. One assertion only: the window's `h1` contains `Meander`.
 
@@ -213,6 +228,7 @@ Implements repo-plan step 4. Branch: `test/step-04-wdio-smoke`.
 cargo install tauri-driver --locked
 npm i -D @wdio/cli @wdio/local-runner @wdio/mocha-framework @wdio/spec-reporter @wdio/tauri-service
 ```
+
 Expected: `tauri-driver --version` works. cargo install compiles from source — allow time.
 
 - [ ] **Step 2: Config**
@@ -247,10 +263,12 @@ git push -u origin test/step-04-wdio-smoke
 Implements repo-plan step 5. Branch: `chore/step-05-lint-hooks`. Hooks check formatting/linting/commit-messages only — never tests.
 
 **Files:**
+
 - Create: `lefthook.yml`, `commitlint.config.js`, `.prettierrc`, `.prettierignore`
 - Modify: `package.json` (`lint`, `format`/`format:check` scripts), eslint config if needed to cover `tests/`
 
 **Interfaces:**
+
 - Produces: `npm run lint` (eslint + prettier --check) and `npm run format`; `lefthook install` wires `pre-commit` (cargo fmt --check, cargo clippy -D warnings, prettier --check, eslint) and `commit-msg` (commitlint) hooks for anyone who runs `npm install` + `npx lefthook install`.
 
 - [ ] **Step 1: Install lint tooling**
@@ -263,6 +281,7 @@ npm i -D lefthook @commitlint/cli @commitlint/config-conventional prettier
 
 `commitlint.config.js`: `export default { extends: ['@commitlint/config-conventional'] }`. `.prettierrc`: minimal (e.g. `{ "semi": true, "singleQuote": true }` — match whatever the scaffolded code already looks like). `.prettierignore`: `node_modules`, `dist`, `src-tauri/target`, `playwright-report`, `test-results`, `src/components/ui` is NOT ignored (shadcn code is ours to format).
 `lefthook.yml`:
+
 ```yaml
 pre-commit:
   parallel: true
@@ -303,9 +322,11 @@ git push -u origin chore/step-05-lint-hooks
 Implements repo-plan step 6. Branch: `ci/step-06-github-actions`. Remote is `git@github.com:Rrayor/meander.git`.
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Consumes: every script produced in Tasks 1–5 (`npm run test`, `test:e2e`, `test:smoke`, `lint`; cargo fmt/clippy/test/cucumber).
 - Produces: CI runs on `pull_request` and `push` to `main`. Three jobs: `rust`, `frontend`, `smoke`.
 
@@ -336,10 +357,12 @@ git push -u origin ci/step-06-github-actions
 Implements repo-plan step 7. Branch: `chore/step-07-remove-dummies`.
 
 **Files:**
+
 - Delete: `src/App.test.tsx`, `tests/e2e/demo.spec.ts`, `tests/smoke/app.e2e.ts`, `src-tauri/tests/features/dummy.feature`, the dummy steps in `src-tauri/tests/cucumber.rs`, `pub fn health()` in `src-tauri/src/lib.rs`, the demo `<Button>` in `src/App.tsx`, `src/components/ui/button.tsx` if unused (shadcn components are added on demand — removing an unused one is correct)
 - Modify: `src/App.tsx` → minimal placeholder (`<h1>Meander</h1>` only); `tests/cucumber.rs` keeps the World skeleton and runner `main` with zero scenarios — the harness stays, the dummy goes
 
 **Interfaces:**
+
 - Produces: clean base — harnesses installed and runnable, no demo code. `npm run test` reports no tests found (exit 0 via `vitest run --passWithNoTests` — add the flag when deleting the only test); cucumber runs zero scenarios green; e2e/smoke specs absent until real features add them.
 
 - [ ] **Step 1: Delete the artifacts and add `--passWithNoTests`**

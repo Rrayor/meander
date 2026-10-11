@@ -2,13 +2,13 @@
 
 Meander uses four test layers (see `docs/architecture/overview.md` for the rationale).
 
-| Layer | Command | What it runs |
-|-------|---------|--------------|
-| Frontend unit | `npm run test` | Vitest + React Testing Library, jsdom |
-| Frontend e2e | `npm run test:e2e` | Playwright against the Vite dev server, Tauri API mocked |
-| Acceptance | `cargo test --test cucumber` (in `src-tauri/`) | cucumber-rs `.feature` files against the service layer |
-| Smoke | `npm run test:smoke` | WebdriverIO + tauri-driver against the real built app |
-| Rust unit | `cargo test` (in `src-tauri/`) | Standard Rust tests |
+| Layer         | Command                                        | What it runs                                             |
+| ------------- | ---------------------------------------------- | -------------------------------------------------------- |
+| Frontend unit | `npm run test`                                 | Vitest + React Testing Library, jsdom                    |
+| Frontend e2e  | `npm run test:e2e`                             | Playwright against the Vite dev server, Tauri API mocked |
+| Acceptance    | `cargo test --test cucumber` (in `src-tauri/`) | cucumber-rs `.feature` files against the service layer   |
+| Smoke         | `npm run test:smoke`                           | WebdriverIO + tauri-driver against the real built app    |
+| Rust unit     | `cargo test` (in `src-tauri/`)                 | Standard Rust tests                                      |
 
 ## Frontend e2e (Playwright)
 
@@ -41,7 +41,7 @@ npm run build
 cd src-tauri && cargo build --release --features tauri/custom-protocol
 ```
 
-The `tauri/custom-protocol` feature matters: in Tauri 2 it is *not* part of the
+The `tauri/custom-protocol` feature matters: in Tauri 2 it is _not_ part of the
 crate's default features. `tauri dev` builds with `--no-default-features` (no
 custom-protocol → the webview loads `devUrl`), while `tauri build` builds with
 it (→ the frontend is embedded from `frontendDist`). A plain

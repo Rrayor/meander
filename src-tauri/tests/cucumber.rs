@@ -1,4 +1,4 @@
-use cucumber::{given, then, when, World};
+use cucumber::{World, given, then, when};
 
 #[derive(Debug, Default, World)]
 struct MeanderWorld {
