@@ -12,3 +12,6 @@ export interface Profile {
 export const listProfiles = () => invoke<Profile[]>(COMMANDS.listProfiles);
 
 export const currentProfile = () => invoke<Profile>(COMMANDS.currentProfile);
+
+export const createProfile = (name: string) =>
+  invoke<Profile>(COMMANDS.createProfile, { name });

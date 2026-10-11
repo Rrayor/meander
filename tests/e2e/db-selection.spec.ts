@@ -2,7 +2,7 @@ import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { stubError, stubTauriCommands } from "./tauri";
+import { stubError, stubTauriCommands } from "./stubs";
 
 const settingsPath = ROUTES.find((r) => r.label === "Settings")!.path;
 

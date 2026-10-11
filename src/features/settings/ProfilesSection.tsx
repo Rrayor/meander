@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
-import { currentProfile, listProfiles } from "@/api/profiles";
+import { createProfile, currentProfile, listProfiles } from "@/api/profiles";
 
 const formatDate = (iso: string) =>
   new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(undefined, {
@@ -9,7 +10,14 @@ const formatDate = (iso: string) =>
     day: "numeric",
   });
 
+const errorMessage = (e: unknown) =>
+  e instanceof Error ? e.message : String(e);
+
 export function ProfilesSection() {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [validationError, setValidationError] = useState<string>();
+
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
     queryFn: listProfiles,
@@ -18,6 +26,25 @@ export function ProfilesSection() {
     queryKey: ["current-profile"],
     queryFn: currentProfile,
   });
+  const create = useMutation({
+    mutationFn: createProfile,
+    onSuccess: () => {
+      setName("");
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
+    },
+  });
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setValidationError(undefined);
+    if (!name.trim()) {
+      setValidationError("Profile name is required");
+      return;
+    }
+    create.mutate(name);
+  };
+
+  const error = validationError ?? (create.error && errorMessage(create.error));
 
   return (
     <section aria-labelledby="profiles-heading" className="flex flex-col gap-3">
@@ -53,6 +80,31 @@ export function ProfilesSection() {
           </li>
         ))}
       </ul>
+      <form onSubmit={submit} className="flex items-center gap-3">
+        <label htmlFor="profile-name" className="sr-only">
+          Profile name
+        </label>
+        <input
+          id="profile-name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="New profile name"
+          className="w-64 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <button
+          type="submit"
+          disabled={create.isPending}
+          className="shrink-0 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+        >
+          Create profile
+        </button>
+      </form>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
