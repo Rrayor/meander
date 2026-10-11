@@ -14,6 +14,8 @@ pub enum DbError {
     Path(String),
     #[error("incompatible database: {0}")]
     Incompatible(String),
+    #[error("validation failed: {0}")]
+    Validation(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }

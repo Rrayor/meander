@@ -1,8 +1,8 @@
-import type { Page } from "@playwright/test";
-
+import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
+import { stubSequence, stubTauriCommands } from "./stubs";
 
 const settingsPath = ROUTES.find((r) => r.label === "Settings")!.path;
 
@@ -21,31 +21,12 @@ const profiles = [
   },
 ];
 
-function stubBackend(page: Page) {
-  return page.addInitScript((stubProfiles) => {
-    (
-      window as unknown as {
-        __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<unknown> };
-      }
-    ).__TAURI_INTERNALS__ = {
-      invoke: async (cmd: string) => {
-        switch (cmd) {
-          case "list_profiles":
-            return stubProfiles;
-          case "current_profile":
-            return stubProfiles[0];
-          case "current_db_path":
-            return "/data/meander.db";
-          default:
-            throw new Error(`unmocked tauri command: ${cmd}`);
-        }
-      },
-    };
-  }, profiles);
-}
-
 test("settings lists profiles and marks the current one", async ({ page }) => {
-  await stubBackend(page);
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+  });
   await page.goto(`/#${settingsPath}`);
 
   const section = page.getByRole("region", { name: "Profiles" });
@@ -57,4 +38,44 @@ test("settings lists profiles and marks the current one", async ({ page }) => {
       .filter({ hasText: "Default" })
       .getByText("Current"),
   ).toBeVisible();
+});
+
+test("creating a profile adds it to the list", async ({ page }) => {
+  const created = {
+    id: 3,
+    name: "Fieldwork",
+    created_at: "2026-10-12 10:00:00",
+    updated_at: "2026-10-12 10:00:00",
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: stubSequence([profiles, [...profiles, created]]),
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+    [COMMANDS.createProfile]: created,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page.getByLabel("Profile name").fill("  Fieldwork  ");
+  await page.getByRole("button", { name: "Create profile" }).click();
+
+  const section = page.getByRole("region", { name: "Profiles" });
+  await expect(section.getByText("Fieldwork")).toBeVisible();
+});
+
+test("a blank name shows validation without calling the backend", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+    // createProfile intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page.getByRole("button", { name: "Create profile" }).click();
+
+  await expect(
+    page.getByRole("region", { name: "Profiles" }).getByRole("alert"),
+  ).toHaveText("Profile name is required");
 });

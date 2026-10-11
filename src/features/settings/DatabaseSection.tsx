@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { open } from "@tauri-apps/plugin-dialog";
 
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { currentDatabasePath, selectDatabaseFile } from "@/api/settings";
-
-const DB_PATH_KEY = ["db-path"] as const;
 
 const errorMessage = (e: unknown) =>
   e instanceof Error ? e.message : String(e);
@@ -11,7 +10,7 @@ const errorMessage = (e: unknown) =>
 export function DatabaseSection() {
   const queryClient = useQueryClient();
   const { data: path, error: loadError } = useQuery({
-    queryKey: DB_PATH_KEY,
+    queryKey: QUERY_KEYS.dbPath,
     queryFn: currentDatabasePath,
   });
 
@@ -24,7 +23,7 @@ export function DatabaseSection() {
       return selected ? selectDatabaseFile(selected) : null;
     },
     onSuccess: (newPath) => {
-      if (newPath) queryClient.setQueryData(DB_PATH_KEY, newPath);
+      if (newPath) queryClient.setQueryData(QUERY_KEYS.dbPath, newPath);
     },
   });
 

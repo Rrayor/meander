@@ -8,3 +8,19 @@ Feature: Profiles
     And I seed the database
     Then the profile list contains exactly the default profile
     And the default profile has audit timestamps
+
+  Scenario: creating a profile trims and stores it
+    Given a temporary database path
+    When I connect the persistence layer
+    And I seed the database
+    When I create a profile with surrounding whitespace
+    Then the creation succeeds
+    And a profile named Work exists in the list
+
+  Scenario: blank profile names are rejected
+    Given a temporary database path
+    When I connect the persistence layer
+    And I seed the database
+    When I create a profile with a blank name
+    Then the creation fails
+    And the profile list contains only the default profile

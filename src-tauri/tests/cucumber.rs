@@ -204,6 +204,62 @@ fn profile_audit(world: &mut MeanderWorld) {
     assert!(!profile.updated_at.is_empty());
 }
 
+#[when("I create a profile with surrounding whitespace")]
+fn create_whitespace(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "  Work  "))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I create a profile with a blank name")]
+fn create_blank(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "   "))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the creation succeeds")]
+fn creation_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "creation failed: {:?}", world.error);
+}
+
+#[then("the creation fails")]
+fn creation_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "creation unexpectedly succeeded");
+}
+
+#[then("a profile named Work exists in the list")]
+fn work_profile_exists(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    assert!(
+        profiles.iter().any(|p| p.name == "Work"),
+        "no profile named Work in {profiles:?}"
+    );
+}
+
+#[then("the profile list contains only the default profile")]
+fn only_default(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    assert_eq!(profiles.len(), 1);
+    assert_eq!(profiles[0].name, "Default");
+}
+
 fn main() {
     futures::executor::block_on(MeanderWorld::run("tests/features"));
 }
