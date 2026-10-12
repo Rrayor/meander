@@ -373,7 +373,7 @@ Settings shouldn't include any sorting or filtering features yet, as there aren'
 
 The application allows for multiple user profiles. Each profile has it's own settings and tasks. The information belonging to a profile:
 
-- Name: the profile name can be any short string (Required)
+- Name: the profile name can be any short string (Required). Concretely: 1–100 characters after trimming surrounding whitespace. Control characters (including newlines) are not allowed — names render in single-line UI contexts. All other unicode characters are permitted.
 - Audit information: created at, updated at (Required)
 
 As mentioned, settings and tasks belong to profiles, but it would feel wrong to include those in this list.
@@ -383,6 +383,7 @@ As mentioned, settings and tasks belong to profiles, but it would feel wrong to 
 - The above information is stored in the database
 - Non-audit information can be set by the user
 - Audit information is set automatically
+- Blank names, names longer than 100 characters, and names containing control characters are rejected on create and rename
 - Required, Optional and default settings from above are followed through in the implementation
 
 ### Creating/updateing/deleting profiles

@@ -74,6 +74,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space (release builds need several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /usr/lib/swift /usr/local/.ghcup /usr/local/share/powershell
+          df -h /
+
       - uses: ./.github/actions/rust-setup
 
       - uses: actions/setup-node@v4

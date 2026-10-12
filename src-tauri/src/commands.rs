@@ -26,6 +26,17 @@ pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
+pub async fn rename_profile(
+    id: i64,
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<Profile, String> {
+    profiles::rename(&state.pool(), id, &name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn switch_profile(
     id: i64,
     state: State<'_, AppState>,

@@ -6,3 +6,4 @@ test-results
 package-lock.json
 .superpowers
 .stitch/designs/*.html
+src/api/bindings.ts

@@ -24,3 +24,13 @@ Feature: Profiles
     When I create a profile with a blank name
     Then the creation fails
     And the profile list contains only the default profile
+
+  Scenario: over-long and control-character names are rejected
+    Given a temporary database path
+    When I connect the persistence layer
+    And I seed the database
+    When I create a profile with a 101-character name
+    Then the creation fails
+    When I create a profile with a newline in the name
+    Then the creation fails
+    And the profile list contains only the default profile

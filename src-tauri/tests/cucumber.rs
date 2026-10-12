@@ -11,6 +11,7 @@ struct MeanderWorld {
     candidate: Option<std::path::PathBuf>,
     profile_id: Option<i64>,
     previous_active: Option<i64>,
+    remembered_updated_at: Option<String>,
     error: Option<String>,
 }
 
@@ -228,6 +229,30 @@ fn create_blank(world: &mut MeanderWorld) {
     }
 }
 
+#[when("I create a profile with a 101-character name")]
+fn create_too_long(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    let name = "a".repeat(101);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, &name))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I create a profile with a newline in the name")]
+fn create_control_char(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    world.error = None;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "two\nlines"))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
 #[then("the creation succeeds")]
 fn creation_succeeded(world: &mut MeanderWorld) {
     assert!(world.error.is_none(), "creation failed: {:?}", world.error);
@@ -306,6 +331,88 @@ fn active_is_second(world: &mut MeanderWorld) {
 fn active_unchanged(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
     assert_eq!(state.active_profile_id(), world.previous_active.unwrap());
+}
+
+fn rename_default(world: &mut MeanderWorld, name: &str) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let before = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    world.remembered_updated_at = Some(before[0].updated_at.clone());
+    // CURRENT_TIMESTAMP has one-second resolution; ensure the bump is visible.
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::rename(&pool, before[0].id, name))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I rename the default profile to Personal")]
+fn rename_default_personal(world: &mut MeanderWorld) {
+    rename_default(world, "Personal");
+}
+
+#[when("I rename the default profile to a blank name")]
+fn rename_default_blank(world: &mut MeanderWorld) {
+    rename_default(world, "   ");
+}
+
+#[when("I rename an unknown profile")]
+fn rename_unknown(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::rename(&pool, 999_999, "Ghost"))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the rename succeeds")]
+fn rename_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "rename failed: {:?}", world.error);
+}
+
+#[then("the rename fails")]
+fn rename_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "rename unexpectedly succeeded");
+}
+
+#[then("the default profile is named Personal")]
+fn default_named_personal(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    assert_eq!(profiles[0].name, "Personal");
+}
+
+#[then("the default profile is still named Default")]
+fn default_still_default(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    assert_eq!(profiles[0].name, "Default");
+}
+
+#[then("the profile updated timestamp changed")]
+fn updated_at_changed(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let profiles = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&pool))
+        .expect("profile list failed");
+    let before = world
+        .remembered_updated_at
+        .take()
+        .expect("no prior timestamp");
+    assert_ne!(profiles[0].updated_at, before, "updated_at did not change");
 }
 
 fn main() {
