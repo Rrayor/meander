@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
@@ -9,9 +10,11 @@ describe("SideNav", () => {
     const [active, inactive] = ROUTES.slice(1);
 
     render(
-      <MemoryRouter initialEntries={[active.path]}>
-        <SideNav />
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={[active.path]}>
+          <SideNav />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     const nav = screen.getByRole("navigation", { name: "Main Navigation" });

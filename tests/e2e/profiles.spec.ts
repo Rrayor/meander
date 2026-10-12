@@ -79,3 +79,18 @@ test("a blank name shows validation without calling the backend", async ({
     page.getByRole("region", { name: "Profiles" }).getByRole("alert"),
   ).toHaveText("Profile name is required");
 });
+
+test("the nav footer switches the active profile", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: stubSequence([profiles[0], profiles[1]]),
+    [COMMANDS.switchProfile]: null,
+  });
+  await page.goto("/");
+
+  const footer = page.getByRole("button", { name: "Default" });
+  await footer.click();
+  await page.getByRole("option", { name: "Work" }).click();
+
+  await expect(page.getByRole("button", { name: "Work" })).toBeVisible();
+});

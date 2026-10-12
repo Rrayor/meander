@@ -9,6 +9,8 @@ struct MeanderWorld {
     pool: Option<sqlx::SqlitePool>,
     state: Option<meander_lib::state::AppState>,
     candidate: Option<std::path::PathBuf>,
+    profile_id: Option<i64>,
+    previous_active: Option<i64>,
     error: Option<String>,
 }
 
@@ -258,6 +260,52 @@ fn only_default(world: &mut MeanderWorld) {
         .expect("profile list failed");
     assert_eq!(profiles.len(), 1);
     assert_eq!(profiles[0].name, "Default");
+}
+
+#[given("a second profile exists")]
+fn second_profile(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let profile = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "Work"))
+        .expect("create profile failed");
+    world.profile_id = Some(profile.id);
+}
+
+#[when("the application switches to the second profile")]
+fn switch_to_second(world: &mut MeanderWorld) {
+    let id = world.profile_id.expect("no second profile");
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    if let Err(e) = rt.block_on(state.switch_profile(id)) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("the application switches to an unknown profile")]
+fn switch_to_unknown(world: &mut MeanderWorld) {
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    world.previous_active = Some(state.active_profile_id());
+    if let Err(e) = rt.block_on(state.switch_profile(999_999)) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the active profile is the second profile")]
+fn active_is_second(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    assert_eq!(state.active_profile_id(), world.profile_id.unwrap());
+}
+
+#[then("the active profile is unchanged")]
+fn active_unchanged(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    assert_eq!(state.active_profile_id(), world.previous_active.unwrap());
 }
 
 fn main() {

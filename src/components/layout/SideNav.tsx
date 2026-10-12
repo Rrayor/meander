@@ -1,6 +1,6 @@
-import { Inbox } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
+import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 import { ROUTES } from "@/lib/routes";
 
 export function SideNav() {
@@ -40,15 +40,7 @@ export function SideNav() {
         </nav>
       </div>
       <div className="pt-3">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between rounded-lg border border-transparent bg-surface-raised/40 px-3 py-2 text-text-muted transition-colors duration-150 ease-out hover:border-border hover:bg-surface-raised hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          <span className="flex items-center gap-2 truncate">
-            <Inbox className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate text-xs font-medium">Default</span>
-          </span>
-        </button>
+        <ProfileSwitcher />
       </div>
     </aside>
   );

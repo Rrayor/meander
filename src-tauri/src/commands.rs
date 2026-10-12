@@ -26,6 +26,19 @@ pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
+pub async fn switch_profile(
+    id: i64,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    state.switch_profile(id).await.map_err(|e| e.to_string())?;
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let mut config = config::load(&dir);
+    config.last_profile_id = Some(id);
+    config::save(&dir, &config).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn current_profile(state: State<'_, AppState>) -> Result<Profile, String> {
     profiles::get(&state.pool(), state.active_profile_id())
         .await

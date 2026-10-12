@@ -25,7 +25,8 @@ pub fn run() {
             commands::select_database_file,
             commands::list_profiles,
             commands::current_profile,
-            commands::create_profile
+            commands::create_profile,
+            commands::switch_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -42,11 +42,15 @@ impl AppState {
             Err(e) => Err(e),
         }?;
         db::seed(&state.pool()).await?;
-        if let Some(id) = config.last_profile_id
-            && profiles::get(&state.pool(), id).await.is_ok()
-        {
-            state.set_active_profile(id);
-        }
+        let active = match config.last_profile_id {
+            Some(id) if profiles::get(&state.pool(), id).await.is_ok() => id,
+            _ => profiles::list(&state.pool())
+                .await?
+                .first()
+                .map(|p| p.id)
+                .unwrap_or_default(),
+        };
+        state.set_active_profile(active);
         Ok(state)
     }
 
@@ -59,6 +63,14 @@ impl AppState {
             .active_profile_id
             .read()
             .expect("active profile lock poisoned")
+    }
+
+    /// Selects `id` as the active profile if it exists — the current
+    /// selection is untouched when it does not.
+    pub async fn switch_profile(&self, id: i64) -> Result<()> {
+        profiles::get(&self.pool(), id).await?;
+        self.set_active_profile(id);
+        Ok(())
     }
 
     pub fn set_active_profile(&self, id: i64) {
@@ -121,5 +133,27 @@ mod tests {
             .expect("should fall back");
 
         assert_eq!(state.path(), fallback);
+    }
+
+    #[tokio::test]
+    async fn from_config_selects_the_seeded_profile_on_first_run() {
+        let dir = std::env::temp_dir().join(format!(
+            "meander-state-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("fresh.db");
+
+        let state = AppState::from_config(&Config::default(), &path)
+            .await
+            .expect("fresh db should connect");
+        let active = crate::profiles::get(&state.pool(), state.active_profile_id())
+            .await
+            .expect("active profile should exist");
+
+        assert_eq!(active.name, "Default");
     }
 }
