@@ -18,8 +18,11 @@ be scoped to the active profile.
   - `carry_over_rule` TEXT NULL CHECK(carry_over_rule IN ('carry','discard'))
     NULL = "ask at week boundary" per spec
   - `estimated_minutes` INTEGER NULL, `spent_minutes` INTEGER NULL
-  - `scheduled_date` TEXT NULL — NULL = sits in the backlog; a date places it on
-    that week's board (not rendered yet)
+  - `scheduled_week` TEXT NULL, `scheduled_date` TEXT NULL — placement is
+    derived from the pair: both NULL = global backlog; week only = that week's
+    weekly-backlog column; both set = a day column on the board. Enforced by
+    `CHECK (scheduled_date IS NULL OR scheduled_week IS NOT NULL)` — a day
+    cannot exist without its week
   - `created_at`, `updated_at` TEXT defaults
 - `tasks.rs` service: `list(pool, profile_id)` only
 - `Task` struct: `specta::Type` + `FromRow`; `TaskStatus` enum exported to TS
