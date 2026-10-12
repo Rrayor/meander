@@ -1,6 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-
 import { COMMANDS } from "@/api/commands";
+import { transport } from "@/api/transport";
 
 import type { Profile } from "./bindings";
 
@@ -8,15 +7,17 @@ export type { Profile };
 
 export const MAX_PROFILE_NAME_LENGTH = 100;
 
-export const listProfiles = () => invoke<Profile[]>(COMMANDS.listProfiles);
+export const listProfiles = () =>
+  transport.invoke<Profile[]>(COMMANDS.listProfiles);
 
-export const currentProfile = () => invoke<Profile>(COMMANDS.currentProfile);
+export const currentProfile = () =>
+  transport.invoke<Profile>(COMMANDS.currentProfile);
 
 export const createProfile = (name: string) =>
-  invoke<Profile>(COMMANDS.createProfile, { name });
+  transport.invoke<Profile>(COMMANDS.createProfile, { name });
 
 export const renameProfile = (id: number, name: string) =>
-  invoke<Profile>(COMMANDS.renameProfile, { id, name });
+  transport.invoke<Profile>(COMMANDS.renameProfile, { id, name });
 
 export const switchProfile = (id: number) =>
-  invoke<void>(COMMANDS.switchProfile, { id });
+  transport.invoke<void>(COMMANDS.switchProfile, { id });

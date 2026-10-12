@@ -1,8 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
-
 import { COMMANDS } from "@/api/commands";
+import { transport } from "@/api/transport";
 
-export const currentDatabasePath = () => invoke<string>(COMMANDS.currentDbPath);
+export const currentDatabasePath = () =>
+  transport.invoke<string>(COMMANDS.currentDbPath);
 
 export const selectDatabaseFile = (path: string) =>
-  invoke<string>(COMMANDS.selectDatabaseFile, { path });
+  transport.invoke<string>(COMMANDS.selectDatabaseFile, { path });
