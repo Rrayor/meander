@@ -81,8 +81,6 @@ jobs:
           df -h /
 
       - uses: ./.github/actions/rust-setup
-        with:
-          cache-target: "false"
 
       - uses: actions/setup-node@v4
         with:
