@@ -25,9 +25,9 @@ cargo test         # Rust unit + cucumber acceptance tests (in src-tauri/)
 
 `src/api/bindings.ts` is generated from Rust types via [specta](https://github.com/specta-rs/specta) and committed to the repo — the frontend builds without Rust. When adding or changing a struct that crosses the IPC boundary:
 
-1. Derive `specta::Type` on it
-2. Run `cargo test` to regenerate `bindings.ts`
-3. Commit both
+1. Derive `specta::Type` on it and add it to `src-tauri/src/bindings.rs`
+2. Run `cargo run --bin export-bindings` to regenerate `bindings.ts`
+3. Commit both — `cargo test` asserts the committed file is fresh
 
 ## Docs
 
