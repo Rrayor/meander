@@ -19,30 +19,31 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<Profile>> {
     .await?)
 }
 
-const MAX_NAME_LEN: usize = 100;
+#[nutype::nutype(
+    sanitize(trim),
+    validate(
+        len_char_min = 1,
+        len_char_max = 100,
+        predicate = |s| !s.chars().any(char::is_control)
+    ),
+    derive(Debug, PartialEq)
+)]
+struct ProfileName(String);
 
-fn validated_name(name: &str) -> Result<&str> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(crate::db::DbError::Validation(
-            "profile name is required".into(),
-        ));
-    }
-    if name.chars().count() > MAX_NAME_LEN {
-        return Err(crate::db::DbError::Validation(
-            "profile name must be 100 characters or fewer".into(),
-        ));
-    }
-    if name.chars().any(char::is_control) {
-        return Err(crate::db::DbError::Validation(
-            "profile name cannot contain control characters".into(),
-        ));
-    }
-    Ok(name)
+fn profile_name(name: &str) -> Result<ProfileName> {
+    ProfileName::try_new(name).map_err(|e| {
+        crate::db::DbError::Validation(match e {
+            ProfileNameError::LenCharMinViolated => "profile name is required".into(),
+            ProfileNameError::LenCharMaxViolated => {
+                "profile name must be 100 characters or fewer".into()
+            }
+            _ => "profile name cannot contain control characters".into(),
+        })
+    })
 }
 
 pub async fn create(pool: &SqlitePool, name: &str) -> Result<Profile> {
-    let name = validated_name(name)?;
+    let name = profile_name(name)?.into_inner();
     let result = sqlx::query("INSERT INTO profiles (name) VALUES (?)")
         .bind(name)
         .execute(pool)
@@ -51,7 +52,7 @@ pub async fn create(pool: &SqlitePool, name: &str) -> Result<Profile> {
 }
 
 pub async fn rename(pool: &SqlitePool, id: i64, name: &str) -> Result<Profile> {
-    let name = validated_name(name)?;
+    let name = profile_name(name)?.into_inner();
     sqlx::query("UPDATE profiles SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(name)
         .bind(id)
@@ -75,33 +76,39 @@ mod tests {
 
     #[test]
     fn accepts_a_name_at_the_limit() {
-        let name = "a".repeat(MAX_NAME_LEN);
-        assert_eq!(validated_name(&name).unwrap(), name);
+        let name = "a".repeat(100);
+        assert_eq!(profile_name(&name).unwrap().into_inner(), name);
     }
 
     #[test]
     fn rejects_a_name_over_the_limit() {
-        let name = "a".repeat(MAX_NAME_LEN + 1);
-        assert!(validated_name(&name).is_err());
+        let name = "a".repeat(101);
+        assert!(profile_name(&name).is_err());
     }
 
     #[test]
     fn rejects_control_characters() {
-        assert!(validated_name("two\nlines").is_err());
-        assert!(validated_name("tab\there").is_err());
-        assert!(validated_name("null\u{0000}byte").is_err());
+        assert!(profile_name("two\nlines").is_err());
+        assert!(profile_name("tab\there").is_err());
+        assert!(profile_name("null\u{0000}byte").is_err());
     }
 
     #[test]
     fn allows_unicode_and_symbols() {
-        assert_eq!(validated_name("José's tasks ").unwrap(), "José's tasks");
-        assert_eq!(validated_name("ワーク 日本語").unwrap(), "ワーク 日本語");
-        assert_eq!(validated_name("a?b!c#").unwrap(), "a?b!c#");
+        assert_eq!(
+            profile_name("José's tasks ").unwrap().into_inner(),
+            "José's tasks"
+        );
+        assert_eq!(
+            profile_name("ワーク 日本語").unwrap().into_inner(),
+            "ワーク 日本語"
+        );
+        assert_eq!(profile_name("a?b!c#").unwrap().into_inner(), "a?b!c#");
     }
 
     #[test]
     fn trims_before_validating() {
-        assert!(validated_name("   \n  ").is_err());
-        assert_eq!(validated_name("  ok  ").unwrap(), "ok");
+        assert!(profile_name("   \n  ").is_err());
+        assert_eq!(profile_name("  ok  ").unwrap().into_inner(), "ok");
     }
 }
