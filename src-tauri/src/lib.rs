@@ -28,7 +28,7 @@ pub fn run() {
             commands::list_profiles,
             commands::list_tasks,
             commands::create_task,
-            commands::reorder_tasks,
+            commands::move_task,
             commands::current_profile,
             commands::create_profile,
             commands::rename_profile,

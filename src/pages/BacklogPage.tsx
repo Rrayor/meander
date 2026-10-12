@@ -1,8 +1,25 @@
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { listTasks, reorderTasks } from "@/api/tasks";
+import { listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
@@ -25,50 +42,111 @@ const formatMinutes = (minutes: number) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
+function TaskRow({ task }: { task: Task }) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: task.id });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          aria-label={`Reorder ${task.title}`}
+          className="cursor-grab touch-none rounded p-0.5 text-text-muted hover:text-text focus:outline-none focus:ring-1 focus:ring-primary active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <circle cx="9" cy="6" r="1.5" />
+            <circle cx="15" cy="6" r="1.5" />
+            <circle cx="9" cy="12" r="1.5" />
+            <circle cx="15" cy="12" r="1.5" />
+            <circle cx="9" cy="18" r="1.5" />
+            <circle cx="15" cy="18" r="1.5" />
+          </svg>
+        </button>
+        <span className="truncate text-sm font-medium text-text">
+          {task.title}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {task.estimated_minutes != null && (
+          <span className="text-xs text-text-muted">
+            {formatMinutes(task.estimated_minutes)}
+          </span>
+        )}
+        <span
+          className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
+        >
+          {STATUS_LABELS[task.status]}
+        </span>
+      </div>
+    </li>
+  );
+}
+
 export function BacklogPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const { data: tasks, error } = useQuery({
     queryKey: QUERY_KEYS.tasks,
     queryFn: listTasks,
   });
-  const reorder = useMutation({
-    mutationFn: reorderTasks,
-    onMutate: async (orderedIds) => {
-      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.tasks });
-      const previous = queryClient.getQueryData<Task[]>(QUERY_KEYS.tasks);
-      if (previous) {
-        const byId = new Map(previous.map((t) => [t.id, t]));
-        queryClient.setQueryData(
-          QUERY_KEYS.tasks,
-          orderedIds.map((id) => byId.get(id)!),
-        );
-      }
-      return { previous };
-    },
-    onError: (_err, _ids, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(QUERY_KEYS.tasks, context.previous);
-      }
-    },
+  const move = useMutation({
+    mutationFn: ({
+      taskId,
+      beforeId,
+      afterId,
+    }: {
+      taskId: number;
+      beforeId: number | null;
+      afterId: number | null;
+    }) => moveTask(taskId, beforeId, afterId),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
     },
   });
 
-  const dropOn = (event: React.DragEvent, target: Task) => {
-    event.preventDefault();
-    const draggedId = Number(event.dataTransfer.getData("text/plain"));
-    if (!tasks || !Number.isFinite(draggedId)) {
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!tasks || !over || active.id === over.id) {
       return;
     }
-    const rect = event.currentTarget.getBoundingClientRect();
-    const belowMidpoint = event.clientY > rect.top + rect.height / 2;
-    const ids = tasks.map((t) => t.id).filter((id) => id !== draggedId);
-    const at = ids.indexOf(target.id) + (belowMidpoint ? 1 : 0);
-    ids.splice(at, 0, draggedId);
-    reorder.mutate(ids);
+    const ids = tasks.map((t) => t.id);
+    const target = arrayMove(
+      ids,
+      ids.indexOf(Number(active.id)),
+      ids.indexOf(Number(over.id)),
+    );
+    const at = target.indexOf(Number(active.id));
+    const previous = queryClient.getQueryData<Task[]>(QUERY_KEYS.tasks);
+    if (previous) {
+      const byId = new Map(previous.map((t) => [t.id, t]));
+      queryClient.setQueryData(
+        QUERY_KEYS.tasks,
+        target.map((id) => byId.get(id)!),
+      );
+    }
+    move.mutate({
+      taskId: Number(active.id),
+      beforeId: at > 0 ? target[at - 1] : null,
+      afterId: at < target.length - 1 ? target[at + 1] : null,
+    });
   };
 
   return (
@@ -104,40 +182,22 @@ export function BacklogPage() {
           </div>
         )}
         {tasks && tasks.length > 0 && (
-          <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
-            {tasks.map((task) => (
-              <li
-                key={task.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", String(task.id));
-                  e.dataTransfer.effectAllowed = "move";
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                }}
-                onDrop={(e) => dropOn(e, task)}
-                className="flex cursor-grab items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised active:cursor-grabbing"
-              >
-                <span className="truncate text-sm font-medium text-text">
-                  {task.title}
-                </span>
-                <div className="flex shrink-0 items-center gap-3">
-                  {task.estimated_minutes != null && (
-                    <span className="text-xs text-text-muted">
-                      {formatMinutes(task.estimated_minutes)}
-                    </span>
-                  )}
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
-                  >
-                    {STATUS_LABELS[task.status]}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext
+              items={tasks.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
+                {tasks.map((task) => (
+                  <TaskRow key={task.id} task={task} />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </section>
       {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}

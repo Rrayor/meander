@@ -539,8 +539,8 @@ fn backlog_task(world: &mut MeanderWorld, title: String) {
     );
 }
 
-#[when(expr = "I reorder the tasks to {string}")]
-fn reorder_tasks(world: &mut MeanderWorld, titles: String) {
+#[when(expr = "I move {word} before {word}")]
+fn move_before(world: &mut MeanderWorld, moved: String, anchor: String) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
@@ -548,47 +548,52 @@ fn reorder_tasks(world: &mut MeanderWorld, titles: String) {
         .rt()
         .block_on(meander_lib::tasks::list(&pool, active))
         .expect("task list failed");
-    let ids: Vec<i64> = titles
-        .split(", ")
-        .map(|title| {
-            tasks
-                .iter()
-                .find(|t| t.title == title)
-                .unwrap_or_else(|| panic!("no task titled {title}"))
-                .id
-        })
-        .collect();
-    if let Err(e) = world
-        .rt()
-        .block_on(meander_lib::tasks::reorder(&pool, active, &ids))
-    {
+    let moved_id = tasks
+        .iter()
+        .find(|t| t.title == moved)
+        .expect("moved task missing")
+        .id;
+    let anchor_index = tasks
+        .iter()
+        .position(|t| t.title == anchor)
+        .expect("anchor task missing");
+    let before_id = (anchor_index > 0 && tasks[anchor_index - 1].id != moved_id)
+        .then(|| tasks[anchor_index - 1].id);
+    let after_id = tasks[anchor_index].id;
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::move_task(
+        &pool,
+        active,
+        moved_id,
+        before_id,
+        Some(after_id),
+    )) {
         world.error = Some(e.to_string());
     }
 }
 
-#[when("I reorder the tasks including the foreign task")]
-fn reorder_with_foreign(world: &mut MeanderWorld) {
+#[when("I move a task before the foreign task")]
+fn move_before_foreign(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
     let foreign = world.profile_id.expect("no second profile");
-    let mut ids: Vec<i64> = world
+    let moved_id = world
         .rt()
         .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .iter()
-        .map(|t| t.id)
-        .collect();
+        .expect("task list failed")[0]
+        .id;
     let foreign_id = world
         .rt()
         .block_on(meander_lib::tasks::list(&pool, foreign))
         .expect("foreign task list failed")[0]
         .id;
-    ids.push(foreign_id);
-    if let Err(e) = world
-        .rt()
-        .block_on(meander_lib::tasks::reorder(&pool, active, &ids))
-    {
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::move_task(
+        &pool,
+        active,
+        moved_id,
+        None,
+        Some(foreign_id),
+    )) {
         world.error = Some(e.to_string());
     }
 }

@@ -50,12 +50,15 @@ be scoped to the active profile.
 
 - `sort_order REAL` column, default = insertion order (`MAX(sort_order) + 1`
   on insert)
-- `tasks::reorder(pool, profile_id, ordered_ids)` — rewrites positions in one
-  transaction; the full id list must cover the profile's tasks
-- `reorder_tasks` command + native HTML5 drag and drop on backlog rows
+- `tasks::move_task(pool, profile_id, task_id, before_id, after_id)` —
+  midpoint insertion between the two drop neighbours (either may be the list
+  edge); pagination-safe since only the anchors are needed; lazy
+  renormalization if a gap is exhausted
+- `move_task` command + `@dnd-kit` sortable list with a drag handle
+  (keyboard reordering included — required for WCAG AA)
 - Spec: manual order is the default display order; future sorting/filtering
   are view-time transforms that never touch it
-- Tests: cucumber (reorder persists, foreign id rejected), Playwright (drag)
+- Tests: cucumber (move persists, foreign anchor rejected), Playwright (drag)
 
 ## Task 3 — task deletion (step 17)
 

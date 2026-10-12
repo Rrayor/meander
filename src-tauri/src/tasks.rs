@@ -108,30 +108,74 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     get(pool, result.last_insert_rowid()).await
 }
 
-/// Rewrites the manual order of a profile's tasks. `ordered_ids` must list
-/// every task of the profile exactly once; anything else is a validation error
-/// rather than a partial reorder.
-pub async fn reorder(pool: &SqlitePool, profile_id: i64, ordered_ids: &[i64]) -> Result<()> {
-    let existing = list(pool, profile_id).await?;
-    let mut expected: Vec<i64> = existing.iter().map(|t| t.id).collect();
-    let mut given = ordered_ids.to_vec();
-    expected.sort_unstable();
-    given.sort_unstable();
-    if expected != given {
-        return Err(crate::db::DbError::Validation(
-            "reorder must list every task of the profile exactly once".into(),
-        ));
-    }
-    let mut tx = pool.begin().await?;
-    for (index, id) in ordered_ids.iter().enumerate() {
-        sqlx::query("UPDATE tasks SET sort_order = ? WHERE id = ? AND profile_id = ?")
-            .bind((index + 1) as f64)
+/// Smallest representable gap before the midpoint collapses onto a boundary.
+const MIN_SORT_GAP: f64 = 1e-6;
+
+async fn sort_order_of(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<f64> {
+    let row: Option<(f64,)> =
+        sqlx::query_as("SELECT sort_order FROM tasks WHERE id = ? AND profile_id = ?")
             .bind(id)
             .bind(profile_id)
-            .execute(&mut *tx)
+            .fetch_optional(pool)
             .await?;
+    row.map(|r| r.0)
+        .ok_or_else(|| crate::db::DbError::Validation("task does not exist".into()))
+}
+
+/// Moves `task_id` between `before_id` and `after_id` (either may be `None`
+/// for the list edges) by assigning the midpoint `sort_order`. Works on any
+/// slice of the backlog — only the drop neighbours are needed.
+pub async fn move_task(
+    pool: &SqlitePool,
+    profile_id: i64,
+    task_id: i64,
+    before_id: Option<i64>,
+    after_id: Option<i64>,
+) -> Result<()> {
+    let current = sort_order_of(pool, profile_id, task_id).await?;
+    let (low, high) = match (before_id, after_id) {
+        (None, None) => (current, current),
+        (None, Some(after)) => {
+            let a = sort_order_of(pool, profile_id, after).await?;
+            (a - 1.0, a)
+        }
+        (Some(before), None) => {
+            let b = sort_order_of(pool, profile_id, before).await?;
+            (b, b + 1.0)
+        }
+        (Some(before), Some(after)) => {
+            let b = sort_order_of(pool, profile_id, before).await?;
+            let a = sort_order_of(pool, profile_id, after).await?;
+            if b >= a {
+                return Err(crate::db::DbError::Validation(
+                    "reorder anchors are not adjacent in order".into(),
+                ));
+            }
+            (b, a)
+        }
+    };
+    let position = low + (high - low) / 2.0;
+    if high - low < MIN_SORT_GAP {
+        // Gap exhausted: renormalize the profile's order, then retry midpoint.
+        let ids: Vec<i64> =
+            sqlx::query_scalar("SELECT id FROM tasks WHERE profile_id = ? ORDER BY sort_order, id")
+                .bind(profile_id)
+                .fetch_all(pool)
+                .await?;
+        for (index, id) in ids.iter().enumerate() {
+            sqlx::query("UPDATE tasks SET sort_order = ? WHERE id = ?")
+                .bind((index + 1) as f64)
+                .bind(id)
+                .execute(pool)
+                .await?;
+        }
+        return Box::pin(move_task(pool, profile_id, task_id, before_id, after_id)).await;
     }
-    tx.commit().await?;
+    sqlx::query("UPDATE tasks SET sort_order = ? WHERE id = ?")
+        .bind(position)
+        .bind(task_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

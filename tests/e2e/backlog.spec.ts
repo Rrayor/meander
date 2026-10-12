@@ -123,14 +123,29 @@ test("dragging a task reorders the backlog", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listTasks]: stubSequence([tasks, reordered]),
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.reorderTasks]: null,
+    [COMMANDS.moveTask]: null,
   });
   await page.goto(`/#${backlogPath}`);
 
   const rows = page.locator("ul > li");
-  await page
-    .getByText("Review quarterly milestone planning")
-    .dragTo(page.getByText("Draft weekly reflection notes"));
+  const source = page.getByLabel("Reorder Review quarterly milestone planning");
+  const target = page.getByLabel("Reorder Draft weekly reflection notes");
+  const sourceBox = (await source.boundingBox())!;
+  const targetBox = (await target.boundingBox())!;
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y - 10, {
+    steps: 5,
+  });
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 10 },
+  );
+  await page.mouse.up();
 
   await expect(rows.first()).toContainText(
     "Review quarterly milestone planning",

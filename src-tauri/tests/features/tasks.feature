@@ -29,7 +29,7 @@ Feature: Tasks
     Given an application state on a temporary seeded database
     And a backlog task titled Alpha
     And a backlog task titled Beta
-    When I reorder the tasks to "Beta, Alpha"
+    When I move Beta before Alpha
     Then the reorder succeeds
     And the task list order is "Beta, Alpha"
 
@@ -37,5 +37,5 @@ Feature: Tasks
     Given an application state on a temporary seeded database
     And a backlog task titled Alpha
     And a task exists on a second profile
-    When I reorder the tasks including the foreign task
+    When I move a task before the foreign task
     Then the reorder fails
