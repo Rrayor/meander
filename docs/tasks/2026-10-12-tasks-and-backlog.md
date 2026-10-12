@@ -20,16 +20,12 @@ be scoped to the active profile.
   - `estimated_minutes` INTEGER NULL, `spent_minutes` INTEGER NULL
   - `placement` TEXT NOT NULL DEFAULT 'backlog' CHECK(placement IN
     ('backlog','weekly_backlog','scheduled')), `scheduled_date` TEXT NULL —
-    `backlog` = global backlog (week-free, unaffected by week-start changes);
-    `weekly_backlog` + anchor date = the weekly backlog column of the week
-    containing the anchor; `scheduled` + date = day column on that date.
-    Weeks are never stored — only real dates; the containing week is derived
-    at read time from the current week-start setting. The anchor is the week
-    start at assignment time, so a week-start change moves the item with the
-    bulk of its original week rather than orphaning it. The spec defines no
-    behavior for week-start changes; "follow the anchor's containing week" is
-    the least surprising interpretation
-    `CHECK (placement = 'backlog' OR scheduled_date IS NOT NULL)`
+    `backlog` = global backlog; `weekly_backlog` = the standing
+    not-yet-day-assigned container, shown only on the current week's board
+    (spec: weekly backlog is current state, never history, and takes no date);
+    `scheduled` + date = day column on that date
+    `CHECK (placement != 'scheduled' OR scheduled_date IS NOT NULL)` and
+    `CHECK (placement != 'weekly_backlog' OR scheduled_date IS NULL)`
   - `created_at`, `updated_at` TEXT defaults
 - `tasks.rs` service: `list(pool, profile_id)` only
 - `Task` struct: `specta::Type` + `FromRow`; `TaskStatus` enum exported to TS
@@ -74,6 +70,10 @@ estimated_minutes, spent_minutes, status})` — full-row update, scoped
 - Categories — steps 19–24
 - Repeat schedule + series — steps 25–30
 - "Ask at week boundary" carry-over prompt — needs the board (steps 34, 39)
+- Discard semantics for weekly-backlog items: the spec's "stays in the past
+  week as historic evidence" assumes a day placement; a dateless weekly-backlog
+  item has no past week to stay in. Decide at step 39 — most plausible is
+  reverting to the global backlog
 - Backlog pagination — step 51
 - "Add to current week" / move-back actions — step 50
 - Task create entry point on the kanban view — step 49

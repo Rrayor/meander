@@ -5,7 +5,7 @@ A weekly kanban planner application. The point is to provide flexible planning w
 Main features include:
 
 - A kanban board per week where each day is a column and tasks are the items under them. The board is like a table in that it has rows for the 3 states (Todo, In progress, Done), but those rows are dynamic in height depending on how many items belong to them.
-- The board always has a starting column called "Weekly backlog"
+- The board always has a starting column called "Weekly backlog" — the currently pending not-yet-day-assigned tasks, only ever shown on the current week's board
 - A new board is automatically created every week. Repeating tasks get placed on the new board according to their scheduling. Carry-over tasks will get placed in the weekly backlog.
 - Tasks can be configured to repeat on a schedule
 - Tasks can be in 3 states: Todo, in progress, done
@@ -333,6 +333,7 @@ There is a navigation option to step backwards and forwards between weeks and a 
 - There is a calendar option to choose any week's boards for display
 - Past boards display recorded historic information
 - Future boards only show currently knowable information: Repeating task instances and pre-scheduled tasks
+- The weekly backlog column is only rendered on the current week's board; past and future boards show day columns only
 
 ### Creating weekly boards
 
@@ -342,12 +343,15 @@ That being said, a new board is shown whenever according to the current settings
 
 If it's the start of a new week, and not just the user perusing future weeks, carry-over must be handled. Each task has a carry-over setting which defines what should happen if the task is incomplete at the turn of weeks. One option is to discard it, which just means it won't be moved to the new week, but will stay in the past week as historic evidence of the incomplete task. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week.
 
-All incomplete tasks from past weeks, that are set to carry over should appear in the weekly backlog of the currently viewed week.
+All incomplete tasks from past weeks, that are set to carry over should appear in the weekly backlog of the current week's board.
+
+The weekly backlog is a standing container, not a per-week record: it holds the tasks currently pulled out of the global backlog for the current week but not assigned to a day. Backlog membership is current state, never history — a task that was done moved out; a task that wasn't is still there. Neither backlog (weekly or global) has historical state, and neither appears on past or future boards.
 
 **Acceptance Criteria:**
 
 - Weeks are not a technical entity, but a filter for date and possibly date-range driven data - I know it's more of an architectural decision, but it's important to cement to avoid starting off the wrong foot.
 - When according to the global settings a new week has started, all incomplete tasks from previous weeks that have carry over set to true are added to the weekly backlog column of the current week's board
+- Past and future boards do not display a weekly backlog column; the weekly backlog is a standing container shown only on the current week
 - Those incomplete tasks that have the carry over rule set to discard, aren't added to the weekly backlog of the current board
 - The user is prompted about those incomplete tasks, that don't have a carry over rule set
 - Repeating task instances are auto-populated
