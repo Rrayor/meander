@@ -15,8 +15,9 @@ be scoped to the active profile.
   - `description` TEXT NULL
   - `status` TEXT NOT NULL DEFAULT 'todo' CHECK(status IN
     ('todo','in_progress','done')) — enum mirrored as a specta-exported Rust enum
-  - `carry_over_rule` TEXT NULL CHECK(carry_over_rule IN ('carry','discard'))
-    NULL = "ask at week boundary" per spec
+  - `carry_over_rule` TEXT NULL CHECK(carry_over_rule IN ('carry','return'))
+    NULL = "ask at week boundary" per spec; 'return' = moves back to the
+    global backlog (spec renamed "discard" — it is not deletion)
   - `estimated_minutes` INTEGER NULL, `spent_minutes` INTEGER NULL
   - `placement` TEXT NOT NULL DEFAULT 'backlog' CHECK(placement IN
     ('backlog','weekly_backlog','scheduled')), `scheduled_date` TEXT NULL —
@@ -70,10 +71,6 @@ estimated_minutes, spent_minutes, status})` — full-row update, scoped
 - Categories — steps 19–24
 - Repeat schedule + series — steps 25–30
 - "Ask at week boundary" carry-over prompt — needs the board (steps 34, 39)
-- Discard semantics for weekly-backlog items: the spec's "stays in the past
-  week as historic evidence" assumes a day placement; a dateless weekly-backlog
-  item has no past week to stay in. Decide at step 39 — most plausible is
-  reverting to the global backlog
 - Backlog pagination — step 51
 - "Add to current week" / move-back actions — step 50
 - Task create entry point on the kanban view — step 49
