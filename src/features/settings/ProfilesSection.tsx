@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
+  MAX_PROFILE_NAME_LENGTH,
   createProfile,
   currentProfile,
   listProfiles,
@@ -111,7 +112,7 @@ export function ProfilesSection() {
                     }}
                     aria-label={`Rename ${profile.name}`}
                     autoFocus
-                    maxLength={100}
+                    maxLength={MAX_PROFILE_NAME_LENGTH}
                     className="w-40 rounded-md border border-primary bg-surface-raised px-2.5 py-1 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   <button
@@ -168,7 +169,7 @@ export function ProfilesSection() {
         <input
           id="profile-name"
           type="text"
-          maxLength={100}
+          maxLength={MAX_PROFILE_NAME_LENGTH}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New profile name"

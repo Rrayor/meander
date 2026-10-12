@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { COMMANDS } from "@/api/commands";
 
+export const MAX_PROFILE_NAME_LENGTH = 100;
+
 export interface Profile {
   id: number;
   name: string;
