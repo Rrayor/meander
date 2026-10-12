@@ -415,6 +415,47 @@ fn updated_at_changed(world: &mut MeanderWorld) {
     assert_ne!(profiles[0].updated_at, before, "updated_at did not change");
 }
 
+#[given("a task exists on a second profile")]
+fn task_on_second_profile(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let other = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "Work"))
+        .expect("create profile failed");
+    world.profile_id = Some(other.id);
+    world
+        .rt()
+        .block_on(
+            sqlx::query("INSERT INTO tasks (profile_id, title) VALUES (?, 'Other task')")
+                .bind(other.id)
+                .execute(&pool),
+        )
+        .expect("insert task failed");
+}
+
+#[then("the task list is empty")]
+fn task_list_empty(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    assert!(tasks.is_empty(), "expected empty task list, got {tasks:?}");
+}
+
+#[then("the second profile's task list has one task")]
+fn second_profile_has_task(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let profile_id = world.profile_id.unwrap();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, profile_id))
+        .expect("task list failed");
+    assert_eq!(tasks.len(), 1);
+}
+
 fn main() {
     futures::executor::block_on(MeanderWorld::run("tests/features"));
 }

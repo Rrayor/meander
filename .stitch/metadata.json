@@ -38,6 +38,14 @@
       ],
       "implemented": true,
       "notes": "Profile row inline edit: name becomes input with Save/Cancel; other rows gain a Rename button. Generated extras omitted: Switch buttons, duplicated input, Storage & Privacy section, Offline badge"
+    },
+    {
+      "id": "48b6b70647e54fb29b3098892858181c",
+      "title": "Meander — Backlog",
+      "deviceType": "DESKTOP",
+      "files": ["designs/backlog.html", "designs/backlog.png"],
+      "implemented": true,
+      "notes": "Task list rows (title, estimate, status badge) + empty state. Generated extras omitted: stats strip, checkboxes, Add Task button (step 16), Offline badge (removed earlier)"
     }
   ]
 }

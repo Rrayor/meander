@@ -6,6 +6,7 @@ pub mod config;
 pub mod db;
 pub mod profiles;
 pub mod state;
+pub mod tasks;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -25,6 +26,7 @@ pub fn run() {
             commands::current_db_path,
             commands::select_database_file,
             commands::list_profiles,
+            commands::list_tasks,
             commands::current_profile,
             commands::create_profile,
             commands::rename_profile,
