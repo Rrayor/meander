@@ -24,3 +24,18 @@ Feature: Tasks
     When I create a task with a blank title
     Then the task creation fails
     And the task list is empty
+
+  Scenario: the backlog keeps its manual order
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    When I reorder the tasks to "Beta, Alpha"
+    Then the reorder succeeds
+    And the task list order is "Beta, Alpha"
+
+  Scenario: reordering with a foreign task id is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a task exists on a second profile
+    When I reorder the tasks including the foreign task
+    Then the reorder fails

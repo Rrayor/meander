@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { listTasks } from "@/api/tasks";
+import { listTasks, reorderTasks } from "@/api/tasks";
+import type { Task } from "@/api/tasks";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
 const STATUS_LABELS = {
@@ -25,12 +26,50 @@ const formatMinutes = (minutes: number) => {
 };
 
 export function BacklogPage() {
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: tasks, error } = useQuery({
     queryKey: QUERY_KEYS.tasks,
     queryFn: listTasks,
   });
+  const reorder = useMutation({
+    mutationFn: reorderTasks,
+    onMutate: async (orderedIds) => {
+      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.tasks });
+      const previous = queryClient.getQueryData<Task[]>(QUERY_KEYS.tasks);
+      if (previous) {
+        const byId = new Map(previous.map((t) => [t.id, t]));
+        queryClient.setQueryData(
+          QUERY_KEYS.tasks,
+          orderedIds.map((id) => byId.get(id)!),
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _ids, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(QUERY_KEYS.tasks, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+    },
+  });
+
+  const dropOn = (event: React.DragEvent, target: Task) => {
+    event.preventDefault();
+    const draggedId = Number(event.dataTransfer.getData("text/plain"));
+    if (!tasks || !Number.isFinite(draggedId)) {
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const belowMidpoint = event.clientY > rect.top + rect.height / 2;
+    const ids = tasks.map((t) => t.id).filter((id) => id !== draggedId);
+    const at = ids.indexOf(target.id) + (belowMidpoint ? 1 : 0);
+    ids.splice(at, 0, draggedId);
+    reorder.mutate(ids);
+  };
 
   return (
     <>
@@ -69,7 +108,17 @@ export function BacklogPage() {
             {tasks.map((task) => (
               <li
                 key={task.id}
-                className="flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", String(task.id));
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(e) => dropOn(e, task)}
+                className="flex cursor-grab items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised active:cursor-grabbing"
               >
                 <span className="truncate text-sm font-medium text-text">
                   {task.title}

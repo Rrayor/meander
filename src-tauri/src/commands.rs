@@ -36,6 +36,16 @@ pub async fn create_task(
 }
 
 #[tauri::command]
+pub async fn reorder_tasks(
+    ordered_ids: Vec<i64>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    crate::tasks::reorder(&state.pool(), state.active_profile_id(), &ordered_ids)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, String> {
     profiles::create(&state.pool(), &name)
         .await

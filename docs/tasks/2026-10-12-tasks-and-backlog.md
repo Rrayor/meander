@@ -46,6 +46,17 @@ be scoped to the active profile.
 - Tests: cucumber (create+trim/blank reject, created on active profile),
   Playwright (create flow, validation)
 
+## Task 2b — backlog manual ordering
+
+- `sort_order REAL` column, default = insertion order (`MAX(sort_order) + 1`
+  on insert)
+- `tasks::reorder(pool, profile_id, ordered_ids)` — rewrites positions in one
+  transaction; the full id list must cover the profile's tasks
+- `reorder_tasks` command + native HTML5 drag and drop on backlog rows
+- Spec: manual order is the default display order; future sorting/filtering
+  are view-time transforms that never touch it
+- Tests: cucumber (reorder persists, foreign id rejected), Playwright (drag)
+
 ## Task 3 — task deletion (step 17)
 
 - `tasks::delete(pool, profile_id, id)` — scoped delete; deleting another

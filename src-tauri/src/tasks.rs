@@ -69,6 +69,7 @@ pub struct Task {
     pub spent_minutes: Option<i64>,
     pub placement: TaskPlacement,
     pub scheduled_date: Option<String>,
+    pub sort_order: f64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -94,15 +95,44 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         ));
     }
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes) VALUES (?, ?, ?, ?)",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, sort_order)
+         VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
     .bind(description)
     .bind(input.estimated_minutes)
+    .bind(profile_id)
     .execute(pool)
     .await?;
     get(pool, result.last_insert_rowid()).await
+}
+
+/// Rewrites the manual order of a profile's tasks. `ordered_ids` must list
+/// every task of the profile exactly once; anything else is a validation error
+/// rather than a partial reorder.
+pub async fn reorder(pool: &SqlitePool, profile_id: i64, ordered_ids: &[i64]) -> Result<()> {
+    let existing = list(pool, profile_id).await?;
+    let mut expected: Vec<i64> = existing.iter().map(|t| t.id).collect();
+    let mut given = ordered_ids.to_vec();
+    expected.sort_unstable();
+    given.sort_unstable();
+    if expected != given {
+        return Err(crate::db::DbError::Validation(
+            "reorder must list every task of the profile exactly once".into(),
+        ));
+    }
+    let mut tx = pool.begin().await?;
+    for (index, id) in ordered_ids.iter().enumerate() {
+        sqlx::query("UPDATE tasks SET sort_order = ? WHERE id = ? AND profile_id = ?")
+            .bind((index + 1) as f64)
+            .bind(id)
+            .bind(profile_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
@@ -115,10 +145,10 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
-    Ok(
-        sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE profile_id = ? ORDER BY id")
-            .bind(profile_id)
-            .fetch_all(pool)
-            .await?,
+    Ok(sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? ORDER BY sort_order, id",
     )
+    .bind(profile_id)
+    .fetch_all(pool)
+    .await?)
 }

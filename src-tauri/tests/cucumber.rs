@@ -529,6 +529,94 @@ fn task_on_default_profile(world: &mut MeanderWorld) {
     assert_eq!(tasks[0].profile_id, active);
 }
 
+#[given(expr = "a backlog task titled {word}")]
+fn backlog_task(world: &mut MeanderWorld, title: String) {
+    create_task(world, &title);
+    assert!(
+        world.error.is_none(),
+        "seed create failed: {:?}",
+        world.error
+    );
+}
+
+#[when(expr = "I reorder the tasks to {string}")]
+fn reorder_tasks(world: &mut MeanderWorld, titles: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let ids: Vec<i64> = titles
+        .split(", ")
+        .map(|title| {
+            tasks
+                .iter()
+                .find(|t| t.title == title)
+                .unwrap_or_else(|| panic!("no task titled {title}"))
+                .id
+        })
+        .collect();
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::reorder(&pool, active, &ids))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I reorder the tasks including the foreign task")]
+fn reorder_with_foreign(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let foreign = world.profile_id.expect("no second profile");
+    let mut ids: Vec<i64> = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .iter()
+        .map(|t| t.id)
+        .collect();
+    let foreign_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, foreign))
+        .expect("foreign task list failed")[0]
+        .id;
+    ids.push(foreign_id);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::reorder(&pool, active, &ids))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the reorder succeeds")]
+fn reorder_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "reorder failed: {:?}", world.error);
+}
+
+#[then("the reorder fails")]
+fn reorder_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "reorder unexpectedly succeeded");
+}
+
+#[then(expr = "the task list order is {string}")]
+fn task_list_order(world: &mut MeanderWorld, titles: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let actual: Vec<&str> = tasks.iter().map(|t| t.title.as_str()).collect();
+    let expected: Vec<&str> = titles.split(", ").collect();
+    assert_eq!(actual, expected);
+}
+
 fn main() {
     futures::executor::block_on(MeanderWorld::run("tests/features"));
 }

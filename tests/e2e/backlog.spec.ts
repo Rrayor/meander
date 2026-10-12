@@ -117,3 +117,22 @@ test("a blank title shows validation without calling the backend", async ({
 
   await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
 });
+
+test("dragging a task reorders the backlog", async ({ page }) => {
+  const reordered = [tasks[1], tasks[0]];
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([tasks, reordered]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.reorderTasks]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  const rows = page.locator("ul > li");
+  await page
+    .getByText("Review quarterly milestone planning")
+    .dragTo(page.getByText("Draft weekly reflection notes"));
+
+  await expect(rows.first()).toContainText(
+    "Review quarterly milestone planning",
+  );
+});
