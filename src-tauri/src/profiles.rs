@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 
 use crate::db::Result;
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, specta::Type, sqlx::FromRow)]
 pub struct Profile {
     pub id: i64,
     pub name: String,
@@ -73,6 +73,13 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Profile> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn export_typescript_bindings() {
+        let conf =
+            specta::ts::ExportConfiguration::new().bigint(specta::ts::BigIntExportBehavior::Number);
+        specta::export::ts_with_cfg("../src/api/bindings.ts", &conf).expect("export TS bindings");
+    }
 
     #[test]
     fn accepts_a_name_at_the_limit() {

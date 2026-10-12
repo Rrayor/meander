@@ -2,14 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { COMMANDS } from "@/api/commands";
 
-export const MAX_PROFILE_NAME_LENGTH = 100;
+import type { Profile } from "./bindings";
 
-export interface Profile {
-  id: number;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
+export type { Profile };
+
+export const MAX_PROFILE_NAME_LENGTH = 100;
 
 export const listProfiles = () => invoke<Profile[]>(COMMANDS.listProfiles);
 
