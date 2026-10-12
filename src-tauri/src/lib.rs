@@ -27,6 +27,7 @@ pub fn run() {
             commands::select_database_file,
             commands::list_profiles,
             commands::list_tasks,
+            commands::create_task,
             commands::current_profile,
             commands::create_profile,
             commands::rename_profile,

@@ -81,6 +81,15 @@ fn app_state(world: &mut MeanderWorld) {
         .rt()
         .block_on(meander_lib::db::seed(&state.pool()))
         .expect("seed failed");
+    // Mirror AppState::from_config: resolve the active profile after seeding.
+    let first = world
+        .rt()
+        .block_on(meander_lib::profiles::list(&state.pool()))
+        .expect("profile list failed")
+        .first()
+        .expect("seeded profile missing")
+        .id;
+    state.set_active_profile(first);
     let pool = state.pool();
     world
         .rt()
@@ -454,6 +463,66 @@ fn second_profile_has_task(world: &mut MeanderWorld) {
         .block_on(meander_lib::tasks::list(&pool, profile_id))
         .expect("task list failed");
     assert_eq!(tasks.len(), 1);
+}
+
+fn create_task(world: &mut MeanderWorld, title: &str) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::create(&pool, active, title))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I create a task with surrounding whitespace")]
+fn create_task_whitespace(world: &mut MeanderWorld) {
+    create_task(world, "  Plan the week  ");
+}
+
+#[when("I create a task with a blank title")]
+fn create_task_blank(world: &mut MeanderWorld) {
+    create_task(world, "   ");
+}
+
+#[then("the task creation succeeds")]
+fn task_creation_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "creation failed: {:?}", world.error);
+}
+
+#[then("the task creation fails")]
+fn task_creation_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "creation unexpectedly succeeded");
+}
+
+#[then("a task titled Plan the week exists in the backlog")]
+fn plan_task_in_backlog(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let task = tasks
+        .iter()
+        .find(|t| t.title == "Plan the week")
+        .expect("task not found");
+    assert_eq!(task.placement, meander_lib::tasks::TaskPlacement::Backlog);
+}
+
+#[then("the task belongs to the default profile")]
+fn task_on_default_profile(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    assert_eq!(tasks[0].profile_id, active);
 }
 
 fn main() {

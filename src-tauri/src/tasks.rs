@@ -71,6 +71,25 @@ pub struct Task {
     pub updated_at: String,
 }
 
+pub async fn create(pool: &SqlitePool, profile_id: i64, title: &str) -> Result<Task> {
+    let title = TaskTitle::parse(title)?.into_inner();
+    let result = sqlx::query("INSERT INTO tasks (profile_id, title) VALUES (?, ?)")
+        .bind(profile_id)
+        .bind(title)
+        .execute(pool)
+        .await?;
+    get(pool, result.last_insert_rowid()).await
+}
+
+pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
+    Ok(
+        sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await?,
+    )
+}
+
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     Ok(
         sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE profile_id = ? ORDER BY id")

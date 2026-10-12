@@ -2,7 +2,7 @@ import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { stubTauriCommands } from "./stubs";
+import { stubSequence, stubTauriCommands } from "./stubs";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
 
@@ -70,4 +70,38 @@ test("an empty backlog shows the empty state", async ({ page }) => {
   await expect(
     page.getByText("No tasks yet — created tasks will appear here."),
   ).toBeVisible();
+});
+
+test("creating a task adds it to the backlog", async ({ page }) => {
+  const created = {
+    ...tasks[0],
+    id: 3,
+    title: "Plan the week",
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([[], [created]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: created,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByLabel("Task title").fill("  Plan the week  ");
+  await page.getByRole("button", { name: "Add task" }).click();
+
+  await expect(page.getByText("Plan the week")).toBeVisible();
+});
+
+test("a blank title shows validation without calling the backend", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+
+  await expect(page.getByRole("alert")).toHaveText("Task title is required");
 });
