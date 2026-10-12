@@ -1,5 +1,6 @@
 use tauri::Manager;
 
+pub mod bindings;
 pub mod commands;
 pub mod config;
 pub mod db;

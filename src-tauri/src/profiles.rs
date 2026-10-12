@@ -75,13 +75,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn export_typescript_bindings() {
-        let conf =
-            specta::ts::ExportConfiguration::new().bigint(specta::ts::BigIntExportBehavior::Number);
-        specta::export::ts_with_cfg("../src/api/bindings.ts", &conf).expect("export TS bindings");
-    }
-
-    #[test]
     fn accepts_a_name_at_the_limit() {
         let name = "a".repeat(100);
         assert_eq!(profile_name(&name).unwrap().into_inner(), name);
