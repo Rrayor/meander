@@ -71,13 +71,35 @@ pub struct Task {
     pub updated_at: String,
 }
 
-pub async fn create(pool: &SqlitePool, profile_id: i64, title: &str) -> Result<Task> {
-    let title = TaskTitle::parse(title)?.into_inner();
-    let result = sqlx::query("INSERT INTO tasks (profile_id, title) VALUES (?, ?)")
-        .bind(profile_id)
-        .bind(title)
-        .execute(pool)
-        .await?;
+#[derive(Debug, Default, Deserialize, specta::Type)]
+pub struct NewTask {
+    pub title: String,
+    pub description: Option<String>,
+    pub estimated_minutes: Option<i64>,
+}
+
+pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
+    let title = TaskTitle::parse(&input.title)?.into_inner();
+    let description = input
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(str::to_owned);
+    if input.estimated_minutes.is_some_and(|m| m < 0) {
+        return Err(crate::db::DbError::Validation(
+            "estimated time cannot be negative".into(),
+        ));
+    }
+    let result = sqlx::query(
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes) VALUES (?, ?, ?, ?)",
+    )
+    .bind(profile_id)
+    .bind(title)
+    .bind(description)
+    .bind(input.estimated_minutes)
+    .execute(pool)
+    .await?;
     get(pool, result.last_insert_rowid()).await
 }
 

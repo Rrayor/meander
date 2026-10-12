@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { MAX_TASK_TITLE_LENGTH, createTask, listTasks } from "@/api/tasks";
+import { listTasks } from "@/api/tasks";
+import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
 const STATUS_LABELS = {
   todo: "Todo",
@@ -24,34 +25,12 @@ const formatMinutes = (minutes: number) => {
 };
 
 export function BacklogPage() {
-  const queryClient = useQueryClient();
-  const [title, setTitle] = useState("");
-  const [validationError, setValidationError] = useState<string>();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: tasks, error } = useQuery({
     queryKey: QUERY_KEYS.tasks,
     queryFn: listTasks,
   });
-  const create = useMutation({
-    mutationFn: createTask,
-    onSuccess: () => {
-      setTitle("");
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
-    },
-  });
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    setValidationError(undefined);
-    if (!title.trim()) {
-      setValidationError("Task title is required");
-      return;
-    }
-    create.mutate(title);
-  };
-
-  const formError =
-    validationError ?? (create.error ? String(create.error) : undefined);
 
   return (
     <>
@@ -64,32 +43,15 @@ export function BacklogPage() {
         </div>
       </header>
       <section className="flex-1 overflow-y-auto p-6">
-        <form onSubmit={submit} className="mb-4 flex items-center gap-3">
-          <label htmlFor="task-title" className="sr-only">
-            Task title
-          </label>
-          <input
-            id="task-title"
-            type="text"
-            maxLength={MAX_TASK_TITLE_LENGTH}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="New task title"
-            className="w-64 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary"
-          />
+        <div className="mb-4">
           <button
-            type="submit"
-            disabled={create.isPending}
-            className="shrink-0 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
           >
             Add task
           </button>
-        </form>
-        {formError && (
-          <p role="alert" className="mb-4 text-sm text-danger">
-            {formError}
-          </p>
-        )}
+        </div>
         {error && (
           <p role="alert" className="text-sm text-danger">
             {error instanceof Error ? error.message : String(error)}
@@ -129,6 +91,7 @@ export function BacklogPage() {
           </ul>
         )}
       </section>
+      {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
     </>
   );
 }

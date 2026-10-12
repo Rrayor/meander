@@ -469,10 +469,14 @@ fn create_task(world: &mut MeanderWorld, title: &str) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    if let Err(e) = world
-        .rt()
-        .block_on(meander_lib::tasks::create(&pool, active, title))
-    {
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title: title.to_string(),
+            ..Default::default()
+        },
+    )) {
         world.error = Some(e.to_string());
     }
 }

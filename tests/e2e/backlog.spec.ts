@@ -72,11 +72,15 @@ test("an empty backlog shows the empty state", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("creating a task adds it to the backlog", async ({ page }) => {
+test("creating a task via the dialog adds it to the backlog", async ({
+  page,
+}) => {
   const created = {
     ...tasks[0],
     id: 3,
     title: "Plan the week",
+    description: "Outline priorities",
+    estimated_minutes: 30,
   };
   await stubTauriCommands(page, {
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
@@ -85,10 +89,15 @@ test("creating a task adds it to the backlog", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByLabel("Task title").fill("  Plan the week  ");
   await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill("  Plan the week  ");
+  await dialog.getByLabel(/Description/).fill("Outline priorities");
+  await dialog.getByLabel(/Estimated time/).fill("30");
+  await dialog.getByRole("button", { name: "Create task" }).click();
 
   await expect(page.getByText("Plan the week")).toBeVisible();
+  await expect(dialog).not.toBeVisible();
 });
 
 test("a blank title shows validation without calling the backend", async ({
@@ -102,6 +111,8 @@ test("a blank title shows validation without calling the backend", async ({
   await page.goto(`/#${backlogPath}`);
 
   await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Create task" }).click();
 
-  await expect(page.getByRole("alert")).toHaveText("Task title is required");
+  await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
 });
