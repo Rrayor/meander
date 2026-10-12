@@ -5,14 +5,14 @@ A weekly kanban planner application. The point is to provide flexible planning w
 Main features include:
 
 - A kanban board per week where each day is a column and tasks are the items under them. The board is like a table in that it has rows for the 3 states (Todo, In progress, Done), but those rows are dynamic in height depending on how many items belong to them.
-- The board always has a starting column called "Weekly backlog"
+- The board always has a starting column called "Weekly backlog" — the currently pending not-yet-day-assigned tasks, only ever shown on the current week's board
 - A new board is automatically created every week. Repeating tasks get placed on the new board according to their scheduling. Carry-over tasks will get placed in the weekly backlog.
 - Tasks can be configured to repeat on a schedule
 - Tasks can be in 3 states: Todo, in progress, done
 - Tasks can have notes attached that belong to an instance if the task is a repeating one, but previous (or following) instances' notes can be easily viewed on any instance of a repeating task
 - If the week ends with a task being in an incomplete state the following can happen based on the tasks configuration:
   - If the task is configured to stay on the board until done, it moves to the weekly backlog of the new week's board
-  - If the task is configured to be dismissed at the end of the week if incomplete (The default for repeating tasks), it won't get added to the new week's board
+  - If the task is configured to return to the backlog at the end of the week if incomplete (The default for repeating tasks), it won't get added to the new week's board
   - If the configuration is missing on the task, the user will be asked to choose an action of the above when they open the new week's board
 - The application can be configured to start the weeks on any day, but the default week start is Monday.
 - The days of the week that count as work days can be configured (Default: Monday-Friday). Used by workday-aware repetition schedules (e.g. "the first workday after the 11th of the month").
@@ -52,7 +52,7 @@ Title: What is to be done (Required)
 Description: Any details worth mentioning (Optional)
 Status: Todo/In progress,/Done (Todo by default)
 Repeat schedule: Can be none, which means the task is not to repeat, or a set of repeat options detailed below (Optional)
-Carry-over rule (Exact name needs to be refined before implementation. If you're implementing this, come up with the right naming): Defines what should happen when the task is incomplete when the new week is started. If it needs to be moved over or silently discarded. (Optional, if not set the user is prompted to choose at the start of the next week)
+Carry-over rule (Exact name needs to be refined before implementation. If you're implementing this, come up with the right naming): Defines what should happen when the task is incomplete when the new week is started. If it needs to be moved over or returned to the backlog. (Optional, if not set the user is prompted to choose at the start of the next week)
 Notes: A list of optional notes the user can add to a task or an instance of a repeated task (Optional)
 Categories: The task can belong to multiple categories. (Optional)
 Estimated time: The time the task is expected to take (Optional)
@@ -76,9 +76,9 @@ The user can also choose to schedule the task (different from scheduling repetit
 
 The user can also set a schedule for repetition here. If they do, a repeating task will be created.
 
-Carry-over rule defines what should happen if the task is incomplete at the turn of weeks. One option is to discard it, which just means it won't be moved to the new week, but will stay in the past week as historic evidence of the incomplete task. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week.
+Carry-over rule defines what should happen if the task is incomplete at the turn of weeks. One option is to return it to the backlog, which just means it won't be moved to the new week and waits in the global backlog to be planned again. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week.
 
-In the case of repeating tasks, carry-over rule is set to discard by default, but it can be changed if the user so chooses.
+In the case of repeating tasks, carry-over rule is set to return to the backlog by default, but it can be changed if the user so chooses.
 
 Tasks can be edited or removed in the task detail view detailed below.
 
@@ -92,7 +92,7 @@ When a repeating task instance is deleted, the same choice has to be made but fo
 - Task can be scheduled for future weeks
 - Carry over rule is empty by default
 - If the user specifies a schedule for repetition a repeating task will be created
-- Carry over rule defaults to discard if the user is creating a repeating task
+- Carry over rule defaults to return-to-backlog if the user is creating a repeating task
 - For editing and deletion criteria see the task details view entry.
 
 ### Estimated time and time spent format
@@ -333,6 +333,7 @@ There is a navigation option to step backwards and forwards between weeks and a 
 - There is a calendar option to choose any week's boards for display
 - Past boards display recorded historic information
 - Future boards only show currently knowable information: Repeating task instances and pre-scheduled tasks
+- The weekly backlog column is only rendered on the current week's board; past and future boards show day columns only
 
 ### Creating weekly boards
 
@@ -340,15 +341,18 @@ This is more of a conceptual term. Given, the start of week and other settings c
 
 That being said, a new board is shown whenever according to the current settings a new week has started or when the user delibiretly requests a future board for viewing or editing. It is prepopulated with pre-scheduled tasks, instances of repeating tasks and possibly carry-over from the previous week's unfinished tasks (only when there is a new week starting, not when the user just peruses future weeks).
 
-If it's the start of a new week, and not just the user perusing future weeks, carry-over must be handled. Each task has a carry-over setting which defines what should happen if the task is incomplete at the turn of weeks. One option is to discard it, which just means it won't be moved to the new week, but will stay in the past week as historic evidence of the incomplete task. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week.
+If it's the start of a new week, and not just the user perusing future weeks, carry-over must be handled. Each task has a carry-over setting which defines what should happen if the task is incomplete at the turn of weeks. One option is to return it to the backlog, which just means it won't be moved to the new week and waits in the global backlog to be planned again. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week.
 
-All incomplete tasks from past weeks, that are set to carry over should appear in the weekly backlog of the currently viewed week.
+All incomplete tasks from past weeks, that are set to carry over should appear in the weekly backlog of the current week's board.
+
+The weekly backlog is a standing container, not a per-week record: it holds the tasks currently pulled out of the global backlog for the current week but not assigned to a day. Backlog membership is current state, never history — a task that was done moved out; a task that wasn't is still there. Neither backlog (weekly or global) has historical state, and neither appears on past or future boards.
 
 **Acceptance Criteria:**
 
 - Weeks are not a technical entity, but a filter for date and possibly date-range driven data - I know it's more of an architectural decision, but it's important to cement to avoid starting off the wrong foot.
 - When according to the global settings a new week has started, all incomplete tasks from previous weeks that have carry over set to true are added to the weekly backlog column of the current week's board
-- Those incomplete tasks that have the carry over rule set to discard, aren't added to the weekly backlog of the current board
+- Past and future boards do not display a weekly backlog column; the weekly backlog is a standing container shown only on the current week
+- Those incomplete tasks that have the carry over rule set to return to the backlog, aren't added to the weekly backlog of the current board
 - The user is prompted about those incomplete tasks, that don't have a carry over rule set
 - Repeating task instances are auto-populated
 
