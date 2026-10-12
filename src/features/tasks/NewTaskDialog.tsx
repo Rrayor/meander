@@ -21,7 +21,8 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [estimate, setEstimate] = useState("");
+  const [estHours, setEstHours] = useState("");
+  const [estMinutes, setEstMinutes] = useState("");
   const [validationError, setValidationError] = useState<string>();
 
   const create = useMutation({
@@ -39,11 +40,23 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
       setValidationError(ERROR_MESSAGES["task title is required"]);
       return;
     }
-    const minutes = estimate.trim() === "" ? null : Number(estimate);
+    const hours = estHours.trim() === "" ? 0 : Number(estHours);
+    const minutes = estMinutes.trim() === "" ? 0 : Number(estMinutes);
+    if (
+      !Number.isInteger(hours) ||
+      !Number.isInteger(minutes) ||
+      hours < 0 ||
+      minutes < 0
+    ) {
+      setValidationError("Estimated time must be a positive whole number");
+      return;
+    }
+    const total = hours * 60 + minutes;
+    const hasEstimate = estHours.trim() !== "" || estMinutes.trim() !== "";
     create.mutate({
       title,
       description: description || null,
-      estimated_minutes: minutes,
+      estimated_minutes: hasEstimate ? total : null,
     });
   };
 
@@ -126,22 +139,46 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="new-task-estimate"
-              className="text-xs font-medium text-text-muted"
-            >
+            <span className="text-xs font-medium text-text-muted">
               Estimated time{" "}
-              <span className="text-text-muted/60">(optional, minutes)</span>
-            </label>
-            <input
-              id="new-task-estimate"
-              type="number"
-              min={0}
-              value={estimate}
-              onChange={(e) => setEstimate(e.target.value)}
-              placeholder="e.g. 45"
-              className="w-44 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-            />
+              <span className="text-text-muted/60">(optional)</span>
+            </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <input
+                  id="new-task-est-hours"
+                  aria-label="Estimated hours"
+                  type="number"
+                  value={estHours}
+                  onChange={(e) => setEstHours(e.target.value)}
+                  placeholder="0"
+                  className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+                <label
+                  htmlFor="new-task-est-hours"
+                  className="text-xs text-text-muted"
+                >
+                  h
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="new-task-est-minutes"
+                  aria-label="Estimated minutes"
+                  type="number"
+                  value={estMinutes}
+                  onChange={(e) => setEstMinutes(e.target.value)}
+                  placeholder="0"
+                  className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+                <label
+                  htmlFor="new-task-est-minutes"
+                  className="text-xs text-text-muted"
+                >
+                  min
+                </label>
+              </div>
+            </div>
           </div>
           {error && (
             <p role="alert" className="text-sm text-danger">

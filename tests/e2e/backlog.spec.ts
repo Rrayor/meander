@@ -80,7 +80,7 @@ test("creating a task via the dialog adds it to the backlog", async ({
     id: 3,
     title: "Plan the week",
     description: "Outline priorities",
-    estimated_minutes: 30,
+    estimated_minutes: 90,
   };
   await stubTauriCommands(page, {
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
@@ -93,7 +93,8 @@ test("creating a task via the dialog adds it to the backlog", async ({
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(/^Title/).fill("  Plan the week  ");
   await dialog.getByLabel(/Description/).fill("Outline priorities");
-  await dialog.getByLabel(/Estimated time/).fill("30");
+  await dialog.getByLabel("Estimated hours").fill("1");
+  await dialog.getByLabel("Estimated minutes").fill("30");
   await dialog.getByRole("button", { name: "Create task" }).click();
 
   await expect(page.getByText("Plan the week")).toBeVisible();
