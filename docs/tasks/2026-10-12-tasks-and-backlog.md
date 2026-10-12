@@ -20,11 +20,15 @@ be scoped to the active profile.
   - `estimated_minutes` INTEGER NULL, `spent_minutes` INTEGER NULL
   - `placement` TEXT NOT NULL DEFAULT 'backlog' CHECK(placement IN
     ('backlog','weekly_backlog','scheduled')), `scheduled_date` TEXT NULL —
-    `backlog` = global backlog; `weekly_backlog` + anchor date D = the weekly
-    backlog column of the week containing D; `scheduled` + date D = day column
-    on D. Weeks are never stored — only real dates; the containing week is
-    derived at read time from the current week-start setting, so a week-start
-    change can't strand a task on a nonexistent boundary
+    `backlog` = global backlog (week-free, unaffected by week-start changes);
+    `weekly_backlog` + anchor date = the weekly backlog column of the week
+    containing the anchor; `scheduled` + date = day column on that date.
+    Weeks are never stored — only real dates; the containing week is derived
+    at read time from the current week-start setting. The anchor is the week
+    start at assignment time, so a week-start change moves the item with the
+    bulk of its original week rather than orphaning it. The spec defines no
+    behavior for week-start changes; "follow the anchor's containing week" is
+    the least surprising interpretation
     `CHECK (placement = 'backlog' OR scheduled_date IS NOT NULL)`
   - `created_at`, `updated_at` TEXT defaults
 - `tasks.rs` service: `list(pool, profile_id)` only
