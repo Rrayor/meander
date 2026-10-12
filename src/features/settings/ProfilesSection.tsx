@@ -111,6 +111,7 @@ export function ProfilesSection() {
                     }}
                     aria-label={`Rename ${profile.name}`}
                     autoFocus
+                    maxLength={100}
                     className="w-40 rounded-md border border-primary bg-surface-raised px-2.5 py-1 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   <button
@@ -167,6 +168,7 @@ export function ProfilesSection() {
         <input
           id="profile-name"
           type="text"
+          maxLength={100}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New profile name"

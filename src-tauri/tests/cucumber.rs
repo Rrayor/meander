@@ -229,6 +229,30 @@ fn create_blank(world: &mut MeanderWorld) {
     }
 }
 
+#[when("I create a profile with a 101-character name")]
+fn create_too_long(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    let name = "a".repeat(101);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, &name))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I create a profile with a newline in the name")]
+fn create_control_char(world: &mut MeanderWorld) {
+    let pool = world.pool.clone().expect("no pool in world");
+    world.error = None;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "two\nlines"))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
 #[then("the creation succeeds")]
 fn creation_succeeded(world: &mut MeanderWorld) {
     assert!(world.error.is_none(), "creation failed: {:?}", world.error);
