@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { createProfile, currentProfile, listProfiles } from "@/api/profiles";
+import {
+  createProfile,
+  currentProfile,
+  listProfiles,
+  renameProfile,
+} from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 
 const formatDate = (iso: string) =>
@@ -17,6 +22,8 @@ const errorMessage = (e: unknown) =>
 export function ProfilesSection() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
+  const [editingId, setEditingId] = useState<number>();
+  const [draft, setDraft] = useState("");
   const [validationError, setValidationError] = useState<string>();
 
   const { data: profiles } = useQuery({
@@ -34,6 +41,15 @@ export function ProfilesSection() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
     },
   });
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      renameProfile(id, name),
+    onSuccess: () => {
+      setEditingId(undefined);
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currentProfile });
+    },
+  });
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -45,7 +61,25 @@ export function ProfilesSection() {
     create.mutate(name);
   };
 
-  const error = validationError ?? (create.error && errorMessage(create.error));
+  const startRename = (profile: { id: number; name: string }) => {
+    setValidationError(undefined);
+    setEditingId(profile.id);
+    setDraft(profile.name);
+  };
+
+  const submitRename = (id: number) => {
+    setValidationError(undefined);
+    if (!draft.trim()) {
+      setValidationError("Profile name is required");
+      return;
+    }
+    rename.mutate({ id, name: draft });
+  };
+
+  const error =
+    validationError ??
+    (create.error && errorMessage(create.error)) ??
+    (rename.error && errorMessage(rename.error));
 
   return (
     <section aria-labelledby="profiles-heading" className="flex flex-col gap-3">
@@ -65,19 +99,64 @@ export function ProfilesSection() {
             className="flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
           >
             <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-medium text-text">
-                {profile.name}
-              </span>
-              {profile.id === current?.id && (
-                <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
-                  Current
-                </span>
+              {editingId === profile.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitRename(profile.id);
+                      if (e.key === "Escape") setEditingId(undefined);
+                    }}
+                    aria-label={`Rename ${profile.name}`}
+                    autoFocus
+                    className="w-40 rounded-md border border-primary bg-surface-raised px-2.5 py-1 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => submitRename(profile.id)}
+                    disabled={rename.isPending}
+                    className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(undefined)}
+                    className="shrink-0 px-2 py-1 text-xs text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="truncate text-sm font-medium text-text">
+                    {profile.name}
+                  </span>
+                  {profile.id === current?.id && (
+                    <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
+                      Current
+                    </span>
+                  )}
+                </>
               )}
             </div>
-            <span className="shrink-0 text-xs text-text-muted">
-              Created {formatDate(profile.created_at)} · Updated{" "}
-              {formatDate(profile.updated_at)}
-            </span>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-xs text-text-muted">
+                Created {formatDate(profile.created_at)} · Updated{" "}
+                {formatDate(profile.updated_at)}
+              </span>
+              {editingId !== profile.id && (
+                <button
+                  type="button"
+                  onClick={() => startRename(profile)}
+                  className="text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  Rename
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>

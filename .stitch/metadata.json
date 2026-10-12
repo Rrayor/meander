@@ -27,6 +27,17 @@
       "files": ["designs/settings.html", "designs/settings.png"],
       "implemented": false,
       "notes": "Settings page: Profiles section (list rows, Current badge) + Database section. Generated extras omitted from implementation: Storage & Privacy section, row action buttons"
+    },
+    {
+      "id": "22a33c7a1c7d47f3bb4ce25895bba65e",
+      "title": "Meander — Settings (Inline Profile Edit)",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/settings-inline-edit.html",
+        "designs/settings-inline-edit.png"
+      ],
+      "implemented": true,
+      "notes": "Profile row inline edit: name becomes input with Save/Cancel; other rows gain a Rename button. Generated extras omitted: Switch buttons, duplicated input, Storage & Privacy section, Offline badge"
     }
   ]
 }

@@ -26,6 +26,7 @@ pub fn run() {
             commands::list_profiles,
             commands::current_profile,
             commands::create_profile,
+            commands::rename_profile,
             commands::switch_profile
         ])
         .run(tauri::generate_context!())

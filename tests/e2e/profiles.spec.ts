@@ -80,6 +80,51 @@ test("a blank name shows validation without calling the backend", async ({
   ).toHaveText("Profile name is required");
 });
 
+test("renaming a profile updates the list and the footer", async ({ page }) => {
+  const renamed = { ...profiles[0], name: "Personal" };
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: stubSequence([profiles, [renamed, profiles[1]]]),
+    [COMMANDS.currentProfile]: stubSequence([profiles[0], renamed]),
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+    [COMMANDS.renameProfile]: renamed,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: "Profiles" });
+  await section
+    .getByRole("listitem")
+    .filter({ hasText: "Default" })
+    .getByRole("button", { name: "Rename" })
+    .click();
+  await page.getByLabel("Rename Default").fill("Personal");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(section.getByText("Personal")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Personal" })).toBeVisible();
+});
+
+test("cancelling a rename leaves the name unchanged", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: "/data/meander.db",
+    // renameProfile intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: "Profiles" });
+  await section
+    .getByRole("listitem")
+    .filter({ hasText: "Default" })
+    .getByRole("button", { name: "Rename" })
+    .click();
+  await page.getByLabel("Rename Default").fill("Personal");
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(section.getByText("Default")).toBeVisible();
+  await expect(section.getByText("Personal")).toBeHidden();
+});
+
 test("the nav footer switches the active profile", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,

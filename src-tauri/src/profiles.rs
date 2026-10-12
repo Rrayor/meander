@@ -33,6 +33,21 @@ pub async fn create(pool: &SqlitePool, name: &str) -> Result<Profile> {
     get(pool, result.last_insert_rowid()).await
 }
 
+pub async fn rename(pool: &SqlitePool, id: i64, name: &str) -> Result<Profile> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(crate::db::DbError::Validation(
+            "profile name is required".into(),
+        ));
+    }
+    sqlx::query("UPDATE profiles SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(name)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    get(pool, id).await
+}
+
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Profile> {
     Ok(sqlx::query_as::<_, Profile>(
         "SELECT id, name, created_at, updated_at FROM profiles WHERE id = ?",
