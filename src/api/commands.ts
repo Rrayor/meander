@@ -8,6 +8,7 @@ export const COMMANDS = {
   createProfile: "create_profile",
   renameProfile: "rename_profile",
   switchProfile: "switch_profile",
+  listTasks: "list_tasks",
   // tauri-plugin-dialog's invoke channel (plugin protocol, not ours)
   dialogOpen: "plugin:dialog|open",
 } as const;

@@ -4,4 +4,5 @@ export const QUERY_KEYS = {
   profiles: ["profiles"],
   currentProfile: ["current-profile"],
   dbPath: ["db-path"],
+  tasks: ["tasks"],
 } as const;

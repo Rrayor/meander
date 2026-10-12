@@ -19,6 +19,13 @@ pub async fn list_profiles(state: State<'_, AppState>) -> Result<Vec<Profile>, S
 }
 
 #[tauri::command]
+pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<crate::tasks::Task>, String> {
+    crate::tasks::list(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, String> {
     profiles::create(&state.pool(), &name)
         .await
