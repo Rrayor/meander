@@ -5,6 +5,10 @@ inputs:
     description: Extra rustup components to install (space-separated)
     required: false
     default: ""
+  cache-target:
+    description: Cache src-tauri/target (skip for space-hungry release builds)
+    required: false
+    default: "true"
 runs:
   using: composite
   steps:
@@ -17,6 +21,7 @@ runs:
         fi
 
     - uses: actions/cache@v4
+      if: inputs.cache-target == 'true'
       with:
         path: |
           ~/.cargo/bin/
@@ -24,5 +29,16 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+
+    - uses: actions/cache@v4
+      if: inputs.cache-target == 'false'
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
         key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
         restore-keys: ${{ runner.os }}-cargo-
