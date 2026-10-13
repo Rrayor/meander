@@ -233,8 +233,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               id="new-task-carry-over-label"
               className="text-xs font-medium text-text-muted"
             >
-              Carry-over rule{" "}
-              <span className="text-text-muted/60">(optional)</span>
+              Carry-over rule
             </span>
             <Controller
               name="carryOver"
