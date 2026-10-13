@@ -661,3 +661,175 @@ fn create_task_oversized_description(world: &mut MeanderWorld) {
         world.error = Some(e.to_string());
     }
 }
+
+#[when(expr = "I create a task with a title of {int} characters")]
+fn create_task_title_length(world: &mut MeanderWorld, len: usize) {
+    create_task(world, &"x".repeat(len));
+}
+
+#[when("I create a task with a control character in the title")]
+fn create_task_control_character(world: &mut MeanderWorld) {
+    create_task(world, "plan\nthe week");
+}
+
+#[when(expr = "I create a task titled {string}")]
+fn create_task_titled(world: &mut MeanderWorld, title: String) {
+    create_task(world, &title);
+}
+
+#[then(expr = "a task titled {string} exists in the backlog")]
+fn task_titled_exists(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    assert!(
+        tasks.iter().any(|t| t.title == title),
+        "task {title:?} not in {tasks:?}"
+    );
+}
+
+#[then(expr = "the task list has {int} task(s)")]
+fn task_list_count(world: &mut MeanderWorld, count: usize) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    assert_eq!(tasks.len(), count);
+}
+
+#[when(expr = "I create a task with a description of {int} characters")]
+fn create_task_description_length(world: &mut MeanderWorld, len: usize) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title: "Verbose".into(),
+            description: Some("d".repeat(len)),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I create a task with a whitespace description")]
+fn create_task_whitespace_description(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title: "Sparse".into(),
+            description: Some("   ".into()),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+fn only_task(world: &mut MeanderWorld) -> meander_lib::tasks::Task {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    assert_eq!(tasks.len(), 1);
+    tasks.into_iter().next().unwrap()
+}
+
+#[then(expr = "the task has a description of {int} characters")]
+fn task_description_length(world: &mut MeanderWorld, len: usize) {
+    let task = only_task(world);
+    assert_eq!(task.description.map(|d| d.chars().count()), Some(len));
+}
+
+#[then("the task has no description")]
+fn task_no_description(world: &mut MeanderWorld) {
+    assert_eq!(only_task(world).description, None);
+}
+
+#[when(expr = "I create a task with carry-over rule {word}")]
+fn create_task_carry_over(world: &mut MeanderWorld, rule: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let rule = match rule.as_str() {
+        "carry" => meander_lib::tasks::CarryOverRule::Carry,
+        "return" => meander_lib::tasks::CarryOverRule::Return,
+        other => panic!("unknown carry-over rule {other}"),
+    };
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title: "Ruled".into(),
+            carry_over_rule: Some(rule),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the task has carry-over rule {word}")]
+fn task_carry_over(world: &mut MeanderWorld, rule: String) {
+    let expected = match rule.as_str() {
+        "carry" => meander_lib::tasks::CarryOverRule::Carry,
+        "return" => meander_lib::tasks::CarryOverRule::Return,
+        other => panic!("unknown carry-over rule {other}"),
+    };
+    assert_eq!(only_task(world).carry_over_rule, Some(expected));
+}
+
+#[then("the task has no carry-over rule")]
+fn task_no_carry_over(world: &mut MeanderWorld) {
+    assert_eq!(only_task(world).carry_over_rule, None);
+}
+
+#[when(expr = "I move {word} after {word}")]
+fn move_after(world: &mut MeanderWorld, moved: String, anchor: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let moved_id = tasks
+        .iter()
+        .find(|t| t.title == moved)
+        .expect("moved task missing")
+        .id;
+    let anchor_index = tasks
+        .iter()
+        .position(|t| t.title == anchor)
+        .expect("anchor task missing");
+    let after_id = tasks
+        .get(anchor_index + 1)
+        .map(|t| t.id)
+        .filter(|id| *id != moved_id);
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::move_task(
+        &pool,
+        active,
+        moved_id,
+        Some(tasks[anchor_index].id),
+        after_id,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
