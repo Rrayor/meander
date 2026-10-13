@@ -22,8 +22,9 @@ INSERT INTO tasks_new (id, profile_id, title, description, status,
     carry_over_rule, estimated_minutes, spent_minutes, placement,
     scheduled_date, sort_order, created_at, updated_at)
 SELECT id, profile_id, title, description, status, carry_over_rule,
-    estimated_minutes, spent_minutes, placement, scheduled_date, sort_order,
-    created_at, updated_at
+    CASE WHEN estimated_minutes BETWEEN 1 AND 1440 THEN estimated_minutes END,
+    CASE WHEN spent_minutes BETWEEN 1 AND 1440 THEN spent_minutes END,
+    placement, scheduled_date, sort_order, created_at, updated_at
 FROM tasks;
 DROP TABLE tasks;
 ALTER TABLE tasks_new RENAME TO tasks;
