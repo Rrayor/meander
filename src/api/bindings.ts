@@ -2,7 +2,7 @@
 
 export type Profile = { id: number; name: string; created_at: string; updated_at: string }
 export type Task = { id: number; profile_id: number; title: string; description: string | null; status: TaskStatus; carry_over_rule: CarryOverRule | null; estimated_minutes: number | null; spent_minutes: number | null; placement: TaskPlacement; scheduled_date: string | null; sort_order: number; created_at: string; updated_at: string }
-export type NewTask = { title: string; description: string | null; estimated_minutes: number | null }
+export type NewTask = { title: string; description: string | null; estimated_minutes: number | null; carry_over_rule: CarryOverRule | null }
 export type TaskStatus = "todo" | "in_progress" | "done"
 export type CarryOverRule = "carry" | "return"
 export type TaskPlacement = "backlog" | "weekly_backlog" | "scheduled"

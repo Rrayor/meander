@@ -109,6 +109,7 @@ pub struct NewTask {
     pub title: String,
     pub description: Option<String>,
     pub estimated_minutes: Option<i64>,
+    pub carry_over_rule: Option<CarryOverRule>,
 }
 
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
@@ -138,13 +139,14 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         })?
         .map(PositiveDuration::into_inner);
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, sort_order)
-         VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, sort_order)
+         VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
     .bind(description)
     .bind(estimated)
+    .bind(input.carry_over_rule)
     .bind(profile_id)
     .execute(pool)
     .await?;

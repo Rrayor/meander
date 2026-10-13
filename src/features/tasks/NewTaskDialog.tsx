@@ -37,6 +37,7 @@ const schema = z
       ),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
+    carryOver: z.enum(["", "carry", "return"]),
   })
   .superRefine(({ estHours, estMinutes }, ctx) => {
     if (estHours.trim() === "" && estMinutes.trim() === "") {
@@ -72,7 +73,10 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { carryOver: "" },
+  });
 
   const create = useMutation({
     mutationFn: createTask,
@@ -87,6 +91,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
     description,
     estHours,
     estMinutes,
+    carryOver,
   }: FormValues) => {
     const hasEstimate = estHours.trim() !== "" || estMinutes.trim() !== "";
     const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
@@ -94,6 +99,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
       title,
       description: description.trim() || null,
       estimated_minutes: hasEstimate ? total : null,
+      carry_over_rule: carryOver === "" ? null : carryOver,
     });
   };
 
@@ -220,6 +226,24 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
                 </label>
               </div>
             </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="new-task-carry-over"
+              className="text-xs font-medium text-text-muted"
+            >
+              Carry-over rule{" "}
+              <span className="text-text-muted/60">(optional)</span>
+            </label>
+            <select
+              id="new-task-carry-over"
+              className="w-56 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              {...register("carryOver")}
+            >
+              <option value="">Ask at week boundary</option>
+              <option value="carry">Carry over to next week</option>
+              <option value="return">Return to backlog</option>
+            </select>
           </div>
           {error && (
             <p role="alert" className="text-sm text-danger">
