@@ -135,6 +135,25 @@ test("a blurred title shows validation before submit", async ({ page }) => {
   await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
 });
 
+test("an out-of-range estimate shows validation on blur", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  const hours = dialog.getByLabel("Estimated hours");
+  await hours.fill("30");
+  await hours.blur();
+
+  await expect(dialog.locator("#new-task-estimate-error")).toHaveText(
+    /24 hours/,
+  );
+});
+
 test("dragging a task reorders the backlog", async ({ page }) => {
   const reordered = [tasks[1], tasks[0]];
   await stubTauriCommands(page, {

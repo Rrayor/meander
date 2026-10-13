@@ -45,11 +45,13 @@ const schema = z
     }
     const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
     if (total < 1 || total > MAX_DURATION_MINUTES) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["estMinutes"],
-        message: DURATION_RANGE_MESSAGE,
-      });
+      for (const field of ["estHours", "estMinutes"] as const) {
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message: DURATION_RANGE_MESSAGE,
+        });
+      }
     }
   });
 
