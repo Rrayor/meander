@@ -28,6 +28,7 @@ thiserror = "2"
 tauri-plugin-dialog = "2.8.2"
 nutype = "0.7.0"
 specta = { version = "1.0.5", features = ["export"] }
+tokio = { version = "1", features = ["fs"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

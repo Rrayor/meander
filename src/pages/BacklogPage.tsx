@@ -119,7 +119,7 @@ export function BacklogPage() {
       afterId: number | null;
     }) => moveTask(taskId, beforeId, afterId),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
     },
   });
 
