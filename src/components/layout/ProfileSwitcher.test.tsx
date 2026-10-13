@@ -65,6 +65,22 @@ describe("ProfileSwitcher", () => {
     );
   });
 
+  it("closes the menu only when focus leaves the switcher", async () => {
+    renderSwitcher();
+    fireEvent.click(await screen.findByRole("button", { name: "Default" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.blur(screen.getByRole("button", { name: "Default" }), {
+      relatedTarget: screen.getByRole("menuitem", { name: "Work" }),
+    });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.blur(screen.getByRole("menuitem", { name: "Work" }), {
+      relatedTarget: document.body,
+    });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
   it("closes the menu on Escape", async () => {
     renderSwitcher();
     fireEvent.click(await screen.findByRole("button", { name: "Default" }));

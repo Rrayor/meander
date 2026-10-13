@@ -71,11 +71,14 @@ interface NewTaskDialogProps {
   onClose: () => void;
 }
 
-const serverErrorMessage = (error: unknown): string | undefined => {
+export const serverErrorMessage = (error: unknown): string | undefined => {
   if (error instanceof ApiError) {
     return SERVER_ERROR_MESSAGES[error.code] ?? error.message;
   }
-  return error ? String(error) : undefined;
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return undefined;
 };
 
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
