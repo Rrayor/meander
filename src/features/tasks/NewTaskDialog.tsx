@@ -96,7 +96,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
   const create = useMutation({
     mutationFn: createTask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       onClose();
     },
   });

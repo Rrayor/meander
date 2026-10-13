@@ -22,7 +22,7 @@ export function ProfileSwitcher() {
     mutationFn: switchProfile,
     onSuccess: () => {
       setOpen(false);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.currentProfile,
       });
     },
