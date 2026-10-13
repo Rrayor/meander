@@ -206,7 +206,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               htmlFor="new-task-description"
               className="text-xs font-medium text-text-muted"
             >
-              Description <span className="text-text-muted/60">(optional)</span>
+              Description <span className="text-text-muted">(optional)</span>
             </label>
             <textarea
               id="new-task-description"
@@ -232,8 +232,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-muted">
-              Estimated time{" "}
-              <span className="text-text-muted/60">(optional)</span>
+              Estimated time <span className="text-text-muted">(optional)</span>
             </span>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
