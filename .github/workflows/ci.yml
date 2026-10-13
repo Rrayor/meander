@@ -41,6 +41,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
+      - name: Migration guard (no positional SELECT *)
+        run: bash scripts/check-migrations.sh
+
+      - name: TypeScript bindings are up to date
+        run: bash scripts/check-bindings.sh
+
       - name: Tests (unit + cucumber acceptance)
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
@@ -55,7 +61,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
       - name: Lint (eslint + prettier)
         run: npm run lint
@@ -65,8 +71,50 @@ jobs:
 
       - name: Playwright e2e
         run: |
-          npx playwright install --with-deps chromium
+          ./node_modules/.bin/playwright install --with-deps chromium
           npm run test:e2e
+
+  sonar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history for accurate new-code detection
+
+      - uses: ./.github/actions/rust-setup
+        with:
+          components: llvm-tools-preview
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $TAURI_DEPS
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Rust coverage (lcov)
+        run: cargo llvm-cov --manifest-path src-tauri/Cargo.toml --lcov --output-path src-tauri/lcov.info
+
+      - name: Clippy report for Sonar import
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --message-format=json > src-tauri/clippy-report.json || true
+
+      - run: npm ci --ignore-scripts
+
+      - name: Frontend coverage (lcov)
+        run: npm run test:coverage
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   smoke:
     runs-on: ubuntu-latest
@@ -93,9 +141,9 @@ jobs:
           sudo apt-get install -y $TAURI_DEPS xvfb
 
       - name: Install tauri-driver
-        run: cargo install tauri-driver --locked
+        run: cargo install tauri-driver@2.1.0 --locked
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
       - name: Build frontend
         run: npm run build

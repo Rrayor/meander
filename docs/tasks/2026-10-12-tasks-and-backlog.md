@@ -46,6 +46,11 @@ be scoped to the active profile.
 - Tests: cucumber (create+trim/blank reject, created on active profile),
   Playwright (create flow, validation)
 
+Implemented beyond the plan: a proper creation **dialog** (title,
+description, estimate as h+min, carry-over rule select) instead of the
+inline form; `NewTask` DTO; bounds per spec (estimate 1min–24h, description
+≤20k chars) and typed error codes.
+
 ## Task 2b — backlog manual ordering
 
 - `sort_order REAL` column, default = insertion order (`MAX(sort_order) + 1`
@@ -74,7 +79,8 @@ be scoped to the active profile.
 - `tasks::update(pool, profile_id, id, {title, description, carry_over_rule,
 estimated_minutes, spent_minutes, status})` — full-row update, scoped
 - Task detail/edit view opened from a backlog row: title, description, status,
-  carry-over rule select, estimated/spent minutes
+  carry-over rule select, estimated/spent minutes — plus read-only audit
+  info (created_at/updated_at) per spec
 - `updated_at` bump
 - Tests: cucumber (update persists, timestamp bumps, unknown id rejected),
   Playwright (edit flow persists)
@@ -88,3 +94,10 @@ estimated_minutes, spent_minutes, status})` — full-row update, scoped
 - Backlog pagination — step 51
 - "Add to current week" / move-back actions — step 50
 - Task create entry point on the kanban view — step 49
+- Scheduling a date at task creation (spec's create view allows it) —
+  a scheduled task isn't visible anywhere until the board exists (steps 34+)
+- Backlog sorting/filtering/search — spec features not yet assigned to a
+  step; they are view-time transforms on top of the stored manual order and
+  interact with pagination (step 51) — schedule alongside or after it
+- Task placement changes via detail view ("move to a different date") —
+  needs the board; step 50 family

@@ -22,13 +22,16 @@ export function ProfileSwitcher() {
     mutationFn: switchProfile,
     onSuccess: () => {
       setOpen(false);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.currentProfile,
       });
     },
   });
 
   return (
+    // Focus container for blur-out close; all interactive descendants are
+    // real buttons with their own keyboard handling.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       ref={containerRef}
       className="relative"
@@ -43,27 +46,28 @@ export function ProfileSwitcher() {
     >
       {open && (
         <ul
-          role="listbox"
+          role="menu"
           aria-label="Profiles"
           className="absolute bottom-full left-0 mb-1 w-full rounded-lg border border-border bg-surface-raised p-1"
         >
           {(profiles ?? []).map((profile) => (
-            <li
-              key={profile.id}
-              role="option"
-              aria-selected={profile.id === current?.id}
-              tabIndex={-1}
-              onClick={() => select.mutate(profile.id)}
-              className="cursor-pointer truncate rounded-md px-3 py-2 text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:bg-surface hover:text-text aria-selected:text-primary"
-            >
-              {profile.name}
+            <li key={profile.id} role="none">
+              <button
+                type="button"
+                role="menuitem"
+                aria-current={profile.id === current?.id ? "true" : undefined}
+                onClick={() => select.mutate(profile.id)}
+                className="w-full cursor-pointer truncate rounded-md px-3 py-2 text-left text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:bg-surface hover:text-text aria-[current=true]:text-primary"
+              >
+                {profile.name}
+              </button>
             </li>
           ))}
         </ul>
       )}
       <button
         type="button"
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between rounded-lg border border-transparent bg-surface-raised/40 px-3 py-2 text-text-muted transition-colors duration-150 ease-out hover:border-border hover:bg-surface-raised hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"

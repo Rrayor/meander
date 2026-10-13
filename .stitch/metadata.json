@@ -53,7 +53,7 @@
       "deviceType": "DESKTOP",
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
-      "notes": "Task creation dialog: Title* input, Description textarea, Estimated time as paired hours+minutes inputs, Cancel/Create task footer over dimmed backlog"
+      "notes": "Task creation dialog: Title* input, Description textarea, Estimated time as paired hours+minutes inputs, Carry-over rule as segmented control (Ask / Carry over / Return to backlog), Cancel/Create task footer over dimmed backlog"
     }
   ]
 }

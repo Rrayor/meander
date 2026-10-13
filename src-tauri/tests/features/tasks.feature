@@ -39,3 +39,112 @@ Feature: Tasks
     And a task exists on a second profile
     When I move a task before the foreign task
     Then the reorder fails
+
+  Scenario: estimates must be a positive value
+    Given an application state on a temporary seeded database
+    When I create a task with an estimate of 0 minutes
+    Then the task creation fails
+    And the task list is empty
+
+  Scenario: estimates must not exceed 24 hours
+    Given an application state on a temporary seeded database
+    When I create a task with an estimate of 1441 minutes
+    Then the task creation fails
+    And the task list is empty
+
+  Scenario: descriptions are limited to 20,000 characters
+    Given an application state on a temporary seeded database
+    When I create a task with an oversized description
+    Then the task creation fails
+    And the task list is empty
+
+  Scenario: a title at the 200-character limit is accepted
+    Given an application state on a temporary seeded database
+    When I create a task with a title of 200 characters
+    Then the task creation succeeds
+    And the task list has 1 task
+
+  Scenario: a title one character over the limit is rejected
+    Given an application state on a temporary seeded database
+    When I create a task with a title of 201 characters
+    Then the task creation fails
+    And the task list is empty
+
+  Scenario: control characters in titles are rejected
+    Given an application state on a temporary seeded database
+    When I create a task with a control character in the title
+    Then the task creation fails
+    And the task list is empty
+
+  Scenario: unicode titles are accepted
+    Given an application state on a temporary seeded database
+    When I create a task titled "Café ☕ plan — wöchentlich"
+    Then the task creation succeeds
+    And a task titled "Café ☕ plan — wöchentlich" exists in the backlog
+
+  Scenario: a one-minute estimate is accepted
+    Given an application state on a temporary seeded database
+    When I create a task with an estimate of 1 minutes
+    Then the task creation succeeds
+    And the task list has 1 task
+
+  Scenario: an estimate at exactly 24 hours is accepted
+    Given an application state on a temporary seeded database
+    When I create a task with an estimate of 1440 minutes
+    Then the task creation succeeds
+    And the task list has 1 task
+
+  Scenario: negative estimates are rejected
+    Given an application state on a temporary seeded database
+    When I create a task with an estimate of -1 minutes
+    Then the task creation fails
+    And the task list is empty
+
+  Scenario: a description at the 20,000-character limit is accepted
+    Given an application state on a temporary seeded database
+    When I create a task with a description of 20000 characters
+    Then the task creation succeeds
+    And the task has a description of 20000 characters
+
+  Scenario: a whitespace-only description is stored as none
+    Given an application state on a temporary seeded database
+    When I create a task with a whitespace description
+    Then the task creation succeeds
+    And the task has no description
+
+  Scenario: a carry-over rule is stored on creation
+    Given an application state on a temporary seeded database
+    When I create a task with carry-over rule carry
+    Then the task creation succeeds
+    And the task has carry-over rule carry
+
+  Scenario: tasks default to asking at the week boundary
+    Given an application state on a temporary seeded database
+    When I create a task titled "Undecided"
+    Then the task creation succeeds
+    And the task has no carry-over rule
+
+  Scenario: moving a task to the end of the backlog
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    And a backlog task titled Gamma
+    When I move Alpha after Gamma
+    Then the reorder succeeds
+    And the task list order is "Beta, Gamma, Alpha"
+
+  Scenario: moving a task into the middle of the backlog
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    And a backlog task titled Gamma
+    When I move Gamma before Beta
+    Then the reorder succeeds
+    And the task list order is "Alpha, Gamma, Beta"
+
+  Scenario: new tasks are appended after existing ones
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I create a task titled "Beta"
+    Then the task creation succeeds
+    And the task list order is "Alpha, Beta"

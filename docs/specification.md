@@ -49,7 +49,7 @@ Tech stack:
 Tasks hold the following information (This is not a database schema, just the description of the business entity with some thoughts for non-functional requirements):
 
 Title: What is to be done (Required)
-Description: Any details worth mentioning (Optional)
+Description: Any details worth mentioning (Optional). Concretely: up to 20,000 characters — the long-form field, deliberately larger than a note's 10,000 limit
 Status: Todo/In progress,/Done (Todo by default)
 Repeat schedule: Can be none, which means the task is not to repeat, or a set of repeat options detailed below (Optional)
 Carry-over rule (Exact name needs to be refined before implementation. If you're implementing this, come up with the right naming): Defines what should happen when the task is incomplete when the new week is started. If it needs to be moved over or returned to the backlog. (Optional, if not set the user is prompted to choose at the start of the next week)

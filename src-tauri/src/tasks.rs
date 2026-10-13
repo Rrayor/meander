@@ -17,8 +17,26 @@ pub const TASK_TITLE_MAX_LEN: usize = 200;
 )]
 pub struct TaskTitle(String);
 
-#[nutype::nutype(validate(greater_or_equal = 0), derive(Debug, PartialEq))]
-pub struct NonNegativeMinutes(i64);
+/// Spec: a description is optional and at most 20,000 characters (the
+/// long-form field — deliberately larger than a note's 10,000 limit).
+pub const TASK_DESCRIPTION_MAX_LEN: usize = 20_000;
+
+#[nutype::nutype(
+    sanitize(trim),
+    validate(len_char_min = 1, len_char_max = TASK_DESCRIPTION_MAX_LEN),
+    derive(Debug, PartialEq)
+)]
+pub struct TaskDescription(String);
+
+/// Spec: durations are optional, but when present they are positive and at
+/// most 24 hours.
+pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
+
+#[nutype::nutype(
+    validate(greater = 0, less_or_equal = MAX_DURATION_MINUTES),
+    derive(Debug, PartialEq)
+)]
+pub struct PositiveDuration(i64);
 
 impl TaskTitle {
     /// Validates `name`; the error variants are mapped to our own vocabulary.
@@ -91,6 +109,7 @@ pub struct NewTask {
     pub title: String,
     pub description: Option<String>,
     pub estimated_minutes: Option<i64>,
+    pub carry_over_rule: Option<CarryOverRule>,
 }
 
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
@@ -100,24 +119,37 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         .as_deref()
         .map(str::trim)
         .filter(|d| !d.is_empty())
-        .map(str::to_owned);
+        .map(|d| {
+            TaskDescription::try_new(d).map_err(|_| crate::db::DbError::Validation {
+                code: ErrorCode::TaskDescriptionTooLong,
+                message: format!(
+                    "task description must be {TASK_DESCRIPTION_MAX_LEN} characters or fewer"
+                ),
+            })
+        })
+        .transpose()?
+        .map(TaskDescription::into_inner);
     let estimated = input
         .estimated_minutes
-        .map(NonNegativeMinutes::try_new)
+        .map(PositiveDuration::try_new)
         .transpose()
         .map_err(|_| crate::db::DbError::Validation {
-            code: ErrorCode::EstimatedTimeNegative,
-            message: "estimated time cannot be negative".into(),
+            code: ErrorCode::EstimatedTimeOutOfRange,
+            message: format!(
+                "estimated time must be between 1 minute and {} hours",
+                MAX_DURATION_MINUTES / 60
+            ),
         })?
-        .map(NonNegativeMinutes::into_inner);
+        .map(PositiveDuration::into_inner);
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, sort_order)
-         VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, sort_order)
+         VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
     .bind(description)
     .bind(estimated)
+    .bind(input.carry_over_rule)
     .bind(profile_id)
     .execute(pool)
     .await?;

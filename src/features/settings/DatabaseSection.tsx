@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { open } from "@tauri-apps/plugin-dialog";
 
+import { pickFile } from "@/api/dialog";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { currentDatabasePath, selectDatabaseFile } from "@/api/settings";
 
@@ -16,8 +16,7 @@ export function DatabaseSection() {
 
   const select = useMutation({
     mutationFn: async () => {
-      const selected = await open({
-        directory: false,
+      const selected = await pickFile({
         filters: [{ name: "SQLite", extensions: ["db", "sqlite", "sqlite3"] }],
       });
       return selected ? selectDatabaseFile(selected) : null;

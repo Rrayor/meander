@@ -25,8 +25,80 @@ For any UI task, create the design with Stitch before implementing:
   (Tauri command names), `src/api/queryKeys.ts` (TanStack cache keys). Add
   to the registry rather than introducing a new one-off constant, and use
   the constants in tests as well.
+- Validation boundaries must never be hardcoded in error messages. Define the
+  bound as a constant once and interpolate it into the message string, on
+  both the Rust and TypeScript side.
+- Persisted data and view transforms are separate concerns: stored values
+  (e.g. manual `sort_order`) are data; sorting, filtering, and searching are
+  view-time transforms that must never mutate stored data.
+
+## Architecture and layering
+
+- Everything is designed for a possible future webapp migration: keep the
+  transport seam clean. Code outside `src/api/` must never call Tauri
+  directly — all IPC goes through the `Transport` interface
+  (`src/api/transport.ts`) so it can later be swapped for REST.
+  Enforced by eslint `no-restricted-imports` on `@tauri-apps/*`.
+- Backend types are shared with the frontend via specta. After changing any
+  exported Rust type, regenerate `src/api/bindings.ts` and commit it — never
+  hand-edit the generated file. `scripts/check-bindings.sh` fails the
+  pre-commit hook and CI when it is stale.
+- Errors cross the wire as typed `ApiError` objects (`code`, `kind`,
+  `message`), not stringly-typed rejects. Add a variant to `ErrorCode` rather
+  than inventing a new message, and map server errors in the frontend by
+  `ErrorCode` — never by matching message text.
+
+## Validation
+
+- Backend validation uses `nutype` newtypes wherever feasible — never
+  hand-written conditionals for value constraints.
+- Frontend validation uses `zod` schemas and mirrors backend rules; validate
+  before sending anything to the backend wherever possible.
+- Forms use `react-hook-form` + `zodResolver` with `mode: "onTouched"` and
+  per-field inline errors (`role="alert"`, `aria-invalid`,
+  `aria-describedby`). Submit-only validation is not acceptable UX.
+- Backend validation remains the authoritative layer; frontend validation is
+  for immediate feedback, not security.
+
+## Specification and accessibility
+
+- `docs/specification.md` is the source of truth: every change must adhere to
+  it unless the spec is found genuinely faulty (then fix the spec).
+  Before committing, review the diff for specification drift.
+- Any spec feature that is intentionally deferred must be written down in the
+  relevant `docs/tasks/` plan — a deferral is a decision, not an oversight.
+- WCAG AA is required. Before committing, verify: keyboard operability,
+  accessible names, `role="alert"` for errors, contrast, and screen-reader
+  semantics for custom controls (e.g. `radiogroup`/`radio`).
+  `eslint-plugin-jsx-a11y` runs in lint; when a rule is intentionally
+  bypassed (e.g. autofocus inside a modal), use an inline
+  `eslint-disable` with a justification comment.
+
+## Testing
+
+- Tests must be written on multiple layers: unit tests, cucumber service
+  tests (`src-tauri/tests`), Playwright e2e (`tests/e2e`), and the
+  WebdriverIO smoke test.
+- Tests must cover: happy path, error cases, edge cases, specification
+  adherence, accessibility, and communication between layers (typed errors,
+  transport behavior, migrations).
+- Migration tests must be generic (data-preservation invariants across all
+  migrations), not regression tests for a single past bug.
+
+## Migrations
+
+- Never `SELECT *` when copying into a rebuilt table — use explicit column
+  lists on both sides. Positional copies corrupt data when column order
+  drifts. Enforced by `scripts/check-migrations.sh` in the pre-commit hook
+  and CI.
+- New constraints must account for pre-existing data that violates them:
+  sanitize deliberately (e.g. invalid values to `NULL`) rather than failing
+  the migration on real databases.
 
 ## Workflow
 
 - Branch + pull request for every change; conventional commits.
-- Before committing: run the test suites, `cargo clippy`, and frontend linters.
+- The pre-commit hook runs the full gate: `cargo fmt`, `clippy`, prettier,
+  eslint, the migration and bindings checks, `cargo test`, `vitest`, and
+  Playwright e2e. Only the WebdriverIO smoke test stays CI-only — it needs a
+  release build.

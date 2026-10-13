@@ -2,7 +2,12 @@ import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { stubSequence, stubTauriCommands } from "./stubs";
+import {
+  getInvocations,
+  stubApiError,
+  stubSequence,
+  stubTauriCommands,
+} from "./stubs";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
 
@@ -116,6 +121,150 @@ test("a blank title shows validation without calling the backend", async ({
   await dialog.getByRole("button", { name: "Create task" }).click();
 
   await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
+});
+
+test("a blurred title shows validation before submit", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  const title = dialog.getByLabel(/Title/);
+  await title.focus();
+  await title.blur();
+
+  await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
+});
+
+test("an out-of-range estimate shows validation on blur", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  const hours = dialog.getByLabel("Estimated hours");
+  await hours.fill("30");
+  await hours.blur();
+
+  await expect(dialog.locator("#new-task-estimate-error")).toHaveText(
+    /24 hours/,
+  );
+});
+
+test("the dialog closes on Escape without creating a task", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/Title/).fill("Abandoned");
+  await page.keyboard.press("Escape");
+
+  await expect(dialog).not.toBeVisible();
+});
+
+test("the dialog closes on backdrop click and on Cancel", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  await page.mouse.click(10, 10); // backdrop, top-left corner
+  await expect(dialog).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).not.toBeVisible();
+});
+
+test("backend validation errors surface in the dialog", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: stubApiError(
+      "task_title_invalid_characters",
+      "validation",
+      "task title cannot contain control characters",
+    ),
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/Title/).fill("Trigger backend rejection");
+  await dialog.getByRole("button", { name: "Create task" }).click();
+
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "Task title cannot contain control characters",
+  );
+  await expect(dialog).toBeVisible(); // dialog stays open for correction
+});
+
+test("the estimate pair sends combined minutes on the wire", async ({
+  page,
+}) => {
+  const created = { ...tasks[0], id: 3, estimated_minutes: 90 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([[], [created]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: created,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/Title/).fill("Timed task");
+  await dialog.getByLabel("Estimated hours").fill("1");
+  await dialog.getByLabel("Estimated minutes").fill("30");
+  await dialog.getByRole("radio", { name: "Carry over" }).click();
+  await dialog.getByRole("button", { name: "Create task" }).click();
+
+  const createCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.createTask,
+  );
+  expect(createCall?.args).toEqual({
+    input: {
+      title: "Timed task",
+      description: null,
+      estimated_minutes: 90,
+      carry_over_rule: "carry",
+    },
+  });
+});
+
+test("minutes alone can exceed the 24-hour limit", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  const minutes = dialog.getByLabel("Estimated minutes");
+  await minutes.fill("1441");
+  await minutes.blur();
+
+  await expect(dialog.locator("#new-task-estimate-error")).toHaveText(
+    /24 hours/,
+  );
 });
 
 test("dragging a task reorders the backlog", async ({ page }) => {
