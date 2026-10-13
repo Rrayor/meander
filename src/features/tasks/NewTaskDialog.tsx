@@ -59,7 +59,7 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
+export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   task_title_required: "Task title is required",
   task_title_too_long: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
   task_title_invalid_characters: "Task title cannot contain control characters",

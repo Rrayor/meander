@@ -30,15 +30,20 @@ const isApiErrorPayload = (e: unknown): e is ApiError =>
   "kind" in e &&
   "message" in e;
 
+/** Maps a rejected invoke to ApiError when it carries the typed payload. */
+export const rethrowApiError = (e: unknown): never => {
+  if (isApiErrorPayload(e)) {
+    throw new ApiError(e.code, e.kind, e.message);
+  }
+  throw e;
+};
+
 export const transport: Transport = {
   invoke: async <T>(command: string, args?: Record<string, unknown>) => {
     try {
       return await tauriInvoke<T>(command, args);
     } catch (e) {
-      if (isApiErrorPayload(e)) {
-        throw new ApiError(e.code, e.kind, e.message);
-      }
-      throw e;
+      rethrowApiError(e);
     }
   },
 };
