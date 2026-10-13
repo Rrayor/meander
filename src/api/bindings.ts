@@ -6,3 +6,19 @@ export type NewTask = { title: string; description: string | null; estimated_min
 export type TaskStatus = "todo" | "in_progress" | "done"
 export type CarryOverRule = "carry" | "return"
 export type TaskPlacement = "backlog" | "weekly_backlog" | "scheduled"
+/**
+ * The IPC-facing error payload — HTTP-shaped (`{code, kind, message}`) so a
+ * future REST transport can return the identical body.
+ */
+export type ApiError = { code: ErrorCode; kind: ErrorKind; message: string }
+/**
+ * Machine-readable error codes shared with the frontend. `code` is the stable
+ * contract — UI copy maps from it; `message` is only a human-readable
+ * fallback. Keep variants snake_case; they serialize directly.
+ */
+export type ErrorCode = "task_title_required" | "task_title_too_long" | "task_title_invalid_characters" | "estimated_time_negative" | "task_not_found" | "reorder_anchors_not_adjacent" | "profile_name_required" | "profile_name_too_long" | "profile_name_invalid_characters" | "internal"
+/**
+ * Broad category so a client can pick "inline form error" vs "generic toast"
+ * without maintaining its own lookup of every code.
+ */
+export type ErrorKind = "validation" | "internal"

@@ -4,6 +4,7 @@ pub mod bindings;
 pub mod commands;
 pub mod config;
 pub mod db;
+pub mod errors;
 pub mod profiles;
 pub mod state;
 pub mod tasks;

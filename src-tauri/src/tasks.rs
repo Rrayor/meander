@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::db::Result;
+use crate::errors::ErrorCode;
 
 pub const TASK_TITLE_MAX_LEN: usize = 200;
 
@@ -20,13 +21,21 @@ impl TaskTitle {
     /// Validates `name`; the error variants are mapped to our own vocabulary.
     pub fn parse(raw: &str) -> Result<Self> {
         Self::try_new(raw).map_err(|e| {
-            crate::db::DbError::Validation(match e {
-                TaskTitleError::LenCharMinViolated => "task title is required".into(),
-                TaskTitleError::LenCharMaxViolated => {
-                    format!("task title must be {TASK_TITLE_MAX_LEN} characters or fewer")
-                }
-                _ => "task title cannot contain control characters".into(),
-            })
+            let (code, message) = match e {
+                TaskTitleError::LenCharMinViolated => (
+                    ErrorCode::TaskTitleRequired,
+                    "task title is required".into(),
+                ),
+                TaskTitleError::LenCharMaxViolated => (
+                    ErrorCode::TaskTitleTooLong,
+                    format!("task title must be {TASK_TITLE_MAX_LEN} characters or fewer"),
+                ),
+                _ => (
+                    ErrorCode::TaskTitleInvalidCharacters,
+                    "task title cannot contain control characters".into(),
+                ),
+            };
+            crate::db::DbError::Validation { code, message }
         })
     }
 }
@@ -90,9 +99,10 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         .filter(|d| !d.is_empty())
         .map(str::to_owned);
     if input.estimated_minutes.is_some_and(|m| m < 0) {
-        return Err(crate::db::DbError::Validation(
-            "estimated time cannot be negative".into(),
-        ));
+        return Err(crate::db::DbError::Validation {
+            code: ErrorCode::EstimatedTimeNegative,
+            message: "estimated time cannot be negative".into(),
+        });
     }
     let result = sqlx::query(
         "INSERT INTO tasks (profile_id, title, description, estimated_minutes, sort_order)
@@ -119,7 +129,10 @@ async fn sort_order_of(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<f6
             .fetch_optional(pool)
             .await?;
     row.map(|r| r.0)
-        .ok_or_else(|| crate::db::DbError::Validation("task does not exist".into()))
+        .ok_or_else(|| crate::db::DbError::Validation {
+            code: ErrorCode::TaskNotFound,
+            message: "task does not exist".into(),
+        })
 }
 
 /// Moves `task_id` between `before_id` and `after_id` (either may be `None`
@@ -147,9 +160,10 @@ pub async fn move_task(
             let b = sort_order_of(pool, profile_id, before).await?;
             let a = sort_order_of(pool, profile_id, after).await?;
             if b >= a {
-                return Err(crate::db::DbError::Validation(
-                    "reorder anchors are not adjacent in order".into(),
-                ));
+                return Err(crate::db::DbError::Validation {
+                    code: ErrorCode::ReorderAnchorsNotAdjacent,
+                    message: "reorder anchors are not adjacent in order".into(),
+                });
             }
             (b, a)
         }

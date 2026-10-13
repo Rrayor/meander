@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { MAX_TASK_TITLE_LENGTH, createTask } from "@/api/tasks";
+import type { ErrorCode } from "@/api/bindings";
+import { ApiError } from "@/api/transport";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -25,12 +27,11 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const SERVER_ERROR_MESSAGES: Record<string, string> = {
-  "task title is required": "Task title is required",
-  [`task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`]: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
-  "task title cannot contain control characters":
-    "Task title cannot contain control characters",
-  "estimated time cannot be negative": "Estimated time cannot be negative",
+const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
+  task_title_required: "Task title is required",
+  task_title_too_long: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
+  task_title_invalid_characters: "Task title cannot contain control characters",
+  estimated_time_negative: "Estimated time cannot be negative",
 };
 
 interface NewTaskDialogProps {
@@ -74,9 +75,11 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
     errors.estMinutes?.message;
   const error =
     fieldError ??
-    (create.error
-      ? (SERVER_ERROR_MESSAGES[String(create.error)] ?? String(create.error))
-      : undefined);
+    (create.error instanceof ApiError
+      ? (SERVER_ERROR_MESSAGES[create.error.code] ?? create.error.message)
+      : create.error
+        ? String(create.error)
+        : undefined);
 
   return (
     <div
