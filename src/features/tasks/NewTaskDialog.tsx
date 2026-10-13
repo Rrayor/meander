@@ -14,7 +14,10 @@ const schema = z.object({
     .string()
     .trim()
     .min(1, "Task title is required")
-    .max(MAX_TASK_TITLE_LENGTH, "Task title must be 200 characters or fewer"),
+    .max(
+      MAX_TASK_TITLE_LENGTH,
+      `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
+    ),
   description: z.string(),
   estHours: optionalDurationPart("Hours"),
   estMinutes: optionalDurationPart("Minutes"),
@@ -24,8 +27,7 @@ type FormValues = z.infer<typeof schema>;
 
 const SERVER_ERROR_MESSAGES: Record<string, string> = {
   "task title is required": "Task title is required",
-  "task title must be 200 characters or fewer":
-    "Task title must be 200 characters or fewer",
+  [`task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`]: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
   "task title cannot contain control characters":
     "Task title cannot contain control characters",
   "estimated time cannot be negative": "Estimated time cannot be negative",

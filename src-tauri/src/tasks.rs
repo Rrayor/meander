@@ -3,11 +3,13 @@ use sqlx::SqlitePool;
 
 use crate::db::Result;
 
+pub const TASK_TITLE_MAX_LEN: usize = 200;
+
 #[nutype::nutype(
     sanitize(trim),
     validate(
         len_char_min = 1,
-        len_char_max = 200,
+        len_char_max = TASK_TITLE_MAX_LEN,
         predicate = |s| !s.chars().any(char::is_control)
     ),
     derive(Debug, PartialEq)
@@ -21,7 +23,7 @@ impl TaskTitle {
             crate::db::DbError::Validation(match e {
                 TaskTitleError::LenCharMinViolated => "task title is required".into(),
                 TaskTitleError::LenCharMaxViolated => {
-                    "task title must be 200 characters or fewer".into()
+                    format!("task title must be {TASK_TITLE_MAX_LEN} characters or fewer")
                 }
                 _ => "task title cannot contain control characters".into(),
             })

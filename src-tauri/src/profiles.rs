@@ -23,19 +23,21 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<Profile>> {
     sanitize(trim),
     validate(
         len_char_min = 1,
-        len_char_max = 100,
+        len_char_max = PROFILE_NAME_MAX_LEN,
         predicate = |s| !s.chars().any(char::is_control)
     ),
     derive(Debug, PartialEq)
 )]
 struct ProfileName(String);
 
+const PROFILE_NAME_MAX_LEN: usize = 100;
+
 fn profile_name(name: &str) -> Result<ProfileName> {
     ProfileName::try_new(name).map_err(|e| {
         crate::db::DbError::Validation(match e {
             ProfileNameError::LenCharMinViolated => "profile name is required".into(),
             ProfileNameError::LenCharMaxViolated => {
-                "profile name must be 100 characters or fewer".into()
+                format!("profile name must be {PROFILE_NAME_MAX_LEN} characters or fewer")
             }
             _ => "profile name cannot contain control characters".into(),
         })
