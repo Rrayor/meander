@@ -29,6 +29,9 @@ export function ProfileSwitcher() {
   });
 
   return (
+    // Focus container for blur-out close; all interactive descendants are
+    // real buttons with their own keyboard handling.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       ref={containerRef}
       className="relative"
@@ -43,20 +46,19 @@ export function ProfileSwitcher() {
     >
       {open && (
         <ul
-          role="listbox"
           aria-label="Profiles"
           className="absolute bottom-full left-0 mb-1 w-full rounded-lg border border-border bg-surface-raised p-1"
         >
           {(profiles ?? []).map((profile) => (
-            <li
-              key={profile.id}
-              role="option"
-              aria-selected={profile.id === current?.id}
-              tabIndex={-1}
-              onClick={() => select.mutate(profile.id)}
-              className="cursor-pointer truncate rounded-md px-3 py-2 text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:bg-surface hover:text-text aria-selected:text-primary"
-            >
-              {profile.name}
+            <li key={profile.id}>
+              <button
+                type="button"
+                aria-current={profile.id === current?.id ? "true" : undefined}
+                onClick={() => select.mutate(profile.id)}
+                className="w-full cursor-pointer truncate rounded-md px-3 py-2 text-left text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:bg-surface hover:text-text aria-[current=true]:text-primary"
+              >
+                {profile.name}
+              </button>
             </li>
           ))}
         </ul>

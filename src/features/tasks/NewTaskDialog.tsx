@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -72,6 +73,15 @@ interface NewTaskDialogProps {
 
 export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   const {
     register,
     control,
@@ -116,17 +126,21 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
         ? String(create.error)
         : undefined;
 
+  // Backdrop click dismisses for pointer users; Escape (the document keydown
+  // listener above) is the keyboard equivalent, so the click-only rules are
+  // safe to disable for this element.
+  /* eslint-disable jsx-a11y/click-events-have-key-events,
+     jsx-a11y/no-static-element-interactions */
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-task-title"
         className="flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <h2
@@ -165,6 +179,9 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               id="new-task-title-input"
               type="text"
               maxLength={MAX_TASK_TITLE_LENGTH}
+              // Focus lands on the first field when the dialog opens —
+              // standard modal behavior, not the autofocus the rule warns about.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               placeholder="e.g. Renew passport"
               aria-invalid={!!errors.title}
@@ -337,4 +354,6 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
       </div>
     </div>
   );
+  /* eslint-enable jsx-a11y/click-events-have-key-events,
+     jsx-a11y/no-static-element-interactions */
 }

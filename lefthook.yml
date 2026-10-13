@@ -9,6 +9,10 @@ pre-commit:
       run: npx prettier --check .
     eslint:
       run: npx eslint .
+    migrations:
+      run: bash scripts/check-migrations.sh
+    bindings:
+      run: bash scripts/check-bindings.sh
 
 commit-msg:
   commands:

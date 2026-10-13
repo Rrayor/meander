@@ -41,6 +41,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
+      - name: Migration guard (no positional SELECT *)
+        run: bash scripts/check-migrations.sh
+
+      - name: TypeScript bindings are up to date
+        run: bash scripts/check-bindings.sh
+
       - name: Tests (unit + cucumber acceptance)
         run: cargo test --manifest-path src-tauri/Cargo.toml
 

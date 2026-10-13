@@ -38,9 +38,11 @@ For any UI task, create the design with Stitch before implementing:
   transport seam clean. Code outside `src/api/` must never call Tauri
   directly — all IPC goes through the `Transport` interface
   (`src/api/transport.ts`) so it can later be swapped for REST.
+  Enforced by eslint `no-restricted-imports` on `@tauri-apps/*`.
 - Backend types are shared with the frontend via specta. After changing any
   exported Rust type, regenerate `src/api/bindings.ts` and commit it — never
-  hand-edit the generated file.
+  hand-edit the generated file. `scripts/check-bindings.sh` fails the
+  pre-commit hook and CI when it is stale.
 - Errors cross the wire as typed `ApiError` objects (`code`, `kind`,
   `message`), not stringly-typed rejects. Add a variant to `ErrorCode` rather
   than inventing a new message, and map server errors in the frontend by
@@ -68,6 +70,9 @@ For any UI task, create the design with Stitch before implementing:
 - WCAG AA is required. Before committing, verify: keyboard operability,
   accessible names, `role="alert"` for errors, contrast, and screen-reader
   semantics for custom controls (e.g. `radiogroup`/`radio`).
+  `eslint-plugin-jsx-a11y` runs in lint; when a rule is intentionally
+  bypassed (e.g. autofocus inside a modal), use an inline
+  `eslint-disable` with a justification comment.
 
 ## Testing
 
@@ -84,7 +89,8 @@ For any UI task, create the design with Stitch before implementing:
 
 - Never `SELECT *` when copying into a rebuilt table — use explicit column
   lists on both sides. Positional copies corrupt data when column order
-  drifts.
+  drifts. Enforced by `scripts/check-migrations.sh` in the pre-commit hook
+  and CI.
 - New constraints must account for pre-existing data that violates them:
   sanitize deliberately (e.g. invalid values to `NULL`) rather than failing
   the migration on real databases.
