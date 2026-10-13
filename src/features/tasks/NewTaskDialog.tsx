@@ -6,6 +6,7 @@ import { z } from "zod";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   MAX_DURATION_MINUTES,
+  MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_TITLE_LENGTH,
   createTask,
 } from "@/api/tasks";
@@ -28,7 +29,12 @@ const schema = z
         MAX_TASK_TITLE_LENGTH,
         `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
       ),
-    description: z.string(),
+    description: z
+      .string()
+      .max(
+        MAX_TASK_DESCRIPTION_LENGTH,
+        `Description must be ${MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`,
+      ),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
   })
@@ -53,6 +59,7 @@ const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   task_title_too_long: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
   task_title_invalid_characters: "Task title cannot contain control characters",
   estimated_time_out_of_range: DURATION_RANGE_MESSAGE,
+  task_description_too_long: `Description must be ${MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`,
 };
 
 interface NewTaskDialogProps {
@@ -92,6 +99,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
 
   const fieldError =
     errors.title?.message ??
+    errors.description?.message ??
     errors.estHours?.message ??
     errors.estMinutes?.message;
   const error =
@@ -167,6 +175,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
             <textarea
               id="new-task-description"
               rows={3}
+              maxLength={MAX_TASK_DESCRIPTION_LENGTH}
               placeholder="Add details, links, or context"
               className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
               {...register("description")}

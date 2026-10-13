@@ -1,11 +1,11 @@
 -- Spec: an estimate is optional, but when present it is a positive value and
--- at most 24 hours. CHECK constraints can't be altered in SQLite, so rebuild
--- the table.
+-- at most 24 hours; a description is optional and at most 20,000 characters.
+-- CHECK constraints can't be altered in SQLite, so rebuild the table.
 CREATE TABLE tasks_new (
     id INTEGER PRIMARY KEY,
     profile_id INTEGER NOT NULL REFERENCES profiles (id),
     title TEXT NOT NULL,
-    description TEXT,
+    description TEXT CHECK (description IS NULL OR length(description) <= 20000),
     status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
     carry_over_rule TEXT CHECK (carry_over_rule IN ('carry', 'return')),
     estimated_minutes INTEGER CHECK (estimated_minutes IS NULL OR estimated_minutes BETWEEN 1 AND 1440),

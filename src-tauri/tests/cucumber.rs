@@ -643,3 +643,21 @@ fn create_task_with_estimate(world: &mut MeanderWorld, minutes: i64) {
         world.error = Some(e.to_string());
     }
 }
+
+#[when("I create a task with an oversized description")]
+fn create_task_oversized_description(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title: "Verbose".into(),
+            description: Some("x".repeat(20_001)),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}

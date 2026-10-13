@@ -17,6 +17,17 @@ pub const TASK_TITLE_MAX_LEN: usize = 200;
 )]
 pub struct TaskTitle(String);
 
+/// Spec: a description is optional and at most 20,000 characters (the
+/// long-form field — deliberately larger than a note's 10,000 limit).
+pub const TASK_DESCRIPTION_MAX_LEN: usize = 20_000;
+
+#[nutype::nutype(
+    sanitize(trim),
+    validate(len_char_min = 1, len_char_max = TASK_DESCRIPTION_MAX_LEN),
+    derive(Debug, PartialEq)
+)]
+pub struct TaskDescription(String);
+
 /// Spec: durations are optional, but when present they are positive and at
 /// most 24 hours.
 pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
@@ -107,7 +118,16 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         .as_deref()
         .map(str::trim)
         .filter(|d| !d.is_empty())
-        .map(str::to_owned);
+        .map(|d| {
+            TaskDescription::try_new(d).map_err(|_| crate::db::DbError::Validation {
+                code: ErrorCode::TaskDescriptionTooLong,
+                message: format!(
+                    "task description must be {TASK_DESCRIPTION_MAX_LEN} characters or fewer"
+                ),
+            })
+        })
+        .transpose()?
+        .map(TaskDescription::into_inner);
     let estimated = input
         .estimated_minutes
         .map(PositiveDuration::try_new)

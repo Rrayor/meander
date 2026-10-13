@@ -9,6 +9,7 @@ pub enum ErrorCode {
     TaskTitleRequired,
     TaskTitleTooLong,
     TaskTitleInvalidCharacters,
+    TaskDescriptionTooLong,
     EstimatedTimeOutOfRange,
     TaskNotFound,
     ReorderAnchorsNotAdjacent,

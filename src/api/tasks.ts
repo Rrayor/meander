@@ -13,6 +13,9 @@ export const MAX_TASK_TITLE_LENGTH = 200;
 // most 24 hours.
 export const MAX_DURATION_MINUTES = 24 * 60;
 
+// Spec: a description is optional and at most 20,000 characters.
+export const MAX_TASK_DESCRIPTION_LENGTH = 20_000;
+
 export const createTask = (input: NewTask) =>
   transport.invoke<Task>(COMMANDS.createTask, { input });
 

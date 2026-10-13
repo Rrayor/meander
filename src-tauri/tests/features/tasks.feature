@@ -51,3 +51,9 @@ Feature: Tasks
     When I create a task with an estimate of 1441 minutes
     Then the task creation fails
     And the task list is empty
+
+  Scenario: descriptions are limited to 20,000 characters
+    Given an application state on a temporary seeded database
+    When I create a task with an oversized description
+    Then the task creation fails
+    And the task list is empty
