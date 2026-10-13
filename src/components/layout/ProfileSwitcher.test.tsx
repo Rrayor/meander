@@ -57,7 +57,9 @@ describe("ProfileSwitcher", () => {
     );
 
     fireEvent.click(screen.getByRole("menuitem", { name: "Work" }));
-    await waitFor(() => expect(switchProfile.mock.calls[0][0]).toBe(2));
+    await waitFor(() =>
+      expect(vi.mocked(switchProfile).mock.calls[0][0]).toBe(2),
+    );
     await waitFor(() =>
       expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
     );

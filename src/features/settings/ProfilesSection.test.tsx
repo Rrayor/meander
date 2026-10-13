@@ -66,7 +66,7 @@ describe("ProfilesSection", () => {
     fireEvent.change(input, { target: { value: "  Work  " } });
     fireEvent.click(screen.getByRole("button", { name: "Create profile" }));
     await waitFor(() =>
-      expect(createProfile.mock.calls[0][0]).toBe("  Work  "),
+      expect(vi.mocked(createProfile).mock.calls[0][0]).toBe("  Work  "),
     );
   });
 
@@ -77,7 +77,10 @@ describe("ProfilesSection", () => {
     fireEvent.change(editor, { target: { value: "Personal" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
-      expect(renameProfile.mock.calls[0].slice(0, 2)).toEqual([1, "Personal"]),
+      expect(vi.mocked(renameProfile).mock.calls[0].slice(0, 2)).toEqual([
+        1,
+        "Personal",
+      ]),
     );
   });
 

@@ -43,7 +43,7 @@ export const transport: Transport = {
     try {
       return await tauriInvoke<T>(command, args);
     } catch (e) {
-      rethrowApiError(e);
+      return rethrowApiError(e);
     }
   },
 };
