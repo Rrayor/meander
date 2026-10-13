@@ -118,6 +118,23 @@ test("a blank title shows validation without calling the backend", async ({
   await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
 });
 
+test("a blurred title shows validation before submit", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  const dialog = page.getByRole("dialog");
+  const title = dialog.getByLabel(/Title/);
+  await title.focus();
+  await title.blur();
+
+  await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
+});
+
 test("dragging a task reorders the backlog", async ({ page }) => {
   const reordered = [tasks[1], tasks[0]];
   await stubTauriCommands(page, {

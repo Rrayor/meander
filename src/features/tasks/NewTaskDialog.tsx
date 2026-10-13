@@ -76,6 +76,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    mode: "onTouched",
     defaultValues: { carryOver: "" },
   });
 
@@ -104,18 +105,13 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
     });
   };
 
-  const fieldError =
-    errors.title?.message ??
-    errors.description?.message ??
-    errors.estHours?.message ??
-    errors.estMinutes?.message;
-  const error =
-    fieldError ??
-    (create.error instanceof ApiError
+  const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
+  const serverError =
+    create.error instanceof ApiError
       ? (SERVER_ERROR_MESSAGES[create.error.code] ?? create.error.message)
       : create.error
         ? String(create.error)
-        : undefined);
+        : undefined;
 
   return (
     <div
@@ -168,9 +164,22 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               maxLength={MAX_TASK_TITLE_LENGTH}
               autoFocus
               placeholder="e.g. Renew passport"
+              aria-invalid={!!errors.title}
+              aria-describedby={
+                errors.title ? "new-task-title-error" : undefined
+              }
               className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
               {...register("title")}
             />
+            {errors.title && (
+              <p
+                id="new-task-title-error"
+                role="alert"
+                className="text-sm text-danger"
+              >
+                {errors.title.message}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <label
@@ -184,9 +193,22 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               rows={3}
               maxLength={MAX_TASK_DESCRIPTION_LENGTH}
               placeholder="Add details, links, or context"
+              aria-invalid={!!errors.description}
+              aria-describedby={
+                errors.description ? "new-task-description-error" : undefined
+              }
               className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
               {...register("description")}
             />
+            {errors.description && (
+              <p
+                id="new-task-description-error"
+                role="alert"
+                className="text-sm text-danger"
+              >
+                {errors.description.message}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-muted">
@@ -198,6 +220,10 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
                 <input
                   id="new-task-est-hours"
                   aria-label="Estimated hours"
+                  aria-invalid={!!errors.estHours}
+                  aria-describedby={
+                    estimateError ? "new-task-estimate-error" : undefined
+                  }
                   type="number"
                   placeholder="0"
                   className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
@@ -214,6 +240,10 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
                 <input
                   id="new-task-est-minutes"
                   aria-label="Estimated minutes"
+                  aria-invalid={!!errors.estMinutes}
+                  aria-describedby={
+                    estimateError ? "new-task-estimate-error" : undefined
+                  }
                   type="number"
                   placeholder="0"
                   className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
@@ -227,6 +257,15 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
                 </label>
               </div>
             </div>
+            {estimateError && (
+              <p
+                id="new-task-estimate-error"
+                role="alert"
+                className="text-sm text-danger"
+              >
+                {estimateError}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <span
@@ -270,9 +309,9 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               )}
             />
           </div>
-          {error && (
+          {serverError && (
             <p role="alert" className="text-sm text-danger">
-              {error}
+              {serverError}
             </p>
           )}
           <div className="flex justify-end gap-2">
