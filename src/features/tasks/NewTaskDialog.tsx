@@ -4,26 +4,47 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { MAX_TASK_TITLE_LENGTH, createTask } from "@/api/tasks";
+import {
+  MAX_DURATION_MINUTES,
+  MAX_TASK_TITLE_LENGTH,
+  createTask,
+} from "@/api/tasks";
 import type { ErrorCode } from "@/api/bindings";
 import { ApiError } from "@/api/transport";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
 
-const schema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, "Task title is required")
-    .max(
-      MAX_TASK_TITLE_LENGTH,
-      `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
-    ),
-  description: z.string(),
-  estHours: optionalDurationPart("Hours"),
-  estMinutes: optionalDurationPart("Minutes"),
-});
+const DURATION_RANGE_MESSAGE =
+  "Estimated time must be between 1 minute and 24 hours";
+
+const schema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Task title is required")
+      .max(
+        MAX_TASK_TITLE_LENGTH,
+        `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
+      ),
+    description: z.string(),
+    estHours: optionalDurationPart("Hours"),
+    estMinutes: optionalDurationPart("Minutes"),
+  })
+  .superRefine(({ estHours, estMinutes }, ctx) => {
+    if (estHours.trim() === "" && estMinutes.trim() === "") {
+      return;
+    }
+    const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
+    if (total < 1 || total > MAX_DURATION_MINUTES) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["estMinutes"],
+        message: DURATION_RANGE_MESSAGE,
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -31,7 +52,7 @@ const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   task_title_required: "Task title is required",
   task_title_too_long: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
   task_title_invalid_characters: "Task title cannot contain control characters",
-  estimated_time_negative: "Estimated time cannot be negative",
+  estimated_time_out_of_range: DURATION_RANGE_MESSAGE,
 };
 
 interface NewTaskDialogProps {

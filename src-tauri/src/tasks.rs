@@ -17,8 +17,15 @@ pub const TASK_TITLE_MAX_LEN: usize = 200;
 )]
 pub struct TaskTitle(String);
 
-#[nutype::nutype(validate(greater_or_equal = 0), derive(Debug, PartialEq))]
-pub struct NonNegativeMinutes(i64);
+/// Spec: durations are optional, but when present they are positive and at
+/// most 24 hours.
+pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
+
+#[nutype::nutype(
+    validate(greater = 0, less_or_equal = MAX_DURATION_MINUTES),
+    derive(Debug, PartialEq)
+)]
+pub struct PositiveDuration(i64);
 
 impl TaskTitle {
     /// Validates `name`; the error variants are mapped to our own vocabulary.
@@ -103,13 +110,13 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         .map(str::to_owned);
     let estimated = input
         .estimated_minutes
-        .map(NonNegativeMinutes::try_new)
+        .map(PositiveDuration::try_new)
         .transpose()
         .map_err(|_| crate::db::DbError::Validation {
-            code: ErrorCode::EstimatedTimeNegative,
-            message: "estimated time cannot be negative".into(),
+            code: ErrorCode::EstimatedTimeOutOfRange,
+            message: "estimated time must be between 1 minute and 24 hours".into(),
         })?
-        .map(NonNegativeMinutes::into_inner);
+        .map(PositiveDuration::into_inner);
     let result = sqlx::query(
         "INSERT INTO tasks (profile_id, title, description, estimated_minutes, sort_order)
          VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",

@@ -625,3 +625,21 @@ fn task_list_order(world: &mut MeanderWorld, titles: String) {
 fn main() {
     futures::executor::block_on(MeanderWorld::run("tests/features"));
 }
+
+#[when(expr = "I create a task with an estimate of {int} minutes")]
+fn create_task_with_estimate(world: &mut MeanderWorld, minutes: i64) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title: "Timed".into(),
+            estimated_minutes: Some(minutes),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
