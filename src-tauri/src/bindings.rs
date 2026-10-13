@@ -1,3 +1,4 @@
+use crate::errors::{ApiError, ErrorCode, ErrorKind};
 use crate::profiles::Profile;
 use crate::tasks::{CarryOverRule, NewTask, Task, TaskPlacement, TaskStatus};
 
@@ -15,6 +16,9 @@ pub fn typescript() -> String {
         specta::ts::export::<TaskStatus>(&conf).expect("export TaskStatus"),
         specta::ts::export::<CarryOverRule>(&conf).expect("export CarryOverRule"),
         specta::ts::export::<TaskPlacement>(&conf).expect("export TaskPlacement"),
+        specta::ts::export::<ApiError>(&conf).expect("export ApiError"),
+        specta::ts::export::<ErrorCode>(&conf).expect("export ErrorCode"),
+        specta::ts::export::<ErrorKind>(&conf).expect("export ErrorKind"),
     ];
     out.push_str(&types.join("\n"));
     out.push('\n');

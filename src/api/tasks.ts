@@ -11,3 +11,14 @@ export const MAX_TASK_TITLE_LENGTH = 200;
 
 export const createTask = (input: NewTask) =>
   transport.invoke<Task>(COMMANDS.createTask, { input });
+
+export const moveTask = (
+  taskId: number,
+  beforeId: number | null,
+  afterId: number | null,
+) =>
+  transport.invoke<void>(COMMANDS.moveTask, {
+    taskId,
+    beforeId,
+    afterId,
+  });

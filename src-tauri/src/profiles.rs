@@ -34,13 +34,21 @@ const PROFILE_NAME_MAX_LEN: usize = 100;
 
 fn profile_name(name: &str) -> Result<ProfileName> {
     ProfileName::try_new(name).map_err(|e| {
-        crate::db::DbError::Validation(match e {
-            ProfileNameError::LenCharMinViolated => "profile name is required".into(),
-            ProfileNameError::LenCharMaxViolated => {
-                format!("profile name must be {PROFILE_NAME_MAX_LEN} characters or fewer")
-            }
-            _ => "profile name cannot contain control characters".into(),
-        })
+        let (code, message) = match e {
+            ProfileNameError::LenCharMinViolated => (
+                crate::errors::ErrorCode::ProfileNameRequired,
+                "profile name is required".into(),
+            ),
+            ProfileNameError::LenCharMaxViolated => (
+                crate::errors::ErrorCode::ProfileNameTooLong,
+                format!("profile name must be {PROFILE_NAME_MAX_LEN} characters or fewer"),
+            ),
+            _ => (
+                crate::errors::ErrorCode::ProfileNameInvalidCharacters,
+                "profile name cannot contain control characters".into(),
+            ),
+        };
+        crate::db::DbError::Validation { code, message }
     })
 }
 

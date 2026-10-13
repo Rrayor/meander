@@ -46,6 +46,20 @@ be scoped to the active profile.
 - Tests: cucumber (create+trim/blank reject, created on active profile),
   Playwright (create flow, validation)
 
+## Task 2b — backlog manual ordering
+
+- `sort_order REAL` column, default = insertion order (`MAX(sort_order) + 1`
+  on insert)
+- `tasks::move_task(pool, profile_id, task_id, before_id, after_id)` —
+  midpoint insertion between the two drop neighbours (either may be the list
+  edge); pagination-safe since only the anchors are needed; lazy
+  renormalization if a gap is exhausted
+- `move_task` command + `@dnd-kit` sortable list with a drag handle
+  (keyboard reordering included — required for WCAG AA)
+- Spec: manual order is the default display order; future sorting/filtering
+  are view-time transforms that never touch it
+- Tests: cucumber (move persists, foreign anchor rejected), Playwright (drag)
+
 ## Task 3 — task deletion (step 17)
 
 - `tasks::delete(pool, profile_id, id)` — scoped delete; deleting another

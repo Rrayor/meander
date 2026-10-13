@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 use crate::config::{self, Config};
+use crate::errors::ApiError;
 use crate::profiles::{self, Profile};
 use crate::state::AppState;
 
@@ -12,34 +13,50 @@ pub fn current_db_path(state: State<'_, AppState>) -> String {
 }
 
 #[tauri::command]
-pub async fn list_profiles(state: State<'_, AppState>) -> Result<Vec<Profile>, String> {
-    profiles::list(&state.pool())
-        .await
-        .map_err(|e| e.to_string())
+pub async fn list_profiles(state: State<'_, AppState>) -> Result<Vec<Profile>, ApiError> {
+    profiles::list(&state.pool()).await.map_err(ApiError::from)
 }
 
 #[tauri::command]
-pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<crate::tasks::Task>, String> {
+pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<crate::tasks::Task>, ApiError> {
     crate::tasks::list(&state.pool(), state.active_profile_id())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(ApiError::from)
 }
 
 #[tauri::command]
 pub async fn create_task(
     input: crate::tasks::NewTask,
     state: State<'_, AppState>,
-) -> Result<crate::tasks::Task, String> {
+) -> Result<crate::tasks::Task, ApiError> {
     crate::tasks::create(&state.pool(), state.active_profile_id(), &input)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(ApiError::from)
 }
 
 #[tauri::command]
-pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, String> {
+pub async fn move_task(
+    task_id: i64,
+    before_id: Option<i64>,
+    after_id: Option<i64>,
+    state: State<'_, AppState>,
+) -> Result<(), ApiError> {
+    crate::tasks::move_task(
+        &state.pool(),
+        state.active_profile_id(),
+        task_id,
+        before_id,
+        after_id,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::create(&state.pool(), &name)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(ApiError::from)
 }
 
 #[tauri::command]
@@ -47,10 +64,10 @@ pub async fn rename_profile(
     id: i64,
     name: String,
     state: State<'_, AppState>,
-) -> Result<Profile, String> {
+) -> Result<Profile, ApiError> {
     profiles::rename(&state.pool(), id, &name)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(ApiError::from)
 }
 
 #[tauri::command]
@@ -58,19 +75,22 @@ pub async fn switch_profile(
     id: i64,
     state: State<'_, AppState>,
     app: AppHandle,
-) -> Result<(), String> {
-    state.switch_profile(id).await.map_err(|e| e.to_string())?;
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+) -> Result<(), ApiError> {
+    state.switch_profile(id).await.map_err(ApiError::from)?;
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut config = config::load(&dir);
     config.last_profile_id = Some(id);
-    config::save(&dir, &config).map_err(|e| e.to_string())
+    config::save(&dir, &config).map_err(|e| ApiError::internal(e.to_string()))
 }
 
 #[tauri::command]
-pub async fn current_profile(state: State<'_, AppState>) -> Result<Profile, String> {
+pub async fn current_profile(state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::get(&state.pool(), state.active_profile_id())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(ApiError::from)
 }
 
 #[tauri::command]
@@ -78,16 +98,19 @@ pub async fn select_database_file(
     path: String,
     state: State<'_, AppState>,
     app: AppHandle,
-) -> Result<String, String> {
+) -> Result<String, ApiError> {
     let path = PathBuf::from(path);
-    state.reconnect(&path).await.map_err(|e| e.to_string())?;
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    state.reconnect(&path).await.map_err(ApiError::from)?;
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     // Switching database files switches the profile universe, so the
     // persisted last-profile selection is reset for the new file.
     let config = Config {
         database_path: Some(path.clone()),
         last_profile_id: Some(state.active_profile_id()),
     };
-    config::save(&dir, &config).map_err(|e| e.to_string())?;
+    config::save(&dir, &config).map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(path.to_string_lossy().into_owned())
 }

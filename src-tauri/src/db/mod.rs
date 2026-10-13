@@ -14,8 +14,11 @@ pub enum DbError {
     Path(String),
     #[error("incompatible database: {0}")]
     Incompatible(String),
-    #[error("validation failed: {0}")]
-    Validation(String),
+    #[error("validation failed: {message}")]
+    Validation {
+        code: crate::errors::ErrorCode,
+        message: String,
+    },
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }

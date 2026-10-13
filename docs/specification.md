@@ -360,6 +360,8 @@ The weekly backlog is a standing container, not a per-week record: it holds the 
 
 Both the backlog and the kanban board should allow for filtering, searching and sorting tasks based on their properties (e.g. title and description contents, categories, creation and update dates, etc.)
 
+The backlog additionally has a **persistent manual order**: users can reorder items by drag and drop, and that order is stored on the tasks themselves. Manual order is the backlog's default display order. Sorting, filtering and searching are view-time transformations — they never modify the stored manual order, and "manual order" is one of the sort options. While a non-manual sort is active, drag and drop reordering is unavailable.
+
 The kanban board's strict display rules shouldn't be violated. Any sorting or filtering should respect the columns and rows. Sorting can happen within those bounds.
 
 The kanban board should have a setting for reversing row and column roles. Meaning task status would become columns and days of the week would become rows.
@@ -369,6 +371,8 @@ Settings shouldn't include any sorting or filtering features yet, as there aren'
 **Acceptance Criteria:**
 
 - The backlog and kanban view allow for filtering and sorting tasks based on their properties
+- Backlog items can be reordered by drag and drop; the manual order persists across sessions and is the default display order
+- Sorting, filtering and searching never modify the stored manual order; drag and drop reordering is unavailable while a non-manual sort is active
 - The kanban boards strict display rules aren't violated by those settings
 - The kanban board allows to display task statuses as columns and days of the week as rows if the user so chooses, but it can't be the default
 - The settings view doesn't include any sorting or filtering options yet

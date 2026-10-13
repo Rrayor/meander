@@ -4,6 +4,7 @@ pub mod bindings;
 pub mod commands;
 pub mod config;
 pub mod db;
+pub mod errors;
 pub mod profiles;
 pub mod state;
 pub mod tasks;
@@ -28,6 +29,7 @@ pub fn run() {
             commands::list_profiles,
             commands::list_tasks,
             commands::create_task,
+            commands::move_task,
             commands::current_profile,
             commands::create_profile,
             commands::rename_profile,
