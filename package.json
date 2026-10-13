@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "test:smoke": "wdio run ./wdio.conf.ts",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -52,6 +53,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^5.0.4",
     "@wdio/cli": "^10.0.2",
     "@wdio/local-runner": "^10.0.2",
     "@wdio/mocha-framework": "^10.0.1",

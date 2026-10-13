@@ -32,6 +32,10 @@ rustc-ice-*.txt
 # Test artifacts
 playwright-report
 test-results
+coverage/
+src-tauri/lcov.info
+src-tauri/clippy-report.json
+.scannerwork/
 node_modules
 
 # Local database
