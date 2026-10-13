@@ -7,12 +7,7 @@ import { QUERY_KEYS } from "@/api/queryKeys";
 import { MAX_TASK_TITLE_LENGTH, createTask } from "@/api/tasks";
 
 const optionalDurationPart = (unit: string) =>
-  z
-    .string()
-    .refine(
-      (v) => v.trim() === "" || (Number.isInteger(Number(v)) && Number(v) >= 0),
-      `${unit} must be a positive whole number`,
-    );
+  z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
 
 const schema = z.object({
   title: z
