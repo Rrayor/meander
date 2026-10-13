@@ -18,7 +18,13 @@ CREATE TABLE tasks_new (
     CHECK (placement != 'scheduled' OR scheduled_date IS NOT NULL),
     CHECK (placement != 'weekly_backlog' OR scheduled_date IS NULL)
 );
-INSERT INTO tasks_new SELECT * FROM tasks;
+INSERT INTO tasks_new (id, profile_id, title, description, status,
+    carry_over_rule, estimated_minutes, spent_minutes, placement,
+    scheduled_date, sort_order, created_at, updated_at)
+SELECT id, profile_id, title, description, status, carry_over_rule,
+    estimated_minutes, spent_minutes, placement, scheduled_date, sort_order,
+    created_at, updated_at
+FROM tasks;
 DROP TABLE tasks;
 ALTER TABLE tasks_new RENAME TO tasks;
 CREATE INDEX idx_tasks_profile ON tasks (profile_id);
