@@ -9,6 +9,8 @@ pre-commit:
       run: npx prettier --check .
     eslint:
       run: npx eslint .
+    tsc:
+      run: npx tsc --noEmit
     migrations:
       run: bash scripts/check-migrations.sh
     bindings:
