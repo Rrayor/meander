@@ -46,6 +46,14 @@
       "files": ["designs/backlog.html", "designs/backlog.png"],
       "implemented": true,
       "notes": "Task list rows (title, estimate, status badge) + empty state. Generated extras omitted: stats strip, checkboxes, Add Task button (step 16), Offline badge (removed earlier)"
+    },
+    {
+      "id": "97873034b9be4fa7a233b4f910b2734d",
+      "title": "Meander — New Task Modal",
+      "deviceType": "DESKTOP",
+      "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
+      "implemented": true,
+      "notes": "Task creation dialog: Title* input, Description textarea, Estimated time as paired hours+minutes inputs, Cancel/Create task footer over dimmed backlog"
     }
   ]
 }

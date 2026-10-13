@@ -11,3 +11,16 @@ Feature: Tasks
     And a task exists on a second profile
     Then the task list is empty
     And the second profile's task list has one task
+
+  Scenario: creating a task trims and stores it on the active profile
+    Given an application state on a temporary seeded database
+    When I create a task with surrounding whitespace
+    Then the task creation succeeds
+    And a task titled Plan the week exists in the backlog
+    And the task belongs to the default profile
+
+  Scenario: blank task titles are rejected
+    Given an application state on a temporary seeded database
+    When I create a task with a blank title
+    Then the task creation fails
+    And the task list is empty

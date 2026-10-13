@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { listTasks } from "@/api/tasks";
+import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
 const STATUS_LABELS = {
   todo: "Todo",
@@ -23,6 +25,8 @@ const formatMinutes = (minutes: number) => {
 };
 
 export function BacklogPage() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const { data: tasks, error } = useQuery({
     queryKey: QUERY_KEYS.tasks,
     queryFn: listTasks,
@@ -39,6 +43,15 @@ export function BacklogPage() {
         </div>
       </header>
       <section className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            Add task
+          </button>
+        </div>
         {error && (
           <p role="alert" className="text-sm text-danger">
             {error instanceof Error ? error.message : String(error)}
@@ -78,6 +91,7 @@ export function BacklogPage() {
           </ul>
         )}
       </section>
+      {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
     </>
   );
 }

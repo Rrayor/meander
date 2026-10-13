@@ -3,11 +3,13 @@ use sqlx::SqlitePool;
 
 use crate::db::Result;
 
+pub const TASK_TITLE_MAX_LEN: usize = 200;
+
 #[nutype::nutype(
     sanitize(trim),
     validate(
         len_char_min = 1,
-        len_char_max = 200,
+        len_char_max = TASK_TITLE_MAX_LEN,
         predicate = |s| !s.chars().any(char::is_control)
     ),
     derive(Debug, PartialEq)
@@ -21,7 +23,7 @@ impl TaskTitle {
             crate::db::DbError::Validation(match e {
                 TaskTitleError::LenCharMinViolated => "task title is required".into(),
                 TaskTitleError::LenCharMaxViolated => {
-                    "task title must be 200 characters or fewer".into()
+                    format!("task title must be {TASK_TITLE_MAX_LEN} characters or fewer")
                 }
                 _ => "task title cannot contain control characters".into(),
             })
@@ -69,6 +71,47 @@ pub struct Task {
     pub scheduled_date: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Default, Deserialize, specta::Type)]
+pub struct NewTask {
+    pub title: String,
+    pub description: Option<String>,
+    pub estimated_minutes: Option<i64>,
+}
+
+pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
+    let title = TaskTitle::parse(&input.title)?.into_inner();
+    let description = input
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(str::to_owned);
+    if input.estimated_minutes.is_some_and(|m| m < 0) {
+        return Err(crate::db::DbError::Validation(
+            "estimated time cannot be negative".into(),
+        ));
+    }
+    let result = sqlx::query(
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes) VALUES (?, ?, ?, ?)",
+    )
+    .bind(profile_id)
+    .bind(title)
+    .bind(description)
+    .bind(input.estimated_minutes)
+    .execute(pool)
+    .await?;
+    get(pool, result.last_insert_rowid()).await
+}
+
+pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
+    Ok(
+        sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await?,
+    )
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
