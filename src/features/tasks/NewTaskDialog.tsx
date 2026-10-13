@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
@@ -71,6 +71,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
   const queryClient = useQueryClient();
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({
@@ -228,22 +229,47 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="new-task-carry-over"
+            <span
+              id="new-task-carry-over-label"
               className="text-xs font-medium text-text-muted"
             >
               Carry-over rule{" "}
               <span className="text-text-muted/60">(optional)</span>
-            </label>
-            <select
-              id="new-task-carry-over"
-              className="w-56 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              {...register("carryOver")}
-            >
-              <option value="">Ask at week boundary</option>
-              <option value="carry">Carry over to next week</option>
-              <option value="return">Return to backlog</option>
-            </select>
+            </span>
+            <Controller
+              name="carryOver"
+              control={control}
+              render={({ field: { value, onChange } }) => (
+                <div
+                  role="radiogroup"
+                  aria-labelledby="new-task-carry-over-label"
+                  className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
+                >
+                  {(
+                    [
+                      ["", "Ask"],
+                      ["carry", "Carry over"],
+                      ["return", "Return to backlog"],
+                    ] as const
+                  ).map(([option, label]) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={value === option}
+                      onClick={() => onChange(option)}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                        value === option
+                          ? "bg-primary text-on-primary"
+                          : "text-text-muted hover:text-text"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            />
           </div>
           {error && (
             <p role="alert" className="text-sm text-danger">
