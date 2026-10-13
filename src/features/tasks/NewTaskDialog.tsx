@@ -16,8 +16,9 @@ import { ApiError } from "@/api/transport";
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
 
-const DURATION_RANGE_MESSAGE =
-  "Estimated time must be between 1 minute and 24 hours";
+const DURATION_RANGE_MESSAGE = `Estimated time must be between 1 minute and ${
+  MAX_DURATION_MINUTES / 60
+} hours`;
 
 const schema = z
   .object({

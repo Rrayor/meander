@@ -135,7 +135,10 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         .transpose()
         .map_err(|_| crate::db::DbError::Validation {
             code: ErrorCode::EstimatedTimeOutOfRange,
-            message: "estimated time must be between 1 minute and 24 hours".into(),
+            message: format!(
+                "estimated time must be between 1 minute and {} hours",
+                MAX_DURATION_MINUTES / 60
+            ),
         })?
         .map(PositiveDuration::into_inner);
     let result = sqlx::query(
