@@ -115,8 +115,7 @@ export function ProfilesSection() {
                     aria-label={`Rename ${profile.name}`}
                     // Focus moves into the input when the row enters edit
                     // mode — intentional focus management for rename.
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
-                    autoFocus
+                    ref={(el) => el?.focus()}
                     maxLength={MAX_PROFILE_NAME_LENGTH}
                     className="w-40 rounded-md border border-primary bg-surface-raised px-2.5 py-1 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   />

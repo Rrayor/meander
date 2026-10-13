@@ -71,7 +71,14 @@ interface NewTaskDialogProps {
   onClose: () => void;
 }
 
-export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
+const serverErrorMessage = (error: unknown): string | undefined => {
+  if (error instanceof ApiError) {
+    return SERVER_ERROR_MESSAGES[error.code] ?? error.message;
+  }
+  return error ? String(error) : undefined;
+};
+
+export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -86,12 +93,19 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
     register,
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
     defaultValues: { carryOver: "" },
   });
+
+  // Focus lands on the first field when the dialog opens — standard modal
+  // behavior.
+  useEffect(() => {
+    setFocus("title");
+  }, [setFocus]);
 
   const create = useMutation({
     mutationFn: createTask,
@@ -119,28 +133,23 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
   };
 
   const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
-  const serverError =
-    create.error instanceof ApiError
-      ? (SERVER_ERROR_MESSAGES[create.error.code] ?? create.error.message)
-      : create.error
-        ? String(create.error)
-        : undefined;
+  const serverError = serverErrorMessage(create.error);
 
-  // Backdrop click dismisses for pointer users; Escape (the document keydown
-  // listener above) is the keyboard equivalent, so the click-only rules are
-  // safe to disable for this element.
-  /* eslint-disable jsx-a11y/click-events-have-key-events,
-     jsx-a11y/no-static-element-interactions */
+  // The backdrop is a real button (pointer + keyboard dismiss) and the panel
+  // a native <dialog>; Escape is handled by the document listener above.
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        aria-label="Close dialog"
+        onClick={onClose}
+        tabIndex={-1}
+        className="absolute inset-0 h-full w-full cursor-default bg-black/60"
+      />
+      <dialog
+        open
         aria-labelledby="new-task-title"
-        className="flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 shadow-2xl"
+        className="relative m-0 flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <h2
@@ -179,10 +188,6 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
               id="new-task-title-input"
               type="text"
               maxLength={MAX_TASK_TITLE_LENGTH}
-              // Focus lands on the first field when the dialog opens —
-              // standard modal behavior, not the autofocus the rule warns about.
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
               placeholder="e.g. Renew passport"
               aria-invalid={!!errors.title}
               aria-describedby={
@@ -350,9 +355,7 @@ export function NewTaskDialog({ onClose }: NewTaskDialogProps) {
             </button>
           </div>
         </form>
-      </div>
+      </dialog>
     </div>
   );
-  /* eslint-enable jsx-a11y/click-events-have-key-events,
-     jsx-a11y/no-static-element-interactions */
 }

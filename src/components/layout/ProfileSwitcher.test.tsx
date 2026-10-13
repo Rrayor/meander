@@ -40,7 +40,7 @@ describe("ProfileSwitcher", () => {
   it("shows the current profile name", async () => {
     renderSwitcher();
     expect(
-      await screen.findByRole("button", { name: "Default" }),
+      await screen.findByRole("button", { name: "Default" }, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
 

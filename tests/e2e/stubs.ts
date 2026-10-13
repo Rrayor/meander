@@ -1,8 +1,6 @@
 import type { Page } from "@playwright/test";
 
-type StubValue = unknown;
-
-type InvokeHandlers = Record<string, StubValue>;
+type InvokeHandlers = Record<string, unknown>;
 
 // Marks a stubbed command response as a failure — serialized as data so it
 // survives addInitScript's argument serialization.
@@ -42,10 +40,10 @@ export const stubTauriCommands = (page: Page, handlers: InvokeHandlers) =>
     };
     win.__invocations = [];
     win.__TAURI_INTERNALS__ = {
-      invoke: async (cmd: string, args?: unknown) => {
+      invoke: (cmd: string, args?: unknown): Promise<unknown> => {
         win.__invocations.push({ cmd, args });
         if (!(cmd in stubbed)) {
-          throw new Error(`unmocked tauri command: ${cmd}`);
+          return Promise.reject(new Error(`unmocked tauri command: ${cmd}`));
         }
         let value = stubbed[cmd];
         if (
@@ -61,16 +59,18 @@ export const stubTauriCommands = (page: Page, handlers: InvokeHandlers) =>
           typeof value === "object" &&
           "__apiError" in (value as Record<string, unknown>)
         ) {
-          throw (value as { __apiError: unknown }).__apiError;
+          return Promise.reject((value as { __apiError: unknown }).__apiError);
         }
         if (
           value !== null &&
           typeof value === "object" &&
           "__error" in (value as Record<string, unknown>)
         ) {
-          throw new Error((value as { __error: string }).__error);
+          return Promise.reject(
+            new Error((value as { __error: string }).__error),
+          );
         }
-        return value;
+        return Promise.resolve(value);
       },
     };
   }, handlers);

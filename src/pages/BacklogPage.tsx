@@ -42,7 +42,7 @@ const formatMinutes = (minutes: number) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({ task }: Readonly<{ task: Task }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: task.id });
 
@@ -174,7 +174,7 @@ export function BacklogPage() {
             {error instanceof Error ? error.message : String(error)}
           </p>
         )}
-        {tasks && tasks.length === 0 && (
+        {tasks?.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-text-muted">
               No tasks yet — created tasks will appear here.
