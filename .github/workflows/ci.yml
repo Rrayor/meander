@@ -61,7 +61,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
       - name: Lint (eslint + prettier)
         run: npm run lint
@@ -71,7 +71,7 @@ jobs:
 
       - name: Playwright e2e
         run: |
-          npx playwright install --with-deps chromium
+          ./node_modules/.bin/playwright install --with-deps chromium
           npm run test:e2e
 
   sonar:
@@ -106,7 +106,7 @@ jobs:
       - name: Clippy report for Sonar import
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --message-format=json > src-tauri/clippy-report.json || true
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
       - name: Frontend coverage (lcov)
         run: npm run test:coverage
@@ -141,9 +141,9 @@ jobs:
           sudo apt-get install -y $TAURI_DEPS xvfb
 
       - name: Install tauri-driver
-        run: cargo install tauri-driver --locked
+        run: cargo install tauri-driver@2.1.0 --locked
 
-      - run: npm ci
+      - run: npm ci --ignore-scripts
 
       - name: Build frontend
         run: npm run build
