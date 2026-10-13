@@ -22,9 +22,9 @@ export function ProfileSwitcher() {
     mutationFn: switchProfile,
     onSuccess: () => {
       setOpen(false);
-      void queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.currentProfile,
-      });
+      // All cached data is profile-scoped — wipe the cache so mounted and
+      // later-mounted queries refetch against the new profile.
+      void queryClient.resetQueries();
     },
   });
 

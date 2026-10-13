@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -23,12 +24,15 @@ const profiles: Profile[] = [
   { id: 2, name: "Work", created_at: "2026-01-02", updated_at: "2026-01-02" },
 ];
 
-const renderSwitcher = () =>
+const renderSwitcher = () => {
+  const queryClient = testQueryClient();
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <ProfileSwitcher />
     </QueryClientProvider>,
   );
+  return queryClient;
+};
 
 describe("ProfileSwitcher", () => {
   beforeEach(() => {
@@ -62,6 +66,19 @@ describe("ProfileSwitcher", () => {
     );
     await waitFor(() =>
       expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("clears profile-scoped cached queries on switch", async () => {
+    const queryClient = renderSwitcher();
+    queryClient.setQueryData(QUERY_KEYS.tasks, [{ id: 99 }]);
+    fireEvent.click(await screen.findByRole("button", { name: "Default" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Work" }));
+    await waitFor(() =>
+      expect(queryClient.getQueryData(QUERY_KEYS.tasks)).toBeUndefined(),
+    );
+    await waitFor(() =>
+      expect(vi.mocked(currentProfile).mock.calls.length).toBeGreaterThan(1),
     );
   });
 
