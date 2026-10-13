@@ -84,7 +84,7 @@ describe("ProfileSwitcher", () => {
     });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
-  
+
   it("clears profile-scoped cached queries on switch", async () => {
     const queryClient = renderSwitcher();
     queryClient.setQueryData(QUERY_KEYS.tasks, [{ id: 99 }]);
