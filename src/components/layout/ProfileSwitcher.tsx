@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
@@ -9,6 +9,14 @@ export function ProfileSwitcher() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const { data: profiles } = useQuery({
     queryKey: QUERY_KEYS.profiles,
@@ -31,7 +39,6 @@ export function ProfileSwitcher() {
   return (
     // Focus container for blur-out close; all interactive descendants are
     // real buttons with their own keyboard handling.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       ref={containerRef}
       className="relative"
@@ -39,9 +46,6 @@ export function ProfileSwitcher() {
         if (!containerRef.current?.contains(e.relatedTarget as Node)) {
           setOpen(false);
         }
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") setOpen(false);
       }}
     >
       {open && (

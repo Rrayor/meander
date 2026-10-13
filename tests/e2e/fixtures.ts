@@ -9,9 +9,8 @@ export const test = base.extend({
       (
         window as unknown as { __TAURI_INTERNALS__: object }
       ).__TAURI_INTERNALS__ = {
-        invoke: async (cmd: string) => {
-          throw new Error(`unmocked tauri command: ${cmd}`);
-        },
+        invoke: (cmd: string) =>
+          Promise.reject(new Error(`unmocked tauri command: ${cmd}`)),
       };
     });
     await use(page);

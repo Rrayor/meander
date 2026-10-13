@@ -6,6 +6,7 @@ import { createTask } from "@/api/tasks";
 import {
   NewTaskDialog,
   SERVER_ERROR_MESSAGES,
+  serverErrorMessage,
 } from "@/features/tasks/NewTaskDialog";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -100,9 +101,22 @@ describe("NewTaskDialog", () => {
     expect(SERVER_ERROR_MESSAGES.estimated_time_out_of_range).toContain(
       "24 hours",
     );
-    expect(new ApiError("task_title_required", "validation", "m").code).toBe(
-      "task_title_required",
-    );
+  });
+
+  it.each([
+    [
+      new ApiError("task_title_required", "validation", "backend copy"),
+      "Task title is required",
+    ],
+    [
+      new ApiError("profile_name_required", "validation", "backend copy"),
+      "backend copy",
+    ],
+    [new Error("db offline"), "db offline"],
+    ["string error", undefined],
+    [undefined, undefined],
+  ])("serverErrorMessage maps %j to %j", (error, expected) => {
+    expect(serverErrorMessage(error)).toBe(expected);
   });
 
   it.each([
