@@ -98,4 +98,7 @@ For any UI task, create the design with Stitch before implementing:
 ## Workflow
 
 - Branch + pull request for every change; conventional commits.
-- Before committing: run the test suites, `cargo clippy`, and frontend linters.
+- The pre-commit hook runs the full gate: `cargo fmt`, `clippy`, prettier,
+  eslint, the migration and bindings checks, `cargo test`, `vitest`, and
+  Playwright e2e. Only the WebdriverIO smoke test stays CI-only — it needs a
+  release build.

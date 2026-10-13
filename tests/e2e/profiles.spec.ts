@@ -135,7 +135,7 @@ test("the nav footer switches the active profile", async ({ page }) => {
 
   const footer = page.getByRole("button", { name: "Default" });
   await footer.click();
-  await page.getByRole("option", { name: "Work" }).click();
+  await page.getByRole("list").getByRole("button", { name: "Work" }).click();
 
   await expect(page.getByRole("button", { name: "Work" })).toBeVisible();
 });

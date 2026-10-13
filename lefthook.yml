@@ -13,6 +13,12 @@ pre-commit:
       run: bash scripts/check-migrations.sh
     bindings:
       run: bash scripts/check-bindings.sh
+    cargo-test:
+      run: cargo test --manifest-path src-tauri/Cargo.toml
+    vitest:
+      run: npx vitest run
+    playwright:
+      run: npx playwright test
 
 commit-msg:
   commands:
