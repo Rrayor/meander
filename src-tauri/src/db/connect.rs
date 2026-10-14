@@ -32,7 +32,7 @@ pub fn default_path() -> Result<PathBuf> {
 /// foreign keys, then applies all pending migrations.
 pub async fn connect(path: &Path) -> Result<SqlitePool> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
     let options = SqliteConnectOptions::new()
         .filename(path)
