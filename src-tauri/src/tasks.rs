@@ -29,7 +29,8 @@ pub const TASK_DESCRIPTION_MAX_LEN: usize = 20_000;
 pub struct TaskDescription(String);
 
 /// Spec: durations are optional, but when present they are positive and at
-/// most 24 hours.
+/// most 24 hours — the schema enforces the same 1–1440 CHECK on both
+/// estimated and spent minutes.
 pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
 
 #[nutype::nutype(
@@ -37,10 +38,6 @@ pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
     derive(Debug, PartialEq)
 )]
 pub struct PositiveDuration(i64);
-
-/// Spec: time spent has no upper bound, but it cannot be negative.
-#[nutype::nutype(validate(greater_or_equal = 0), derive(Debug, PartialEq))]
-pub struct SpentDuration(i64);
 
 impl TaskTitle {
     /// Validates `name`; the error variants are mapped to our own vocabulary.
@@ -160,13 +157,16 @@ fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
 
 fn parse_spent(raw: Option<i64>) -> Result<Option<i64>> {
     Ok(raw
-        .map(SpentDuration::try_new)
+        .map(PositiveDuration::try_new)
         .transpose()
         .map_err(|_| crate::db::DbError::Validation {
             code: ErrorCode::SpentTimeOutOfRange,
-            message: "spent time cannot be negative".into(),
+            message: format!(
+                "spent time must be between 1 minute and {} hours",
+                MAX_DURATION_MINUTES / 60
+            ),
         })?
-        .map(SpentDuration::into_inner))
+        .map(PositiveDuration::into_inner))
 }
 
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
@@ -586,30 +586,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_rejects_a_negative_spent_time() {
+    async fn update_rejects_out_of_range_spent_time() {
         let (pool, pid) = seeded_pool().await;
         create(&pool, pid, &task(TITLE_A)).await.unwrap();
         let existing = list(&pool, pid).await.unwrap()[0].clone();
+        // The schema CHECK allows 1–1440 minutes; the service must reject
+        // out-of-range values before they hit SQLite as opaque errors.
+        for bad in [-5, 0, MAX_DURATION_MINUTES + 1] {
+            let err = update(
+                &pool,
+                pid,
+                existing.id,
+                &UpdateTask {
+                    spent_minutes: Some(bad),
+                    ..update_payload(&existing)
+                },
+            )
+            .await
+            .unwrap_err();
 
-        let err = update(
-            &pool,
-            pid,
-            existing.id,
-            &UpdateTask {
-                spent_minutes: Some(-5),
-                ..update_payload(&existing)
-            },
-        )
-        .await
-        .unwrap_err();
-
-        assert!(matches!(
-            err,
-            crate::db::DbError::Validation {
-                code: ErrorCode::SpentTimeOutOfRange,
-                ..
-            }
-        ));
+            assert!(matches!(
+                err,
+                crate::db::DbError::Validation {
+                    code: ErrorCode::SpentTimeOutOfRange,
+                    ..
+                }
+            ));
+        }
     }
 
     #[tokio::test]

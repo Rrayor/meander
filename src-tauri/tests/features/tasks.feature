@@ -189,3 +189,9 @@ Feature: Tasks
     Given an application state on a temporary seeded database
     When I update a task that does not exist
     Then the task update fails
+
+  Scenario: spent time beyond the duration limit is rejected on update
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I update Alpha with a spent time of 1441 minutes
+    Then the task update fails

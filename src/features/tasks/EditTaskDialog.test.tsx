@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { updateTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
+import { SPENT_RANGE_MESSAGE } from "@/lib/errors";
 import {
   CANCEL_BUTTON_LABEL,
   EDIT_TASK_HEADING,
@@ -136,6 +137,22 @@ describe("EditTaskDialog", () => {
         status: "todo",
       }),
     );
+  });
+
+  it("blocks an out-of-range spent time without calling the backend", async () => {
+    renderDialog();
+
+    fireEvent.change(screen.getByLabelText(SPENT_HOURS_LABEL), {
+      target: { value: "25" },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      SPENT_RANGE_MESSAGE,
+    );
+    expect(mockedUpdate).not.toHaveBeenCalled();
   });
 
   it("blocks an empty title without calling the backend", async () => {

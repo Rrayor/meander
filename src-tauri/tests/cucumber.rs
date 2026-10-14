@@ -1015,3 +1015,32 @@ fn task_updated_at_changed(world: &mut MeanderWorld) {
         .expect("no prior timestamp");
     assert_ne!(tasks[0].updated_at, before, "updated_at did not change");
 }
+
+#[when(expr = "I update {word} with a spent time of {int} minutes")]
+fn update_task_spent(world: &mut MeanderWorld, title: String, minutes: i64) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .expect("task missing");
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::update(
+        &pool,
+        active,
+        task.id,
+        &meander_lib::tasks::UpdateTask {
+            title: task.title.clone(),
+            description: task.description.clone(),
+            estimated_minutes: task.estimated_minutes,
+            spent_minutes: Some(minutes),
+            carry_over_rule: task.carry_over_rule,
+            status: task.status,
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}

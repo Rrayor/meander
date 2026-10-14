@@ -12,7 +12,11 @@ import {
   updateTask,
 } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
-import { DURATION_RANGE_MESSAGE, serverErrorMessage } from "@/lib/errors";
+import {
+  DURATION_RANGE_MESSAGE,
+  SPENT_RANGE_MESSAGE,
+  serverErrorMessage,
+} from "@/lib/errors";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -65,19 +69,30 @@ const schema = z
     status: z.enum(["todo", "in_progress", "done"]),
     carryOver: z.enum(["", "carry", "return"]),
   })
-  .superRefine(({ estHours, estMinutes }, ctx) => {
-    if (estHours.trim() === "" && estMinutes.trim() === "") {
-      return;
-    }
-    // Time spent only needs non-negative digits — the input pattern covers it.
-    const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
-    if (total < 1 || total > MAX_DURATION_MINUTES) {
-      for (const field of ["estHours", "estMinutes"] as const) {
-        ctx.addIssue({
-          code: "custom",
-          path: [field],
-          message: DURATION_RANGE_MESSAGE,
-        });
+  .superRefine(({ estHours, estMinutes, spentHours, spentMinutes }, ctx) => {
+    // The schema CHECK allows 1–1440 minutes for both duration fields.
+    for (const [hours, minutes, fields, message] of [
+      [
+        estHours,
+        estMinutes,
+        ["estHours", "estMinutes"],
+        DURATION_RANGE_MESSAGE,
+      ],
+      [
+        spentHours,
+        spentMinutes,
+        ["spentHours", "spentMinutes"],
+        SPENT_RANGE_MESSAGE,
+      ],
+    ] as const) {
+      if (hours.trim() === "" && minutes.trim() === "") {
+        continue;
+      }
+      const total = (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+      if (total < 1 || total > MAX_DURATION_MINUTES) {
+        for (const field of fields) {
+          ctx.addIssue({ code: "custom", path: [field], message });
+        }
       }
     }
   });

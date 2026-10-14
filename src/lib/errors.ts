@@ -11,7 +11,9 @@ export const DURATION_RANGE_MESSAGE = `Estimated time must be between 1 minute a
   MAX_DURATION_MINUTES / 60
 } hours`;
 
-export const SPENT_RANGE_MESSAGE = "Spent time cannot be negative";
+export const SPENT_RANGE_MESSAGE = `Spent time must be between 1 minute and ${
+  MAX_DURATION_MINUTES / 60
+} hours`;
 
 export const TASK_TITLE_TOO_LONG_MESSAGE = `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`;
 
