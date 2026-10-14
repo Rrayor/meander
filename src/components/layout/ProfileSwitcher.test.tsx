@@ -14,14 +14,22 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   switchProfile: vi.fn(),
 }));
 
+const DEFAULT_PROFILE_NAME = "Default";
+const WORK_PROFILE_NAME = "Work";
+
 const profiles: Profile[] = [
   {
     id: 1,
-    name: "Default",
+    name: DEFAULT_PROFILE_NAME,
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
   },
-  { id: 2, name: "Work", created_at: "2026-01-02", updated_at: "2026-01-02" },
+  {
+    id: 2,
+    name: WORK_PROFILE_NAME,
+    created_at: "2026-01-02",
+    updated_at: "2026-01-02",
+  },
 ];
 
 const renderSwitcher = () => {
@@ -44,23 +52,29 @@ describe("ProfileSwitcher", () => {
   it("shows the current profile name", async () => {
     renderSwitcher();
     expect(
-      await screen.findByRole("button", { name: "Default" }, { timeout: 3000 }),
+      await screen.findByRole(
+        "button",
+        { name: DEFAULT_PROFILE_NAME },
+        { timeout: 3000 },
+      ),
     ).toBeInTheDocument();
   });
 
   it("opens the menu and switches profile on menuitem click", async () => {
     renderSwitcher();
-    const trigger = await screen.findByRole("button", { name: "Default" });
+    const trigger = await screen.findByRole("button", {
+      name: DEFAULT_PROFILE_NAME,
+    });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
     fireEvent.click(trigger);
     const menu = screen.getByRole("menu");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(menu.querySelector("[aria-current='true']")).toHaveTextContent(
-      "Default",
+      profiles[0].name,
     );
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Work" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: WORK_PROFILE_NAME }));
     await waitFor(() =>
       expect(vi.mocked(switchProfile).mock.calls[0][0]).toBe(2),
     );
@@ -71,15 +85,17 @@ describe("ProfileSwitcher", () => {
 
   it("closes the menu only when focus leaves the switcher", async () => {
     renderSwitcher();
-    fireEvent.click(await screen.findByRole("button", { name: "Default" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: DEFAULT_PROFILE_NAME }),
+    );
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
-    fireEvent.blur(screen.getByRole("button", { name: "Default" }), {
-      relatedTarget: screen.getByRole("menuitem", { name: "Work" }),
+    fireEvent.blur(screen.getByRole("button", { name: DEFAULT_PROFILE_NAME }), {
+      relatedTarget: screen.getByRole("menuitem", { name: WORK_PROFILE_NAME }),
     });
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
-    fireEvent.blur(screen.getByRole("menuitem", { name: "Work" }), {
+    fireEvent.blur(screen.getByRole("menuitem", { name: WORK_PROFILE_NAME }), {
       relatedTarget: document.body,
     });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -88,8 +104,10 @@ describe("ProfileSwitcher", () => {
   it("clears profile-scoped cached queries on switch", async () => {
     const queryClient = renderSwitcher();
     queryClient.setQueryData(QUERY_KEYS.tasks, [{ id: 99 }]);
-    fireEvent.click(await screen.findByRole("button", { name: "Default" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Work" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: DEFAULT_PROFILE_NAME }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: WORK_PROFILE_NAME }));
     await waitFor(() =>
       expect(queryClient.getQueryData(QUERY_KEYS.tasks)).toBeUndefined(),
     );
@@ -100,7 +118,9 @@ describe("ProfileSwitcher", () => {
 
   it("closes the menu on Escape", async () => {
     renderSwitcher();
-    fireEvent.click(await screen.findByRole("button", { name: "Default" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: DEFAULT_PROFILE_NAME }),
+    );
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });

@@ -9,6 +9,10 @@ import {
 } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
+import {
+  PROFILE_NAME_REQUIRED_MESSAGE,
+  renameProfileLabel,
+} from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/profiles", async (importOriginal) => ({
@@ -19,10 +23,17 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   renameProfile: vi.fn(),
 }));
 
+const DEFAULT_PROFILE_NAME = "Default";
+const NEW_PROFILE_NAME = "  Work  ";
+const RENAMED_PROFILE_NAME = "Personal";
+const BACKEND_ERROR_MESSAGE = "name taken";
+const CREATE_PROFILE_BUTTON = "Create profile";
+const RENAME_BUTTON = "Rename";
+
 const profiles: Profile[] = [
   {
     id: 1,
-    name: "Default",
+    name: DEFAULT_PROFILE_NAME,
     created_at: "2026-01-01 10:00:00",
     updated_at: "2026-01-02 10:00:00",
   },
@@ -45,17 +56,17 @@ describe("ProfilesSection", () => {
 
   it("lists profiles and marks the current one", async () => {
     renderSection();
-    expect(await screen.findByText("Default")).toBeInTheDocument();
+    expect(await screen.findByText(DEFAULT_PROFILE_NAME)).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
   it("rejects an empty profile name without calling the backend", async () => {
     renderSection();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Create profile" }),
+      await screen.findByRole("button", { name: CREATE_PROFILE_BUTTON }),
     );
     expect(
-      await screen.findByText("Profile name is required"),
+      await screen.findByText(PROFILE_NAME_REQUIRED_MESSAGE),
     ).toBeInTheDocument();
     expect(createProfile).not.toHaveBeenCalled();
   });
@@ -63,55 +74,69 @@ describe("ProfilesSection", () => {
   it("creates a profile and clears the input", async () => {
     renderSection();
     const input = await screen.findByLabelText("Profile name");
-    fireEvent.change(input, { target: { value: "  Work  " } });
-    fireEvent.click(screen.getByRole("button", { name: "Create profile" }));
+    fireEvent.change(input, { target: { value: NEW_PROFILE_NAME } });
+    fireEvent.click(
+      screen.getByRole("button", { name: CREATE_PROFILE_BUTTON }),
+    );
     await waitFor(() =>
-      expect(vi.mocked(createProfile).mock.calls[0][0]).toBe("  Work  "),
+      expect(vi.mocked(createProfile).mock.calls[0][0]).toBe(NEW_PROFILE_NAME),
     );
   });
 
   it("renames a profile through the inline editor", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: "Rename" }));
-    const editor = screen.getByLabelText("Rename Default");
-    fireEvent.change(editor, { target: { value: "Personal" } });
+    fireEvent.click(await screen.findByRole("button", { name: RENAME_BUTTON }));
+    const editor = screen.getByLabelText(
+      renameProfileLabel(DEFAULT_PROFILE_NAME),
+    );
+    fireEvent.change(editor, { target: { value: RENAMED_PROFILE_NAME } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(vi.mocked(renameProfile).mock.calls[0].slice(0, 2)).toEqual([
         1,
-        "Personal",
+        RENAMED_PROFILE_NAME,
       ]),
     );
   });
 
   it("cancelling a rename restores the name", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: "Rename" }));
-    const editor = screen.getByLabelText("Rename Default");
-    fireEvent.change(editor, { target: { value: "Personal" } });
+    fireEvent.click(await screen.findByRole("button", { name: RENAME_BUTTON }));
+    const editor = screen.getByLabelText(
+      renameProfileLabel(DEFAULT_PROFILE_NAME),
+    );
+    fireEvent.change(editor, { target: { value: RENAMED_PROFILE_NAME } });
     fireEvent.keyDown(editor, { key: "Escape" });
-    expect(screen.queryByLabelText("Rename Default")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(renameProfileLabel(DEFAULT_PROFILE_NAME)),
+    ).not.toBeInTheDocument();
     expect(renameProfile).not.toHaveBeenCalled();
   });
 
   it("rejects an empty rename", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: "Rename" }));
-    const editor = screen.getByLabelText("Rename Default");
+    fireEvent.click(await screen.findByRole("button", { name: RENAME_BUTTON }));
+    const editor = screen.getByLabelText(
+      renameProfileLabel(DEFAULT_PROFILE_NAME),
+    );
     fireEvent.change(editor, { target: { value: "   " } });
     fireEvent.keyDown(editor, { key: "Enter" });
     expect(
-      await screen.findByText("Profile name is required"),
+      await screen.findByText(PROFILE_NAME_REQUIRED_MESSAGE),
     ).toBeInTheDocument();
     expect(renameProfile).not.toHaveBeenCalled();
   });
 
   it("surfaces a backend error from create", async () => {
-    vi.mocked(createProfile).mockRejectedValue(new Error("name taken"));
+    vi.mocked(createProfile).mockRejectedValue(
+      new Error(BACKEND_ERROR_MESSAGE),
+    );
     renderSection();
     const input = await screen.findByLabelText("Profile name");
     fireEvent.change(input, { target: { value: "Dup" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create profile" }));
-    expect(await screen.findByText("name taken")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: CREATE_PROFILE_BUTTON }),
+    );
+    expect(await screen.findByText(BACKEND_ERROR_MESSAGE)).toBeInTheDocument();
   });
 });

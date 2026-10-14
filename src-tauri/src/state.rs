@@ -110,6 +110,18 @@ impl AppState {
 mod tests {
     use super::*;
 
+    fn temp_dir() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "meander-state-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     #[tokio::test]
     async fn from_config_falls_back_when_configured_file_is_corrupt() {
         let dir = std::env::temp_dir().join(format!(
@@ -154,6 +166,108 @@ mod tests {
             .await
             .expect("active profile should exist");
 
-        assert_eq!(active.name, "Default");
+        assert_eq!(active.name, crate::db::DEFAULT_PROFILE_NAME);
+    }
+
+    #[tokio::test]
+    async fn from_config_restores_a_still_valid_last_profile() {
+        let dir = temp_dir();
+        let path = dir.join("profiles.db");
+        std::fs::write(&path, b"").unwrap();
+        // Seed once so a second profile exists before the config read.
+        let config = Config {
+            database_path: Some(path.clone()),
+            ..Default::default()
+        };
+        let state = AppState::from_config(&config, &path).await.unwrap();
+        let second = profiles::create(&state.pool(), "Work").await.unwrap();
+
+        let config = Config {
+            database_path: Some(path.clone()),
+            last_profile_id: Some(second.id),
+        };
+        let state = AppState::from_config(&config, &path).await.unwrap();
+
+        assert_eq!(state.active_profile_id(), second.id);
+    }
+
+    #[tokio::test]
+    async fn from_config_ignores_a_last_profile_that_no_longer_exists() {
+        let dir = temp_dir();
+        let path = dir.join("profiles.db");
+        std::fs::write(&path, b"").unwrap();
+        let config = Config {
+            database_path: Some(path.clone()),
+            last_profile_id: Some(4242),
+        };
+        let state = AppState::from_config(&config, &path).await.unwrap();
+
+        let active = profiles::get(&state.pool(), state.active_profile_id())
+            .await
+            .unwrap();
+        assert_eq!(active.name, crate::db::DEFAULT_PROFILE_NAME);
+    }
+
+    #[tokio::test]
+    async fn from_config_errors_when_the_fallback_also_fails() {
+        let dir = temp_dir();
+        // A path that is a directory can never be opened as a database.
+        let config = Config {
+            database_path: Some(dir.clone()),
+            ..Default::default()
+        };
+        let err = AppState::from_config(&config, &dir).await.unwrap_err();
+        drop(err);
+    }
+
+    #[tokio::test]
+    async fn reconnect_falls_back_to_the_first_profile_when_the_active_one_is_missing() {
+        let dir = temp_dir();
+        let first_path = dir.join("first.db");
+        std::fs::write(&first_path, b"").unwrap();
+        let state = AppState::from_config(
+            &Config {
+                database_path: Some(first_path.clone()),
+                ..Default::default()
+            },
+            &first_path,
+        )
+        .await
+        .unwrap();
+        let second = profiles::create(&state.pool(), "Work").await.unwrap();
+        state.switch_profile(second.id).await.unwrap();
+
+        // A different database whose profile ids don't overlap.
+        let other_path = dir.join("other.db");
+        let other_pool = db::connect(&other_path).await.unwrap();
+        db::seed(&other_pool).await.unwrap();
+        drop(other_pool);
+
+        state.reconnect(&other_path).await.unwrap();
+
+        let active = profiles::get(&state.pool(), state.active_profile_id())
+            .await
+            .unwrap();
+        assert_eq!(active.name, crate::db::DEFAULT_PROFILE_NAME);
+    }
+
+    #[tokio::test]
+    async fn switch_profile_rejects_an_unknown_id() {
+        let dir = temp_dir();
+        let path = dir.join("profiles.db");
+        std::fs::write(&path, b"").unwrap();
+        let state = AppState::from_config(
+            &Config {
+                database_path: Some(path.clone()),
+                ..Default::default()
+            },
+            &path,
+        )
+        .await
+        .unwrap();
+        let before = state.active_profile_id();
+
+        assert!(state.switch_profile(9999).await.is_err());
+        assert_eq!(state.active_profile_id(), before);
     }
 }

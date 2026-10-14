@@ -13,6 +13,13 @@ import {
 } from "@/api/tasks";
 import type { ErrorCode } from "@/api/bindings";
 import { ApiError } from "@/api/transport";
+import {
+  CANCEL_BUTTON_LABEL,
+  CREATE_TASK_LABEL,
+  ESTIMATED_HOURS_LABEL,
+  ESTIMATED_MINUTES_LABEL,
+  TITLE_REQUIRED_MESSAGE,
+} from "@/lib/labels";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -26,7 +33,7 @@ const schema = z
     title: z
       .string()
       .trim()
-      .min(1, "Task title is required")
+      .min(1, TITLE_REQUIRED_MESSAGE)
       .max(
         MAX_TASK_TITLE_LENGTH,
         `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
@@ -60,7 +67,7 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  task_title_required: "Task title is required",
+  task_title_required: TITLE_REQUIRED_MESSAGE,
   task_title_too_long: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
   task_title_invalid_characters: "Task title cannot contain control characters",
   estimated_time_out_of_range: DURATION_RANGE_MESSAGE,
@@ -246,7 +253,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               <div className="flex items-center gap-2">
                 <input
                   id="new-task-est-hours"
-                  aria-label="Estimated hours"
+                  aria-label={ESTIMATED_HOURS_LABEL}
                   aria-invalid={!!errors.estHours}
                   aria-describedby={
                     estimateError ? "new-task-estimate-error" : undefined
@@ -266,7 +273,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               <div className="flex items-center gap-2">
                 <input
                   id="new-task-est-minutes"
-                  aria-label="Estimated minutes"
+                  aria-label={ESTIMATED_MINUTES_LABEL}
                   aria-invalid={!!errors.estMinutes}
                   aria-describedby={
                     estimateError ? "new-task-estimate-error" : undefined
@@ -347,14 +354,14 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               onClick={onClose}
               className="rounded-md px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
             >
-              Cancel
+              {CANCEL_BUTTON_LABEL}
             </button>
             <button
               type="submit"
               disabled={create.isPending}
               className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
-              Create task
+              {CREATE_TASK_LABEL}
             </button>
           </div>
         </form>

@@ -21,10 +21,19 @@ For any UI task, create the design with Stitch before implementing:
 ## Conventions
 
 - No magic values: shared literals live in constants, never inline. Existing
-  registries: `src/lib/routes.ts` (paths/labels), `src/api/commands.ts`
+  registries: `src/lib/routes.ts` (paths/labels), `src/lib/labels.ts` (UI
+  copy asserted in tests), `src/api/commands.ts`
   (Tauri command names), `src/api/queryKeys.ts` (TanStack cache keys). Add
   to the registry rather than introducing a new one-off constant, and use
   the constants in tests as well.
+- If a string value is used more than once, create a variable or constant for
+  it — including in tests. A test must not set a value to `"Work"` and then
+  assert that the value is `"Work"` with two inline literals.
+- When a test asserts a value produced by production code (error messages,
+  labels, formatted output), the expected value must come from the same
+  production constant or formatter — never a duplicated literal. Example:
+  assert against `STATUS_LABELS.done` or `formatMinutes(90)`, not `"Done"`
+  or `"1h 30m"`.
 - Validation boundaries must never be hardcoded in error messages. Define the
   bound as a constant once and interpolate it into the message string, on
   both the Rust and TypeScript side.

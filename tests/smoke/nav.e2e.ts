@@ -8,7 +8,16 @@ describe("Meander smoke", () => {
     for (const { label } of ROUTES) {
       const link = await nav.$(`=${label}`);
       await link.click();
-      await expect($("h1")).toHaveText(label);
+      // Re-query inside waitUntil: React re-renders as queries resolve, so a
+      // cached element handle can go stale between findElements and use.
+      await browser.waitUntil(async () => {
+        const headings = await $$("h1");
+        try {
+          return (await headings[0]?.getText()) === label;
+        } catch {
+          return false;
+        }
+      });
     }
   });
 

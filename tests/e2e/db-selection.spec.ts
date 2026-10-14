@@ -2,7 +2,14 @@ import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { stubError, stubTauriCommands } from "./stubs";
+import {
+  STUB_DB_PATH,
+  STUB_OTHER_DB_PATH,
+  stubError,
+  stubTauriCommands,
+} from "./stubs";
+
+const SELECTION_ERROR_MESSAGE = "not a Meander database";
 
 const settingsPath = ROUTES.find((r) => r.label === "Settings")!.path;
 
@@ -10,30 +17,30 @@ test("settings shows the current database and swaps it on selection", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
-    [COMMANDS.currentDbPath]: "/data/meander.db",
-    [COMMANDS.dialogOpen]: "/data/other.db",
-    [COMMANDS.selectDatabaseFile]: "/data/other.db",
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.dialogOpen]: STUB_OTHER_DB_PATH,
+    [COMMANDS.selectDatabaseFile]: STUB_OTHER_DB_PATH,
   });
   await page.goto(`/#${settingsPath}`);
 
-  await expect(page.getByText("/data/meander.db")).toBeVisible();
+  await expect(page.getByText(STUB_DB_PATH)).toBeVisible();
   await page.getByRole("button", { name: "Choose database file" }).click();
 
-  await expect(page.getByText("/data/other.db")).toBeVisible();
+  await expect(page.getByText(STUB_OTHER_DB_PATH)).toBeVisible();
 });
 
 test("a failed selection shows an error and keeps the current path", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
-    [COMMANDS.currentDbPath]: "/data/meander.db",
-    [COMMANDS.dialogOpen]: "/data/other.db",
-    [COMMANDS.selectDatabaseFile]: stubError("not a Meander database"),
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.dialogOpen]: STUB_OTHER_DB_PATH,
+    [COMMANDS.selectDatabaseFile]: stubError(SELECTION_ERROR_MESSAGE),
   });
   await page.goto(`/#${settingsPath}`);
 
   await page.getByRole("button", { name: "Choose database file" }).click();
 
-  await expect(page.getByRole("alert")).toHaveText("not a Meander database");
-  await expect(page.getByText("/data/meander.db")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveText(SELECTION_ERROR_MESSAGE);
+  await expect(page.getByText(STUB_DB_PATH)).toBeVisible();
 });

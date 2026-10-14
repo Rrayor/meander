@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { MAX_DURATION_MINUTES } from "@/api/tasks";
 import { ApiError } from "@/api/transport";
 import { createTask } from "@/api/tasks";
 import {
@@ -8,6 +9,7 @@ import {
   SERVER_ERROR_MESSAGES,
   serverErrorMessage,
 } from "@/features/tasks/NewTaskDialog";
+import { TITLE_REQUIRED_MESSAGE } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
@@ -26,7 +28,11 @@ const renderDialog = (onClose = vi.fn()) => {
   return onClose;
 };
 
-const fillTitle = (value = "Write tests") =>
+const VALID_TITLE = "Write tests";
+const BACKEND_MESSAGE = "backend copy";
+const LOAD_ERROR_MESSAGE = "db offline";
+
+const fillTitle = (value = VALID_TITLE) =>
   fireEvent.change(screen.getByLabelText(/Title/), { target: { value } });
 
 const submit = () =>
@@ -40,9 +46,7 @@ describe("NewTaskDialog", () => {
     const title = screen.getByLabelText(/Title/);
     fireEvent.focus(title);
     fireEvent.blur(title);
-    expect(
-      await screen.findByText("Task title is required"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(TITLE_REQUIRED_MESSAGE)).toBeInTheDocument();
     expect(mockedCreate).not.toHaveBeenCalled();
   });
 
@@ -52,7 +56,9 @@ describe("NewTaskDialog", () => {
     fireEvent.change(hours, { target: { value: "30" } });
     fireEvent.blur(hours);
     expect(
-      await screen.findByText(/must be between 1 minute and 24 hours/),
+      await screen.findByText(
+        SERVER_ERROR_MESSAGES.estimated_time_out_of_range as string,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -72,7 +78,7 @@ describe("NewTaskDialog", () => {
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
     // mutationFn is invoked as fn(payload, mutationContext) — assert the payload
     expect(mockedCreate.mock.calls[0][0]).toEqual({
-      title: "Write tests",
+      title: VALID_TITLE,
       description: null,
       estimated_minutes: 90,
       carry_over_rule: "carry",
@@ -96,23 +102,23 @@ describe("NewTaskDialog", () => {
   // mocked rejection as unhandled even though the mutation handles it.
   it("maps typed error codes to user-facing copy", () => {
     expect(SERVER_ERROR_MESSAGES.task_title_required).toBe(
-      "Task title is required",
+      TITLE_REQUIRED_MESSAGE,
     );
     expect(SERVER_ERROR_MESSAGES.estimated_time_out_of_range).toContain(
-      "24 hours",
+      `${MAX_DURATION_MINUTES / 60} hours`,
     );
   });
 
   it.each([
     [
-      new ApiError("task_title_required", "validation", "backend copy"),
+      new ApiError("task_title_required", "validation", BACKEND_MESSAGE),
       "Task title is required",
     ],
     [
-      new ApiError("profile_name_required", "validation", "backend copy"),
-      "backend copy",
+      new ApiError("profile_name_required", "validation", BACKEND_MESSAGE),
+      BACKEND_MESSAGE,
     ],
-    [new Error("db offline"), "db offline"],
+    [new Error(LOAD_ERROR_MESSAGE), LOAD_ERROR_MESSAGE],
     ["string error", undefined],
     [undefined, undefined],
   ])("serverErrorMessage maps %j to %j", (error, expected) => {

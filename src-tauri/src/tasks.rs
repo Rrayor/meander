@@ -183,9 +183,12 @@ pub async fn move_task(
     before_id: Option<i64>,
     after_id: Option<i64>,
 ) -> Result<()> {
-    let current = sort_order_of(pool, profile_id, task_id).await?;
+    if before_id.is_none() && after_id.is_none() {
+        sort_order_of(pool, profile_id, task_id).await?;
+        return Ok(());
+    }
     let (low, high) = match (before_id, after_id) {
-        (None, None) => (current, current),
+        (None, None) => unreachable!("handled above"),
         (None, Some(after)) => {
             let a = sort_order_of(pool, profile_id, after).await?;
             (a - 1.0, a)
@@ -247,4 +250,119 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     .bind(profile_id)
     .fetch_all(pool)
     .await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_db_path() -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "meander-tasks-test-{}-{nanos}.db",
+            std::process::id()
+        ))
+    }
+
+    async fn seeded_pool() -> (SqlitePool, i64) {
+        let pool = crate::db::connect(&temp_db_path()).await.unwrap();
+        crate::db::seed(&pool).await.unwrap();
+        let profile_id = crate::profiles::list(&pool).await.unwrap()[0].id;
+        (pool, profile_id)
+    }
+
+    async fn titles(pool: &SqlitePool, profile_id: i64) -> Vec<String> {
+        list(pool, profile_id)
+            .await
+            .unwrap()
+            .iter()
+            .map(|t| t.title.clone())
+            .collect()
+    }
+
+    const TITLE_A: &str = "A";
+    const TITLE_B: &str = "B";
+    const TITLE_C: &str = "C";
+
+    fn task(title: &str) -> NewTask {
+        NewTask {
+            title: title.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn move_without_anchors_keeps_position() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        let a = list(&pool, pid).await.unwrap()[0].id;
+
+        move_task(&pool, pid, a, None, None).await.unwrap();
+
+        assert_eq!(titles(&pool, pid).await, vec![TITLE_A, TITLE_B]);
+    }
+
+    #[tokio::test]
+    async fn move_with_reversed_anchors_fails() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        create(&pool, pid, &task(TITLE_C)).await.unwrap();
+        let ids: Vec<i64> = list(&pool, pid)
+            .await
+            .unwrap()
+            .iter()
+            .map(|t| t.id)
+            .collect();
+
+        // before=C (sort 3) after=B (sort 2): b >= a, anchors inverted.
+        let err = move_task(&pool, pid, ids[0], Some(ids[2]), Some(ids[1]))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::ReorderAnchorsNotAdjacent,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn move_renormalizes_when_the_gap_is_exhausted() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        create(&pool, pid, &task(TITLE_C)).await.unwrap();
+        let ids: Vec<i64> = list(&pool, pid)
+            .await
+            .unwrap()
+            .iter()
+            .map(|t| t.id)
+            .collect();
+
+        // Exhaust the gap between B and C so the midpoint can't fit.
+        sqlx::query("UPDATE tasks SET sort_order = ? WHERE id = ?")
+            .bind(1.0)
+            .bind(ids[1])
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE tasks SET sort_order = ? WHERE id = ?")
+            .bind(1.0 + MIN_SORT_GAP / 2.0)
+            .bind(ids[2])
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        move_task(&pool, pid, ids[0], Some(ids[1]), Some(ids[2]))
+            .await
+            .unwrap();
+
+        assert_eq!(titles(&pool, pid).await, vec![TITLE_B, TITLE_A, TITLE_C]);
+    }
 }
