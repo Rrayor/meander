@@ -168,3 +168,24 @@ Feature: Tasks
     Given an application state on a temporary seeded database
     When I delete a task that does not exist
     Then the deletion fails
+
+  Scenario: editing a task persists the new values
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I rename Alpha to "Gamma" and mark it done
+    Then the task update succeeds
+    And the task list order is "Gamma"
+    And the task "Gamma" has status done
+    And the task's updated timestamp changed
+
+  Scenario: updating another profile's task is rejected
+    Given an application state on a temporary seeded database
+    And a task exists on a second profile
+    When I update the foreign task
+    Then the task update fails
+    And the second profile's task list has one task
+
+  Scenario: updating an unknown task is rejected
+    Given an application state on a temporary seeded database
+    When I update a task that does not exist
+    Then the task update fails

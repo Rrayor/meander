@@ -24,12 +24,14 @@ import {
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
   deleteTaskLabel,
+  editTaskLabel,
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
+import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
 const STATUS_BADGE = {
@@ -41,8 +43,14 @@ const STATUS_BADGE = {
 function TaskRow({
   task,
   onDelete,
+  onEdit,
   deletePending,
-}: Readonly<{ task: Task; onDelete: () => void; deletePending: boolean }>) {
+}: Readonly<{
+  task: Task;
+  onDelete: () => void;
+  onEdit: () => void;
+  deletePending: boolean;
+}>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: task.id });
 
@@ -74,9 +82,14 @@ function TaskRow({
             <circle cx="15" cy="18" r="1.5" />
           </svg>
         </button>
-        <span className="truncate text-sm font-medium text-text">
+        <button
+          type="button"
+          aria-label={editTaskLabel(task.title)}
+          onClick={onEdit}
+          className="min-w-0 truncate rounded text-left text-sm font-medium text-text focus:outline-none focus:ring-1 focus:ring-primary"
+        >
           {task.title}
-        </span>
+        </button>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {task.estimated_minutes != null && (
@@ -121,6 +134,7 @@ function TaskRow({
 export function BacklogPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task>();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, {
@@ -227,6 +241,7 @@ export function BacklogPage() {
                     task={task}
                     deletePending={del.isPending}
                     onDelete={() => del.mutate(task.id)}
+                    onEdit={() => setEditingTask(task)}
                   />
                 ))}
               </ul>
@@ -235,6 +250,12 @@ export function BacklogPage() {
         )}
       </section>
       {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
+      {editingTask && (
+        <EditTaskDialog
+          task={editingTask}
+          onClose={() => setEditingTask(undefined)}
+        />
+      )}
     </>
   );
 }

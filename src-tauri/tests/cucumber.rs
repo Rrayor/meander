@@ -896,3 +896,122 @@ fn deletion_succeeded(world: &mut MeanderWorld) {
 fn deletion_failed(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "deletion unexpectedly succeeded");
 }
+
+fn update_task_by_id(world: &mut MeanderWorld, id: i64, title: &str) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let current = world
+        .rt()
+        .block_on(
+            sqlx::query_as::<_, meander_lib::tasks::Task>("SELECT * FROM tasks WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&pool),
+        )
+        .expect("task fetch failed");
+    if let Some(task) = &current {
+        world.remembered_updated_at = Some(task.updated_at.clone());
+    }
+    let (description, estimated_minutes, spent_minutes, carry_over_rule) = current
+        .map(|t| {
+            (
+                t.description,
+                t.estimated_minutes,
+                t.spent_minutes,
+                t.carry_over_rule,
+            )
+        })
+        .unwrap_or_default();
+    // updated_at has seconds resolution — wait for the tick to differ.
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::update(
+        &pool,
+        active,
+        id,
+        &meander_lib::tasks::UpdateTask {
+            title: title.to_string(),
+            description,
+            estimated_minutes,
+            spent_minutes,
+            carry_over_rule,
+            status: meander_lib::tasks::TaskStatus::Done,
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I rename {word} to {string} and mark it done")]
+fn rename_task_done(world: &mut MeanderWorld, from: String, to: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .iter()
+        .find(|t| t.title == from)
+        .expect("task missing")
+        .id;
+    update_task_by_id(world, id, &to);
+}
+
+#[when("I update the foreign task")]
+fn update_foreign_task(world: &mut MeanderWorld) {
+    let foreign = world.profile_id.expect("no second profile");
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let foreign_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, foreign))
+        .expect("foreign task list failed")[0]
+        .id;
+    update_task_by_id(world, foreign_id, "Foreign edit");
+}
+
+#[when("I update a task that does not exist")]
+fn update_unknown_task(world: &mut MeanderWorld) {
+    update_task_by_id(world, i64::MAX, "Ghost");
+}
+
+#[then("the task update succeeds")]
+fn task_update_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "update failed: {:?}", world.error);
+}
+
+#[then("the task update fails")]
+fn task_update_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "update unexpectedly succeeded");
+}
+
+#[then(expr = "the task {string} has status done")]
+fn task_has_status_done(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let task = tasks
+        .iter()
+        .find(|t| t.title == title)
+        .expect("task missing");
+    assert_eq!(task.status, meander_lib::tasks::TaskStatus::Done);
+}
+
+#[then("the task's updated timestamp changed")]
+fn task_updated_at_changed(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let before = world
+        .remembered_updated_at
+        .take()
+        .expect("no prior timestamp");
+    assert_ne!(tasks[0].updated_at, before, "updated_at did not change");
+}

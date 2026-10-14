@@ -11,6 +11,7 @@ pub enum ErrorCode {
     TaskTitleInvalidCharacters,
     TaskDescriptionTooLong,
     EstimatedTimeOutOfRange,
+    SpentTimeOutOfRange,
     TaskNotFound,
     ReorderAnchorsNotAdjacent,
     ProfileNameRequired,

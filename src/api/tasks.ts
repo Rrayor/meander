@@ -1,9 +1,9 @@
 import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
-import type { NewTask, Task } from "./bindings";
+import type { NewTask, Task, UpdateTask } from "./bindings";
 
-export type { NewTask, Task };
+export type { NewTask, Task, UpdateTask };
 
 export const listTasks = () => transport.invoke<Task[]>(COMMANDS.listTasks);
 
@@ -32,3 +32,6 @@ export const moveTask = (
 
 export const deleteTask = (taskId: number) =>
   transport.invoke<void>(COMMANDS.deleteTask, { taskId });
+
+export const updateTask = (taskId: number, input: UpdateTask) =>
+  transport.invoke<Task>(COMMANDS.updateTask, { taskId, input });

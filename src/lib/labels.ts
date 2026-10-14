@@ -6,6 +6,7 @@ export const STATUS_LABELS = {
 
 export const reorderLabel = (title: string) => `Reorder ${title}`;
 export const deleteTaskLabel = (title: string) => `Delete ${title}`;
+export const editTaskLabel = (title: string) => `Edit ${title}`;
 
 export const formatMinutes = (minutes: number) => {
   const h = Math.floor(minutes / 60);
@@ -16,6 +17,31 @@ export const formatMinutes = (minutes: number) => {
 
 export const TITLE_REQUIRED_MESSAGE = "Task title is required";
 export const PROFILE_NAME_REQUIRED_MESSAGE = "Profile name is required";
+
+export const NEW_TASK_HEADING = "New task";
+export const EDIT_TASK_HEADING = "Edit task";
+export const TITLE_FIELD_LABEL = "Title";
+export const DESCRIPTION_FIELD_LABEL = "Description";
+export const OPTIONAL_FIELD_LABEL = "(optional)";
+export const ESTIMATED_TIME_LABEL = "Estimated time";
+export const SPENT_TIME_LABEL = "Time spent";
+export const TASK_STATUS_FIELD_LABEL = "Status";
+export const CARRY_OVER_FIELD_LABEL = "Carry-over rule";
+export const CLOSE_LABEL = "Close";
+export const CLOSE_DIALOG_LABEL = "Close dialog";
+export const HOURS_UNIT_LABEL = "h";
+export const MINUTES_UNIT_LABEL = "min";
+export const SPENT_HOURS_LABEL = "Spent hours";
+export const SPENT_MINUTES_LABEL = "Spent minutes";
+
+export const CARRY_OVER_OPTIONS = [
+  { value: "", label: "Ask" },
+  { value: "carry", label: "Carry over" },
+  { value: "return", label: "Return to backlog" },
+] as const;
+
+export const auditTimestampsLabel = (created: string, updated: string) =>
+  `Created ${created} · Last updated ${updated}`;
 
 export const renameProfileLabel = (name: string) => `Rename ${name}`;
 

@@ -2,7 +2,9 @@ import { COMMANDS } from "@/api/commands";
 import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
+  SAVE_BUTTON_LABEL,
   deleteTaskLabel,
+  editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
@@ -329,4 +331,44 @@ test("deleting a task removes it from the backlog", async ({ page }) => {
     (c) => c.cmd === COMMANDS.deleteTask,
   );
   expect(deleteCall?.args).toEqual({ taskId: tasks[0].id });
+});
+
+test("editing a task updates the backlog row", async ({ page }) => {
+  const updated = {
+    ...tasks[0],
+    title: TITLE_MILESTONE + " follow-up",
+    status: "in_progress",
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.updateTask]: updated,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel(/Title/)).toHaveValue(TITLE_DRAFT_NOTES);
+  await dialog.getByLabel(/Title/).fill(`${TITLE_MILESTONE} follow-up`);
+  await dialog.getByRole("radio", { name: STATUS_LABELS.in_progress }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  await expect(page.getByText(`${TITLE_MILESTONE} follow-up`)).toBeVisible();
+
+  const updateCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.updateTask,
+  );
+  expect(updateCall?.args).toEqual({
+    taskId: tasks[0].id,
+    input: {
+      title: `${TITLE_MILESTONE} follow-up`,
+      description: null,
+      estimated_minutes: 45,
+      spent_minutes: null,
+      carry_over_rule: null,
+      status: "in_progress",
+    },
+  });
 });

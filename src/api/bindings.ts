@@ -3,6 +3,11 @@
 export type Profile = { id: number; name: string; created_at: string; updated_at: string }
 export type Task = { id: number; profile_id: number; title: string; description: string | null; status: TaskStatus; carry_over_rule: CarryOverRule | null; estimated_minutes: number | null; spent_minutes: number | null; placement: TaskPlacement; scheduled_date: string | null; sort_order: number; created_at: string; updated_at: string }
 export type NewTask = { title: string; description: string | null; estimated_minutes: number | null; carry_over_rule: CarryOverRule | null }
+/**
+ * Full-row update payload for the task detail view — every editable field
+ * the spec lists (notes, categories, repetition come in later milestones).
+ */
+export type UpdateTask = { title: string; description: string | null; estimated_minutes: number | null; spent_minutes: number | null; carry_over_rule: CarryOverRule | null; status: TaskStatus }
 export type TaskStatus = "todo" | "in_progress" | "done"
 export type CarryOverRule = "carry" | "return"
 export type TaskPlacement = "backlog" | "weekly_backlog" | "scheduled"
@@ -16,7 +21,7 @@ export type ApiError = { code: ErrorCode; kind: ErrorKind; message: string }
  * contract — UI copy maps from it; `message` is only a human-readable
  * fallback. Keep variants snake_case; they serialize directly.
  */
-export type ErrorCode = "task_title_required" | "task_title_too_long" | "task_title_invalid_characters" | "task_description_too_long" | "estimated_time_out_of_range" | "task_not_found" | "reorder_anchors_not_adjacent" | "profile_name_required" | "profile_name_too_long" | "profile_name_invalid_characters" | "internal"
+export type ErrorCode = "task_title_required" | "task_title_too_long" | "task_title_invalid_characters" | "task_description_too_long" | "estimated_time_out_of_range" | "spent_time_out_of_range" | "task_not_found" | "reorder_anchors_not_adjacent" | "profile_name_required" | "profile_name_too_long" | "profile_name_invalid_characters" | "internal"
 /**
  * Broad category so a client can pick "inline form error" vs "generic toast"
  * without maintaining its own lookup of every code.
