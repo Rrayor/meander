@@ -34,3 +34,14 @@
 body {
   @apply bg-background text-text font-sans antialiased;
 }
+
+/* Tailwind's preflight resets buttons to the default cursor; interactive
+   controls should show the pointer affordance. Base-layered so utilities
+   like cursor-grab on the drag handle still win. */
+@layer base {
+  button:not(:disabled),
+  [role="radio"],
+  [role="menuitem"] {
+    cursor: pointer;
+  }
+}

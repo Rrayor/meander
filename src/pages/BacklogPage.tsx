@@ -92,7 +92,7 @@ function TaskRow({
           type="button"
           aria-label={editTaskLabel(task.title)}
           onClick={onEdit}
-          className="min-w-0 truncate rounded text-left text-sm font-medium text-text focus:outline-none focus:ring-1 focus:ring-primary"
+          className="min-w-0 cursor-pointer truncate rounded text-left text-sm font-medium text-text focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {task.title}
         </button>

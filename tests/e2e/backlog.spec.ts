@@ -346,9 +346,11 @@ test("editing a task updates the backlog row", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page
-    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
-    .click();
+  const titleButton = page.getByRole("button", {
+    name: editTaskLabel(TITLE_DRAFT_NOTES),
+  });
+  await expect(titleButton).toHaveCSS("cursor", "pointer");
+  await titleButton.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel(/Title/)).toHaveValue(TITLE_DRAFT_NOTES);
   await dialog.getByLabel(/Title/).fill(`${TITLE_MILESTONE} follow-up`);
