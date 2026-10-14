@@ -170,6 +170,18 @@ describe("BacklogPage", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("opens the edit dialog when the row is clicked", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    renderPage();
+    const row = (await screen.findByText(TITLE_A)).closest("li")!;
+
+    fireEvent.click(row);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
   it("deletes a task via its row button and re-fetches the list", async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task({ id: 1, title: TITLE_A, sort_order: 1 }),
