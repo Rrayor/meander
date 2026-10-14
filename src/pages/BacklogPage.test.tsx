@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { BacklogPage } from "@/pages/BacklogPage";
+import { STATUS_LABELS, formatMinutes, reorderLabel } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
@@ -46,6 +47,14 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
+const TITLE_SHORT = "Short";
+const TITLE_LONG = "Long";
+const TITLE_A = "A";
+const TITLE_B = "B";
+const TITLE_C = "C";
+const LOAD_ERROR_MESSAGE = "db offline";
+const KEY_SPACE = "Space";
+
 describe("BacklogPage", () => {
   it("shows the empty state when there are no tasks", async () => {
     vi.mocked(listTasks).mockResolvedValue([]);
@@ -55,52 +64,56 @@ describe("BacklogPage", () => {
 
   it("renders tasks with status labels and formatted estimates", async () => {
     vi.mocked(listTasks).mockResolvedValue([
-      task({ id: 1, title: "Short", estimated_minutes: 45 }),
+      task({ id: 1, title: TITLE_SHORT, estimated_minutes: 45 }),
       task({
         id: 2,
         title: "Hour",
         estimated_minutes: 60,
         status: "in_progress",
       }),
-      task({ id: 3, title: "Long", estimated_minutes: 90, status: "done" }),
+      task({ id: 3, title: TITLE_LONG, estimated_minutes: 90, status: "done" }),
       task({ id: 4, title: "No estimate" }),
     ]);
     renderPage();
-    expect(await screen.findByText("Short")).toBeInTheDocument();
-    expect(screen.getByText("45m")).toBeInTheDocument();
-    expect(screen.getByText("1h")).toBeInTheDocument();
-    expect(screen.getByText("1h 30m")).toBeInTheDocument();
-    expect(screen.getAllByText("Todo")).toHaveLength(2);
-    expect(screen.getByText("In progress")).toBeInTheDocument();
-    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(await screen.findByText(TITLE_SHORT)).toBeInTheDocument();
+    expect(screen.getByText(formatMinutes(45))).toBeInTheDocument();
+    expect(screen.getByText(formatMinutes(60))).toBeInTheDocument();
+    expect(screen.getByText(formatMinutes(90))).toBeInTheDocument();
+    expect(screen.getAllByText(STATUS_LABELS.todo)).toHaveLength(2);
+    expect(screen.getByText(STATUS_LABELS.in_progress)).toBeInTheDocument();
+    expect(screen.getByText(STATUS_LABELS.done)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Reorder Long" }),
+      screen.getByRole("button", { name: reorderLabel(TITLE_LONG) }),
     ).toBeInTheDocument();
   });
 
   it("surfaces a load error", async () => {
-    vi.mocked(listTasks).mockRejectedValue(new Error("db offline"));
+    vi.mocked(listTasks).mockRejectedValue(new Error(LOAD_ERROR_MESSAGE));
     renderPage();
-    expect(await screen.findByRole("alert")).toHaveTextContent("db offline");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      LOAD_ERROR_MESSAGE,
+    );
   });
 
   it("reorders a task via the keyboard sensor and calls moveTask", async () => {
     vi.mocked(listTasks).mockResolvedValue([
-      task({ id: 1, title: "A", sort_order: 1 }),
-      task({ id: 2, title: "B", sort_order: 2 }),
-      task({ id: 3, title: "C", sort_order: 3 }),
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+      task({ id: 2, title: TITLE_B, sort_order: 2 }),
+      task({ id: 3, title: TITLE_C, sort_order: 3 }),
     ]);
     vi.mocked(moveTask).mockResolvedValue(undefined);
     draggedOver = 2;
     renderPage();
-    const reorder = await screen.findByRole("button", { name: "Reorder A" });
+    const reorder = await screen.findByRole("button", {
+      name: reorderLabel(TITLE_A),
+    });
 
     reorder.focus();
-    fireEvent.keyDown(reorder, { code: "Space" });
+    fireEvent.keyDown(reorder, { code: KEY_SPACE });
     // The keyboard sensor binds its move/end listeners in a setTimeout.
     await new Promise((resolve) => setTimeout(resolve));
     fireEvent.keyDown(document, { code: "ArrowDown" });
-    fireEvent.keyDown(document, { code: "Space" });
+    fireEvent.keyDown(document, { code: KEY_SPACE });
 
     // A moved below B: neighbours are B before and C after.
     await waitFor(() =>
@@ -114,20 +127,22 @@ describe("BacklogPage", () => {
 
   it("passes null anchors when a task lands at an edge", async () => {
     vi.mocked(listTasks).mockResolvedValue([
-      task({ id: 1, title: "A", sort_order: 1 }),
-      task({ id: 2, title: "B", sort_order: 2 }),
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+      task({ id: 2, title: TITLE_B, sort_order: 2 }),
     ]);
     vi.mocked(moveTask).mockResolvedValue(undefined);
     draggedOver = 1;
     renderPage();
-    const reorder = await screen.findByRole("button", { name: "Reorder B" });
+    const reorder = await screen.findByRole("button", {
+      name: reorderLabel(TITLE_B),
+    });
 
     reorder.focus();
-    fireEvent.keyDown(reorder, { code: "Space" });
+    fireEvent.keyDown(reorder, { code: KEY_SPACE });
     // The keyboard sensor binds its move/end listeners in a setTimeout.
     await new Promise((resolve) => setTimeout(resolve));
     fireEvent.keyDown(document, { code: "ArrowUp" });
-    fireEvent.keyDown(document, { code: "Space" });
+    fireEvent.keyDown(document, { code: KEY_SPACE });
 
     // B moved above A: no task before it.
     await waitFor(() =>

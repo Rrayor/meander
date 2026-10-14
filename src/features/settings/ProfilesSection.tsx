@@ -9,6 +9,17 @@ import {
   renameProfile,
 } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import {
+  CANCEL_BUTTON_LABEL,
+  CREATE_PROFILE_LABEL,
+  CURRENT_PROFILE_LABEL,
+  PROFILES_HEADING,
+  PROFILE_NAME_LABEL,
+  PROFILE_NAME_REQUIRED_MESSAGE,
+  RENAME_BUTTON_LABEL,
+  SAVE_BUTTON_LABEL,
+  renameProfileLabel,
+} from "@/lib/labels";
 
 const formatDate = (iso: string) =>
   new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(undefined, {
@@ -58,7 +69,7 @@ export function ProfilesSection() {
     event.preventDefault();
     setValidationError(undefined);
     if (!name.trim()) {
-      setValidationError("Profile name is required");
+      setValidationError(PROFILE_NAME_REQUIRED_MESSAGE);
       return;
     }
     create.mutate(name);
@@ -73,7 +84,7 @@ export function ProfilesSection() {
   const submitRename = (id: number) => {
     setValidationError(undefined);
     if (!draft.trim()) {
-      setValidationError("Profile name is required");
+      setValidationError(PROFILE_NAME_REQUIRED_MESSAGE);
       return;
     }
     rename.mutate({ id, name: draft });
@@ -90,7 +101,7 @@ export function ProfilesSection() {
         id="profiles-heading"
         className="text-sm font-medium tracking-tight text-text"
       >
-        Profiles
+        {PROFILES_HEADING}
       </h2>
       <p className="text-sm text-text-muted">
         Each profile has its own tasks and settings.
@@ -112,7 +123,7 @@ export function ProfilesSection() {
                       if (e.key === "Enter") submitRename(profile.id);
                       if (e.key === "Escape") setEditingId(undefined);
                     }}
-                    aria-label={`Rename ${profile.name}`}
+                    aria-label={renameProfileLabel(profile.name)}
                     // Focus moves into the input when the row enters edit
                     // mode — intentional focus management for rename.
                     ref={(el) => el?.focus()}
@@ -125,14 +136,14 @@ export function ProfilesSection() {
                     disabled={rename.isPending}
                     className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
                   >
-                    Save
+                    {SAVE_BUTTON_LABEL}
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditingId(undefined)}
                     className="shrink-0 px-2 py-1 text-xs text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    Cancel
+                    {CANCEL_BUTTON_LABEL}
                   </button>
                 </>
               ) : (
@@ -142,7 +153,7 @@ export function ProfilesSection() {
                   </span>
                   {profile.id === current?.id && (
                     <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
-                      Current
+                      {CURRENT_PROFILE_LABEL}
                     </span>
                   )}
                 </>
@@ -159,7 +170,7 @@ export function ProfilesSection() {
                   onClick={() => startRename(profile)}
                   className="text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  Rename
+                  {RENAME_BUTTON_LABEL}
                 </button>
               )}
             </div>
@@ -168,7 +179,7 @@ export function ProfilesSection() {
       </ul>
       <form onSubmit={submit} className="flex items-center gap-3">
         <label htmlFor="profile-name" className="sr-only">
-          Profile name
+          {PROFILE_NAME_LABEL}
         </label>
         <input
           id="profile-name"
@@ -184,7 +195,7 @@ export function ProfilesSection() {
           disabled={create.isPending}
           className="shrink-0 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         >
-          Create profile
+          {CREATE_PROFILE_LABEL}
         </button>
       </form>
       {error && (

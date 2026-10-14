@@ -2,6 +2,9 @@ import type { Page } from "@playwright/test";
 
 type InvokeHandlers = Record<string, unknown>;
 
+export const STUB_DB_PATH = "/data/meander.db";
+export const STUB_OTHER_DB_PATH = "/data/other.db";
+
 // Marks a stubbed command response as a failure — serialized as data so it
 // survives addInitScript's argument serialization.
 export const stubError = (message: string) => ({ __error: message });

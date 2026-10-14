@@ -2,6 +2,8 @@ mod connect;
 mod seed;
 
 pub use connect::{check_compatible, connect, default_path};
+#[cfg(test)]
+pub(crate) use seed::DEFAULT_PROFILE_NAME;
 pub use seed::seed;
 
 #[derive(Debug, thiserror::Error)]

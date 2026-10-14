@@ -19,28 +19,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { QUERY_KEYS } from "@/api/queryKeys";
+import {
+  ADD_TASK_LABEL,
+  EMPTY_BACKLOG_MESSAGE,
+  STATUS_LABELS,
+  formatMinutes,
+  reorderLabel,
+} from "@/lib/labels";
 import { listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
-
-const STATUS_LABELS = {
-  todo: "Todo",
-  in_progress: "In progress",
-  done: "Done",
-} as const;
 
 const STATUS_BADGE = {
   todo: "bg-surface-raised text-text-muted",
   in_progress: "bg-threshold-amber/15 text-threshold-amber",
   done: "bg-primary/15 text-primary",
 } as const;
-
-const formatMinutes = (minutes: number) => {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-};
 
 function TaskRow({ task }: Readonly<{ task: Task }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -55,7 +49,7 @@ function TaskRow({ task }: Readonly<{ task: Task }>) {
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
-          aria-label={`Reorder ${task.title}`}
+          aria-label={reorderLabel(task.title)}
           className="cursor-grab touch-none rounded p-0.5 text-text-muted hover:text-text focus:outline-none focus:ring-1 focus:ring-primary active:cursor-grabbing"
           {...attributes}
           {...listeners}
@@ -166,7 +160,7 @@ export function BacklogPage() {
             onClick={() => setDialogOpen(true)}
             className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            Add task
+            {ADD_TASK_LABEL}
           </button>
         </div>
         {error && (
@@ -176,9 +170,7 @@ export function BacklogPage() {
         )}
         {tasks?.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-text-muted">
-              No tasks yet — created tasks will appear here.
-            </p>
+            <p className="text-sm text-text-muted">{EMPTY_BACKLOG_MESSAGE}</p>
           </div>
         )}
         {tasks && tasks.length > 0 && (

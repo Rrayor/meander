@@ -159,6 +159,11 @@ mod tests {
         assert_eq!(current_db_path(state), expected);
     }
 
+    const NEW_PROFILE_NAME: &str = "Work";
+    const RENAMED_PROFILE_NAME: &str = "Play";
+    const TITLE_A: &str = "A";
+    const TITLE_B: &str = "B";
+
     #[tokio::test]
     async fn profile_commands_cover_list_create_rename_current_and_switch() {
         let _guard = ENV_LOCK.lock().await;
@@ -171,12 +176,14 @@ mod tests {
         let handle = app.handle().clone();
 
         assert_eq!(list_profiles(state.clone()).await.unwrap().len(), 1);
-        let created = create_profile("Work".into(), state.clone()).await.unwrap();
-        assert_eq!(created.name, "Work");
-        let renamed = rename_profile(created.id, "Play".into(), state.clone())
+        let created = create_profile(NEW_PROFILE_NAME.into(), state.clone())
             .await
             .unwrap();
-        assert_eq!(renamed.name, "Play");
+        assert_eq!(created.name, NEW_PROFILE_NAME);
+        let renamed = rename_profile(created.id, RENAMED_PROFILE_NAME.into(), state.clone())
+            .await
+            .unwrap();
+        assert_eq!(renamed.name, RENAMED_PROFILE_NAME);
 
         switch_profile(created.id, state.clone(), handle.clone())
             .await
@@ -232,7 +239,7 @@ mod tests {
         assert!(list_tasks(state.clone()).await.unwrap().is_empty());
         create_task(
             crate::tasks::NewTask {
-                title: "A".into(),
+                title: TITLE_A.into(),
                 ..Default::default()
             },
             state.clone(),
@@ -241,7 +248,7 @@ mod tests {
         .unwrap();
         create_task(
             crate::tasks::NewTask {
-                title: "B".into(),
+                title: TITLE_B.into(),
                 ..Default::default()
             },
             state.clone(),
@@ -265,6 +272,6 @@ mod tests {
             .iter()
             .map(|t| t.title.clone())
             .collect();
-        assert_eq!(titles, vec!["B", "A"]);
+        assert_eq!(titles, vec![TITLE_B, TITLE_A]);
     }
 }

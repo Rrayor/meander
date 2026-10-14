@@ -1,4 +1,15 @@
 import { COMMANDS } from "@/api/commands";
+import {
+  ADD_TASK_LABEL,
+  CREATE_TASK_LABEL,
+  EMPTY_BACKLOG_MESSAGE,
+  ESTIMATED_HOURS_LABEL,
+  ESTIMATED_MINUTES_LABEL,
+  STATUS_LABELS,
+  TITLE_REQUIRED_MESSAGE,
+  formatMinutes,
+  reorderLabel,
+} from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
@@ -8,6 +19,9 @@ import {
   stubSequence,
   stubTauriCommands,
 } from "./stubs";
+
+const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
+const TITLE_MILESTONE = "Review quarterly milestone planning";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
 
@@ -22,7 +36,7 @@ const tasks = [
   {
     id: 1,
     profile_id: 1,
-    title: "Draft weekly reflection notes",
+    title: TITLE_DRAFT_NOTES,
     description: null,
     status: "todo",
     carry_over_rule: null,
@@ -36,7 +50,7 @@ const tasks = [
   {
     id: 2,
     profile_id: 1,
-    title: "Review quarterly milestone planning",
+    title: TITLE_MILESTONE,
     description: "Flag risks early",
     status: "in_progress",
     carry_over_rule: "carry",
@@ -56,13 +70,11 @@ test("backlog lists tasks with status and estimate", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await expect(page.getByText("Draft weekly reflection notes")).toBeVisible();
-  await expect(
-    page.getByText("Review quarterly milestone planning"),
-  ).toBeVisible();
-  await expect(page.getByText("45m")).toBeVisible();
-  await expect(page.getByText("3h")).toBeVisible();
-  await expect(page.getByText("In progress")).toBeVisible();
+  await expect(page.getByText(TITLE_DRAFT_NOTES)).toBeVisible();
+  await expect(page.getByText(TITLE_MILESTONE)).toBeVisible();
+  await expect(page.getByText(formatMinutes(45))).toBeVisible();
+  await expect(page.getByText(formatMinutes(180))).toBeVisible();
+  await expect(page.getByText(STATUS_LABELS.in_progress)).toBeVisible();
 });
 
 test("an empty backlog shows the empty state", async ({ page }) => {
@@ -72,9 +84,7 @@ test("an empty backlog shows the empty state", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await expect(
-    page.getByText("No tasks yet — created tasks will appear here."),
-  ).toBeVisible();
+  await expect(page.getByText(EMPTY_BACKLOG_MESSAGE)).toBeVisible();
 });
 
 test("creating a task via the dialog adds it to the backlog", async ({
@@ -94,13 +104,13 @@ test("creating a task via the dialog adds it to the backlog", async ({
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(/^Title/).fill("  Plan the week  ");
   await dialog.getByLabel(/Description/).fill("Outline priorities");
-  await dialog.getByLabel("Estimated hours").fill("1");
-  await dialog.getByLabel("Estimated minutes").fill("30");
-  await dialog.getByRole("button", { name: "Create task" }).click();
+  await dialog.getByLabel(ESTIMATED_HOURS_LABEL).fill("1");
+  await dialog.getByLabel(ESTIMATED_MINUTES_LABEL).fill("30");
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   await expect(page.getByText("Plan the week")).toBeVisible();
   await expect(dialog).not.toBeVisible();
@@ -116,11 +126,11 @@ test("a blank title shows validation without calling the backend", async ({
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("button", { name: "Create task" }).click();
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
+  await expect(dialog.getByRole("alert")).toHaveText(TITLE_REQUIRED_MESSAGE);
 });
 
 test("a blurred title shows validation before submit", async ({ page }) => {
@@ -131,13 +141,13 @@ test("a blurred title shows validation before submit", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   const title = dialog.getByLabel(/Title/);
   await title.focus();
   await title.blur();
 
-  await expect(dialog.getByRole("alert")).toHaveText("Task title is required");
+  await expect(dialog.getByRole("alert")).toHaveText(TITLE_REQUIRED_MESSAGE);
 });
 
 test("an out-of-range estimate shows validation on blur", async ({ page }) => {
@@ -148,9 +158,9 @@ test("an out-of-range estimate shows validation on blur", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
-  const hours = dialog.getByLabel("Estimated hours");
+  const hours = dialog.getByLabel(ESTIMATED_HOURS_LABEL);
   await hours.fill("30");
   await hours.blur();
 
@@ -169,7 +179,7 @@ test("the dialog closes on Escape without creating a task", async ({
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(/Title/).fill("Abandoned");
   await page.keyboard.press("Escape");
@@ -184,12 +194,12 @@ test("the dialog closes on backdrop click and on Cancel", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   await page.mouse.click(10, 10); // backdrop, top-left corner
   await expect(dialog).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).not.toBeVisible();
 });
@@ -206,10 +216,10 @@ test("backend validation errors surface in the dialog", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(/Title/).fill("Trigger backend rejection");
-  await dialog.getByRole("button", { name: "Create task" }).click();
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   await expect(dialog.getByRole("alert")).toHaveText(
     "Task title cannot contain control characters",
@@ -228,13 +238,13 @@ test("the estimate pair sends combined minutes on the wire", async ({
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(/Title/).fill("Timed task");
-  await dialog.getByLabel("Estimated hours").fill("1");
-  await dialog.getByLabel("Estimated minutes").fill("30");
+  await dialog.getByLabel(ESTIMATED_HOURS_LABEL).fill("1");
+  await dialog.getByLabel(ESTIMATED_MINUTES_LABEL).fill("30");
   await dialog.getByRole("radio", { name: "Carry over" }).click();
-  await dialog.getByRole("button", { name: "Create task" }).click();
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   const createCall = (await getInvocations(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
@@ -256,9 +266,9 @@ test("minutes alone can exceed the 24-hour limit", async ({ page }) => {
   });
   await page.goto(`/#${backlogPath}`);
 
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
-  const minutes = dialog.getByLabel("Estimated minutes");
+  const minutes = dialog.getByLabel(ESTIMATED_MINUTES_LABEL);
   await minutes.fill("1441");
   await minutes.blur();
 
@@ -277,8 +287,8 @@ test("dragging a task reorders the backlog", async ({ page }) => {
   await page.goto(`/#${backlogPath}`);
 
   const rows = page.locator("ul > li");
-  const source = page.getByLabel("Reorder Review quarterly milestone planning");
-  const target = page.getByLabel("Reorder Draft weekly reflection notes");
+  const source = page.getByLabel(reorderLabel(TITLE_MILESTONE));
+  const target = page.getByLabel(reorderLabel(TITLE_DRAFT_NOTES));
   const sourceBox = (await source.boundingBox())!;
   const targetBox = (await target.boundingBox())!;
   await page.mouse.move(
@@ -296,7 +306,5 @@ test("dragging a task reorders the backlog", async ({ page }) => {
   );
   await page.mouse.up();
 
-  await expect(rows.first()).toContainText(
-    "Review quarterly milestone planning",
-  );
+  await expect(rows.first()).toContainText(TITLE_MILESTONE);
 });

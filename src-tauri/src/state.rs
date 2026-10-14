@@ -166,7 +166,7 @@ mod tests {
             .await
             .expect("active profile should exist");
 
-        assert_eq!(active.name, "Default");
+        assert_eq!(active.name, crate::db::DEFAULT_PROFILE_NAME);
     }
 
     #[tokio::test]
@@ -205,7 +205,7 @@ mod tests {
         let active = profiles::get(&state.pool(), state.active_profile_id())
             .await
             .unwrap();
-        assert_eq!(active.name, "Default");
+        assert_eq!(active.name, crate::db::DEFAULT_PROFILE_NAME);
     }
 
     #[tokio::test]
@@ -248,7 +248,7 @@ mod tests {
         let active = profiles::get(&state.pool(), state.active_profile_id())
             .await
             .unwrap();
-        assert_eq!(active.name, "Default");
+        assert_eq!(active.name, crate::db::DEFAULT_PROFILE_NAME);
     }
 
     #[tokio::test]

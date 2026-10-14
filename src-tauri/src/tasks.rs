@@ -283,6 +283,10 @@ mod tests {
             .collect()
     }
 
+    const TITLE_A: &str = "A";
+    const TITLE_B: &str = "B";
+    const TITLE_C: &str = "C";
+
     fn task(title: &str) -> NewTask {
         NewTask {
             title: title.to_string(),
@@ -293,21 +297,21 @@ mod tests {
     #[tokio::test]
     async fn move_without_anchors_keeps_position() {
         let (pool, pid) = seeded_pool().await;
-        create(&pool, pid, &task("A")).await.unwrap();
-        create(&pool, pid, &task("B")).await.unwrap();
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
         let a = list(&pool, pid).await.unwrap()[0].id;
 
         move_task(&pool, pid, a, None, None).await.unwrap();
 
-        assert_eq!(titles(&pool, pid).await, vec!["A", "B"]);
+        assert_eq!(titles(&pool, pid).await, vec![TITLE_A, TITLE_B]);
     }
 
     #[tokio::test]
     async fn move_with_reversed_anchors_fails() {
         let (pool, pid) = seeded_pool().await;
-        create(&pool, pid, &task("A")).await.unwrap();
-        create(&pool, pid, &task("B")).await.unwrap();
-        create(&pool, pid, &task("C")).await.unwrap();
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        create(&pool, pid, &task(TITLE_C)).await.unwrap();
         let ids: Vec<i64> = list(&pool, pid)
             .await
             .unwrap()
@@ -331,9 +335,9 @@ mod tests {
     #[tokio::test]
     async fn move_renormalizes_when_the_gap_is_exhausted() {
         let (pool, pid) = seeded_pool().await;
-        create(&pool, pid, &task("A")).await.unwrap();
-        create(&pool, pid, &task("B")).await.unwrap();
-        create(&pool, pid, &task("C")).await.unwrap();
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        create(&pool, pid, &task(TITLE_C)).await.unwrap();
         let ids: Vec<i64> = list(&pool, pid)
             .await
             .unwrap()
@@ -359,6 +363,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(titles(&pool, pid).await, vec!["B", "A", "C"]);
+        assert_eq!(titles(&pool, pid).await, vec![TITLE_B, TITLE_A, TITLE_C]);
     }
 }
