@@ -159,6 +159,15 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
 /// Smallest representable gap before the midpoint collapses onto a boundary.
 const MIN_SORT_GAP: f64 = 1e-6;
 
+const TASK_NOT_FOUND_MESSAGE: &str = "task does not exist";
+
+fn task_not_found() -> crate::db::DbError {
+    crate::db::DbError::Validation {
+        code: ErrorCode::TaskNotFound,
+        message: TASK_NOT_FOUND_MESSAGE.into(),
+    }
+}
+
 async fn sort_order_of(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<f64> {
     let row: Option<(f64,)> =
         sqlx::query_as("SELECT sort_order FROM tasks WHERE id = ? AND profile_id = ?")
@@ -166,11 +175,7 @@ async fn sort_order_of(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<f6
             .bind(profile_id)
             .fetch_optional(pool)
             .await?;
-    row.map(|r| r.0)
-        .ok_or_else(|| crate::db::DbError::Validation {
-            code: ErrorCode::TaskNotFound,
-            message: "task does not exist".into(),
-        })
+    row.map(|r| r.0).ok_or_else(task_not_found)
 }
 
 /// Moves `task_id` between `before_id` and `after_id` (either may be `None`
@@ -231,6 +236,20 @@ pub async fn move_task(
         .bind(task_id)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+/// Deletes a task scoped to its owning profile. Deleting an unknown id — or
+/// another profile's task — is an error, not a silent no-op.
+pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
+    let result = sqlx::query("DELETE FROM tasks WHERE id = ? AND profile_id = ?")
+        .bind(id)
+        .bind(profile_id)
+        .execute(pool)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(task_not_found());
+    }
     Ok(())
 }
 
@@ -364,5 +383,52 @@ mod tests {
             .unwrap();
 
         assert_eq!(titles(&pool, pid).await, vec![TITLE_B, TITLE_A, TITLE_C]);
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_task() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        let a = list(&pool, pid).await.unwrap()[0].id;
+
+        delete(&pool, pid, a).await.unwrap();
+
+        assert_eq!(titles(&pool, pid).await, vec![TITLE_B]);
+    }
+
+    #[tokio::test]
+    async fn delete_rejects_an_unknown_task() {
+        let (pool, pid) = seeded_pool().await;
+
+        let err = delete(&pool, pid, 999).await.unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::TaskNotFound,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn delete_rejects_another_profiles_task() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+        create(&pool, other.id, &task(TITLE_A)).await.unwrap();
+        let foreign = list(&pool, other.id).await.unwrap()[0].id;
+
+        let err = delete(&pool, pid, foreign).await.unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::TaskNotFound,
+                ..
+            }
+        ));
+        // The foreign task is untouched.
+        assert_eq!(titles(&pool, other.id).await, vec![TITLE_A]);
     }
 }

@@ -23,10 +23,12 @@ import {
   ADD_TASK_LABEL,
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
+  deleteTaskLabel,
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
-import { listTasks, moveTask } from "@/api/tasks";
+import { errorMessage } from "@/lib/utils";
+import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
@@ -36,7 +38,11 @@ const STATUS_BADGE = {
   done: "bg-primary/15 text-primary",
 } as const;
 
-function TaskRow({ task }: Readonly<{ task: Task }>) {
+function TaskRow({
+  task,
+  onDelete,
+  deletePending,
+}: Readonly<{ task: Task; onDelete: () => void; deletePending: boolean }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: task.id });
 
@@ -44,7 +50,7 @@ function TaskRow({ task }: Readonly<{ task: Task }>) {
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
+      className="group flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
     >
       <div className="flex min-w-0 items-center gap-2">
         <button
@@ -83,6 +89,30 @@ function TaskRow({ task }: Readonly<{ task: Task }>) {
         >
           {STATUS_LABELS[task.status]}
         </span>
+        <button
+          type="button"
+          aria-label={deleteTaskLabel(task.title)}
+          disabled={deletePending}
+          onClick={onDelete}
+          className="rounded p-1 text-text-muted opacity-0 transition-colors duration-150 ease-out hover:bg-surface hover:text-text focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 group-hover:opacity-100 group-focus-within:opacity-100"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 6h18" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" x2="10" y1="11" y2="17" />
+            <line x1="14" x2="14" y1="11" y2="17" />
+          </svg>
+        </button>
       </div>
     </li>
   );
@@ -112,6 +142,13 @@ export function BacklogPage() {
       beforeId: number | null;
       afterId: number | null;
     }) => moveTask(taskId, beforeId, afterId),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+    },
+  });
+
+  const del = useMutation({
+    mutationFn: deleteTask,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
     },
@@ -163,9 +200,9 @@ export function BacklogPage() {
             {ADD_TASK_LABEL}
           </button>
         </div>
-        {error && (
+        {(error ?? del.error) && (
           <p role="alert" className="text-sm text-danger">
-            {error instanceof Error ? error.message : String(error)}
+            {errorMessage(error ?? del.error)}
           </p>
         )}
         {tasks?.length === 0 && (
@@ -185,7 +222,12 @@ export function BacklogPage() {
             >
               <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
                 {tasks.map((task) => (
-                  <TaskRow key={task.id} task={task} />
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    deletePending={del.isPending}
+                    onDelete={() => del.mutate(task.id)}
+                  />
                 ))}
               </ul>
             </SortableContext>

@@ -53,6 +53,13 @@ pub async fn move_task(
 }
 
 #[tauri::command]
+pub async fn delete_task(task_id: i64, state: State<'_, AppState>) -> Result<(), ApiError> {
+    crate::tasks::delete(&state.pool(), state.active_profile_id(), task_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::create(&state.pool(), &name)
         .await
@@ -232,7 +239,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn task_commands_cover_list_create_and_move() {
+    async fn task_commands_cover_list_create_move_and_delete() {
         let app = test_app().await;
         let state = app.state::<AppState>();
 
@@ -273,5 +280,17 @@ mod tests {
             .map(|t| t.title.clone())
             .collect();
         assert_eq!(titles, vec![TITLE_B, TITLE_A]);
+
+        delete_task(ids[0], state.clone()).await.unwrap();
+        let remaining: Vec<String> = list_tasks(state.clone())
+            .await
+            .unwrap()
+            .iter()
+            .map(|t| t.title.clone())
+            .collect();
+        assert_eq!(remaining, vec![TITLE_B]);
+
+        let err = delete_task(ids[0], state.clone()).await.unwrap_err();
+        assert_eq!(err.code, crate::errors::ErrorCode::TaskNotFound);
     }
 }

@@ -29,3 +29,6 @@ export const moveTask = (
     beforeId,
     afterId,
   });
+
+export const deleteTask = (taskId: number) =>
+  transport.invoke<void>(COMMANDS.deleteTask, { taskId });

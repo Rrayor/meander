@@ -5,6 +5,7 @@ export const STATUS_LABELS = {
 } as const;
 
 export const reorderLabel = (title: string) => `Reorder ${title}`;
+export const deleteTaskLabel = (title: string) => `Delete ${title}`;
 
 export const formatMinutes = (minutes: number) => {
   const h = Math.floor(minutes / 60);

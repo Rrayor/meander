@@ -2,6 +2,7 @@ import { COMMANDS } from "@/api/commands";
 import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
+  deleteTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
@@ -307,4 +308,25 @@ test("dragging a task reorders the backlog", async ({ page }) => {
   await page.mouse.up();
 
   await expect(rows.first()).toContainText(TITLE_MILESTONE);
+});
+
+test("deleting a task removes it from the backlog", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([tasks, [tasks[1]]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.deleteTask]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: deleteTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+
+  await expect(page.getByText(TITLE_DRAFT_NOTES)).not.toBeVisible();
+  await expect(page.getByText(TITLE_MILESTONE)).toBeVisible();
+
+  const deleteCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.deleteTask,
+  );
+  expect(deleteCall?.args).toEqual({ taskId: tasks[0].id });
 });
