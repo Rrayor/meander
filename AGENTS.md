@@ -93,6 +93,10 @@ For any UI task, create the design with Stitch before implementing:
   transport behavior, migrations).
 - Migration tests must be generic (data-preservation invariants across all
   migrations), not regression tests for a single past bug.
+- Coverage must stay at or above 80% (the Sonar quality gate). Cover
+  everything that is meaningfully testable; startup entry points
+  (`lib.rs`, `main.rs`, `main.tsx`, router/app-shell wiring) are the
+  acceptable exceptions — don't write artificial tests for them.
 
 ## Migrations
 
