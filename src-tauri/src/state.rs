@@ -158,8 +158,15 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("fresh.db");
+        // A configured path is only honored when the file exists — pre-create
+        // it so the test never touches the real default database.
+        std::fs::write(&path, b"").unwrap();
+        let config = Config {
+            database_path: Some(path.clone()),
+            ..Default::default()
+        };
 
-        let state = AppState::from_config(&Config::default(), &path)
+        let state = AppState::from_config(&config, &path)
             .await
             .expect("fresh db should connect");
         let active = crate::profiles::get(&state.pool(), state.active_profile_id())
