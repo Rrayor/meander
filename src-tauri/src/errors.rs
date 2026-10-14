@@ -71,3 +71,48 @@ impl std::fmt::Display for ApiError {
 }
 
 impl std::error::Error for ApiError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validation_marks_kind_and_code() {
+        let err = ApiError::validation(ErrorCode::TaskTitleRequired, "title needed");
+        assert_eq!(err.code, ErrorCode::TaskTitleRequired);
+        assert_eq!(err.kind, ErrorKind::Validation);
+        assert_eq!(err.message, "title needed");
+    }
+
+    #[test]
+    fn internal_marks_kind_and_code() {
+        let err = ApiError::internal("boom");
+        assert_eq!(err.code, ErrorCode::Internal);
+        assert_eq!(err.kind, ErrorKind::Internal);
+        assert_eq!(err.message, "boom");
+    }
+
+    #[test]
+    fn db_validation_maps_to_typed_payload() {
+        let err = ApiError::from(crate::db::DbError::Validation {
+            code: ErrorCode::EstimatedTimeOutOfRange,
+            message: "too long".into(),
+        });
+        assert_eq!(err.code, ErrorCode::EstimatedTimeOutOfRange);
+        assert_eq!(err.kind, ErrorKind::Validation);
+        assert_eq!(err.message, "too long");
+    }
+
+    #[test]
+    fn db_failures_without_codes_map_to_internal() {
+        let err = ApiError::from(crate::db::DbError::Incompatible("newer app".into()));
+        assert_eq!(err.code, ErrorCode::Internal);
+        assert_eq!(err.kind, ErrorKind::Internal);
+        assert!(err.message.contains("newer app"));
+    }
+
+    #[test]
+    fn display_shows_the_message() {
+        assert_eq!(ApiError::internal("readable").to_string(), "readable");
+    }
+}

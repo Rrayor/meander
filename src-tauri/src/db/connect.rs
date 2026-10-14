@@ -91,4 +91,37 @@ mod tests {
         let path = default_path().expect("default path resolves");
         assert_eq!(path.file_name().unwrap(), DB_FILENAME);
     }
+
+    fn temp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "meander-connect-test-{}-{name}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[tokio::test]
+    async fn connect_creates_missing_parent_directories() {
+        let path = temp_path("nested").join("a/b/c").join("app.db");
+        connect(&path).await.expect("connects through new dirs");
+    }
+
+    #[tokio::test]
+    async fn check_compatible_rejects_unknown_migrations() {
+        let path = temp_path("compat.db");
+        let pool = connect(&path).await.unwrap();
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time)
+             VALUES (999999, 'future', '2026-01-01 00:00:00', 1, X'00', 0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        pool.close().await;
+
+        let err = check_compatible(&path).await.unwrap_err();
+        assert!(matches!(err, DbError::Incompatible(_)));
+    }
 }

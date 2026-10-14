@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { listTasks } from "@/api/tasks";
+import { listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { BacklogPage } from "@/pages/BacklogPage";
 import { testQueryClient } from "@/test/queryClient";
@@ -11,6 +11,15 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   listTasks: vi.fn(),
   moveTask: vi.fn(),
   createTask: vi.fn(),
+}));
+
+// jsdom reports zero-sized rects, so dnd-kit's closestCenter can never
+// resolve a droppable. Stub it to report the collision the test sets up;
+// the real drag pipeline (sensors, onDragEnd, mutation) still runs.
+let draggedOver: number | null = null;
+vi.mock("@dnd-kit/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@dnd-kit/core")>()),
+  closestCenter: () => (draggedOver == null ? [] : [{ id: draggedOver }]),
 }));
 
 const task = (over: Partial<Task>): Task => ({
@@ -73,6 +82,57 @@ describe("BacklogPage", () => {
     vi.mocked(listTasks).mockRejectedValue(new Error("db offline"));
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("db offline");
+  });
+
+  it("reorders a task via the keyboard sensor and calls moveTask", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: "A", sort_order: 1 }),
+      task({ id: 2, title: "B", sort_order: 2 }),
+      task({ id: 3, title: "C", sort_order: 3 }),
+    ]);
+    vi.mocked(moveTask).mockResolvedValue(undefined);
+    draggedOver = 2;
+    renderPage();
+    const reorder = await screen.findByRole("button", { name: "Reorder A" });
+
+    reorder.focus();
+    fireEvent.keyDown(reorder, { code: "Space" });
+    // The keyboard sensor binds its move/end listeners in a setTimeout.
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.keyDown(document, { code: "ArrowDown" });
+    fireEvent.keyDown(document, { code: "Space" });
+
+    // A moved below B: neighbours are B before and C after.
+    await waitFor(() =>
+      expect(vi.mocked(moveTask)).toHaveBeenCalledWith(1, 2, 3),
+    );
+    // The settled mutation re-fetches the backlog.
+    await waitFor(() =>
+      expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(1),
+    );
+  });
+
+  it("passes null anchors when a task lands at an edge", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: "A", sort_order: 1 }),
+      task({ id: 2, title: "B", sort_order: 2 }),
+    ]);
+    vi.mocked(moveTask).mockResolvedValue(undefined);
+    draggedOver = 1;
+    renderPage();
+    const reorder = await screen.findByRole("button", { name: "Reorder B" });
+
+    reorder.focus();
+    fireEvent.keyDown(reorder, { code: "Space" });
+    // The keyboard sensor binds its move/end listeners in a setTimeout.
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.keyDown(document, { code: "ArrowUp" });
+    fireEvent.keyDown(document, { code: "Space" });
+
+    // B moved above A: no task before it.
+    await waitFor(() =>
+      expect(vi.mocked(moveTask)).toHaveBeenCalledWith(2, null, 1),
+    );
   });
 
   it("opens the new-task dialog", async () => {
