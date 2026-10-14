@@ -148,3 +148,23 @@ Feature: Tasks
     When I create a task titled "Beta"
     Then the task creation succeeds
     And the task list order is "Alpha, Beta"
+
+  Scenario: deleting a backlog task removes it
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    When I delete Alpha
+    Then the deletion succeeds
+    And the task list order is "Beta"
+
+  Scenario: deleting another profile's task is rejected
+    Given an application state on a temporary seeded database
+    And a task exists on a second profile
+    When I delete the foreign task
+    Then the deletion fails
+    And the second profile's task list has one task
+
+  Scenario: deleting an unknown task is rejected
+    Given an application state on a temporary seeded database
+    When I delete a task that does not exist
+    Then the deletion fails

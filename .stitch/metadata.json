@@ -45,7 +45,7 @@
       "deviceType": "DESKTOP",
       "files": ["designs/backlog.html", "designs/backlog.png"],
       "implemented": true,
-      "notes": "Task list rows (title, estimate, status badge) + empty state. Generated extras omitted: stats strip, checkboxes, Add Task button (step 16), Offline badge (removed earlier)"
+      "notes": "Task list rows (title, estimate, status badge, hover-revealed delete icon button at row end) + empty state. Generated extras omitted: stats strip, checkboxes, Add Task button (step 16), Offline badge (removed earlier)"
     },
     {
       "id": "97873034b9be4fa7a233b4f910b2734d",

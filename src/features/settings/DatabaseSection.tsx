@@ -3,9 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pickFile } from "@/api/dialog";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { currentDatabasePath, selectDatabaseFile } from "@/api/settings";
-
-const errorMessage = (e: unknown) =>
-  e instanceof Error ? e.message : String(e);
+import { errorMessage } from "@/lib/utils";
 
 export function DatabaseSection() {
   const queryClient = useQueryClient();

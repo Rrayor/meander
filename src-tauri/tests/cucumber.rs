@@ -833,3 +833,66 @@ fn move_after(world: &mut MeanderWorld, moved: String, anchor: String) {
         world.error = Some(e.to_string());
     }
 }
+
+#[when(expr = "I delete {word}")]
+fn delete_task_titled(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .iter()
+        .find(|t| t.title == title)
+        .expect("task missing")
+        .id;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::delete(&pool, active, id))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I delete the foreign task")]
+fn delete_foreign_task(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let foreign = world.profile_id.expect("no second profile");
+    let foreign_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, foreign))
+        .expect("foreign task list failed")[0]
+        .id;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::delete(&pool, active, foreign_id))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I delete a task that does not exist")]
+fn delete_unknown_task(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::delete(&pool, active, i64::MAX))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the deletion succeeds")]
+fn deletion_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "deletion failed: {:?}", world.error);
+}
+
+#[then("the deletion fails")]
+fn deletion_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "deletion unexpectedly succeeded");
+}

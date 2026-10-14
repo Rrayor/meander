@@ -1,10 +1,18 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { listTasks, moveTask } from "@/api/tasks";
+import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { BacklogPage } from "@/pages/BacklogPage";
-import { STATUS_LABELS, formatMinutes, reorderLabel } from "@/lib/labels";
+import {
+  ADD_TASK_LABEL,
+  CANCEL_BUTTON_LABEL,
+  EMPTY_BACKLOG_MESSAGE,
+  STATUS_LABELS,
+  deleteTaskLabel,
+  formatMinutes,
+  reorderLabel,
+} from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
@@ -12,6 +20,7 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   listTasks: vi.fn(),
   moveTask: vi.fn(),
   createTask: vi.fn(),
+  deleteTask: vi.fn(),
 }));
 
 // jsdom reports zero-sized rects, so dnd-kit's closestCenter can never
@@ -59,7 +68,7 @@ describe("BacklogPage", () => {
   it("shows the empty state when there are no tasks", async () => {
     vi.mocked(listTasks).mockResolvedValue([]);
     renderPage();
-    expect(await screen.findByText(/No tasks yet/)).toBeInTheDocument();
+    expect(await screen.findByText(EMPTY_BACKLOG_MESSAGE)).toBeInTheDocument();
   });
 
   it("renders tasks with status labels and formatted estimates", async () => {
@@ -153,9 +162,45 @@ describe("BacklogPage", () => {
   it("opens the new-task dialog", async () => {
     vi.mocked(listTasks).mockResolvedValue([]);
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "Add task" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: ADD_TASK_LABEL }),
+    );
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: CANCEL_BUTTON_LABEL }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("deletes a task via its row button and re-fetches the list", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+      task({ id: 2, title: TITLE_B, sort_order: 2 }),
+    ]);
+    vi.mocked(deleteTask).mockResolvedValue(undefined);
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: deleteTaskLabel(TITLE_A) }),
+    );
+
+    await waitFor(() =>
+      expect(vi.mocked(deleteTask)).toHaveBeenCalledWith(1, expect.anything()),
+    );
+    await waitFor(() =>
+      expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(1),
+    );
+  });
+
+  it("surfaces a delete error", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    vi.mocked(deleteTask).mockRejectedValue(new Error(LOAD_ERROR_MESSAGE));
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: deleteTaskLabel(TITLE_A) }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      LOAD_ERROR_MESSAGE,
+    );
   });
 });

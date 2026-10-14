@@ -11,6 +11,7 @@ export const COMMANDS = {
   listTasks: "list_tasks",
   createTask: "create_task",
   moveTask: "move_task",
+  deleteTask: "delete_task",
   // tauri-plugin-dialog's invoke channel (plugin protocol, not ours)
   dialogOpen: "plugin:dialog|open",
 } as const;

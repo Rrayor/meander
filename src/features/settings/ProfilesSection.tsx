@@ -20,6 +20,7 @@ import {
   SAVE_BUTTON_LABEL,
   renameProfileLabel,
 } from "@/lib/labels";
+import { errorMessage } from "@/lib/utils";
 
 const formatDate = (iso: string) =>
   new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(undefined, {
@@ -27,9 +28,6 @@ const formatDate = (iso: string) =>
     month: "short",
     day: "numeric",
   });
-
-const errorMessage = (e: unknown) =>
-  e instanceof Error ? e.message : String(e);
 
 export function ProfilesSection() {
   const queryClient = useQueryClient();
