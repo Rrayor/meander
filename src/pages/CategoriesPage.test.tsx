@@ -60,6 +60,36 @@ test("lists categories with title, color dot, and audit date", async () => {
   expect(screen.getByText(CATEGORIES_SUBTITLE)).toBeInTheDocument();
 });
 
+test("the color dot applies the stored color and a neutral fallback", async () => {
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY, SECOND_CATEGORY]);
+  renderPage();
+
+  await waitFor(() =>
+    expect(screen.getByText(CATEGORY.title)).toBeInTheDocument(),
+  );
+  const [colored, uncolored] = document.querySelectorAll(
+    "span[aria-hidden='true']",
+  );
+  expect(colored).toHaveStyle({ backgroundColor: CATEGORY.color! });
+  expect(uncolored).toHaveStyle({ backgroundColor: "var(--color-text-muted)" });
+});
+
+test("rows render in the order the backend returns", async () => {
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY, SECOND_CATEGORY]);
+  renderPage();
+
+  await waitFor(() =>
+    expect(screen.getByText(SECOND_CATEGORY.title)).toBeInTheDocument(),
+  );
+  const titles = [...document.querySelectorAll("li")].map(
+    (li) => li.textContent,
+  );
+  const first = titles.findIndex((t) => t?.includes(CATEGORY.title));
+  const second = titles.findIndex((t) => t?.includes(SECOND_CATEGORY.title));
+  expect(first).toBeGreaterThanOrEqual(0);
+  expect(first).toBeLessThan(second);
+});
+
 test("shows the empty state when there are no categories", async () => {
   vi.mocked(listCategories).mockResolvedValue([]);
   renderPage();

@@ -8,7 +8,7 @@ import {
 import { formatDate } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
-import { STUB_DB_PATH, stubTauriCommands } from "./stubs";
+import { STUB_DB_PATH, getInvocations, stubTauriCommands } from "./stubs";
 
 const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
 
@@ -47,6 +47,11 @@ test("the categories page lists categories with audit metadata", async ({
   await expect(
     page.getByText(categoryCreatedLabel(formatDate(CATEGORY.created_at))),
   ).toBeVisible();
+
+  const invocations = await getInvocations(page);
+  expect(invocations).toContainEqual(
+    expect.objectContaining({ cmd: COMMANDS.listCategories }),
+  );
 });
 
 test("an empty category list shows the empty state", async ({ page }) => {

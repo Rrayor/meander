@@ -490,8 +490,12 @@ fn category_titles(world: &mut MeanderWorld, profile_id: i64) -> Vec<String> {
 
 #[then("the category list is empty")]
 fn category_list_empty(world: &mut MeanderWorld) {
-    let state = world.state.as_ref().expect("no app state in world");
-    let titles = category_titles(world, state.active_profile_id());
+    let profile_id = world
+        .state
+        .as_ref()
+        .expect("no app state in world")
+        .active_profile_id();
+    let titles = category_titles(world, profile_id);
     assert!(
         titles.is_empty(),
         "expected empty category list, got {titles:?}"
@@ -500,8 +504,11 @@ fn category_list_empty(world: &mut MeanderWorld) {
 
 #[then(expr = "the category list is {string}")]
 fn category_list_is(world: &mut MeanderWorld, expected: String) {
-    let state = world.state.as_ref().expect("no app state in world");
-    let profile_id = state.active_profile_id();
+    let profile_id = world
+        .state
+        .as_ref()
+        .expect("no app state in world")
+        .active_profile_id();
     let titles = category_titles(world, profile_id);
     let expected: Vec<String> = expected.split(", ").map(str::to_owned).collect();
     assert_eq!(titles, expected);
@@ -679,6 +686,42 @@ fn reorder_succeeded(world: &mut MeanderWorld) {
 #[then("the reorder fails")]
 fn reorder_failed(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "reorder unexpectedly succeeded");
+}
+
+#[then(expr = "the category {word} has audit timestamps")]
+fn category_has_timestamps(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    let category = world
+        .rt()
+        .block_on(meander_lib::categories::list(&pool, profile_id))
+        .expect("category list failed")
+        .into_iter()
+        .find(|c| c.title == title)
+        .expect("category not found");
+    assert!(!category.created_at.is_empty());
+    assert!(!category.updated_at.is_empty());
+}
+
+#[when("I insert a category with a blank title")]
+fn insert_blank_category(world: &mut MeanderWorld) {
+    const BLANK_TITLE: &str = "   ";
+    let state = world.state.as_ref().expect("no app state in world");
+    let profile_id = state.active_profile_id();
+    let pool = state.pool();
+    let result = world.rt().block_on(
+        sqlx::query("INSERT INTO categories (profile_id, title) VALUES (?, ?)")
+            .bind(profile_id)
+            .bind(BLANK_TITLE)
+            .execute(&pool),
+    );
+    world.error = result.err().map(|e| e.to_string());
+}
+
+#[then("the insertion fails")]
+fn insertion_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "expected insertion to fail");
 }
 
 #[then(expr = "the task list order is {string}")]

@@ -95,6 +95,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_roundtrips_all_fields() {
+        const DESCRIPTION: &str = "Things to buy";
+        const COLOR: &str = "#2DD4BF";
+        let (pool, pid) = seeded_pool().await;
+        sqlx::query(
+            "INSERT INTO categories (profile_id, title, description, color)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(pid)
+        .bind(TITLE_A)
+        .bind(DESCRIPTION)
+        .bind(COLOR)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let category = list(&pool, pid).await.unwrap().remove(0);
+
+        assert_eq!(category.title, TITLE_A);
+        assert_eq!(category.description.as_deref(), Some(DESCRIPTION));
+        assert_eq!(category.color.as_deref(), Some(COLOR));
+        assert!(!category.created_at.is_empty());
+        assert!(!category.updated_at.is_empty());
+    }
+
+    #[tokio::test]
+    async fn optional_fields_roundtrip_as_null() {
+        let (pool, pid) = seeded_pool().await;
+        sqlx::query("INSERT INTO categories (profile_id, title) VALUES (?, ?)")
+            .bind(pid)
+            .bind(TITLE_A)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let category = list(&pool, pid).await.unwrap().remove(0);
+
+        assert_eq!(category.description, None);
+        assert_eq!(category.color, None);
+    }
+
+    #[tokio::test]
     async fn the_schema_rejects_blank_or_overlong_titles() {
         let (pool, pid) = seeded_pool().await;
         for title in ["   ", &"x".repeat(CATEGORY_TITLE_MAX_LEN + 1)] {
