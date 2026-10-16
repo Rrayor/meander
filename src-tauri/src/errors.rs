@@ -13,6 +13,7 @@ pub enum ErrorCode {
     EstimatedTimeOutOfRange,
     SpentTimeOutOfRange,
     TaskNotFound,
+    CategoryNotFound,
     ReorderAnchorsNotAdjacent,
     ProfileNameRequired,
     ProfileNameTooLong,

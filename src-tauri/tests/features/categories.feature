@@ -29,3 +29,44 @@ Feature: Categories
     And a category named Builds exists on the active profile
     And a category named Admin exists on the active profile
     Then the category list is "Admin, Builds"
+
+  Scenario: associating a category with a task is listed for the task
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a category named Errands exists on the active profile
+    When I associate Errands with Alpha
+    Then the association succeeds
+    And the categories of Alpha are "Errands"
+
+  Scenario: removing an association unlists it
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a category named Errands exists on the active profile
+    And I associate Errands with Alpha
+    When I remove Errands from Alpha
+    Then the removal succeeds
+    And the categories of Alpha are ""
+
+  Scenario: associating another profile's category is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a category named Office exists on a second profile
+    When I associate Office with Alpha
+    Then the association fails
+    And the categories of Alpha are ""
+
+  Scenario: associating another profile's task is rejected
+    Given an application state on a temporary seeded database
+    And a task exists on a second profile
+    And a category named Errands exists on the active profile
+    When I associate Errands with the foreign task
+    Then the association fails
+
+  Scenario: deleting a category removes it from associated tasks
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a category named Errands exists on the active profile
+    And I associate Errands with Alpha
+    When the category Errands is deleted
+    Then the categories of Alpha are ""
+    And the category list is empty

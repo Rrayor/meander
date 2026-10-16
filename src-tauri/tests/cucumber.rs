@@ -522,6 +522,148 @@ fn second_profile_category_list_is(world: &mut MeanderWorld, expected: String) {
     assert_eq!(titles, expected);
 }
 
+fn task_id_by_title(world: &mut MeanderWorld, title: &str) -> i64 {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, profile_id))
+        .expect("task list failed");
+    tasks
+        .iter()
+        .find(|t| t.title == title)
+        .expect("task missing")
+        .id
+}
+
+// Resolves a category id by title across all profiles — scoping is the
+// API's job, so foreign-category scenarios must resolve here.
+fn category_id_by_title(world: &mut MeanderWorld, title: &str) -> i64 {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    world
+        .rt()
+        .block_on(
+            sqlx::query_scalar("SELECT id FROM categories WHERE title = ?")
+                .bind(title)
+                .fetch_one(&pool),
+        )
+        .expect("category missing")
+}
+
+fn associate(world: &mut MeanderWorld, category_title: &str, task_id: i64) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let category_id = category_id_by_title(world, category_title);
+    if let Err(e) = world.rt().block_on(meander_lib::categories::add_to_task(
+        &pool,
+        active,
+        task_id,
+        category_id,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[given(expr = "I associate {word} with {word}")]
+#[when(expr = "I associate {word} with {word}")]
+fn associate_category(world: &mut MeanderWorld, category: String, task: String) {
+    let task_id = task_id_by_title(world, &task);
+    associate(world, &category, task_id);
+}
+
+#[when(expr = "I associate {word} with the foreign task")]
+fn associate_foreign_task(world: &mut MeanderWorld, category: String) {
+    let foreign_profile = world.profile_id.expect("no second profile");
+    let pool = world.state.as_ref().expect("no app state").pool();
+    let foreign_task_id: i64 = world
+        .rt()
+        .block_on(
+            sqlx::query_scalar("SELECT id FROM tasks WHERE profile_id = ?")
+                .bind(foreign_profile)
+                .fetch_one(&pool),
+        )
+        .expect("foreign task missing");
+    associate(world, &category, foreign_task_id);
+}
+
+#[when(expr = "I remove {word} from {word}")]
+fn remove_category(world: &mut MeanderWorld, category: String, task: String) {
+    let task_id = task_id_by_title(world, &task);
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let category_id = category_id_by_title(world, &category);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::categories::remove_from_task(
+            &pool,
+            active,
+            task_id,
+            category_id,
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "the category {word} is deleted")]
+fn delete_category(world: &mut MeanderWorld, title: String) {
+    let category_id = category_id_by_title(world, &title);
+    let pool = world.state.as_ref().expect("no app state").pool();
+    if let Err(e) = world.rt().block_on(
+        sqlx::query("DELETE FROM categories WHERE id = ?")
+            .bind(category_id)
+            .execute(&pool),
+    ) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the categories of {word} are {string}")]
+fn task_categories_are(world: &mut MeanderWorld, task: String, expected: String) {
+    let task_id = task_id_by_title(world, &task);
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    let titles: Vec<String> = world
+        .rt()
+        .block_on(meander_lib::categories::for_task(
+            &pool, profile_id, task_id,
+        ))
+        .expect("task category list failed")
+        .into_iter()
+        .map(|c| c.title)
+        .collect();
+    let expected: Vec<String> = expected
+        .split(", ")
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(titles, expected);
+}
+
+#[then("the association succeeds")]
+fn association_succeeds(world: &mut MeanderWorld) {
+    assert!(
+        world.error.is_none(),
+        "association failed: {:?}",
+        world.error
+    );
+}
+
+#[then("the association fails")]
+fn association_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "expected association to fail");
+    world.error = None;
+}
+
+#[then("the removal succeeds")]
+fn removal_succeeds(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "removal failed: {:?}", world.error);
+}
+
 #[then("the task list is empty")]
 fn task_list_empty(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
