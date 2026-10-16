@@ -1,6 +1,6 @@
 use crate::errors::{ApiError, ErrorCode, ErrorKind};
 use crate::profiles::Profile;
-use crate::tasks::{CarryOverRule, NewTask, Task, TaskPlacement, TaskStatus};
+use crate::tasks::{CarryOverRule, NewTask, Task, TaskPlacement, TaskStatus, UpdateTask};
 
 /// Renders the contents of `src/api/bindings.ts` from every IPC-facing type.
 /// Written by `cargo run --bin export-bindings`; freshness is asserted in tests.
@@ -13,6 +13,7 @@ pub fn typescript() -> String {
         specta::ts::export::<Profile>(&conf).expect("export Profile"),
         specta::ts::export::<Task>(&conf).expect("export Task"),
         specta::ts::export::<NewTask>(&conf).expect("export NewTask"),
+        specta::ts::export::<UpdateTask>(&conf).expect("export UpdateTask"),
         specta::ts::export::<TaskStatus>(&conf).expect("export TaskStatus"),
         specta::ts::export::<CarryOverRule>(&conf).expect("export CarryOverRule"),
         specta::ts::export::<TaskPlacement>(&conf).expect("export TaskPlacement"),

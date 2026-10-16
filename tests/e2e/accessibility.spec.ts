@@ -5,7 +5,9 @@ import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { stubTauriCommands } from "./stubs";
+import { ADD_TASK_LABEL, editTaskLabel } from "@/lib/labels";
+
+import { STUB_DB_PATH, stubTauriCommands } from "./stubs";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
 const settingsPath = ROUTES.find((r) => r.label === "Settings")!.path;
@@ -70,7 +72,19 @@ test("the new task dialog has no WCAG AA violations", async ({ page }) => {
     [COMMANDS.listTasks]: [],
   });
   await page.goto(`/#${backlogPath}`);
-  await page.getByRole("button", { name: "Add task" }).click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  await expectAccessible(page);
+});
+
+test("the edit task dialog has no WCAG AA violations", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [task],
+  });
+  await page.goto(`/#${backlogPath}`);
+  await page.getByRole("button", { name: editTaskLabel(task.title) }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 
   await expectAccessible(page);
@@ -80,7 +94,7 @@ test("the settings page has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listProfiles]: [current],
-    [COMMANDS.currentDbPath]: "/data/meander.db",
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
   });
   await page.goto(`/#${settingsPath}`);
   await expect(page.getByRole("list").getByText("Default")).toBeVisible();

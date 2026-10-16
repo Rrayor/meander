@@ -29,7 +29,8 @@ pub const TASK_DESCRIPTION_MAX_LEN: usize = 20_000;
 pub struct TaskDescription(String);
 
 /// Spec: durations are optional, but when present they are positive and at
-/// most 24 hours.
+/// most 24 hours — the schema enforces the same 1–1440 CHECK on both
+/// estimated and spent minutes.
 pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
 
 #[nutype::nutype(
@@ -87,7 +88,7 @@ pub enum TaskPlacement {
     Scheduled,
 }
 
-#[derive(Debug, Serialize, specta::Type, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, specta::Type, sqlx::FromRow)]
 pub struct Task {
     pub id: i64,
     pub profile_id: i64,
@@ -112,11 +113,20 @@ pub struct NewTask {
     pub carry_over_rule: Option<CarryOverRule>,
 }
 
-pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
-    let title = TaskTitle::parse(&input.title)?.into_inner();
-    let description = input
-        .description
-        .as_deref()
+/// Full-row update payload for the task detail view — every editable field
+/// the spec lists (notes, categories, repetition come in later milestones).
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct UpdateTask {
+    pub title: String,
+    pub description: Option<String>,
+    pub estimated_minutes: Option<i64>,
+    pub spent_minutes: Option<i64>,
+    pub carry_over_rule: Option<CarryOverRule>,
+    pub status: TaskStatus,
+}
+
+fn parse_description(raw: Option<&str>) -> Result<Option<String>> {
+    Ok(raw
         .map(str::trim)
         .filter(|d| !d.is_empty())
         .map(|d| {
@@ -128,9 +138,11 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
             })
         })
         .transpose()?
-        .map(TaskDescription::into_inner);
-    let estimated = input
-        .estimated_minutes
+        .map(TaskDescription::into_inner))
+}
+
+fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
+    Ok(raw
         .map(PositiveDuration::try_new)
         .transpose()
         .map_err(|_| crate::db::DbError::Validation {
@@ -140,7 +152,27 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
                 MAX_DURATION_MINUTES / 60
             ),
         })?
-        .map(PositiveDuration::into_inner);
+        .map(PositiveDuration::into_inner))
+}
+
+fn parse_spent(raw: Option<i64>) -> Result<Option<i64>> {
+    Ok(raw
+        .map(PositiveDuration::try_new)
+        .transpose()
+        .map_err(|_| crate::db::DbError::Validation {
+            code: ErrorCode::SpentTimeOutOfRange,
+            message: format!(
+                "spent time must be between 1 minute and {} hours",
+                MAX_DURATION_MINUTES / 60
+            ),
+        })?
+        .map(PositiveDuration::into_inner))
+}
+
+pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
+    let title = TaskTitle::parse(&input.title)?.into_inner();
+    let description = parse_description(input.description.as_deref())?;
+    let estimated = parse_estimate(input.estimated_minutes)?;
     let result = sqlx::query(
         "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, sort_order)
          VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
@@ -237,6 +269,39 @@ pub async fn move_task(
         .execute(pool)
         .await?;
     Ok(())
+}
+
+/// Full-row update scoped to the owning profile; bumps `updated_at`.
+/// Unknown ids — including another profile's task — are an error.
+pub async fn update(
+    pool: &SqlitePool,
+    profile_id: i64,
+    id: i64,
+    input: &UpdateTask,
+) -> Result<Task> {
+    let title = TaskTitle::parse(&input.title)?.into_inner();
+    let description = parse_description(input.description.as_deref())?;
+    let estimated = parse_estimate(input.estimated_minutes)?;
+    let spent = parse_spent(input.spent_minutes)?;
+    let result = sqlx::query(
+        "UPDATE tasks SET title = ?, description = ?, estimated_minutes = ?, spent_minutes = ?,
+         carry_over_rule = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND profile_id = ?",
+    )
+    .bind(title)
+    .bind(description)
+    .bind(estimated)
+    .bind(spent)
+    .bind(input.carry_over_rule)
+    .bind(input.status)
+    .bind(id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(task_not_found());
+    }
+    get(pool, id).await
 }
 
 /// Deletes a task scoped to its owning profile. Deleting an unknown id — or
@@ -430,5 +495,150 @@ mod tests {
         ));
         // The foreign task is untouched.
         assert_eq!(titles(&pool, other.id).await, vec![TITLE_A]);
+    }
+
+    const TITLE_UPDATED: &str = "Renamed";
+    const DESCRIPTION_UPDATED: &str = "new notes";
+
+    fn update_payload(task: &Task) -> UpdateTask {
+        UpdateTask {
+            title: task.title.clone(),
+            description: task.description.clone(),
+            estimated_minutes: task.estimated_minutes,
+            spent_minutes: task.spent_minutes,
+            carry_over_rule: task.carry_over_rule,
+            status: task.status,
+        }
+    }
+
+    #[tokio::test]
+    async fn update_persists_every_editable_field_and_bumps_updated_at() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        let original = list(&pool, pid).await.unwrap()[0].clone();
+        // Ensure the timestamp tick differs.
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+        let updated = update(
+            &pool,
+            pid,
+            original.id,
+            &UpdateTask {
+                title: TITLE_UPDATED.into(),
+                description: Some(DESCRIPTION_UPDATED.into()),
+                estimated_minutes: Some(90),
+                spent_minutes: Some(15),
+                carry_over_rule: Some(CarryOverRule::Carry),
+                status: TaskStatus::InProgress,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.title, TITLE_UPDATED);
+        assert_eq!(updated.description.as_deref(), Some(DESCRIPTION_UPDATED));
+        assert_eq!(updated.estimated_minutes, Some(90));
+        assert_eq!(updated.spent_minutes, Some(15));
+        assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Carry));
+        assert_eq!(updated.status, TaskStatus::InProgress);
+        assert_eq!(updated.created_at, original.created_at);
+        assert_ne!(updated.updated_at, original.updated_at);
+    }
+
+    #[tokio::test]
+    async fn update_rejects_an_unknown_task() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        let existing = list(&pool, pid).await.unwrap()[0].clone();
+
+        let err = update(&pool, pid, 999, &update_payload(&existing))
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::TaskNotFound,
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn update_rejects_another_profiles_task() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+        create(&pool, other.id, &task(TITLE_A)).await.unwrap();
+        let foreign = list(&pool, other.id).await.unwrap()[0].clone();
+
+        let err = update(&pool, pid, foreign.id, &update_payload(&foreign))
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::TaskNotFound,
+                ..
+            }
+        ));
+        assert_eq!(titles(&pool, other.id).await, vec![TITLE_A]);
+    }
+
+    #[tokio::test]
+    async fn update_rejects_out_of_range_spent_time() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        let existing = list(&pool, pid).await.unwrap()[0].clone();
+        // The schema CHECK allows 1–1440 minutes; the service must reject
+        // out-of-range values before they hit SQLite as opaque errors.
+        for bad in [-5, 0, MAX_DURATION_MINUTES + 1] {
+            let err = update(
+                &pool,
+                pid,
+                existing.id,
+                &UpdateTask {
+                    spent_minutes: Some(bad),
+                    ..update_payload(&existing)
+                },
+            )
+            .await
+            .unwrap_err();
+
+            assert!(matches!(
+                err,
+                crate::db::DbError::Validation {
+                    code: ErrorCode::SpentTimeOutOfRange,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn update_revalidates_the_title() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        let existing = list(&pool, pid).await.unwrap()[0].clone();
+
+        let err = update(
+            &pool,
+            pid,
+            existing.id,
+            &UpdateTask {
+                title: "   ".into(),
+                ..update_payload(&existing)
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::TaskTitleRequired,
+                ..
+            }
+        ));
     }
 }

@@ -24,12 +24,14 @@ import {
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
   deleteTaskLabel,
+  editTaskLabel,
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
+import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
 const STATUS_BADGE = {
@@ -41,21 +43,33 @@ const STATUS_BADGE = {
 function TaskRow({
   task,
   onDelete,
+  onEdit,
   deletePending,
-}: Readonly<{ task: Task; onDelete: () => void; deletePending: boolean }>) {
+}: Readonly<{
+  task: Task;
+  onDelete: () => void;
+  onEdit: () => void;
+  deletePending: boolean;
+}>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: task.id });
 
   return (
+    // The row is clickable per the Stitch design (cursor-pointer + hover
+    // tint); the title button carries the keyboard/AT affordance, so the
+    // li's click handler is pointer-only by design.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- keyboard users reach the same action via the title's <button>
     <li
       ref={setNodeRef}
+      onClick={onEdit}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className="group flex items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
+      className="group flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors duration-150 ease-out hover:bg-surface-raised"
     >
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           aria-label={reorderLabel(task.title)}
+          onClick={(e) => e.stopPropagation()}
           className="cursor-grab touch-none rounded p-0.5 text-text-muted hover:text-text focus:outline-none focus:ring-1 focus:ring-primary active:cursor-grabbing"
           {...attributes}
           {...listeners}
@@ -74,9 +88,14 @@ function TaskRow({
             <circle cx="15" cy="18" r="1.5" />
           </svg>
         </button>
-        <span className="truncate text-sm font-medium text-text">
+        <button
+          type="button"
+          aria-label={editTaskLabel(task.title)}
+          onClick={onEdit}
+          className="min-w-0 cursor-pointer truncate rounded text-left text-sm font-medium text-text focus:outline-none focus:ring-1 focus:ring-primary"
+        >
           {task.title}
-        </span>
+        </button>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {task.estimated_minutes != null && (
@@ -93,7 +112,10 @@ function TaskRow({
           type="button"
           aria-label={deleteTaskLabel(task.title)}
           disabled={deletePending}
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           className="rounded p-1 text-text-muted opacity-0 transition-colors duration-150 ease-out hover:bg-surface hover:text-text focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <svg
@@ -121,6 +143,7 @@ function TaskRow({
 export function BacklogPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task>();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, {
@@ -227,6 +250,7 @@ export function BacklogPage() {
                     task={task}
                     deletePending={del.isPending}
                     onDelete={() => del.mutate(task.id)}
+                    onEdit={() => setEditingTask(task)}
                   />
                 ))}
               </ul>
@@ -235,6 +259,12 @@ export function BacklogPage() {
         )}
       </section>
       {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
+      {editingTask && (
+        <EditTaskDialog
+          task={editingTask}
+          onClose={() => setEditingTask(undefined)}
+        />
+      )}
     </>
   );
 }

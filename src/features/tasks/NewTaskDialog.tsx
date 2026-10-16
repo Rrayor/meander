@@ -11,22 +11,28 @@ import {
   MAX_TASK_TITLE_LENGTH,
   createTask,
 } from "@/api/tasks";
-import type { ErrorCode } from "@/api/bindings";
-import { ApiError } from "@/api/transport";
+import { DURATION_RANGE_MESSAGE, serverErrorMessage } from "@/lib/errors";
 import {
   CANCEL_BUTTON_LABEL,
+  CARRY_OVER_FIELD_LABEL,
+  CARRY_OVER_OPTIONS,
+  CLOSE_DIALOG_LABEL,
+  CLOSE_LABEL,
   CREATE_TASK_LABEL,
+  DESCRIPTION_FIELD_LABEL,
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
+  ESTIMATED_TIME_LABEL,
+  HOURS_UNIT_LABEL,
+  MINUTES_UNIT_LABEL,
+  NEW_TASK_HEADING,
+  OPTIONAL_FIELD_LABEL,
+  TITLE_FIELD_LABEL,
   TITLE_REQUIRED_MESSAGE,
 } from "@/lib/labels";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
-
-const DURATION_RANGE_MESSAGE = `Estimated time must be between 1 minute and ${
-  MAX_DURATION_MINUTES / 60
-} hours`;
 
 const schema = z
   .object({
@@ -66,27 +72,9 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
-  task_title_required: TITLE_REQUIRED_MESSAGE,
-  task_title_too_long: `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
-  task_title_invalid_characters: "Task title cannot contain control characters",
-  estimated_time_out_of_range: DURATION_RANGE_MESSAGE,
-  task_description_too_long: `Description must be ${MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`,
-};
-
 interface NewTaskDialogProps {
   onClose: () => void;
 }
-
-export const serverErrorMessage = (error: unknown): string | undefined => {
-  if (error instanceof ApiError) {
-    return SERVER_ERROR_MESSAGES[error.code] ?? error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return undefined;
-};
 
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
@@ -151,7 +139,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={CLOSE_DIALOG_LABEL}
         onClick={onClose}
         tabIndex={-1}
         className="absolute inset-0 h-full w-full cursor-default bg-black/60"
@@ -166,12 +154,12 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
             id="new-task-title"
             className="font-title text-lg font-semibold text-text"
           >
-            New task
+            {NEW_TASK_HEADING}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={CLOSE_LABEL}
             className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
           >
             <svg
@@ -192,7 +180,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               htmlFor="new-task-title-input"
               className="text-xs font-medium text-text-muted"
             >
-              Title *
+              {TITLE_FIELD_LABEL} *
             </label>
             <input
               id="new-task-title-input"
@@ -221,7 +209,8 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               htmlFor="new-task-description"
               className="text-xs font-medium text-text-muted"
             >
-              Description <span className="text-text-muted">(optional)</span>
+              {DESCRIPTION_FIELD_LABEL}{" "}
+              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
             </label>
             <textarea
               id="new-task-description"
@@ -247,7 +236,8 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-muted">
-              Estimated time <span className="text-text-muted">(optional)</span>
+              {ESTIMATED_TIME_LABEL}{" "}
+              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
             </span>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -267,7 +257,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
                   htmlFor="new-task-est-hours"
                   className="text-xs text-text-muted"
                 >
-                  h
+                  {HOURS_UNIT_LABEL}
                 </label>
               </div>
               <div className="flex items-center gap-2">
@@ -287,7 +277,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
                   htmlFor="new-task-est-minutes"
                   className="text-xs text-text-muted"
                 >
-                  min
+                  {MINUTES_UNIT_LABEL}
                 </label>
               </div>
             </div>
@@ -306,7 +296,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               id="new-task-carry-over-label"
               className="text-xs font-medium text-text-muted"
             >
-              Carry-over rule
+              {CARRY_OVER_FIELD_LABEL}
             </span>
             <Controller
               name="carryOver"
@@ -317,15 +307,9 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
                   aria-labelledby="new-task-carry-over-label"
                   className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
                 >
-                  {(
-                    [
-                      ["", "Ask"],
-                      ["carry", "Carry over"],
-                      ["return", "Return to backlog"],
-                    ] as const
-                  ).map(([option, label]) => (
+                  {CARRY_OVER_OPTIONS.map(({ value: option, label }) => (
                     <button
-                      key={option}
+                      key={option || "ask"}
                       type="button"
                       role="radio"
                       aria-checked={value === option}

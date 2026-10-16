@@ -53,6 +53,17 @@ pub async fn move_task(
 }
 
 #[tauri::command]
+pub async fn update_task(
+    task_id: i64,
+    input: crate::tasks::UpdateTask,
+    state: State<'_, AppState>,
+) -> Result<crate::tasks::Task, ApiError> {
+    crate::tasks::update(&state.pool(), state.active_profile_id(), task_id, &input)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn delete_task(task_id: i64, state: State<'_, AppState>) -> Result<(), ApiError> {
     crate::tasks::delete(&state.pool(), state.active_profile_id(), task_id)
         .await
@@ -170,6 +181,7 @@ mod tests {
     const RENAMED_PROFILE_NAME: &str = "Play";
     const TITLE_A: &str = "A";
     const TITLE_B: &str = "B";
+    const TITLE_C: &str = "C";
 
     #[tokio::test]
     async fn profile_commands_cover_list_create_rename_current_and_switch() {
@@ -280,6 +292,23 @@ mod tests {
             .map(|t| t.title.clone())
             .collect();
         assert_eq!(titles, vec![TITLE_B, TITLE_A]);
+
+        let updated = update_task(
+            ids[0],
+            crate::tasks::UpdateTask {
+                title: TITLE_C.into(),
+                description: None,
+                estimated_minutes: None,
+                spent_minutes: Some(30),
+                carry_over_rule: None,
+                status: crate::tasks::TaskStatus::Done,
+            },
+            state.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.title, TITLE_C);
+        assert_eq!(updated.status, crate::tasks::TaskStatus::Done);
 
         delete_task(ids[0], state.clone()).await.unwrap();
         let remaining: Vec<String> = list_tasks(state.clone())

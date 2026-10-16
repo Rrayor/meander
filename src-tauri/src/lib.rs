@@ -31,6 +31,7 @@ pub fn run() {
             commands::create_task,
             commands::move_task,
             commands::delete_task,
+            commands::update_task,
             commands::current_profile,
             commands::create_profile,
             commands::rename_profile,

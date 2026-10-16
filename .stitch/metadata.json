@@ -54,6 +54,17 @@
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
       "notes": "Task creation dialog: Title* input, Description textarea, Estimated time as paired hours+minutes inputs, Carry-over rule as segmented control (Ask / Carry over / Return to backlog), Cancel/Create task footer over dimmed backlog"
+    },
+    {
+      "id": "05f3a99d44754d6dbc60e516a5b71da5",
+      "title": "Meander — Task Detail Modal",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/task-detail-dialog.html",
+        "designs/task-detail-dialog.png"
+      ],
+      "implemented": false,
+      "notes": "Task edit dialog over dimmed backlog: pre-filled title/description, Estimated time + Time spent paired h/min inputs, Status and Carry-over segmented controls, read-only Created/Updated footer metadata, Cancel/Save actions"
     }
   ]
 }

@@ -4,11 +4,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MAX_DURATION_MINUTES } from "@/api/tasks";
 import { ApiError } from "@/api/transport";
 import { createTask } from "@/api/tasks";
-import {
-  NewTaskDialog,
-  SERVER_ERROR_MESSAGES,
-  serverErrorMessage,
-} from "@/features/tasks/NewTaskDialog";
+import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
+import { SERVER_ERROR_MESSAGES, serverErrorMessage } from "@/lib/errors";
 import { TITLE_REQUIRED_MESSAGE } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
