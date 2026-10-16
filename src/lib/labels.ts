@@ -59,3 +59,9 @@ export const CURRENT_PROFILE_LABEL = "Current";
 export const RENAME_BUTTON_LABEL = "Rename";
 export const SAVE_BUTTON_LABEL = "Save";
 export const CANCEL_BUTTON_LABEL = "Cancel";
+
+export const CATEGORIES_HEADING = "Categories";
+export const CATEGORIES_SUBTITLE = "Labels for grouping tasks";
+export const EMPTY_CATEGORIES_MESSAGE =
+  "No categories yet — created categories will appear here.";
+export const categoryCreatedLabel = (date: string) => `Created ${date}`;

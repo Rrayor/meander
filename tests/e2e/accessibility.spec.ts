@@ -90,6 +90,26 @@ test("the edit task dialog has no WCAG AA violations", async ({ page }) => {
   await expectAccessible(page);
 });
 
+test("the categories page has no WCAG AA violations", async ({ page }) => {
+  const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listCategories]: [
+      {
+        id: 1,
+        profile_id: 1,
+        title: "Errands",
+        description: null,
+        color: "#2DD4BF",
+        created_at: "2026-10-10 09:00:00",
+        updated_at: "2026-10-10 09:00:00",
+      },
+    ],
+  });
+  await page.goto(`/#${categoriesPath}`);
+  await expectAccessible(page);
+});
+
 test("the settings page has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.currentProfile]: current,

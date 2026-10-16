@@ -442,6 +442,79 @@ fn task_on_second_profile(world: &mut MeanderWorld) {
         .expect("insert task failed");
 }
 
+fn insert_category(world: &mut MeanderWorld, title: &str, profile_id: i64) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    world
+        .rt()
+        .block_on(
+            sqlx::query("INSERT INTO categories (profile_id, title) VALUES (?, ?)")
+                .bind(profile_id)
+                .bind(title)
+                .execute(&pool),
+        )
+        .expect("insert category failed");
+}
+
+#[given(expr = "a category named {word} exists on the active profile")]
+fn category_on_active_profile(world: &mut MeanderWorld, title: String) {
+    let profile_id = world
+        .state
+        .as_ref()
+        .expect("no app state")
+        .active_profile_id();
+    insert_category(world, &title, profile_id);
+}
+
+#[given(expr = "a category named {word} exists on a second profile")]
+fn category_on_second_profile(world: &mut MeanderWorld, title: String) {
+    const SECOND_PROFILE_NAME: &str = "Work";
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let other = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, SECOND_PROFILE_NAME))
+        .expect("create profile failed");
+    world.profile_id = Some(other.id);
+    insert_category(world, &title, other.id);
+}
+
+fn category_titles(world: &mut MeanderWorld, profile_id: i64) -> Vec<String> {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    world
+        .rt()
+        .block_on(meander_lib::categories::list(&pool, profile_id))
+        .expect("category list failed")
+        .into_iter()
+        .map(|c| c.title)
+        .collect()
+}
+
+#[then("the category list is empty")]
+fn category_list_empty(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let titles = category_titles(world, state.active_profile_id());
+    assert!(
+        titles.is_empty(),
+        "expected empty category list, got {titles:?}"
+    );
+}
+
+#[then(expr = "the category list is {string}")]
+fn category_list_is(world: &mut MeanderWorld, expected: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let profile_id = state.active_profile_id();
+    let titles = category_titles(world, profile_id);
+    let expected: Vec<String> = expected.split(", ").map(str::to_owned).collect();
+    assert_eq!(titles, expected);
+}
+
+#[then(expr = "the second profile's category list is {string}")]
+fn second_profile_category_list_is(world: &mut MeanderWorld, expected: String) {
+    let profile_id = world.profile_id.expect("no second profile in world");
+    let titles = category_titles(world, profile_id);
+    let expected: Vec<String> = expected.split(", ").map(str::to_owned).collect();
+    assert_eq!(titles, expected);
+}
+
 #[then("the task list is empty")]
 fn task_list_empty(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");

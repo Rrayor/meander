@@ -25,6 +25,15 @@ pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<crate::tasks::
 }
 
 #[tauri::command]
+pub async fn list_categories(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::categories::Category>, ApiError> {
+    crate::categories::list(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn create_task(
     input: crate::tasks::NewTask,
     state: State<'_, AppState>,
@@ -248,6 +257,23 @@ mod tests {
         let saved = config::load(&handle.path().app_config_dir().unwrap());
         assert_eq!(saved.database_path, Some(other));
         assert!(saved.last_profile_id.is_some());
+    }
+
+    #[tokio::test]
+    async fn list_categories_returns_the_active_profiles_categories() {
+        const CATEGORY_TITLE: &str = "Errands";
+        let app = test_app().await;
+        let state = app.state::<AppState>();
+        assert!(list_categories(state.clone()).await.unwrap().is_empty());
+        sqlx::query("INSERT INTO categories (profile_id, title) VALUES (?, ?)")
+            .bind(state.active_profile_id())
+            .bind(CATEGORY_TITLE)
+            .execute(&state.pool())
+            .await
+            .unwrap();
+        let categories = list_categories(state.clone()).await.unwrap();
+        assert_eq!(categories.len(), 1);
+        assert_eq!(categories[0].title, CATEGORY_TITLE);
     }
 
     #[tokio::test]

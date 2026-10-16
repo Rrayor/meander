@@ -1,6 +1,7 @@
 use tauri::Manager;
 
 pub mod bindings;
+pub mod categories;
 pub mod commands;
 pub mod config;
 pub mod db;
@@ -28,6 +29,7 @@ pub fn run() {
             commands::select_database_file,
             commands::list_profiles,
             commands::list_tasks,
+            commands::list_categories,
             commands::create_task,
             commands::move_task,
             commands::delete_task,
