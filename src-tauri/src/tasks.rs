@@ -517,7 +517,7 @@ mod tests {
         create(&pool, pid, &task(TITLE_A)).await.unwrap();
         let original = list(&pool, pid).await.unwrap()[0].clone();
         // Ensure the timestamp tick differs.
-        std::thread::sleep(std::time::Duration::from_millis(1100));
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
         let updated = update(
             &pool,
