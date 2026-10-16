@@ -64,7 +64,16 @@
         "designs/task-detail-dialog.png"
       ],
       "implemented": false,
+      "implemented": true,
       "notes": "Task edit dialog over dimmed backlog: pre-filled title/description, Estimated time + Time spent paired h/min inputs, Status and Carry-over segmented controls, read-only Created/Updated footer metadata, Cancel/Save actions"
+    },
+    {
+      "id": "4bcee8b161a546dab7d35783828aa203",
+      "title": "Meander — Categories",
+      "deviceType": "DESKTOP",
+      "files": ["designs/categories.html", "designs/categories.png"],
+      "implemented": false,
+      "notes": "Categories list: color dot + title rows with 'N tasks · Created <date>' metadata, Categories nav item between Backlog and Settings, empty state. Generated extras omitted: stats cards, Add Category button (step 21), footer tip"
     }
   ]
 }

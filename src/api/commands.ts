@@ -9,6 +9,7 @@ export const COMMANDS = {
   renameProfile: "rename_profile",
   switchProfile: "switch_profile",
   listTasks: "list_tasks",
+  listCategories: "list_categories",
   createTask: "create_task",
   moveTask: "move_task",
   deleteTask: "delete_task",
