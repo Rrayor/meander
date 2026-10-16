@@ -200,6 +200,13 @@ fn task_not_found() -> crate::db::DbError {
     }
 }
 
+/// Validates that `id` is an existing task owned by `profile_id` — shared
+/// by every operation that targets a single task (update, delete, category
+/// association).
+pub(crate) async fn ensure_exists(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
+    sort_order_of(pool, profile_id, id).await.map(|_| ())
+}
+
 async fn sort_order_of(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<f64> {
     let row: Option<(f64,)> =
         sqlx::query_as("SELECT sort_order FROM tasks WHERE id = ? AND profile_id = ?")

@@ -55,7 +55,7 @@ async fn schema(pool: &SqlitePool, table: &str) -> Vec<Column> {
                 ty: r.get::<String, _>("type").to_uppercase(),
                 notnull: r.get::<i64, _>("notnull") == 1,
                 has_default: r.get::<Option<String>, _>("dflt_value").is_some(),
-                is_pk: r.get::<i64, _>("pk") == 1,
+                is_pk: r.get::<i64, _>("pk") > 0,
                 fk_table,
             }
         })
@@ -115,10 +115,15 @@ async fn probe_insert(
 ) -> (i64, Vec<(String, ProbeVal)>) {
     let cols = schema(pool, table).await;
     let (ins, betweens) = check_bounds(pool, table).await;
+    // A single-column INTEGER PRIMARY KEY is the rowid alias — auto-assigned,
+    // so probing it is skipped. Composite-pk members (e.g. join tables) are
+    // real columns and must be supplied.
+    let pk_count = cols.iter().filter(|c| c.is_pk).count();
     let mut names = Vec::new();
     let mut values: Vec<(String, ProbeVal)> = Vec::new();
     for col in &cols {
-        if col.is_pk || (col.has_default && !col.notnull) {
+        let rowid_alias = col.is_pk && pk_count == 1 && col.ty.contains("INT");
+        if rowid_alias || (col.has_default && !col.notnull) {
             continue;
         }
         let value = if let Some(parent) = &col.fk_table {

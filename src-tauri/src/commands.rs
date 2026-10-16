@@ -34,6 +34,48 @@ pub async fn list_categories(
 }
 
 #[tauri::command]
+pub async fn list_task_categories(
+    task_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::categories::Category>, ApiError> {
+    crate::categories::for_task(&state.pool(), state.active_profile_id(), task_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn add_task_category(
+    task_id: i64,
+    category_id: i64,
+    state: State<'_, AppState>,
+) -> Result<(), ApiError> {
+    crate::categories::add_to_task(
+        &state.pool(),
+        state.active_profile_id(),
+        task_id,
+        category_id,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn remove_task_category(
+    task_id: i64,
+    category_id: i64,
+    state: State<'_, AppState>,
+) -> Result<(), ApiError> {
+    crate::categories::remove_from_task(
+        &state.pool(),
+        state.active_profile_id(),
+        task_id,
+        category_id,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn create_task(
     input: crate::tasks::NewTask,
     state: State<'_, AppState>,
@@ -274,6 +316,57 @@ mod tests {
         let categories = list_categories(state.clone()).await.unwrap();
         assert_eq!(categories.len(), 1);
         assert_eq!(categories[0].title, CATEGORY_TITLE);
+    }
+
+    #[tokio::test]
+    async fn task_category_commands_cover_add_list_and_remove() {
+        let app = test_app().await;
+        let state = app.state::<AppState>();
+        let category_id: i64 = sqlx::query_scalar(
+            "INSERT INTO categories (profile_id, title) VALUES (?, ?) RETURNING id",
+        )
+        .bind(state.active_profile_id())
+        .bind("Errands")
+        .fetch_one(&state.pool())
+        .await
+        .unwrap();
+        let task = create_task(
+            crate::tasks::NewTask {
+                title: TITLE_A.into(),
+                description: None,
+                estimated_minutes: None,
+                carry_over_rule: None,
+            },
+            state.clone(),
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            list_task_categories(task.id, state.clone())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        add_task_category(task.id, category_id, state.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            list_task_categories(task.id, state.clone())
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        remove_task_category(task.id, category_id, state.clone())
+            .await
+            .unwrap();
+        assert!(
+            list_task_categories(task.id, state.clone())
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

@@ -2,10 +2,20 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 
 use crate::db::Result;
+use crate::errors::ErrorCode;
 
 /// Spec: category titles are required; 100 chars keeps them readable when
 /// rendered as small chips on task cards.
 pub const CATEGORY_TITLE_MAX_LEN: usize = 100;
+
+const CATEGORY_NOT_FOUND_MESSAGE: &str = "category does not exist";
+
+fn category_not_found() -> crate::db::DbError {
+    crate::db::DbError::Validation {
+        code: ErrorCode::CategoryNotFound,
+        message: CATEGORY_NOT_FOUND_MESSAGE.into(),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, specta::Type, sqlx::FromRow)]
 pub struct Category {
@@ -22,6 +32,71 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Category>> {
     Ok(sqlx::query_as::<_, Category>(
         "SELECT * FROM categories WHERE profile_id = ? ORDER BY title, id",
     )
+    .bind(profile_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+async fn ensure_exists(pool: &SqlitePool, profile_id: i64, category_id: i64) -> Result<()> {
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM categories WHERE id = ? AND profile_id = ?")
+            .bind(category_id)
+            .bind(profile_id)
+            .fetch_optional(pool)
+            .await?;
+    row.map(|_| ()).ok_or_else(category_not_found)
+}
+
+/// Associates a task with a category. Both entities must belong to
+/// `profile_id` — a cross-profile pairing is rejected as not-found on the
+/// offending side rather than leaking another profile's data.
+/// Adding an existing association is a no-op (the PK makes it idempotent).
+pub async fn add_to_task(
+    pool: &SqlitePool,
+    profile_id: i64,
+    task_id: i64,
+    category_id: i64,
+) -> Result<()> {
+    crate::tasks::ensure_exists(pool, profile_id, task_id).await?;
+    ensure_exists(pool, profile_id, category_id).await?;
+    sqlx::query("INSERT OR IGNORE INTO task_categories (task_id, category_id) VALUES (?, ?)")
+        .bind(task_id)
+        .bind(category_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Removes a task–category association. Unknown tasks/categories are
+/// rejected; removing an association that isn't there is a no-op so UI
+/// toggles stay idempotent.
+pub async fn remove_from_task(
+    pool: &SqlitePool,
+    profile_id: i64,
+    task_id: i64,
+    category_id: i64,
+) -> Result<()> {
+    crate::tasks::ensure_exists(pool, profile_id, task_id).await?;
+    ensure_exists(pool, profile_id, category_id).await?;
+    sqlx::query("DELETE FROM task_categories WHERE task_id = ? AND category_id = ?")
+        .bind(task_id)
+        .bind(category_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Categories attached to a task, ordered alphabetically — the order the UI
+/// renders chips/dots in.
+pub async fn for_task(pool: &SqlitePool, profile_id: i64, task_id: i64) -> Result<Vec<Category>> {
+    crate::tasks::ensure_exists(pool, profile_id, task_id).await?;
+    Ok(sqlx::query_as::<_, Category>(
+        "SELECT c.* FROM categories c
+         JOIN task_categories tc ON tc.category_id = c.id
+         WHERE tc.task_id = ? AND c.profile_id = ?
+         ORDER BY c.title, c.id",
+    )
+    .bind(task_id)
     .bind(profile_id)
     .fetch_all(pool)
     .await?)
@@ -134,6 +209,142 @@ mod tests {
 
         assert_eq!(category.description, None);
         assert_eq!(category.color, None);
+    }
+
+    async fn new_task(pool: &SqlitePool, profile_id: i64, title: &str) -> i64 {
+        crate::tasks::create(
+            pool,
+            profile_id,
+            &crate::tasks::NewTask {
+                title: title.into(),
+                description: None,
+                estimated_minutes: None,
+                carry_over_rule: None,
+            },
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    async fn new_category(pool: &SqlitePool, profile_id: i64, title: &str) -> i64 {
+        sqlx::query("INSERT INTO categories (profile_id, title) VALUES (?, ?)")
+            .bind(profile_id)
+            .bind(title)
+            .execute(pool)
+            .await
+            .unwrap()
+            .last_insert_rowid()
+    }
+
+    #[tokio::test]
+    async fn associating_a_category_is_listed_for_the_task() {
+        let (pool, pid) = seeded_pool().await;
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        let categories = for_task(&pool, pid, task).await.unwrap();
+        assert_eq!(categories.len(), 1);
+        assert_eq!(categories[0].title, TITLE_B);
+    }
+
+    #[tokio::test]
+    async fn adding_the_same_association_twice_is_idempotent() {
+        let (pool, pid) = seeded_pool().await;
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+
+        add_to_task(&pool, pid, task, category).await.unwrap();
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        assert_eq!(for_task(&pool, pid, task).await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn removing_an_association_unlists_it() {
+        let (pool, pid) = seeded_pool().await;
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        remove_from_task(&pool, pid, task, category).await.unwrap();
+
+        assert!(for_task(&pool, pid, task).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn removing_a_missing_association_is_a_noop() {
+        let (pool, pid) = seeded_pool().await;
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+
+        remove_from_task(&pool, pid, task, category).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn associating_a_foreign_category_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let foreign = new_category(&pool, other.id, TITLE_B).await;
+
+        let err = add_to_task(&pool, pid, task, foreign).await.unwrap_err();
+
+        match err {
+            crate::db::DbError::Validation { code, message } => {
+                assert_eq!(code, ErrorCode::CategoryNotFound);
+                assert_eq!(message, CATEGORY_NOT_FOUND_MESSAGE);
+            }
+            other => panic!("expected a validation error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn associating_a_foreign_task_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+        let foreign_task = new_task(&pool, other.id, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+
+        assert!(
+            add_to_task(&pool, pid, foreign_task, category)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn deleting_a_category_cascades_its_associations() {
+        let (pool, pid) = seeded_pool().await;
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        sqlx::query("DELETE FROM categories WHERE id = ?")
+            .bind(category)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        assert!(for_task(&pool, pid, task).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_task_cascades_its_associations() {
+        let (pool, pid) = seeded_pool().await;
+        let task = new_task(&pool, pid, TITLE_A).await;
+        let category = new_category(&pool, pid, TITLE_B).await;
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        crate::tasks::delete(&pool, pid, task).await.unwrap();
+
+        let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_categories")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(rows, 0);
     }
 
     #[tokio::test]
