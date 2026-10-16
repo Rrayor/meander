@@ -17,20 +17,14 @@ fn category_not_found() -> crate::db::DbError {
     }
 }
 
-/// Spec: a category color is optional and defaults to a random palette
-/// pick at creation. The palette mirrors the threshold tints in index.css.
+/// Spec: a category color is optional; an unset color defaults to the
+/// primary accent. Users may pick any color — the palette (which mirrors
+/// the threshold tints in index.css) just offers curated swatches.
 pub const CATEGORY_PALETTE: [&str; 12] = [
     "#f87171", "#fb923c", "#fbbf24", "#a3e635", "#4ade80", "#34d399", "#22d3ee", "#60a5fa",
     "#818cf8", "#a78bfa", "#e879f9", "#f472b6",
 ];
-
-fn random_color() -> &'static str {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos() as usize)
-        .unwrap_or(0);
-    CATEGORY_PALETTE[nanos % CATEGORY_PALETTE.len()]
-}
+pub const DEFAULT_CATEGORY_COLOR: &str = "#2dd4bf";
 
 fn parse_color(raw: Option<&str>) -> Result<Option<String>> {
     let Some(raw) = raw else { return Ok(None) };
@@ -114,7 +108,8 @@ pub struct NewCategory {
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewCategory) -> Result<Category> {
     let title = CategoryTitle::parse(&input.title)?.into_inner();
     let description = parse_category_description(input.description.as_deref())?;
-    let color = parse_color(input.color.as_deref())?.unwrap_or_else(|| random_color().to_string());
+    let color =
+        parse_color(input.color.as_deref())?.unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
     let result = sqlx::query(
         "INSERT INTO categories (profile_id, title, description, color) VALUES (?, ?, ?, ?)",
     )
@@ -489,18 +484,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_defaults_color_to_a_palette_pick() {
+    async fn create_defaults_color_to_the_primary_accent() {
         let (pool, pid) = seeded_pool().await;
 
         let created = create(&pool, pid, &new_category_input(TITLE_A))
             .await
             .unwrap();
 
-        let color = created.color.expect("color must default to a palette pick");
-        assert!(
-            CATEGORY_PALETTE.contains(&color.as_str()),
-            "{color} is not in the palette"
-        );
+        assert_eq!(created.color.as_deref(), Some(DEFAULT_CATEGORY_COLOR));
     }
 
     #[tokio::test]

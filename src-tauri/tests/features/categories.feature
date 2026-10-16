@@ -76,7 +76,7 @@ Feature: Categories
     When I create a category with surrounding whitespace
     Then the category creation succeeds
     And a category named Errands exists in the list
-    And the category Errands has a palette color
+    And the category Errands has the default color
 
   Scenario: creating a category with a picked color stores it
     Given an application state on a temporary seeded database

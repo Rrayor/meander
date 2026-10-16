@@ -713,8 +713,8 @@ fn category_exists_in_list(world: &mut MeanderWorld, title: String) {
     category_id_by_title(world, &title);
 }
 
-#[then(expr = "the category {word} has a palette color")]
-fn category_has_palette_color(world: &mut MeanderWorld, title: String) {
+#[then(expr = "the category {word} has the default color")]
+fn category_has_default_color(world: &mut MeanderWorld, title: String) {
     let pool = world.state.as_ref().expect("no app state").pool();
     let color: String = world
         .rt()
@@ -724,10 +724,7 @@ fn category_has_palette_color(world: &mut MeanderWorld, title: String) {
                 .fetch_one(&pool),
         )
         .expect("category missing");
-    assert!(
-        meander_lib::categories::CATEGORY_PALETTE.contains(&color.as_str()),
-        "{color} is not a palette color"
-    );
+    assert_eq!(color, meander_lib::categories::DEFAULT_CATEGORY_COLOR);
 }
 
 #[then(expr = "the category {word} has color {string}")]

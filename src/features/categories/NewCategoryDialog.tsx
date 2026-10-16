@@ -22,6 +22,8 @@ import {
   CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
   COLOR_FIELD_LABEL,
+  CUSTOM_COLOR_LABEL,
+  DEFAULT_COLOR_LABEL,
   CREATE_CATEGORY_LABEL,
   DESCRIPTION_FIELD_LABEL,
   NEW_CATEGORY_HEADING,
@@ -39,8 +41,7 @@ const schema = z.object({
   description: z
     .string()
     .max(MAX_TASK_DESCRIPTION_LENGTH, TASK_DESCRIPTION_TOO_LONG_MESSAGE),
-  // Empty string = no pick; the backend then defaults to a random palette
-  // color per the spec.
+  // Empty string = no pick; the backend then defaults to the primary accent.
   color: z.string(),
 });
 
@@ -211,43 +212,67 @@ export function NewCategoryDialog({
             <Controller
               name="color"
               control={control}
-              render={({ field: { value, onChange } }) => (
-                <div
-                  role="radiogroup"
-                  aria-labelledby="new-category-color-label"
-                  className="flex flex-wrap gap-2"
-                >
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={value === ""}
-                    aria-label="Random color"
-                    onClick={() => onChange("")}
-                    title="Random"
-                    className={`h-6 w-6 rounded-full border border-dashed border-border transition-all ${
-                      value === ""
-                        ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
-                        : ""
-                    }`}
-                  />
-                  {CATEGORY_COLORS.map((color) => (
+              render={({ field: { value, onChange } }) => {
+                const customSelected =
+                  value !== "" &&
+                  !(CATEGORY_COLORS as readonly string[]).includes(value);
+                return (
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="new-category-color-label"
+                    className="flex flex-wrap items-center gap-2"
+                  >
                     <button
-                      key={color}
                       type="button"
                       role="radio"
-                      aria-checked={value === color}
-                      aria-label={categorySwatchLabel(color)}
-                      onClick={() => onChange(color)}
-                      style={{ backgroundColor: color }}
-                      className={`h-6 w-6 rounded-full transition-all ${
-                        value === color
+                      aria-checked={value === ""}
+                      aria-label={DEFAULT_COLOR_LABEL}
+                      onClick={() => onChange("")}
+                      className={`h-6 w-6 rounded-full border border-dashed border-border transition-all ${
+                        value === ""
+                          ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
+                          : ""
+                      }`}
+                    />
+                    {CATEGORY_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        role="radio"
+                        aria-checked={value === color}
+                        aria-label={categorySwatchLabel(color)}
+                        onClick={() => onChange(color)}
+                        style={{ backgroundColor: color }}
+                        className={`h-6 w-6 rounded-full transition-all ${
+                          value === color
+                            ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
+                            : "hover:scale-110"
+                        }`}
+                      />
+                    ))}
+                    <label
+                      className={`relative h-6 w-6 cursor-pointer rounded-full transition-all ${
+                        customSelected
                           ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
                           : "hover:scale-110"
                       }`}
-                    />
-                  ))}
-                </div>
-              )}
+                      style={{
+                        background: customSelected
+                          ? value
+                          : "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)",
+                      }}
+                    >
+                      <input
+                        type="color"
+                        aria-label={CUSTOM_COLOR_LABEL}
+                        value={customSelected ? value : "#2dd4bf"}
+                        onChange={(e) => onChange(e.target.value)}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      />
+                    </label>
+                  </div>
+                );
+              }}
             />
           </div>
           {serverError && (

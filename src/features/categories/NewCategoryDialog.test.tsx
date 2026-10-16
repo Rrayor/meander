@@ -8,6 +8,7 @@ import {
   CATEGORY_TITLE_REQUIRED_MESSAGE,
   CANCEL_BUTTON_LABEL,
   COLOR_FIELD_LABEL,
+  CUSTOM_COLOR_LABEL,
   CREATE_CATEGORY_LABEL,
   TITLE_FIELD_LABEL,
   categorySwatchLabel,
@@ -70,7 +71,28 @@ test("submits title, description, and picked color on the wire", async () => {
   );
 });
 
-test("no color pick sends null so the backend defaults to random", async () => {
+test("a custom color from the picker is sent on the wire", async () => {
+  const CUSTOM_HEX = "#123456";
+  vi.mocked(createCategory).mockResolvedValue({} as never);
+  renderDialog();
+
+  fireEvent.change(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)), {
+    target: { value: CATEGORY_TITLE },
+  });
+  fireEvent.change(screen.getByLabelText(CUSTOM_COLOR_LABEL), {
+    target: { value: CUSTOM_HEX },
+  });
+  fireEvent.click(screen.getByRole("button", { name: CREATE_CATEGORY_LABEL }));
+
+  await waitFor(() =>
+    expect(createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ color: CUSTOM_HEX }),
+      expect.anything(),
+    ),
+  );
+});
+
+test("no color pick sends null so the backend applies the default", async () => {
   vi.mocked(createCategory).mockResolvedValue({} as never);
   renderDialog();
 
