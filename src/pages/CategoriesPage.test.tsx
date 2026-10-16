@@ -1,10 +1,12 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { listCategories } from "@/api/categories";
 import type { Category } from "@/api/categories";
 import {
+  ADD_CATEGORY_LABEL,
   CATEGORIES_HEADING,
+  NEW_CATEGORY_HEADING,
   CATEGORIES_SUBTITLE,
   EMPTY_CATEGORIES_MESSAGE,
   categoryCreatedLabel,
@@ -88,6 +90,21 @@ test("rows render in the order the backend returns", async () => {
   const second = titles.findIndex((t) => t?.includes(SECOND_CATEGORY.title));
   expect(first).toBeGreaterThanOrEqual(0);
   expect(first).toBeLessThan(second);
+});
+
+test("the add category button opens the creation dialog", async () => {
+  vi.mocked(listCategories).mockResolvedValue([]);
+  renderPage();
+
+  await waitFor(() =>
+    expect(screen.getByText(EMPTY_CATEGORIES_MESSAGE)).toBeInTheDocument(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: ADD_CATEGORY_LABEL }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: NEW_CATEGORY_HEADING }),
+    ).toBeInTheDocument(),
+  );
 });
 
 test("shows the empty state when there are no categories", async () => {

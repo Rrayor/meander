@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { listCategories } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
 import {
+  ADD_CATEGORY_LABEL,
   CATEGORIES_HEADING,
   CATEGORIES_SUBTITLE,
   EMPTY_CATEGORIES_MESSAGE,
@@ -15,6 +18,7 @@ import { errorMessage, formatDate } from "@/lib/utils";
 const UNCOLORED = "var(--color-text-muted)";
 
 export function CategoriesPage() {
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { data: categories, error } = useQuery({
     queryKey: QUERY_KEYS.categories,
     queryFn: listCategories,
@@ -31,6 +35,15 @@ export function CategoriesPage() {
         </div>
       </header>
       <section className="flex-1 overflow-y-auto p-6">
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {ADD_CATEGORY_LABEL}
+          </button>
+        </div>
         {error && (
           <p role="alert" className="text-sm text-danger">
             {errorMessage(error)}
@@ -57,6 +70,7 @@ export function CategoriesPage() {
           ))}
         </ul>
       </section>
+      {dialogOpen && <NewCategoryDialog onClose={() => setDialogOpen(false)} />}
     </>
   );
 }

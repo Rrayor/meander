@@ -10,6 +10,7 @@ export const COMMANDS = {
   switchProfile: "switch_profile",
   listTasks: "list_tasks",
   listCategories: "list_categories",
+  createCategory: "create_category",
   listTaskCategories: "list_task_categories",
   addTaskCategory: "add_task_category",
   removeTaskCategory: "remove_task_category",

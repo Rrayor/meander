@@ -1,15 +1,35 @@
 import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
-import type { Category } from "./bindings";
+import type { Category, NewCategory } from "./bindings";
 
-export type { Category };
+export type { Category, NewCategory };
 
 // Spec: category titles are required and at most 100 characters.
 export const MAX_CATEGORY_TITLE_LENGTH = 100;
 
+// Spec: a category color is optional; the palette mirrors the threshold
+// tints in index.css. No pick defaults to a random palette color.
+export const CATEGORY_COLORS = [
+  "#f87171",
+  "#fb923c",
+  "#fbbf24",
+  "#a3e635",
+  "#4ade80",
+  "#34d399",
+  "#22d3ee",
+  "#60a5fa",
+  "#818cf8",
+  "#a78bfa",
+  "#e879f9",
+  "#f472b6",
+] as const;
+
 export const listCategories = () =>
   transport.invoke<Category[]>(COMMANDS.listCategories);
+
+export const createCategory = (input: NewCategory) =>
+  transport.invoke<Category>(COMMANDS.createCategory, { input });
 
 export const listTaskCategories = (taskId: number) =>
   transport.invoke<Category[]>(COMMANDS.listTaskCategories, { taskId });
