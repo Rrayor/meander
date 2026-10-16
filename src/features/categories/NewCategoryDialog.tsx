@@ -206,8 +206,7 @@ export function NewCategoryDialog({
               id="new-category-color-label"
               className="text-xs font-medium text-text-muted"
             >
-              {COLOR_FIELD_LABEL}{" "}
-              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+              {COLOR_FIELD_LABEL}
             </span>
             <Controller
               name="color"
