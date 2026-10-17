@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { createCategory, listCategories } from "@/api/categories";
 import type { Category } from "@/api/categories";
+import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
+import type { Profile } from "@/api/profiles";
 import {
   ADD_CATEGORY_LABEL,
   CATEGORIES_HEADING,
@@ -14,6 +16,7 @@ import {
   categoryCreatedLabel,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
+import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 import { CategoriesPage } from "@/pages/CategoriesPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -21,6 +24,13 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   listCategories: vi.fn(),
   createCategory: vi.fn(),
+}));
+
+vi.mock("@/api/profiles", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/profiles")>()),
+  currentProfile: vi.fn(),
+  listProfiles: vi.fn(),
+  switchProfile: vi.fn(),
 }));
 
 const CATEGORY: Category = {
@@ -40,6 +50,15 @@ const SECOND_CATEGORY: Category = {
   color: null,
   created_at: "2026-10-12 09:00:00",
 };
+
+const PROFILE: Profile = {
+  id: 1,
+  name: "Default",
+  created_at: "2026-10-01 08:00:00",
+  updated_at: "2026-10-01 08:00:00",
+};
+
+const OTHER_PROFILE: Profile = { ...PROFILE, id: 2, name: "Work" };
 
 const renderPage = () =>
   render(
@@ -129,6 +148,49 @@ test("a successful create refreshes the list", async () => {
     expect(screen.getByText(CATEGORY.title)).toBeInTheDocument(),
   );
   expect(listCategories).toHaveBeenCalledTimes(2);
+});
+
+test("switching profiles refetches the category list", async () => {
+  const OTHER_CATEGORY: Category = {
+    ...SECOND_CATEGORY,
+    id: 3,
+    profile_id: OTHER_PROFILE.id,
+    title: "Meetings",
+  };
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(currentProfile)
+    .mockResolvedValueOnce(PROFILE)
+    .mockResolvedValue(OTHER_PROFILE);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+
+  await waitFor(() =>
+    expect(screen.getByText(CATEGORY.title)).toBeInTheDocument(),
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByText(OTHER_CATEGORY.title)).toBeInTheDocument(),
+  );
+  expect(screen.queryByText(CATEGORY.title)).not.toBeInTheDocument();
+  expect(switchProfile).toHaveBeenCalledWith(
+    OTHER_PROFILE.id,
+    expect.anything(),
+  );
 });
 
 test("shows the empty state when there are no categories", async () => {
