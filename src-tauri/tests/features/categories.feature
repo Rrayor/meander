@@ -70,3 +70,33 @@ Feature: Categories
     When the category Errands is deleted
     Then the categories of Alpha are ""
     And the category list is empty
+
+  Scenario: creating a category trims and defaults its color
+    Given an application state on a temporary seeded database
+    When I create a category with surrounding whitespace
+    Then the category creation succeeds
+    And a category named Errands exists in the list
+    And the category Errands has the default color
+
+  Scenario: creating a category with a picked color stores it
+    Given an application state on a temporary seeded database
+    When I create a category titled Errands with color "#4ADE80"
+    Then the category creation succeeds
+    And the category Errands has color "#4ade80"
+
+  Scenario: blank category titles are rejected on creation
+    Given an application state on a temporary seeded database
+    When I create a category with a blank title
+    Then the category creation fails
+    And the category list is empty
+
+  Scenario: an invalid category color is rejected
+    Given an application state on a temporary seeded database
+    When I create a category titled Errands with color "teal"
+    Then the category creation fails
+
+  Scenario: an overlong category description is rejected
+    Given an application state on a temporary seeded database
+    When I create a category with an overlong description
+    Then the category creation fails
+    And the category list is empty

@@ -6,7 +6,11 @@ import { RouterProvider } from "react-router-dom";
 import "./index.css";
 import { router } from "./router";
 
-const queryClient = new QueryClient();
+// The backend is a local SQLite file over IPC — a failed call won't heal on
+// its own, so skip TanStack's 3-retry backoff and surface errors immediately.
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

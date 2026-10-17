@@ -5,7 +5,11 @@ import { COMMANDS } from "@/api/commands";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { ADD_TASK_LABEL, editTaskLabel } from "@/lib/labels";
+import {
+  ADD_CATEGORY_LABEL,
+  ADD_TASK_LABEL,
+  editTaskLabel,
+} from "@/lib/labels";
 
 import { STUB_DB_PATH, stubTauriCommands } from "./stubs";
 
@@ -107,6 +111,17 @@ test("the categories page has no WCAG AA violations", async ({ page }) => {
     ],
   });
   await page.goto(`/#${categoriesPath}`);
+  await expectAccessible(page);
+});
+
+test("the new category dialog has no WCAG AA violations", async ({ page }) => {
+  const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listCategories]: [],
+  });
+  await page.goto(`/#${categoriesPath}`);
+  await page.getByRole("button", { name: ADD_CATEGORY_LABEL }).click();
   await expectAccessible(page);
 });
 

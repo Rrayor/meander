@@ -30,6 +30,7 @@ pub fn run() {
             commands::list_profiles,
             commands::list_tasks,
             commands::list_categories,
+            commands::create_category,
             commands::list_task_categories,
             commands::add_task_category,
             commands::remove_task_category,

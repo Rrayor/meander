@@ -17,6 +17,129 @@ fn category_not_found() -> crate::db::DbError {
     }
 }
 
+/// Spec: a category color is optional; an unset color defaults to the
+/// primary accent. Users may pick any color — the palette (which mirrors
+/// the threshold tints in index.css) just offers curated swatches.
+pub const CATEGORY_PALETTE: [&str; 12] = [
+    "#f87171", "#fb923c", "#fbbf24", "#a3e635", "#4ade80", "#34d399", "#22d3ee", "#60a5fa",
+    "#818cf8", "#a78bfa", "#e879f9", "#f472b6",
+];
+pub const DEFAULT_CATEGORY_COLOR: &str = "#2dd4bf";
+
+/// Spec: a category color, when given, is a `#rrggbb` hex value. Whitespace
+/// is trimmed and the hex normalized to lowercase before validation.
+#[nutype::nutype(
+    sanitize(trim, lowercase),
+    validate(predicate = |s: &str| {
+        let Some(hex) = s.strip_prefix('#') else { return false };
+        hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit())
+    }),
+    derive(Debug, PartialEq)
+)]
+struct CategoryColor(String);
+
+fn parse_color(raw: Option<&str>) -> Result<Option<String>> {
+    match raw.map(str::trim).filter(|c| !c.is_empty()) {
+        None => Ok(None),
+        Some(c) => CategoryColor::try_new(c)
+            .map(|c| Some(c.into_inner()))
+            .map_err(|_| crate::db::DbError::Validation {
+                code: ErrorCode::CategoryColorInvalid,
+                message: "category color must be a #rrggbb hex value".into(),
+            }),
+    }
+}
+
+#[nutype::nutype(
+    sanitize(trim),
+    validate(
+        len_char_min = 1,
+        len_char_max = CATEGORY_TITLE_MAX_LEN,
+        predicate = |s| !s.chars().any(char::is_control)
+    ),
+    derive(Debug, PartialEq)
+)]
+pub struct CategoryTitle(String);
+
+impl CategoryTitle {
+    /// Validates `name`; the error variants are mapped to our own vocabulary.
+    pub fn parse(raw: &str) -> Result<Self> {
+        Self::try_new(raw).map_err(|e| {
+            let (code, message) = match e {
+                CategoryTitleError::LenCharMinViolated => (
+                    ErrorCode::CategoryTitleRequired,
+                    "category title is required".into(),
+                ),
+                CategoryTitleError::LenCharMaxViolated => (
+                    ErrorCode::CategoryTitleTooLong,
+                    format!("category title must be {CATEGORY_TITLE_MAX_LEN} characters or fewer"),
+                ),
+                _ => (
+                    ErrorCode::CategoryTitleInvalidCharacters,
+                    "category title cannot contain control characters".into(),
+                ),
+            };
+            crate::db::DbError::Validation { code, message }
+        })
+    }
+}
+
+/// Spec: category descriptions are optional; 20,000 chars matches the task
+/// description bound and is far beyond any realistic annotation.
+pub const CATEGORY_DESCRIPTION_MAX_LEN: usize = 20_000;
+
+#[nutype::nutype(
+    sanitize(trim),
+    validate(len_char_min = 1, len_char_max = CATEGORY_DESCRIPTION_MAX_LEN),
+    derive(Debug, PartialEq)
+)]
+pub struct CategoryDescription(String);
+
+/// Optional/blank-to-None semantics — reported with category vocabulary.
+fn parse_category_description(raw: Option<&str>) -> Result<Option<String>> {
+    Ok(raw
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+        .map(|d| {
+            CategoryDescription::try_new(d).map_err(|_| crate::db::DbError::Validation {
+                code: ErrorCode::CategoryDescriptionTooLong,
+                message: format!(
+                    "category description must be {CATEGORY_DESCRIPTION_MAX_LEN} characters or fewer"
+                ),
+            })
+        })
+        .transpose()?
+        .map(CategoryDescription::into_inner))
+}
+
+#[derive(Debug, Default, serde::Deserialize, specta::Type)]
+pub struct NewCategory {
+    pub title: String,
+    pub description: Option<String>,
+    pub color: Option<String>,
+}
+
+pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewCategory) -> Result<Category> {
+    let title = CategoryTitle::parse(&input.title)?.into_inner();
+    let description = parse_category_description(input.description.as_deref())?;
+    let color =
+        parse_color(input.color.as_deref())?.unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
+    let result = sqlx::query(
+        "INSERT INTO categories (profile_id, title, description, color) VALUES (?, ?, ?, ?)",
+    )
+    .bind(profile_id)
+    .bind(title)
+    .bind(description)
+    .bind(color)
+    .execute(pool)
+    .await?;
+    let category = sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE id = ?")
+        .bind(result.last_insert_rowid())
+        .fetch_one(pool)
+        .await?;
+    Ok(category)
+}
+
 #[derive(Debug, Clone, Serialize, specta::Type, sqlx::FromRow)]
 pub struct Category {
     pub id: i64,
@@ -345,6 +468,118 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(rows, 0);
+    }
+
+    fn new_category_input(title: &str) -> NewCategory {
+        NewCategory {
+            title: title.into(),
+            description: None,
+            color: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn create_trims_and_stores_the_category() {
+        const COLOR: &str = "#2DD4BF";
+        let (pool, pid) = seeded_pool().await;
+        let mut input = new_category_input("  Errands  ");
+        input.description = Some(" Things to buy ".into());
+        input.color = Some(COLOR.into());
+
+        let created = create(&pool, pid, &input).await.unwrap();
+
+        assert_eq!(created.title, "Errands");
+        assert_eq!(created.description.as_deref(), Some("Things to buy"));
+        assert_eq!(
+            created.color.as_deref(),
+            Some(COLOR.to_lowercase().as_str())
+        );
+        assert_eq!(created.profile_id, pid);
+    }
+
+    #[tokio::test]
+    async fn create_trims_unicode_whitespace_beyond_ascii() {
+        // str::trim removes U+0085 (Unicode White_Space) — the client mirrors
+        // this with unicodeTrim so a NEL-padded title is not rejected as a
+        // control character.
+        let (pool, pid) = seeded_pool().await;
+
+        let created = create(&pool, pid, &new_category_input("\u{85}Errands\u{85}"))
+            .await
+            .unwrap();
+
+        assert_eq!(created.title, "Errands");
+    }
+
+    #[tokio::test]
+    async fn create_defaults_color_to_the_primary_accent() {
+        let (pool, pid) = seeded_pool().await;
+
+        let created = create(&pool, pid, &new_category_input(TITLE_A))
+            .await
+            .unwrap();
+
+        assert_eq!(created.color.as_deref(), Some(DEFAULT_CATEGORY_COLOR));
+    }
+
+    #[tokio::test]
+    async fn create_rejects_blank_and_overlong_titles() {
+        let (pool, pid) = seeded_pool().await;
+        for title in ["   ", &"x".repeat(CATEGORY_TITLE_MAX_LEN + 1)] {
+            assert!(
+                create(&pool, pid, &new_category_input(title))
+                    .await
+                    .is_err()
+            );
+        }
+        assert!(list(&pool, pid).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_rejects_an_overlong_description() {
+        let (pool, pid) = seeded_pool().await;
+        let mut input = new_category_input(TITLE_A);
+        input.description = Some("x".repeat(CATEGORY_DESCRIPTION_MAX_LEN + 1));
+
+        let err = create(&pool, pid, &input).await.unwrap_err();
+
+        match err {
+            crate::db::DbError::Validation { code, .. } => {
+                assert_eq!(code, ErrorCode::CategoryDescriptionTooLong);
+            }
+            other => panic!("expected a validation error, got {other:?}"),
+        }
+        assert!(list(&pool, pid).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_accepts_a_description_at_the_bound() {
+        let (pool, pid) = seeded_pool().await;
+        let mut input = new_category_input(TITLE_A);
+        input.description = Some("x".repeat(CATEGORY_DESCRIPTION_MAX_LEN));
+
+        let created = create(&pool, pid, &input).await.unwrap();
+
+        assert_eq!(
+            created.description.map(|d| d.chars().count()),
+            Some(CATEGORY_DESCRIPTION_MAX_LEN)
+        );
+    }
+
+    #[tokio::test]
+    async fn create_rejects_an_invalid_color() {
+        let (pool, pid) = seeded_pool().await;
+        let mut input = new_category_input(TITLE_A);
+        input.color = Some("teal".into());
+
+        let err = create(&pool, pid, &input).await.unwrap_err();
+
+        match err {
+            crate::db::DbError::Validation { code, .. } => {
+                assert_eq!(code, ErrorCode::CategoryColorInvalid);
+            }
+            other => panic!("expected a validation error, got {other:?}"),
+        }
     }
 
     #[tokio::test]
