@@ -11,6 +11,10 @@ export const MAX_CATEGORY_TITLE_LENGTH = 100;
 // Spec: category descriptions are optional and at most 20,000 characters.
 export const MAX_CATEGORY_DESCRIPTION_LENGTH = 20_000;
 
+// Spec: no color pick defaults to the primary accent — the backend stores
+// this on create, and the UI renders NULL (e.g. seeded rows) the same way.
+export const DEFAULT_CATEGORY_COLOR = "#2dd4bf";
+
 // Spec: a category color is optional; the palette mirrors the threshold
 // tints in index.css. No pick defaults to the primary accent server-side.
 export const CATEGORY_COLORS = [

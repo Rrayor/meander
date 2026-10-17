@@ -3,12 +3,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { CATEGORY_COLORS, createCategory } from "@/api/categories";
 import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
-import { CATEGORY_TITLE_TOO_LONG_MESSAGE } from "@/lib/errors";
+import {
+  CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
+  CATEGORY_TITLE_TOO_LONG_MESSAGE,
+} from "@/lib/errors";
 import {
   CATEGORY_TITLE_REQUIRED_MESSAGE,
   CANCEL_BUTTON_LABEL,
   COLOR_FIELD_LABEL,
   CUSTOM_COLOR_LABEL,
+  CUSTOM_COLOR_PICKER_LABEL,
   CREATE_CATEGORY_LABEL,
   TITLE_FIELD_LABEL,
   categorySwatchLabel,
@@ -79,7 +83,7 @@ test("a custom color from the picker is sent on the wire", async () => {
   fireEvent.change(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)), {
     target: { value: CATEGORY_TITLE },
   });
-  fireEvent.change(screen.getByLabelText(CUSTOM_COLOR_LABEL), {
+  fireEvent.change(screen.getByLabelText(CUSTOM_COLOR_PICKER_LABEL), {
     target: { value: CUSTOM_HEX },
   });
   fireEvent.click(screen.getByRole("button", { name: CREATE_CATEGORY_LABEL }));
@@ -90,6 +94,12 @@ test("a custom color from the picker is sent on the wire", async () => {
       expect.anything(),
     ),
   );
+
+  // The custom option must report its own checked state — without it the
+  // radiogroup announces nothing selected once a custom color is picked.
+  expect(
+    screen.getByRole("radio", { name: CUSTOM_COLOR_LABEL }),
+  ).toHaveAttribute("aria-checked", "true");
 });
 
 test("no color pick sends null so the backend applies the default", async () => {
@@ -116,7 +126,8 @@ test("the color group is an accessible radiogroup", async () => {
   });
   const radios = screen.getAllByRole("radio");
   expect(group).toContainElement(radios[0]);
-  expect(radios.length).toBe(CATEGORY_COLORS.length + 1);
+  // Default option + palette swatches + the custom-color option.
+  expect(radios.length).toBe(CATEGORY_COLORS.length + 2);
   fireEvent.click(
     screen.getByRole("radio", {
       name: categorySwatchLabel(CATEGORY_COLORS[0]),
@@ -141,6 +152,43 @@ test("Escape and Cancel close without submitting", async () => {
   fireEvent.click(screen.getByRole("button", { name: CANCEL_BUTTON_LABEL }));
   expect(onClose).toHaveBeenCalled();
   expect(createCategory).not.toHaveBeenCalled();
+});
+
+test("control characters show the inline error without calling the backend", async () => {
+  renderDialog();
+
+  fireEvent.change(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)), {
+    target: { value: `${CATEGORY_TITLE}` },
+  });
+  fireEvent.blur(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)));
+
+  fireEvent.click(screen.getByRole("button", { name: CREATE_CATEGORY_LABEL }));
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
+    ),
+  );
+  expect(createCategory).not.toHaveBeenCalled();
+});
+
+test("titles beyond the UTF-16 length but within the char bound submit", async () => {
+  vi.mocked(createCategory).mockResolvedValue({} as never);
+  renderDialog();
+  // 60 emoji = 120 UTF-16 units but only 60 code points — the backend's
+  // len_char_max(100) accepts it, so the client schema must too.
+  const EMOJI_TITLE = "🛒".repeat(60);
+
+  fireEvent.change(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)), {
+    target: { value: EMOJI_TITLE },
+  });
+  fireEvent.click(screen.getByRole("button", { name: CREATE_CATEGORY_LABEL }));
+
+  await waitFor(() =>
+    expect(createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ title: EMOJI_TITLE }),
+      expect.anything(),
+    ),
+  );
 });
 
 test("typed server errors map to the matching copy", async () => {

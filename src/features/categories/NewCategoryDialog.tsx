@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import {
   CATEGORY_COLORS,
+  DEFAULT_CATEGORY_COLOR,
   MAX_CATEGORY_DESCRIPTION_LENGTH,
   MAX_CATEGORY_TITLE_LENGTH,
   createCategory,
@@ -13,6 +14,7 @@ import {
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
+  CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
   CATEGORY_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
@@ -23,6 +25,7 @@ import {
   CLOSE_LABEL,
   COLOR_FIELD_LABEL,
   CUSTOM_COLOR_LABEL,
+  CUSTOM_COLOR_PICKER_LABEL,
   DEFAULT_COLOR_LABEL,
   CREATE_CATEGORY_LABEL,
   DESCRIPTION_FIELD_LABEL,
@@ -32,18 +35,27 @@ import {
   categorySwatchLabel,
 } from "@/lib/labels";
 
+// Rust's len_char_* counts Unicode scalar values; JS string length and
+// .max() count UTF-16 units, so multi-byte chars would hit a stricter
+// limit client-side than the backend's. [...s].length matches chars().count().
+const codePointsWithin = (s: string, max: number) => [...s].length <= max;
+
 const schema = z.object({
   title: z
     .string()
     .trim()
     .min(1, CATEGORY_TITLE_REQUIRED_MESSAGE)
-    .max(MAX_CATEGORY_TITLE_LENGTH, CATEGORY_TITLE_TOO_LONG_MESSAGE),
+    .refine((s) => codePointsWithin(s, MAX_CATEGORY_TITLE_LENGTH), {
+      message: CATEGORY_TITLE_TOO_LONG_MESSAGE,
+    })
+    .refine((s) => !/\p{Cc}/u.test(s), {
+      message: CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
+    }),
   description: z
     .string()
-    .max(
-      MAX_CATEGORY_DESCRIPTION_LENGTH,
-      CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
-    ),
+    .refine((s) => codePointsWithin(s, MAX_CATEGORY_DESCRIPTION_LENGTH), {
+      message: CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
+    }),
   // Empty string = no pick; the backend then defaults to the primary accent.
   color: z.string(),
 });
@@ -67,6 +79,7 @@ export function NewCategoryDialog({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const {
     register,
     control,
@@ -153,7 +166,6 @@ export function NewCategoryDialog({
             <input
               id="new-category-title-input"
               type="text"
-              maxLength={MAX_CATEGORY_TITLE_LENGTH}
               placeholder="e.g. Engineering or Research"
               aria-invalid={!!errors.title}
               aria-describedby={
@@ -183,7 +195,6 @@ export function NewCategoryDialog({
             <textarea
               id="new-category-description"
               rows={3}
-              maxLength={MAX_CATEGORY_DESCRIPTION_LENGTH}
               placeholder="Add context or scope for this category"
               aria-invalid={!!errors.description}
               aria-describedby={
@@ -252,26 +263,39 @@ export function NewCategoryDialog({
                         }`}
                       />
                     ))}
-                    <label
-                      className={`relative h-6 w-6 cursor-pointer rounded-full transition-all ${
-                        customSelected
-                          ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
-                          : "hover:scale-110"
-                      }`}
-                      style={{
-                        background: customSelected
-                          ? value
-                          : "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)",
-                      }}
-                    >
-                      <input
-                        type="color"
+                    {/* The button is the radiogroup member so the custom pick
+                        reports aria-checked to AT and is keyboard-activatable;
+                        the color input overlays it for pointer interaction. */}
+                    <div className="group relative">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={customSelected}
                         aria-label={CUSTOM_COLOR_LABEL}
-                        value={customSelected ? value : "#2dd4bf"}
+                        onClick={(e) => {
+                          if (e.target === e.currentTarget)
+                            colorInputRef.current?.click();
+                        }}
+                        className={`h-6 w-6 rounded-full transition-all ${
+                          customSelected
+                            ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
+                            : "group-hover:scale-110"
+                        }`}
+                        style={{
+                          background: customSelected
+                            ? value
+                            : "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)",
+                        }}
+                      />
+                      <input
+                        ref={colorInputRef}
+                        type="color"
+                        aria-label={CUSTOM_COLOR_PICKER_LABEL}
+                        value={customSelected ? value : DEFAULT_CATEGORY_COLOR}
                         onChange={(e) => onChange(e.target.value)}
                         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                       />
-                    </label>
+                    </div>
                   </div>
                 );
               }}

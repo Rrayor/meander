@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { listCategories } from "@/api/categories";
+import { DEFAULT_CATEGORY_COLOR, listCategories } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
 import {
@@ -13,9 +13,10 @@ import {
 } from "@/lib/labels";
 import { errorMessage, formatDate } from "@/lib/utils";
 
-// Categories without a color yet get a neutral dot; stored colors are hex
-// values applied inline since they are data, not theme tokens.
-const UNCOLORED = "var(--color-text-muted)";
+// A NULL color means "no pick" — the same default the backend stores on
+// create. Stored colors are hex values applied inline since they are data,
+// not theme tokens.
+const UNCOLORED = DEFAULT_CATEGORY_COLOR;
 
 export function CategoriesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);

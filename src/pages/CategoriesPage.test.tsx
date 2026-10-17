@@ -1,7 +1,11 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { createCategory, listCategories } from "@/api/categories";
+import {
+  DEFAULT_CATEGORY_COLOR,
+  createCategory,
+  listCategories,
+} from "@/api/categories";
 import type { Category } from "@/api/categories";
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
@@ -84,7 +88,7 @@ test("lists categories with title, color dot, and audit date", async () => {
   expect(screen.getByText(CATEGORIES_SUBTITLE)).toBeInTheDocument();
 });
 
-test("the color dot applies the stored color and a neutral fallback", async () => {
+test("the color dot applies the stored color and the accent fallback", async () => {
   vi.mocked(listCategories).mockResolvedValue([CATEGORY, SECOND_CATEGORY]);
   renderPage();
 
@@ -95,7 +99,7 @@ test("the color dot applies the stored color and a neutral fallback", async () =
     "span[aria-hidden='true']",
   );
   expect(colored).toHaveStyle({ backgroundColor: CATEGORY.color! });
-  expect(uncolored).toHaveStyle({ backgroundColor: "var(--color-text-muted)" });
+  expect(uncolored).toHaveStyle({ backgroundColor: DEFAULT_CATEGORY_COLOR });
 });
 
 test("rows render in the order the backend returns", async () => {

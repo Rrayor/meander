@@ -5,7 +5,7 @@ import {
   CATEGORY_TITLE_REQUIRED_MESSAGE,
   CATEGORIES_HEADING,
   CREATE_CATEGORY_LABEL,
-  CUSTOM_COLOR_LABEL,
+  CUSTOM_COLOR_PICKER_LABEL,
   DESCRIPTION_FIELD_LABEL,
   EMPTY_CATEGORIES_MESSAGE,
   NEW_CATEGORY_HEADING,
@@ -171,7 +171,7 @@ test("the dialog sends description and a custom picked color on the wire", async
   await page
     .getByLabel(new RegExp(DESCRIPTION_FIELD_LABEL))
     .fill(created.description);
-  await page.getByLabel(CUSTOM_COLOR_LABEL).fill(created.color);
+  await page.getByLabel(CUSTOM_COLOR_PICKER_LABEL).fill(created.color);
   await page.getByRole("button", { name: CREATE_CATEGORY_LABEL }).click();
 
   const invocations = await getInvocations(page);
