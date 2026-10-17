@@ -681,6 +681,20 @@ fn create_category_with_color(world: &mut MeanderWorld, title: String, color: St
     );
 }
 
+#[when("I create a category with an overlong description")]
+fn create_category_with_overlong_description(world: &mut MeanderWorld) {
+    create_category_input(
+        world,
+        meander_lib::categories::NewCategory {
+            title: "Errands".into(),
+            description: Some(
+                "x".repeat(meander_lib::categories::CATEGORY_DESCRIPTION_MAX_LEN + 1),
+            ),
+            color: None,
+        },
+    );
+}
+
 #[when("I create a category with a blank title")]
 fn create_blank_category(world: &mut MeanderWorld) {
     create_category_input(

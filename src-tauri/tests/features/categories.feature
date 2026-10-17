@@ -94,3 +94,9 @@ Feature: Categories
     Given an application state on a temporary seeded database
     When I create a category titled Errands with color "teal"
     Then the category creation fails
+
+  Scenario: an overlong category description is rejected
+    Given an application state on a temporary seeded database
+    When I create a category with an overlong description
+    Then the category creation fails
+    And the category list is empty

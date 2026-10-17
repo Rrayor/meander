@@ -522,6 +522,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_rejects_an_overlong_description() {
+        let (pool, pid) = seeded_pool().await;
+        let mut input = new_category_input(TITLE_A);
+        input.description = Some("x".repeat(CATEGORY_DESCRIPTION_MAX_LEN + 1));
+
+        let err = create(&pool, pid, &input).await.unwrap_err();
+
+        match err {
+            crate::db::DbError::Validation { code, .. } => {
+                assert_eq!(code, ErrorCode::CategoryDescriptionTooLong);
+            }
+            other => panic!("expected a validation error, got {other:?}"),
+        }
+        assert!(list(&pool, pid).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_accepts_a_description_at_the_bound() {
+        let (pool, pid) = seeded_pool().await;
+        let mut input = new_category_input(TITLE_A);
+        input.description = Some("x".repeat(CATEGORY_DESCRIPTION_MAX_LEN));
+
+        let created = create(&pool, pid, &input).await.unwrap();
+
+        assert_eq!(
+            created.description.map(|d| d.chars().count()),
+            Some(CATEGORY_DESCRIPTION_MAX_LEN)
+        );
+    }
+
+    #[tokio::test]
     async fn create_rejects_an_invalid_color() {
         let (pool, pid) = seeded_pool().await;
         let mut input = new_category_input(TITLE_A);
