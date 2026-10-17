@@ -6,16 +6,16 @@ import { z } from "zod";
 
 import {
   CATEGORY_COLORS,
+  MAX_CATEGORY_DESCRIPTION_LENGTH,
   MAX_CATEGORY_TITLE_LENGTH,
   createCategory,
 } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
+  CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
   CATEGORY_TITLE_TOO_LONG_MESSAGE,
-  TASK_DESCRIPTION_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
-import { MAX_TASK_DESCRIPTION_LENGTH } from "@/api/tasks";
 import {
   CANCEL_BUTTON_LABEL,
   CATEGORY_TITLE_REQUIRED_MESSAGE,
@@ -40,7 +40,10 @@ const schema = z.object({
     .max(MAX_CATEGORY_TITLE_LENGTH, CATEGORY_TITLE_TOO_LONG_MESSAGE),
   description: z
     .string()
-    .max(MAX_TASK_DESCRIPTION_LENGTH, TASK_DESCRIPTION_TOO_LONG_MESSAGE),
+    .max(
+      MAX_CATEGORY_DESCRIPTION_LENGTH,
+      CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
+    ),
   // Empty string = no pick; the backend then defaults to the primary accent.
   color: z.string(),
 });
@@ -180,7 +183,7 @@ export function NewCategoryDialog({
             <textarea
               id="new-category-description"
               rows={3}
-              maxLength={MAX_TASK_DESCRIPTION_LENGTH}
+              maxLength={MAX_CATEGORY_DESCRIPTION_LENGTH}
               placeholder="Add context or scope for this category"
               aria-invalid={!!errors.description}
               aria-describedby={

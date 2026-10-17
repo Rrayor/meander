@@ -8,8 +8,11 @@ export type { Category, NewCategory };
 // Spec: category titles are required and at most 100 characters.
 export const MAX_CATEGORY_TITLE_LENGTH = 100;
 
+// Spec: category descriptions are optional and at most 20,000 characters.
+export const MAX_CATEGORY_DESCRIPTION_LENGTH = 20_000;
+
 // Spec: a category color is optional; the palette mirrors the threshold
-// tints in index.css. No pick defaults to a random palette color.
+// tints in index.css. No pick defaults to the primary accent server-side.
 export const CATEGORY_COLORS = [
   "#f87171",
   "#fb923c",

@@ -1,5 +1,8 @@
 import type { ErrorCode } from "@/api/bindings";
-import { MAX_CATEGORY_TITLE_LENGTH } from "@/api/categories";
+import {
+  MAX_CATEGORY_DESCRIPTION_LENGTH,
+  MAX_CATEGORY_TITLE_LENGTH,
+} from "@/api/categories";
 import {
   MAX_DURATION_MINUTES,
   MAX_TASK_DESCRIPTION_LENGTH,
@@ -25,6 +28,8 @@ export const TASK_DESCRIPTION_TOO_LONG_MESSAGE = `Description must be ${MAX_TASK
 
 export const CATEGORY_TITLE_TOO_LONG_MESSAGE = `Category title must be ${MAX_CATEGORY_TITLE_LENGTH} characters or fewer`;
 
+export const CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE = `Category description must be ${MAX_CATEGORY_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`;
+
 export const CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE =
   "Category title cannot contain control characters";
 
@@ -41,7 +46,7 @@ export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   category_title_required: CATEGORY_TITLE_REQUIRED_MESSAGE,
   category_title_too_long: CATEGORY_TITLE_TOO_LONG_MESSAGE,
   category_title_invalid_characters: CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
-  category_description_too_long: TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+  category_description_too_long: CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
   category_color_invalid: CATEGORY_COLOR_INVALID_MESSAGE,
 };
 
