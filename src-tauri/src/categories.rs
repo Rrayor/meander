@@ -88,23 +88,28 @@ impl CategoryTitle {
 /// description bound and is far beyond any realistic annotation.
 pub const CATEGORY_DESCRIPTION_MAX_LEN: usize = 20_000;
 
+#[nutype::nutype(
+    sanitize(trim),
+    validate(len_char_min = 1, len_char_max = CATEGORY_DESCRIPTION_MAX_LEN),
+    derive(Debug, PartialEq)
+)]
+pub struct CategoryDescription(String);
+
 /// Optional/blank-to-None semantics — reported with category vocabulary.
 fn parse_category_description(raw: Option<&str>) -> Result<Option<String>> {
-    raw.map(str::trim)
+    Ok(raw
+        .map(str::trim)
         .filter(|d| !d.is_empty())
         .map(|d| {
-            if d.chars().count() > CATEGORY_DESCRIPTION_MAX_LEN {
-                Err(crate::db::DbError::Validation {
-                    code: ErrorCode::CategoryDescriptionTooLong,
-                    message: format!(
-                        "category description must be {CATEGORY_DESCRIPTION_MAX_LEN} characters or fewer"
-                    ),
-                })
-            } else {
-                Ok(d.to_string())
-            }
+            CategoryDescription::try_new(d).map_err(|_| crate::db::DbError::Validation {
+                code: ErrorCode::CategoryDescriptionTooLong,
+                message: format!(
+                    "category description must be {CATEGORY_DESCRIPTION_MAX_LEN} characters or fewer"
+                ),
+            })
         })
-        .transpose()
+        .transpose()?
+        .map(CategoryDescription::into_inner))
 }
 
 #[derive(Debug, Default, serde::Deserialize, specta::Type)]
