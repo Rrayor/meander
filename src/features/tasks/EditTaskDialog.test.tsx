@@ -20,6 +20,7 @@ import {
   TITLE_REQUIRED_MESSAGE,
 } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
+import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
@@ -193,7 +194,9 @@ describe("EditTaskDialog", () => {
   it("accepts a title past the UTF-16 length but within the char bound", async () => {
     mockedUpdate.mockResolvedValue(baseTask);
     renderDialog();
-    const EMOJI_TITLE = "🛒".repeat(Math.floor(MAX_TASK_TITLE_LENGTH / 2) + 1);
+    const EMOJI_TITLE = MULTI_UNIT_EMOJI.repeat(
+      Math.floor(MAX_TASK_TITLE_LENGTH / 2) + 1,
+    );
 
     fireEvent.change(screen.getByLabelText(/Title/), {
       target: { value: EMOJI_TITLE },
@@ -206,6 +209,26 @@ describe("EditTaskDialog", () => {
       expect(mockedUpdate).toHaveBeenCalledWith(
         baseTask.id,
         expect.objectContaining({ title: EMOJI_TITLE }),
+      ),
+    );
+  });
+
+  it("trims U+0085 like the backend before validating", async () => {
+    mockedUpdate.mockResolvedValue(baseTask);
+    renderDialog();
+    const NEL_PADDED = `\u0085${TITLE_EDITED}\u0085`;
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: NEL_PADDED },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        baseTask.id,
+        expect.objectContaining({ title: TITLE_EDITED }),
       ),
     );
   });

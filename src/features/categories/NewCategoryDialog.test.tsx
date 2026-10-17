@@ -19,6 +19,7 @@ import {
 } from "@/lib/labels";
 import { ApiError } from "@/api/transport";
 import { testQueryClient } from "@/test/queryClient";
+import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
@@ -176,7 +177,7 @@ test("titles beyond the UTF-16 length but within the char bound submit", async (
   renderDialog();
   // 60 emoji = 120 UTF-16 units but only 60 code points — the backend's
   // len_char_max(100) accepts it, so the client schema must too.
-  const EMOJI_TITLE = "🛒".repeat(60);
+  const EMOJI_TITLE = MULTI_UNIT_EMOJI.repeat(60);
 
   fireEvent.change(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)), {
     target: { value: EMOJI_TITLE },
@@ -186,6 +187,26 @@ test("titles beyond the UTF-16 length but within the char bound submit", async (
   await waitFor(() =>
     expect(createCategory).toHaveBeenCalledWith(
       expect.objectContaining({ title: EMOJI_TITLE }),
+      expect.anything(),
+    ),
+  );
+});
+
+test("trims U+0085 like the backend before validating", async () => {
+  vi.mocked(createCategory).mockResolvedValue({} as never);
+  renderDialog();
+  // Rust's trim removes U+0085 (Unicode White_Space); JS trim does not —
+  // the client must sanitize the same way so it doesn't reject valid input.
+  const NEL_PADDED = `\u0085${CATEGORY_TITLE}\u0085`;
+
+  fireEvent.change(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL)), {
+    target: { value: NEL_PADDED },
+  });
+  fireEvent.click(screen.getByRole("button", { name: CREATE_CATEGORY_LABEL }));
+
+  await waitFor(() =>
+    expect(createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ title: CATEGORY_TITLE }),
       expect.anything(),
     ),
   );

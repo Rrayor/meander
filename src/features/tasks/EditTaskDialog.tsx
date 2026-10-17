@@ -44,7 +44,7 @@ import {
   TITLE_REQUIRED_MESSAGE,
   auditTimestampsLabel,
 } from "@/lib/labels";
-import { codePointsWithin, formatDate } from "@/lib/utils";
+import { codePointsWithin, formatDate, unicodeTrim } from "@/lib/utils";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -53,14 +53,18 @@ const schema = z
   .object({
     title: z
       .string()
-      .trim()
-      .min(1, TITLE_REQUIRED_MESSAGE)
-      .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
-        message: TASK_TITLE_TOO_LONG_MESSAGE,
-      })
-      .refine((s) => !/\p{Cc}/u.test(s), {
-        message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
-      }),
+      .transform(unicodeTrim)
+      .pipe(
+        z
+          .string()
+          .min(1, TITLE_REQUIRED_MESSAGE)
+          .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
+            message: TASK_TITLE_TOO_LONG_MESSAGE,
+          })
+          .refine((s) => !/\p{Cc}/u.test(s), {
+            message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+          }),
+      ),
     description: z
       .string()
       .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
@@ -171,7 +175,7 @@ export function EditTaskDialog({
   const onSubmit = (values: FormValues) => {
     update.mutate({
       title: values.title,
-      description: values.description.trim() || null,
+      description: unicodeTrim(values.description) || null,
       estimated_minutes: toMinutes(values.estHours, values.estMinutes),
       spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       carry_over_rule: values.carryOver === "" ? null : values.carryOver,

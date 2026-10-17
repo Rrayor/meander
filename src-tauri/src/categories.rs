@@ -498,6 +498,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_trims_unicode_whitespace_beyond_ascii() {
+        // str::trim removes U+0085 (Unicode White_Space) — the client mirrors
+        // this with unicodeTrim so a NEL-padded title is not rejected as a
+        // control character.
+        let (pool, pid) = seeded_pool().await;
+
+        let created = create(&pool, pid, &new_category_input("\u{85}Errands\u{85}"))
+            .await
+            .unwrap();
+
+        assert_eq!(created.title, "Errands");
+    }
+
+    #[tokio::test]
     async fn create_defaults_color_to_the_primary_accent() {
         let (pool, pid) = seeded_pool().await;
 

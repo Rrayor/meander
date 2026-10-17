@@ -36,7 +36,7 @@ import {
   TITLE_FIELD_LABEL,
   TITLE_REQUIRED_MESSAGE,
 } from "@/lib/labels";
-import { codePointsWithin } from "@/lib/utils";
+import { codePointsWithin, unicodeTrim } from "@/lib/utils";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -45,14 +45,18 @@ const schema = z
   .object({
     title: z
       .string()
-      .trim()
-      .min(1, TITLE_REQUIRED_MESSAGE)
-      .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
-        message: TASK_TITLE_TOO_LONG_MESSAGE,
-      })
-      .refine((s) => !/\p{Cc}/u.test(s), {
-        message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
-      }),
+      .transform(unicodeTrim)
+      .pipe(
+        z
+          .string()
+          .min(1, TITLE_REQUIRED_MESSAGE)
+          .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
+            message: TASK_TITLE_TOO_LONG_MESSAGE,
+          })
+          .refine((s) => !/\p{Cc}/u.test(s), {
+            message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+          }),
+      ),
     description: z
       .string()
       .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
@@ -132,7 +136,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
     const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
     create.mutate({
       title,
-      description: description.trim() || null,
+      description: unicodeTrim(description) || null,
       estimated_minutes: hasEstimate ? total : null,
       carry_over_rule: carryOver === "" ? null : carryOver,
     });

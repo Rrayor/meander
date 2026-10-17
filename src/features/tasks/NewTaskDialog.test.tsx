@@ -12,6 +12,7 @@ import {
 } from "@/lib/errors";
 import { TITLE_REQUIRED_MESSAGE } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
+import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
@@ -117,13 +118,31 @@ describe("NewTaskDialog", () => {
     );
     // Emoji are 2 UTF-16 units each — the backend's len_char_max counts code
     // points, so the client schema must not cap them earlier.
-    const EMOJI_TITLE = "🛒".repeat(Math.floor(MAX_TASK_TITLE_LENGTH / 2) + 1);
+    const EMOJI_TITLE = MULTI_UNIT_EMOJI.repeat(
+      Math.floor(MAX_TASK_TITLE_LENGTH / 2) + 1,
+    );
 
     fillTitle(EMOJI_TITLE);
     submit();
 
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
     expect(mockedCreate.mock.calls[0][0].title).toBe(EMOJI_TITLE);
+  });
+
+  it("trims U+0085 like the backend before validating", async () => {
+    renderDialog();
+    mockedCreate.mockResolvedValue(
+      {} as Awaited<ReturnType<typeof createTask>>,
+    );
+    // Rust's trim removes U+0085 (Unicode White_Space); JS trim does not —
+    // the client must sanitize the same way so it doesn't reject valid input.
+    const NEL_PADDED = `\u0085${VALID_TITLE}\u0085`;
+
+    fillTitle(NEL_PADDED);
+    submit();
+
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
+    expect(mockedCreate.mock.calls[0][0].title).toBe(VALID_TITLE);
   });
 
   // The end-to-end server-error path (reject → React Query → inline alert →

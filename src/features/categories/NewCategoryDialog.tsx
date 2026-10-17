@@ -34,19 +34,23 @@ import {
   TITLE_FIELD_LABEL,
   categorySwatchLabel,
 } from "@/lib/labels";
-import { codePointsWithin } from "@/lib/utils";
+import { codePointsWithin, unicodeTrim } from "@/lib/utils";
 
 const schema = z.object({
   title: z
     .string()
-    .trim()
-    .min(1, CATEGORY_TITLE_REQUIRED_MESSAGE)
-    .refine((s) => codePointsWithin(s, MAX_CATEGORY_TITLE_LENGTH), {
-      message: CATEGORY_TITLE_TOO_LONG_MESSAGE,
-    })
-    .refine((s) => !/\p{Cc}/u.test(s), {
-      message: CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
-    }),
+    .transform(unicodeTrim)
+    .pipe(
+      z
+        .string()
+        .min(1, CATEGORY_TITLE_REQUIRED_MESSAGE)
+        .refine((s) => codePointsWithin(s, MAX_CATEGORY_TITLE_LENGTH), {
+          message: CATEGORY_TITLE_TOO_LONG_MESSAGE,
+        })
+        .refine((s) => !/\p{Cc}/u.test(s), {
+          message: CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
+        }),
+    ),
   description: z
     .string()
     .refine((s) => codePointsWithin(s, MAX_CATEGORY_DESCRIPTION_LENGTH), {
@@ -103,7 +107,7 @@ export function NewCategoryDialog({
   const onSubmit = ({ title, description, color }: FormValues) => {
     create.mutate({
       title,
-      description: description.trim() || null,
+      description: unicodeTrim(description) || null,
       color: color || null,
     });
   };
