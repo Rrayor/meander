@@ -26,21 +26,28 @@ pub const CATEGORY_PALETTE: [&str; 12] = [
 ];
 pub const DEFAULT_CATEGORY_COLOR: &str = "#2dd4bf";
 
+/// Spec: a category color, when given, is a `#rrggbb` hex value. Whitespace
+/// is trimmed and the hex normalized to lowercase before validation.
+#[nutype::nutype(
+    sanitize(trim, lowercase),
+    validate(predicate = |s: &str| {
+        let Some(hex) = s.strip_prefix('#') else { return false };
+        hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit())
+    }),
+    derive(Debug, PartialEq)
+)]
+struct CategoryColor(String);
+
 fn parse_color(raw: Option<&str>) -> Result<Option<String>> {
-    let Some(raw) = raw else { return Ok(None) };
-    let trimmed = raw.trim().to_lowercase();
-    if trimmed.is_empty() {
-        return Ok(None);
+    match raw.map(str::trim).filter(|c| !c.is_empty()) {
+        None => Ok(None),
+        Some(c) => CategoryColor::try_new(c)
+            .map(|c| Some(c.into_inner()))
+            .map_err(|_| crate::db::DbError::Validation {
+                code: ErrorCode::CategoryColorInvalid,
+                message: "category color must be a #rrggbb hex value".into(),
+            }),
     }
-    let hex = trimmed.strip_prefix('#').unwrap_or(&trimmed);
-    let valid = hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit());
-    if !valid {
-        return Err(crate::db::DbError::Validation {
-            code: ErrorCode::CategoryColorInvalid,
-            message: "category color must be a #rrggbb hex value".into(),
-        });
-    }
-    Ok(Some(format!("#{hex}")))
 }
 
 #[nutype::nutype(
