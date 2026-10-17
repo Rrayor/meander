@@ -84,18 +84,20 @@ impl CategoryTitle {
     }
 }
 
-/// Same optional/blank-to-None semantics as task descriptions, with the
-/// shared bound — reported with category vocabulary.
+/// Spec: category descriptions are optional; 20,000 chars matches the task
+/// description bound and is far beyond any realistic annotation.
+pub const CATEGORY_DESCRIPTION_MAX_LEN: usize = 20_000;
+
+/// Optional/blank-to-None semantics — reported with category vocabulary.
 fn parse_category_description(raw: Option<&str>) -> Result<Option<String>> {
     raw.map(str::trim)
         .filter(|d| !d.is_empty())
         .map(|d| {
-            if d.chars().count() > crate::tasks::TASK_DESCRIPTION_MAX_LEN {
+            if d.chars().count() > CATEGORY_DESCRIPTION_MAX_LEN {
                 Err(crate::db::DbError::Validation {
                     code: ErrorCode::CategoryDescriptionTooLong,
                     message: format!(
-                        "category description must be {} characters or fewer",
-                        crate::tasks::TASK_DESCRIPTION_MAX_LEN
+                        "category description must be {CATEGORY_DESCRIPTION_MAX_LEN} characters or fewer"
                     ),
                 })
             } else {
