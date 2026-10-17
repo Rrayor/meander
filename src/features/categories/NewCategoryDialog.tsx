@@ -34,11 +34,7 @@ import {
   TITLE_FIELD_LABEL,
   categorySwatchLabel,
 } from "@/lib/labels";
-
-// Rust's len_char_* counts Unicode scalar values; JS string length and
-// .max() count UTF-16 units, so multi-byte chars would hit a stricter
-// limit client-side than the backend's. [...s].length matches chars().count().
-const codePointsWithin = (s: string, max: number) => [...s].length <= max;
+import { codePointsWithin } from "@/lib/utils";
 
 const schema = z.object({
   title: z

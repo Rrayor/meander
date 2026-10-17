@@ -15,6 +15,9 @@ import type { Task } from "@/api/tasks";
 import {
   DURATION_RANGE_MESSAGE,
   SPENT_RANGE_MESSAGE,
+  TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+  TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
 import {
@@ -41,7 +44,7 @@ import {
   TITLE_REQUIRED_MESSAGE,
   auditTimestampsLabel,
 } from "@/lib/labels";
-import { formatDate } from "@/lib/utils";
+import { codePointsWithin, formatDate } from "@/lib/utils";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -52,16 +55,17 @@ const schema = z
       .string()
       .trim()
       .min(1, TITLE_REQUIRED_MESSAGE)
-      .max(
-        MAX_TASK_TITLE_LENGTH,
-        `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
-      ),
+      .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
+        message: TASK_TITLE_TOO_LONG_MESSAGE,
+      })
+      .refine((s) => !/\p{Cc}/u.test(s), {
+        message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+      }),
     description: z
       .string()
-      .max(
-        MAX_TASK_DESCRIPTION_LENGTH,
-        `Description must be ${MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`,
-      ),
+      .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
+        message: TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+      }),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
     spentHours: optionalDurationPart("Hours"),
@@ -278,7 +282,6 @@ export function EditTaskDialog({
             <input
               id="edit-task-title-input"
               type="text"
-              maxLength={MAX_TASK_TITLE_LENGTH}
               aria-invalid={!!errors.title}
               aria-describedby={
                 errors.title ? "edit-task-title-error" : undefined
@@ -307,7 +310,6 @@ export function EditTaskDialog({
             <textarea
               id="edit-task-description"
               rows={3}
-              maxLength={MAX_TASK_DESCRIPTION_LENGTH}
               aria-invalid={!!errors.description}
               aria-describedby={
                 errors.description ? "edit-task-description-error" : undefined

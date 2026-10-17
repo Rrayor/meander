@@ -11,7 +11,13 @@ import {
   MAX_TASK_TITLE_LENGTH,
   createTask,
 } from "@/api/tasks";
-import { DURATION_RANGE_MESSAGE, serverErrorMessage } from "@/lib/errors";
+import {
+  DURATION_RANGE_MESSAGE,
+  TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+  TASK_TITLE_TOO_LONG_MESSAGE,
+  serverErrorMessage,
+} from "@/lib/errors";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -30,6 +36,7 @@ import {
   TITLE_FIELD_LABEL,
   TITLE_REQUIRED_MESSAGE,
 } from "@/lib/labels";
+import { codePointsWithin } from "@/lib/utils";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -40,16 +47,17 @@ const schema = z
       .string()
       .trim()
       .min(1, TITLE_REQUIRED_MESSAGE)
-      .max(
-        MAX_TASK_TITLE_LENGTH,
-        `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
-      ),
+      .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
+        message: TASK_TITLE_TOO_LONG_MESSAGE,
+      })
+      .refine((s) => !/\p{Cc}/u.test(s), {
+        message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+      }),
     description: z
       .string()
-      .max(
-        MAX_TASK_DESCRIPTION_LENGTH,
-        `Description must be ${MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`,
-      ),
+      .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
+        message: TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+      }),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
     carryOver: z.enum(["", "carry", "return"]),
@@ -185,7 +193,6 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
             <input
               id="new-task-title-input"
               type="text"
-              maxLength={MAX_TASK_TITLE_LENGTH}
               placeholder="e.g. Renew passport"
               aria-invalid={!!errors.title}
               aria-describedby={
@@ -215,7 +222,6 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
             <textarea
               id="new-task-description"
               rows={3}
-              maxLength={MAX_TASK_DESCRIPTION_LENGTH}
               placeholder="Add details, links, or context"
               aria-invalid={!!errors.description}
               aria-describedby={

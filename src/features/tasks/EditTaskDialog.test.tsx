@@ -1,10 +1,13 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { updateTask } from "@/api/tasks";
+import { MAX_TASK_TITLE_LENGTH, updateTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
-import { SPENT_RANGE_MESSAGE } from "@/lib/errors";
+import {
+  SPENT_RANGE_MESSAGE,
+  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+} from "@/lib/errors";
 import {
   CANCEL_BUTTON_LABEL,
   EDIT_TASK_HEADING,
@@ -169,6 +172,42 @@ describe("EditTaskDialog", () => {
       TITLE_REQUIRED_MESSAGE,
     );
     expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("blocks control characters without calling the backend", async () => {
+    renderDialog();
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: `${TITLE_EDITED}` },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+    );
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("accepts a title past the UTF-16 length but within the char bound", async () => {
+    mockedUpdate.mockResolvedValue(baseTask);
+    renderDialog();
+    const EMOJI_TITLE = "🛒".repeat(Math.floor(MAX_TASK_TITLE_LENGTH / 2) + 1);
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: EMOJI_TITLE },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        baseTask.id,
+        expect.objectContaining({ title: EMOJI_TITLE }),
+      ),
+    );
   });
 
   it("surfaces a mapped server error", async () => {
