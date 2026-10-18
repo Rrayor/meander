@@ -171,10 +171,17 @@ export function EditTaskDialog({
     queryFn: () => listTaskCategories(task.id),
   });
   const [categories, setCategories] = useState<Category[]>();
-  // Derived state adjusted during render (not an effect): seeds the field
-  // once the associations resolve without clobbering earlier edits.
-  if (initialCategories && categories === undefined) {
-    setCategories(initialCategories);
+  const [categoriesSeeded, setCategoriesSeeded] = useState(false);
+  // Derived state adjusted during render (not an effect): when the stored
+  // associations resolve, merge them with anything picked beforehand — an
+  // early pick must never silently erase the task's existing categories.
+  if (initialCategories && !categoriesSeeded) {
+    const initialIds = new Set(initialCategories.map((c) => c.id));
+    setCategories([
+      ...initialCategories,
+      ...(categories ?? []).filter((c) => !initialIds.has(c.id)),
+    ]);
+    setCategoriesSeeded(true);
   }
 
   const update = useMutation({
@@ -191,12 +198,14 @@ export function EditTaskDialog({
           .map((c) => removeTaskCategory(task.id, c.id)),
       ]);
     },
-    onSuccess: () => {
+    onSuccess: onClose,
+    onSettled: () => {
+      // Also on failure: update_task may have committed before a category
+      // association rejected, so the list must reflect what was saved.
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.taskCategories(task.id),
       });
-      onClose();
     },
   });
 

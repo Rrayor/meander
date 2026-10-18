@@ -3,12 +3,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import {
   addTaskCategory,
+  type Category,
   listCategories,
   listTaskCategories,
   removeTaskCategory,
 } from "@/api/categories";
 import { MAX_TASK_TITLE_LENGTH, updateTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import {
   SPENT_RANGE_MESSAGE,
@@ -77,6 +79,12 @@ const renderDialog = (task: Task = baseTask) =>
 
 const ERRANDS = categoryFixture();
 const WORK = categoryFixture({ id: 2, title: "Work", color: "#fb923c" });
+
+const deferred = <T,>() => {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+};
 
 describe("EditTaskDialog", () => {
   beforeEach(() => {
@@ -295,6 +303,51 @@ describe("EditTaskDialog", () => {
     expect(
       await screen.findByRole("button", { name: "Remove Errands" }),
     ).toBeInTheDocument();
+  });
+
+  it("merges a pick made before the stored categories resolve", async () => {
+    const pending = deferred<Category[]>();
+    mockedListTaskCategories.mockReturnValue(pending.promise);
+    renderDialog();
+    // Pick Work while the stored associations are still in flight.
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    pending.resolve([ERRANDS]);
+    // Both must be selected: the stored Errands and the early Work pick.
+    await screen.findByRole("button", { name: "Remove Errands" });
+    expect(
+      screen.getByRole("button", { name: "Remove Work" }),
+    ).toBeInTheDocument();
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() => {
+      expect(mockedAddTaskCategory).toHaveBeenCalledWith(baseTask.id, WORK.id);
+    });
+    expect(mockedRemoveTaskCategory).not.toHaveBeenCalled();
+  });
+
+  it("still refreshes the task list when a category association fails", async () => {
+    mockedAddTaskCategory.mockRejectedValue(new Error("join failed"));
+    const client = testQueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    render(
+      <QueryClientProvider client={client}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: QUERY_KEYS.tasks,
+      }),
+    );
+    expect(mockedUpdate).toHaveBeenCalled();
   });
 
   it("saves category changes as an add/remove diff", async () => {

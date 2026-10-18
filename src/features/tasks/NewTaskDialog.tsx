@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -122,16 +122,28 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
     setFocus("title");
   }, [setFocus]);
 
+  // Set once create_task succeeds: a failed association leaves the task in
+  // place, so a submit retry must only retry the associations — never
+  // insert a duplicate row. A ref keeps the id consistent within the in-
+  // flight mutation's own callbacks (a state update could lag behind them).
+  const createdId = useRef<number | undefined>(undefined);
+
   const create = useMutation({
     mutationFn: async (input: Parameters<typeof createTask>[0]) => {
-      const task = await createTask(input);
-      // The join table is managed per-association; a failure here surfaces
-      // as the dialog's server error while the task itself already exists.
-      await Promise.all(categories.map((c) => addTaskCategory(task.id, c.id)));
+      const taskId = createdId.current ?? (await createTask(input)).id;
+      createdId.current = taskId;
+      await Promise.all(categories.map((c) => addTaskCategory(taskId, c.id)));
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       onClose();
+    },
+    onError: () => {
+      // The task may already exist even though the mutation failed —
+      // refresh the list so the backlog shows what was actually saved.
+      if (createdId.current !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      }
     },
   });
 

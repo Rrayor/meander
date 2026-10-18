@@ -173,6 +173,35 @@ describe("NewTaskDialog", () => {
     );
   });
 
+  it("does not create a second task when a failed association is retried", async () => {
+    mockedCreate.mockResolvedValue({ id: 42 } as never);
+    mockedAddTaskCategory
+      .mockRejectedValueOnce(new Error("flaky join"))
+      .mockResolvedValue(undefined);
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fillTitle();
+    submit();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    submit();
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalledTimes(1));
+    expect(mockedAddTaskCategory).toHaveBeenCalledTimes(2);
+  });
+
+  it("Escape closes only the open category dropdown, not the dialog", async () => {
+    const onClose = renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    await screen.findByRole("option", { name: /Errands/ });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("option", { name: /Errands/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("associates the picked categories after creating the task", async () => {
     mockedCreate.mockResolvedValue({ id: 42 } as never);
     renderDialog();

@@ -79,7 +79,11 @@ export function CategoryMultiSelect({
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
-      setOpen(false);
+      if (open) {
+        // Closing the dropdown shouldn't dismiss the whole task dialog.
+        e.stopPropagation();
+        setOpen(false);
+      }
       return;
     }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
