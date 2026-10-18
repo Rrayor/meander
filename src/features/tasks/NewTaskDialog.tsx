@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { addTaskCategory } from "@/api/categories";
+import { addTaskCategory, removeTaskCategory } from "@/api/categories";
 import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
@@ -12,6 +12,7 @@ import {
   MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_TITLE_LENGTH,
   createTask,
+  updateTask,
 } from "@/api/tasks";
 import {
   DURATION_RANGE_MESSAGE,
@@ -123,16 +124,42 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   }, [setFocus]);
 
   // Set once create_task succeeds: a failed association leaves the task in
-  // place, so a submit retry must only retry the associations — never
-  // insert a duplicate row. A ref keeps the id consistent within the in-
-  // flight mutation's own callbacks (a state update could lag behind them).
+  // place, so a retry must reconcile with it — update the (possibly edited)
+  // fields and diff the already-linked categories — never insert a
+  // duplicate row. Refs keep the values consistent within the in-flight
+  // mutation's own callbacks (a state update could lag behind them).
   const createdId = useRef<number | undefined>(undefined);
+  const linkedIds = useRef(new Set<number>());
 
   const create = useMutation({
     mutationFn: async (input: Parameters<typeof createTask>[0]) => {
       const taskId = createdId.current ?? (await createTask(input)).id;
+      if (createdId.current !== undefined) {
+        // Retry: persist the current field values onto the existing row.
+        await updateTask(taskId, {
+          ...input,
+          spent_minutes: null,
+          status: "todo",
+        });
+      }
       createdId.current = taskId;
-      await Promise.all(categories.map((c) => addTaskCategory(taskId, c.id)));
+      const wanted = new Set(categories.map((c) => c.id));
+      await Promise.all([
+        ...categories
+          .filter((c) => !linkedIds.current.has(c.id))
+          .map((c) =>
+            addTaskCategory(taskId, c.id).then(() =>
+              linkedIds.current.add(c.id),
+            ),
+          ),
+        ...[...linkedIds.current]
+          .filter((id) => !wanted.has(id))
+          .map((id) =>
+            removeTaskCategory(taskId, id).then(() =>
+              linkedIds.current.delete(id),
+            ),
+          ),
+      ]);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });

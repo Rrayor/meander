@@ -26,6 +26,7 @@ import {
   SPENT_MINUTES_LABEL,
   STATUS_LABELS,
   TITLE_REQUIRED_MESSAGE,
+  removeTaskCategoryLabel,
 } from "@/lib/labels";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
@@ -301,7 +302,9 @@ describe("EditTaskDialog", () => {
   it("pre-selects the task's current categories", async () => {
     renderDialog();
     expect(
-      await screen.findByRole("button", { name: "Remove Errands" }),
+      await screen.findByRole("button", {
+        name: removeTaskCategoryLabel(ERRANDS.title),
+      }),
     ).toBeInTheDocument();
   });
 
@@ -314,9 +317,11 @@ describe("EditTaskDialog", () => {
     fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
     pending.resolve([ERRANDS]);
     // Both must be selected: the stored Errands and the early Work pick.
-    await screen.findByRole("button", { name: "Remove Errands" });
+    await screen.findByRole("button", {
+      name: removeTaskCategoryLabel(ERRANDS.title),
+    });
     expect(
-      screen.getByRole("button", { name: "Remove Work" }),
+      screen.getByRole("button", { name: removeTaskCategoryLabel(WORK.title) }),
     ).toBeInTheDocument();
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
@@ -354,7 +359,9 @@ describe("EditTaskDialog", () => {
     renderDialog();
     // Wait for the current associations to load, then swap Errands for Work.
     fireEvent.click(
-      await screen.findByRole("button", { name: "Remove Errands" }),
+      await screen.findByRole("button", {
+        name: removeTaskCategoryLabel(ERRANDS.title),
+      }),
     );
     fireEvent.focus(screen.getByRole("combobox"));
     fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
