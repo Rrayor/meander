@@ -214,9 +214,9 @@ export function BacklogPage() {
             {ADD_TASK_LABEL}
           </button>
         </div>
-        {(error ?? del.error) && (
+        {(error ?? del.error ?? move.error) && (
           <p role="alert" className="text-sm text-danger">
-            {errorMessage(error ?? del.error)}
+            {errorMessage((error ?? del.error ?? move.error)!)}
           </p>
         )}
         {tasks?.length === 0 && (

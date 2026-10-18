@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import { errorMessage } from "@/lib/utils";
 
 export function ProfileSwitcher() {
   const queryClient = useQueryClient();
@@ -70,6 +71,11 @@ export function ProfileSwitcher() {
             </li>
           ))}
         </ul>
+      )}
+      {select.error && (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {errorMessage(select.error)}
+        </p>
       )}
       <button
         type="button"

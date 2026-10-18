@@ -139,6 +139,30 @@ describe("BacklogPage", () => {
     );
   });
 
+  it("surfaces a failed reorder in an alert", async () => {
+    const MOVE_ERROR = "move rejected";
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+      task({ id: 2, title: TITLE_B, sort_order: 2 }),
+    ]);
+    vi.mocked(moveTask).mockRejectedValue(new Error(MOVE_ERROR));
+    draggedOver = 2;
+    renderPage();
+    const reorder = await screen.findByRole("button", {
+      name: reorderLabel(TITLE_A),
+    });
+
+    reorder.focus();
+    fireEvent.keyDown(reorder, { code: KEY_SPACE });
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.keyDown(document, { code: "ArrowDown" });
+    fireEvent.keyDown(document, { code: KEY_SPACE });
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
+    );
+  });
+
   it("passes null anchors when a task lands at an edge", async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task({ id: 1, title: TITLE_A, sort_order: 1 }),

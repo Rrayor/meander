@@ -8,7 +8,11 @@ interface DeleteButtonProps {
 // Hover-reveal delete affordance shared by list rows. Kept in sync with the
 // row's `group`/`group-focus-within` classes: the button is reachable by
 // keyboard even when visually hidden (focus:opacity-100).
-export function DeleteButton({ label, onDelete, disabled }: DeleteButtonProps) {
+export function DeleteButton({
+  label,
+  onDelete,
+  disabled,
+}: Readonly<DeleteButtonProps>) {
   return (
     <button
       type="button"
