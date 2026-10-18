@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   DEFAULT_CATEGORY_COLOR,
@@ -42,11 +42,20 @@ export function CategoriesPage() {
     queryFn: currentProfile,
   });
   // A failed delete belongs to the profile it ran under — clear the
-  // mutation when the active profile changes so the alert can't leak
-  // across a switch. reset is bound once on the observer, so it's stable.
+  // mutation on a switch so the alert can't leak across. Only a
+  // transition between two resolved ids counts: the first profile load
+  // must not clear an error raised while it was still pending.
   const { reset: resetDelete } = del;
+  const lastProfileId = useRef<number | undefined>(undefined);
   useEffect(() => {
-    resetDelete();
+    if (profile?.id == null) return;
+    if (
+      lastProfileId.current !== undefined &&
+      lastProfileId.current !== profile.id
+    ) {
+      resetDelete();
+    }
+    lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete]);
 
   return (

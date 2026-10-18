@@ -72,6 +72,15 @@ const TITLE_A = "A";
 const TITLE_B = "B";
 const TITLE_C = "C";
 const LOAD_ERROR_MESSAGE = "db offline";
+const MOVE_ERROR = "move rejected";
+const PROFILE_DATE = "2026-01-01";
+const FIRST_PROFILE: Profile = {
+  id: 1,
+  name: "Default",
+  created_at: PROFILE_DATE,
+  updated_at: PROFILE_DATE,
+};
+const SECOND_PROFILE: Profile = { ...FIRST_PROFILE, id: 2, name: "Work" };
 const KEY_SPACE = "Space";
 
 describe("BacklogPage", () => {
@@ -145,7 +154,6 @@ describe("BacklogPage", () => {
   });
 
   it("surfaces a failed reorder in an alert", async () => {
-    const MOVE_ERROR = "move rejected";
     vi.mocked(listTasks).mockResolvedValue([
       task({ id: 1, title: TITLE_A, sort_order: 1 }),
       task({ id: 2, title: TITLE_B, sort_order: 2 }),
@@ -168,15 +176,43 @@ describe("BacklogPage", () => {
     );
   });
 
+  it("keeps a reorder error raised before the first profile response", async () => {
+    // The profile query is still in flight when the reorder fails — its
+    // first resolution must not clear the alert (only a switch may).
+    let resolveProfile: (p: Profile) => void = () => {};
+    vi.mocked(currentProfile)
+      .mockReset()
+      .mockImplementation(
+        () => new Promise<Profile>((r) => (resolveProfile = r)),
+      );
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+      task({ id: 2, title: TITLE_B, sort_order: 2 }),
+    ]);
+    vi.mocked(moveTask).mockRejectedValue(new Error(MOVE_ERROR));
+    draggedOver = 2;
+    renderPage();
+    const reorder = await screen.findByRole("button", {
+      name: reorderLabel(TITLE_A),
+    });
+
+    reorder.focus();
+    fireEvent.keyDown(reorder, { code: KEY_SPACE });
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.keyDown(document, { code: "ArrowDown" });
+    fireEvent.keyDown(document, { code: KEY_SPACE });
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
+    );
+
+    resolveProfile(FIRST_PROFILE);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
+    );
+  });
+
   it("a reorder failure from the old profile does not follow the switch", async () => {
-    const MOVE_ERROR = "move rejected";
-    const FIRST: Profile = {
-      id: 1,
-      name: "Default",
-      created_at: "2026-01-01",
-      updated_at: "2026-01-01",
-    };
-    const SECOND: Profile = { ...FIRST, id: 2, name: "Work" };
     vi.mocked(listTasks)
       .mockResolvedValueOnce([
         task({ id: 1, title: TITLE_A, sort_order: 1 }),
@@ -184,11 +220,11 @@ describe("BacklogPage", () => {
       ])
       .mockResolvedValue([task({ id: 2, title: TITLE_B, sort_order: 1 })]);
     vi.mocked(moveTask).mockRejectedValue(new Error(MOVE_ERROR));
-    vi.mocked(listProfiles).mockResolvedValue([FIRST, SECOND]);
+    vi.mocked(listProfiles).mockResolvedValue([FIRST_PROFILE, SECOND_PROFILE]);
     vi.mocked(currentProfile)
       .mockReset()
-      .mockResolvedValueOnce(FIRST)
-      .mockResolvedValue(SECOND);
+      .mockResolvedValueOnce(FIRST_PROFILE)
+      .mockResolvedValue(SECOND_PROFILE);
     vi.mocked(switchProfile).mockResolvedValue(undefined);
     render(
       <QueryClientProvider client={testQueryClient()}>
@@ -211,9 +247,11 @@ describe("BacklogPage", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: new RegExp(FIRST.name) }),
+      screen.getByRole("button", { name: new RegExp(FIRST_PROFILE.name) }),
     );
-    fireEvent.click(await screen.findByRole("menuitem", { name: SECOND.name }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: SECOND_PROFILE.name }),
+    );
 
     await waitFor(() => expect(screen.getByText(TITLE_B)).toBeInTheDocument());
     // The reset fires once the current-profile refetch lands — the tasks

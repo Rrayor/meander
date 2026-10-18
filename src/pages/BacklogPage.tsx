@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
@@ -160,14 +160,23 @@ export function BacklogPage() {
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
-  // Same rule as the categories page: failed mutations are scoped to the
-  // profile they ran under — reset on profile change so alerts can't
-  // leak across a switch.
+  // Failed mutations are scoped to the profile they ran under — reset on
+  // a switch so alerts can't leak across. Only a transition between two
+  // resolved ids counts: the first profile load must not clear an error
+  // raised while it was still pending.
   const { reset: resetDelete } = del;
   const { reset: resetMove } = move;
+  const lastProfileId = useRef<number | undefined>(undefined);
   useEffect(() => {
-    resetDelete();
-    resetMove();
+    if (profile?.id == null) return;
+    if (
+      lastProfileId.current !== undefined &&
+      lastProfileId.current !== profile.id
+    ) {
+      resetDelete();
+      resetMove();
+    }
+    lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete, resetMove]);
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
