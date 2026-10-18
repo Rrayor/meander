@@ -13,6 +13,9 @@ import {
   categoryCreatedLabel,
   categorySwatchLabel,
   deleteCategoryLabel,
+  editCategoryLabel,
+  EDIT_CATEGORY_HEADING,
+  SAVE_BUTTON_LABEL,
 } from "@/lib/labels";
 import { CATEGORY_COLORS } from "@/api/categories";
 import { CATEGORY_COLOR_INVALID_MESSAGE } from "@/lib/errors";
@@ -298,5 +301,42 @@ test("deleting a category removes it from the list", async ({ page }) => {
   expect(invocations).toContainEqual({
     cmd: COMMANDS.deleteCategory,
     args: { categoryId: CATEGORY.id },
+  });
+});
+
+test("editing a category updates the row", async ({ page }) => {
+  const RENAMED = { ...CATEGORY, title: "Chores" };
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listProfiles]: [current],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.listCategories]: stubSequence([[CATEGORY], [RENAMED]]),
+    [COMMANDS.updateCategory]: RENAMED,
+  });
+  await page.goto(`/#${categoriesPath}`);
+
+  await page
+    .getByRole("button", { name: editCategoryLabel(CATEGORY.title) })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeVisible();
+  const title = page.getByLabel(new RegExp(TITLE_FIELD_LABEL));
+  await expect(title).toHaveValue(CATEGORY.title);
+  await title.fill(RENAMED.title);
+  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  await expect(page.getByText(RENAMED.title)).toBeVisible();
+  const invocations = await getInvocations(page);
+  expect(invocations).toContainEqual({
+    cmd: COMMANDS.updateCategory,
+    args: {
+      categoryId: CATEGORY.id,
+      input: {
+        title: RENAMED.title,
+        description: null,
+        color: CATEGORY.color,
+      },
+    },
   });
 });

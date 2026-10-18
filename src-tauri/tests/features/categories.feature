@@ -85,6 +85,30 @@ Feature: Categories
     Then the deletion fails
     And the category list is "Errands"
 
+  Scenario: editing a category updates its fields for associated tasks
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a category named Errands exists on the active profile
+    And I associate Errands with Alpha
+    When the category Errands is renamed to "Chores"
+    Then the update succeeds
+    And the category list is "Chores"
+    And the categories of Alpha are "Chores"
+
+  Scenario: editing another profile's category is rejected
+    Given an application state on a temporary seeded database
+    And a category named Office exists on a second profile
+    When the category Office is renamed to "Work"
+    Then the update fails
+    And the second profile's category list is "Office"
+
+  Scenario: editing an unknown category is rejected
+    Given an application state on a temporary seeded database
+    And a category named Errands exists on the active profile
+    When a category that does not exist is updated
+    Then the update fails
+    And the category list is "Errands"
+
   Scenario: creating a category trims and defaults its color
     Given an application state on a temporary seeded database
     When I create a category with surrounding whitespace

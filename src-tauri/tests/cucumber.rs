@@ -623,6 +623,67 @@ fn delete_category(world: &mut MeanderWorld, title: String) {
     }
 }
 
+#[when(expr = "the category {word} is renamed to {string}")]
+fn rename_category(world: &mut MeanderWorld, title: String, new_title: String) {
+    let category_id = category_id_by_title(world, &title);
+    let state = world.state.as_ref().expect("no app state");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    // Like the edit dialog: submit the new title alongside the stored
+    // description and color.
+    let existing: (Option<String>, Option<String>) = world
+        .rt()
+        .block_on(
+            sqlx::query_as("SELECT description, color FROM categories WHERE id = ?")
+                .bind(category_id)
+                .fetch_one(&pool),
+        )
+        .expect("category missing");
+    let input = meander_lib::categories::NewCategory {
+        title: new_title,
+        description: existing.0,
+        color: existing.1,
+    };
+    if let Err(e) = world.rt().block_on(meander_lib::categories::update(
+        &pool,
+        profile_id,
+        category_id,
+        &input,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("a category that does not exist is updated")]
+fn update_missing_category(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    let input = meander_lib::categories::NewCategory {
+        title: "Ghost".into(),
+        description: None,
+        color: None,
+    };
+    if let Err(e) = world.rt().block_on(meander_lib::categories::update(
+        &pool,
+        profile_id,
+        i64::MAX,
+        &input,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the update succeeds")]
+fn update_succeeded(world: &mut MeanderWorld) {
+    assert!(world.error.is_none(), "update failed: {:?}", world.error);
+}
+
+#[then("the update fails")]
+fn update_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "update unexpectedly succeeded");
+}
+
 #[when("a category that does not exist is deleted")]
 fn delete_missing_category(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state");

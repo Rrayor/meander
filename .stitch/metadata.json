@@ -14,7 +14,7 @@
   "screens": [
     {
       "id": "ef4d2e752da940fcbc48cdbfcc4d4302",
-      "title": "Meander — Application Shell",
+      "title": "Meander \u2014 Application Shell",
       "deviceType": "DESKTOP",
       "files": ["designs/app-shell.html", "designs/app-shell.png"],
       "implemented": true,
@@ -22,7 +22,7 @@
     },
     {
       "id": "d476865cf375443295d630ca59879bac",
-      "title": "Meander — Settings",
+      "title": "Meander \u2014 Settings",
       "deviceType": "DESKTOP",
       "files": ["designs/settings.html", "designs/settings.png"],
       "implemented": false,
@@ -30,7 +30,7 @@
     },
     {
       "id": "22a33c7a1c7d47f3bb4ce25895bba65e",
-      "title": "Meander — Settings (Inline Profile Edit)",
+      "title": "Meander \u2014 Settings (Inline Profile Edit)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/settings-inline-edit.html",
@@ -41,7 +41,7 @@
     },
     {
       "id": "48b6b70647e54fb29b3098892858181c",
-      "title": "Meander — Backlog",
+      "title": "Meander \u2014 Backlog",
       "deviceType": "DESKTOP",
       "files": ["designs/backlog.html", "designs/backlog.png"],
       "implemented": true,
@@ -49,7 +49,7 @@
     },
     {
       "id": "97873034b9be4fa7a233b4f910b2734d",
-      "title": "Meander — New Task Modal",
+      "title": "Meander \u2014 New Task Modal",
       "deviceType": "DESKTOP",
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
@@ -57,7 +57,7 @@
     },
     {
       "id": "05f3a99d44754d6dbc60e516a5b71da5",
-      "title": "Meander — Task Detail Modal",
+      "title": "Meander \u2014 Task Detail Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/task-detail-dialog.html",
@@ -68,7 +68,7 @@
     },
     {
       "id": "4bcee8b161a546dab7d35783828aa203",
-      "title": "Meander — Categories",
+      "title": "Meander \u2014 Categories",
       "deviceType": "DESKTOP",
       "files": ["designs/categories.html", "designs/categories.png"],
       "implemented": true,
@@ -76,7 +76,7 @@
     },
     {
       "id": "00738f47ad1c41189a03ef98bfcf61d3",
-      "title": "Meander — New Category Modal",
+      "title": "Meander \u2014 New Category Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/new-category-dialog.html",
@@ -84,6 +84,17 @@
       ],
       "implemented": true,
       "notes": "Category creation dialog: Title* input, optional Description textarea, Color as a radiogroup of palette swatches with a default option and a custom color picker, Cancel/Create category footer over dimmed categories page"
+    },
+    {
+      "id": "f94c4df04f39428a924d1e7a49be52ef",
+      "title": "Meander \u2014 Edit Category Modal",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/edit-category-dialog.html",
+        "designs/edit-category-dialog.png"
+      ],
+      "implemented": true,
+      "notes": "Edit variant of the new-category dialog: pre-filled Title/Description, a non-default swatch selected in the color radiogroup, \"Save changes\" primary action over the dimmed categories page."
     }
   ]
 }

@@ -5,6 +5,7 @@ import {
   CUSTOM_COLOR_LABEL,
   NAV_LABEL,
   deleteCategoryLabel,
+  editCategoryLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
@@ -18,7 +19,7 @@ describe("Categories smoke", () => {
     const nav = await $(`aria/${NAV_LABEL}`);
     await nav.$(`=${categoriesRoute.label}`).click();
 
-    const titleInput = "#new-category-title-input";
+    const titleInput = "#category-title-input";
     const submit = "button[type='submit']";
 
     await (await $(`aria/${ADD_CATEGORY_LABEL}`)).click();
@@ -31,14 +32,24 @@ describe("Categories smoke", () => {
     const list = await $("ul");
     await browser.waitUntil(async () => (await list.getText()).includes(title));
 
-    // Delete through the real backend too — the row is hover-revealed, so
-    // move to it before clicking its labeled button.
+    // Edit through the real backend: rename via the dialog and confirm the
+    // list refetches the updated row.
+    const renamed = `${title} renamed`;
     const row = await $("li");
     await row.moveTo();
-    const deleteBtn = await $(`aria/${deleteCategoryLabel(title)}`);
+    await (await $(`aria/${editCategoryLabel(title)}`)).click();
+    const editInput = await $(titleInput);
+    await editInput.setValue(renamed);
+    await (await $(submit)).click();
+    await browser.waitUntil(async () =>
+      (await list.getText()).includes(renamed),
+    );
+
+    // Delete through the real backend too.
+    const deleteBtn = await $(`aria/${deleteCategoryLabel(renamed)}`);
     await deleteBtn.click();
     await browser.waitUntil(
-      async () => !(await list.getText()).includes(title),
+      async () => !(await list.getText()).includes(renamed),
     );
   });
 

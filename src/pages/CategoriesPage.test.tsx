@@ -20,6 +20,8 @@ import {
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
   deleteCategoryLabel,
+  editCategoryLabel,
+  EDIT_CATEGORY_HEADING,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
@@ -30,6 +32,7 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   listCategories: vi.fn(),
   createCategory: vi.fn(),
+  updateCategory: vi.fn(),
   deleteCategory: vi.fn(),
 }));
 
@@ -166,6 +169,24 @@ test("a successful create refreshes the list", async () => {
     expect(screen.getByText(CATEGORY.title)).toBeInTheDocument(),
   );
   expect(listCategories).toHaveBeenCalledTimes(2);
+});
+
+test("the edit button opens the dialog pre-filled with the row's category", async () => {
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY]);
+  renderPage();
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: editCategoryLabel(CATEGORY.title),
+    }),
+  );
+
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL))).toHaveValue(
+    CATEGORY.title,
+  );
 });
 
 test("deleting a category calls the backend and refreshes the list", async () => {

@@ -10,7 +10,9 @@ import {
   MAX_CATEGORY_DESCRIPTION_LENGTH,
   MAX_CATEGORY_TITLE_LENGTH,
   createCategory,
+  updateCategory,
 } from "@/api/categories";
+import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
@@ -28,6 +30,8 @@ import {
   CUSTOM_COLOR_PICKER_LABEL,
   DEFAULT_COLOR_LABEL,
   CREATE_CATEGORY_LABEL,
+  EDIT_CATEGORY_HEADING,
+  SAVE_BUTTON_LABEL,
   DESCRIPTION_FIELD_LABEL,
   NEW_CATEGORY_HEADING,
   OPTIONAL_FIELD_LABEL,
@@ -62,13 +66,16 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-interface NewCategoryDialogProps {
+interface CategoryDialogProps {
+  /** When set, the dialog edits this category; otherwise it creates one. */
+  category?: Category;
   onClose: () => void;
 }
 
-export function NewCategoryDialog({
+export function CategoryDialog({
+  category,
   onClose,
-}: Readonly<NewCategoryDialogProps>) {
+}: Readonly<CategoryDialogProps>) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -89,15 +96,20 @@ export function NewCategoryDialog({
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    defaultValues: { color: "" },
+    defaultValues: {
+      title: category?.title ?? "",
+      description: category?.description ?? "",
+      color: category?.color ?? "",
+    },
   });
 
   useEffect(() => {
     setFocus("title");
   }, [setFocus]);
 
-  const create = useMutation({
-    mutationFn: createCategory,
+  const submit = useMutation({
+    mutationFn: (input: Parameters<typeof createCategory>[0]) =>
+      category ? updateCategory(category.id, input) : createCategory(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories });
       onClose();
@@ -105,14 +117,14 @@ export function NewCategoryDialog({
   });
 
   const onSubmit = ({ title, description, color }: FormValues) => {
-    create.mutate({
+    submit.mutate({
       title,
       description: unicodeTrim(description) || null,
       color: color || null,
     });
   };
 
-  const serverError = serverErrorMessage(create.error);
+  const serverError = serverErrorMessage(submit.error);
 
   // The backdrop is a real button (pointer + keyboard dismiss) and the panel
   // a native <dialog>; Escape is handled by the document listener above.
@@ -127,15 +139,15 @@ export function NewCategoryDialog({
       />
       <dialog
         open
-        aria-labelledby="new-category-title"
+        aria-labelledby="category-dialog-title"
         className="relative m-0 flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <h2
-            id="new-category-title"
+            id="category-dialog-title"
             className="font-title text-lg font-semibold text-text"
           >
-            {NEW_CATEGORY_HEADING}
+            {category ? EDIT_CATEGORY_HEADING : NEW_CATEGORY_HEADING}
           </h2>
           <button
             type="button"
@@ -158,25 +170,25 @@ export function NewCategoryDialog({
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label
-              htmlFor="new-category-title-input"
+              htmlFor="category-title-input"
               className="text-xs font-medium text-text-muted"
             >
               {TITLE_FIELD_LABEL} *
             </label>
             <input
-              id="new-category-title-input"
+              id="category-title-input"
               type="text"
               placeholder="e.g. Engineering or Research"
               aria-invalid={!!errors.title}
               aria-describedby={
-                errors.title ? "new-category-title-error" : undefined
+                errors.title ? "category-title-error" : undefined
               }
               className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
               {...register("title")}
             />
             {errors.title && (
               <p
-                id="new-category-title-error"
+                id="category-title-error"
                 role="alert"
                 className="text-sm text-danger"
               >
@@ -186,28 +198,26 @@ export function NewCategoryDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <label
-              htmlFor="new-category-description"
+              htmlFor="category-description"
               className="text-xs font-medium text-text-muted"
             >
               {DESCRIPTION_FIELD_LABEL}{" "}
               <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
             </label>
             <textarea
-              id="new-category-description"
+              id="category-description"
               rows={3}
               placeholder="Add context or scope for this category"
               aria-invalid={!!errors.description}
               aria-describedby={
-                errors.description
-                  ? "new-category-description-error"
-                  : undefined
+                errors.description ? "category-description-error" : undefined
               }
               className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
               {...register("description")}
             />
             {errors.description && (
               <p
-                id="new-category-description-error"
+                id="category-description-error"
                 role="alert"
                 className="text-sm text-danger"
               >
@@ -217,7 +227,7 @@ export function NewCategoryDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <span
-              id="new-category-color-label"
+              id="category-color-label"
               className="text-xs font-medium text-text-muted"
             >
               {COLOR_FIELD_LABEL}
@@ -232,7 +242,7 @@ export function NewCategoryDialog({
                 return (
                   <div
                     role="radiogroup"
-                    aria-labelledby="new-category-color-label"
+                    aria-labelledby="category-color-label"
                     className="flex flex-wrap items-center gap-2"
                   >
                     <button
@@ -316,10 +326,10 @@ export function NewCategoryDialog({
             </button>
             <button
               type="submit"
-              disabled={create.isPending}
+              disabled={submit.isPending}
               className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
-              {CREATE_CATEGORY_LABEL}
+              {category ? SAVE_BUTTON_LABEL : CREATE_CATEGORY_LABEL}
             </button>
           </div>
         </form>
