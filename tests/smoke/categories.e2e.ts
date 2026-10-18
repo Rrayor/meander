@@ -1,7 +1,9 @@
 import {
   ADD_CATEGORY_LABEL,
   CATEGORIES_HEADING,
+  CLOSE_LABEL,
   CUSTOM_COLOR_LABEL,
+  NAV_LABEL,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
@@ -12,7 +14,7 @@ describe("Categories smoke", () => {
     const categoriesRoute = ROUTES.find(
       ({ label }) => label === CATEGORIES_HEADING,
     )!;
-    const nav = await $("aria/Main Navigation");
+    const nav = await $(`aria/${NAV_LABEL}`);
     await nav.$(`=${categoriesRoute.label}`).click();
 
     const titleInput = "#new-category-title-input";
@@ -33,7 +35,7 @@ describe("Categories smoke", () => {
     const categoriesRoute = ROUTES.find(
       ({ label }) => label === CATEGORIES_HEADING,
     )!;
-    const nav = await $("aria/Main Navigation");
+    const nav = await $(`aria/${NAV_LABEL}`);
     await nav.$(`=${categoriesRoute.label}`).click();
     await (await $(`aria/${ADD_CATEGORY_LABEL}`)).click();
 
@@ -44,6 +46,6 @@ describe("Categories smoke", () => {
 
     // Custom color is a real radio option now — verify it exists.
     await expect(await $(`aria/${CUSTOM_COLOR_LABEL}`)).toExist();
-    await (await $("aria/Close")).click();
+    await (await $(`aria/${CLOSE_LABEL}`)).click();
   });
 });

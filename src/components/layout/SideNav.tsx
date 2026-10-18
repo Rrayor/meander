@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
+import { NAV_LABEL } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
 export function SideNav() {
@@ -12,7 +13,7 @@ export function SideNav() {
             Meander
           </span>
         </div>
-        <nav aria-label="Main Navigation" className="flex flex-col gap-1">
+        <nav aria-label={NAV_LABEL} className="flex flex-col gap-1">
           {ROUTES.map(({ path, label, icon: Icon, end }) => (
             <NavLink
               key={path}
