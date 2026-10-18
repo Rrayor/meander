@@ -270,6 +270,46 @@ test("a delete failure from the old profile does not follow the switch", async (
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
+test("an open editor does not survive a profile switch", async () => {
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(currentProfile)
+    .mockResolvedValueOnce(PROFILE)
+    .mockResolvedValue(OTHER_PROFILE);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: editCategoryLabel(CATEGORY.title),
+    }),
+  );
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByText(OTHER_CATEGORY.title)).toBeInTheDocument(),
+  );
+  expect(
+    screen.queryByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).not.toBeInTheDocument();
+});
+
 test("switching profiles refetches the category list", async () => {
   vi.mocked(listCategories)
     .mockResolvedValueOnce([CATEGORY])

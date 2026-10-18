@@ -437,6 +437,7 @@ mod tests {
     }
 
     const RENAMED: &str = "Chores";
+    const NEW_DESC: &str = "desc";
     const NEW_COLOR: &str = "#4ade80";
 
     #[tokio::test]
@@ -450,7 +451,7 @@ mod tests {
             id,
             &NewCategory {
                 title: RENAMED.into(),
-                description: Some("desc".into()),
+                description: Some(NEW_DESC.into()),
                 color: Some(NEW_COLOR.into()),
             },
         )
@@ -459,7 +460,7 @@ mod tests {
 
         assert_eq!(updated.id, id);
         assert_eq!(updated.title, RENAMED);
-        assert_eq!(updated.description.as_deref(), Some("desc"));
+        assert_eq!(updated.description.as_deref(), Some(NEW_DESC));
         assert_eq!(updated.color.as_deref(), Some(NEW_COLOR));
     }
 

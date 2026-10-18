@@ -175,6 +175,9 @@ export function BacklogPage() {
     ) {
       resetDelete();
       resetMove();
+      // An open editor is bound to the old profile's task — submitting it
+      // now would hit the scoped update as TaskNotFound.
+      setEditingTask(undefined);
     }
     lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete, resetMove]);

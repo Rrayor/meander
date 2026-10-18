@@ -10,6 +10,7 @@ import { BacklogPage } from "@/pages/BacklogPage";
 import {
   ADD_TASK_LABEL,
   CANCEL_BUTTON_LABEL,
+  EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
   deleteTaskLabel,
@@ -210,6 +211,41 @@ describe("BacklogPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
     );
+  });
+
+  it("an open task editor does not survive a profile switch", async () => {
+    vi.mocked(listTasks)
+      .mockResolvedValueOnce([task({ id: 1, title: TITLE_A, sort_order: 1 })])
+      .mockResolvedValue([task({ id: 2, title: TITLE_B, sort_order: 1 })]);
+    vi.mocked(listProfiles).mockResolvedValue([FIRST_PROFILE, SECOND_PROFILE]);
+    vi.mocked(currentProfile)
+      .mockReset()
+      .mockResolvedValueOnce(FIRST_PROFILE)
+      .mockResolvedValue(SECOND_PROFILE);
+    vi.mocked(switchProfile).mockResolvedValue(undefined);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <BacklogPage />
+        <ProfileSwitcher />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByText(TITLE_A));
+    expect(
+      await screen.findByRole("heading", { name: EDIT_TASK_HEADING }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(FIRST_PROFILE.name) }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: SECOND_PROFILE.name }),
+    );
+
+    await waitFor(() => expect(screen.getByText(TITLE_B)).toBeInTheDocument());
+    expect(
+      screen.queryByRole("heading", { name: EDIT_TASK_HEADING }),
+    ).not.toBeInTheDocument();
   });
 
   it("a reorder failure from the old profile does not follow the switch", async () => {

@@ -58,6 +58,9 @@ export function CategoriesPage() {
       lastProfileId.current !== profile.id
     ) {
       resetDelete();
+      // An open editor is bound to the old profile's category — submitting
+      // it now would hit the scoped update as CategoryNotFound.
+      setEditing(undefined);
     }
     lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete]);

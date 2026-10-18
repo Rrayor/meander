@@ -373,6 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_category_changes_fields_and_surfaces_errors() {
+        const RENAMED: &str = "Chores";
         let app = test_app().await;
         let state = app.state::<AppState>();
         let category_id: i64 = sqlx::query_scalar(
@@ -387,7 +388,7 @@ mod tests {
         let updated = update_category(
             category_id,
             crate::categories::NewCategory {
-                title: "Chores".into(),
+                title: RENAMED.into(),
                 description: None,
                 color: None,
             },
@@ -395,12 +396,12 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(updated.title, "Chores");
+        assert_eq!(updated.title, RENAMED);
 
         let err = update_category(
             i64::MAX,
             crate::categories::NewCategory {
-                title: "Chores".into(),
+                title: RENAMED.into(),
                 description: None,
                 color: None,
             },
