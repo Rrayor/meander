@@ -1,8 +1,17 @@
 # Meander
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=alert_status&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=coverage&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=reliability_rating&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=security_rating&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=sqale_rating&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=ncloc&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=duplicated_lines_density&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Reliability issues](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=software_quality_reliability_issues&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Security issues](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=software_quality_security_issues&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Maintainability issues](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=software_quality_maintainability_issues&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=sqale_index&token=d7824b4e3c11157add1b8acaf05d794cd9466aa8)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
 
 Offline desktop weekly kanban planner. Tauri app: Rust backend, React (Vite) + TypeScript + Tailwind frontend, SQLite storage.
 
