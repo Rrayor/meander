@@ -58,9 +58,13 @@ export function CategoriesPage() {
       lastProfileId.current !== profile.id
     ) {
       resetDelete();
-      // An open editor is bound to the old profile's category — submitting
-      // it now would hit the scoped update as CategoryNotFound.
-      setEditing(undefined);
+      // An open editor bound to the old profile's category must close —
+      // submitting it now would hit the scoped update as CategoryNotFound.
+      // Guard by ownership: the new list can render before currentProfile
+      // resolves, and an editor opened there belongs to this profile.
+      setEditing((open) =>
+        open && open.profile_id !== profile.id ? undefined : open,
+      );
     }
     lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete]);

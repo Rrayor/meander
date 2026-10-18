@@ -175,9 +175,13 @@ export function BacklogPage() {
     ) {
       resetDelete();
       resetMove();
-      // An open editor is bound to the old profile's task — submitting it
-      // now would hit the scoped update as TaskNotFound.
-      setEditingTask(undefined);
+      // An open editor bound to the old profile's task must close —
+      // submitting it now would hit the scoped update as TaskNotFound.
+      // Guard by ownership: the new list can render before currentProfile
+      // resolves, and an editor opened there belongs to this profile.
+      setEditingTask((open) =>
+        open && open.profile_id !== profile.id ? undefined : open,
+      );
     }
     lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete, resetMove]);

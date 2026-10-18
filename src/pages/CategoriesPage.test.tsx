@@ -310,6 +310,59 @@ test("an open editor does not survive a profile switch", async () => {
   ).not.toBeInTheDocument();
 });
 
+test("an editor opened from the new list survives the delayed profile load", async () => {
+  // Post-switch race: the category query can resolve before
+  // currentProfile. An editor opened for a new-profile row belongs to
+  // that profile — the switch handler must not close it when the
+  // delayed response lands.
+  let resolveProfile: (p: Profile) => void = () => {};
+  vi.mocked(currentProfile)
+    .mockReset()
+    .mockResolvedValueOnce(PROFILE)
+    .mockImplementation(
+      () => new Promise<Profile>((r) => (resolveProfile = r)),
+    );
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+  await screen.findByText(CATEGORY.title);
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  // The new list renders while currentProfile is still pending.
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: editCategoryLabel(OTHER_CATEGORY.title),
+    }),
+  );
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+
+  resolveProfile(OTHER_PROFILE);
+
+  // Give the effect a beat to run, then confirm the editor stayed open.
+  await new Promise((r) => setTimeout(r));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+    ).toBeInTheDocument(),
+  );
+});
+
 test("switching profiles refetches the category list", async () => {
   vi.mocked(listCategories)
     .mockResolvedValueOnce([CATEGORY])
