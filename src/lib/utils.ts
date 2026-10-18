@@ -13,7 +13,7 @@ export const codePointsWithin = (s: string, max: number) =>
 // NEL); JS String.trim() does not. Mirror the backend so the client doesn't
 // reject inputs the backend would sanitize and accept.
 export const unicodeTrim = (s: string) =>
-  s.replace(/^[\p{White_Space}]+|[\p{White_Space}]+$/gu, "");
+  s.replace(/^\p{White_Space}+/u, "").replace(/\p{White_Space}+$/u, "");
 
 // Backend timestamps are UTC "YYYY-MM-DD HH:MM:SS" — normalize for Date.
 export const formatDate = (iso: string) =>
