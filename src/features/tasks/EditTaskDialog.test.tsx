@@ -1,8 +1,15 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import {
   addTaskCategory,
+  createCategory,
   type Category,
   listCategories,
   listTaskCategories,
@@ -26,6 +33,7 @@ import {
   SPENT_MINUTES_LABEL,
   STATUS_LABELS,
   TITLE_REQUIRED_MESSAGE,
+  createCategoryOptionLabel,
   removeTaskCategoryLabel,
 } from "@/lib/labels";
 import { categoryFixture } from "@/test/fixtures";
@@ -43,6 +51,7 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   listTaskCategories: vi.fn(),
   addTaskCategory: vi.fn(),
   removeTaskCategory: vi.fn(),
+  createCategory: vi.fn(),
 }));
 
 const mockedUpdate = vi.mocked(updateTask);
@@ -50,6 +59,7 @@ const mockedListCategories = vi.mocked(listCategories);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
 const mockedAddTaskCategory = vi.mocked(addTaskCategory);
 const mockedRemoveTaskCategory = vi.mocked(removeTaskCategory);
+const mockedCreateCategory = vi.mocked(createCategory);
 
 const TITLE_ORIGINAL = "Draft weekly reflection notes";
 const TITLE_EDITED = "Review quarterly milestone planning";
@@ -71,12 +81,14 @@ const baseTask: Task = {
   updated_at: "2026-10-12 09:00:00",
 };
 
-const renderDialog = (task: Task = baseTask) =>
+const renderDialog = (task: Task = baseTask, client = testQueryClient()) => {
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={client}>
       <EditTaskDialog task={task} onClose={vi.fn()} />
     </QueryClientProvider>,
   );
+  return client;
+};
 
 const ERRANDS = categoryFixture();
 const WORK = categoryFixture({ id: 2, title: "Work", color: "#fb923c" });
@@ -353,6 +365,76 @@ describe("EditTaskDialog", () => {
       }),
     );
     expect(mockedUpdate).toHaveBeenCalled();
+  });
+
+  it("persists a quick-created category on save", async () => {
+    const CREATED = categoryFixture({ id: 3, title: "Gardening" });
+    mockedCreateCategory.mockResolvedValue(CREATED);
+    renderDialog();
+    await screen.findByRole("button", {
+      name: removeTaskCategoryLabel(ERRANDS.title),
+    });
+    const combobox = screen.getByRole("combobox");
+    fireEvent.focus(combobox);
+    fireEvent.change(combobox, { target: { value: CREATED.title } });
+    fireEvent.mouseDown(
+      screen.getByRole("option", {
+        name: new RegExp(createCategoryOptionLabel(CREATED.title)),
+      }),
+    );
+    await screen.findByRole("button", {
+      name: removeTaskCategoryLabel(CREATED.title),
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() =>
+      expect(mockedAddTaskCategory).toHaveBeenCalledWith(
+        baseTask.id,
+        CREATED.id,
+      ),
+    );
+  });
+
+  it("shows freshly fetched associations after a refetch", async () => {
+    // The seeded selection must not freeze on the first resolved value —
+    // a stale cache would otherwise hide an association added since.
+    const CREATED = categoryFixture({ id: 3, title: "Gardening" });
+    mockedListTaskCategories.mockResolvedValue([]);
+    const client = renderDialog();
+    // Let the initial fetch settle so the invalidation below is a real
+    // refetch rather than racing the in-flight first request.
+    await act(async () => {});
+    mockedListTaskCategories.mockResolvedValue([CREATED]);
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: QUERY_KEYS.taskCategories(baseTask.id),
+      });
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: removeTaskCategoryLabel(CREATED.title),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a recolored category after the association list refetches", async () => {
+    const client = renderDialog();
+    await screen.findByRole("button", {
+      name: removeTaskCategoryLabel(ERRANDS.title),
+    });
+    const recolored = { ...ERRANDS, color: "#f87171" };
+    mockedListTaskCategories.mockResolvedValue([recolored]);
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: QUERY_KEYS.taskCategories(baseTask.id),
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText(ERRANDS.title)).toHaveStyle({
+        color: "rgb(248, 113, 113)",
+      }),
+    );
   });
 
   it("saves category changes as an add/remove diff", async () => {

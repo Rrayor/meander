@@ -10,7 +10,6 @@ import type { Category } from "@/api/categories";
 import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { DeleteButton } from "@/components/DeleteButton";
-import { EditButton } from "@/components/EditButton";
 import { CategoryDialog } from "@/features/categories/CategoryDialog";
 import {
   ADD_CATEGORY_LABEL,
@@ -38,8 +37,14 @@ export function CategoriesPage() {
   });
   const del = useMutation({
     mutationFn: deleteCategory,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories });
+      // Deleting cascades join rows — cached association lists would
+      // otherwise keep showing the removed category.
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.allTaskCategories,
+      });
+    },
   });
   const { data: profile } = useQuery({
     queryKey: QUERY_KEYS.currentProfile,
@@ -101,23 +106,31 @@ export function CategoriesPage() {
         )}
         <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
           {categories?.map((category) => (
+            // Rows open the editor on click like backlog rows; the title
+            // button carries the keyboard/AT affordance, so the li's click
+            // handler is pointer-only by design.
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- keyboard users reach the same action via the title's <button>
             <li
               key={category.id}
-              className="group flex items-center gap-3 px-4 py-3"
+              onClick={() => setEditing(category)}
+              className="group flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-surface-raised"
             >
               <span
                 aria-hidden="true"
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: category.color ?? UNCOLORED }}
               />
-              <span className="flex-1 text-sm text-text">{category.title}</span>
+              <button
+                type="button"
+                aria-label={editCategoryLabel(category.title)}
+                onClick={() => setEditing(category)}
+                className="min-w-0 flex-1 cursor-pointer truncate rounded text-left text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {category.title}
+              </button>
               <span className="text-xs text-text-muted">
                 {categoryCreatedLabel(formatDate(category.created_at))}
               </span>
-              <EditButton
-                label={editCategoryLabel(category.title)}
-                onEdit={() => setEditing(category)}
-              />
               <DeleteButton
                 label={deleteCategoryLabel(category.title)}
                 disabled={del.isPending}

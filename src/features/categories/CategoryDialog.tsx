@@ -112,6 +112,10 @@ export function CategoryDialog({
       category ? updateCategory(category.id, input) : createCategory(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories });
+      // A rename/recolor changes what every cached association list shows.
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.allTaskCategories,
+      });
       onClose();
     },
   });

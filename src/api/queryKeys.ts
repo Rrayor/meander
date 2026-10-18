@@ -6,5 +6,8 @@ export const QUERY_KEYS = {
   dbPath: ["db-path"],
   tasks: ["tasks"],
   categories: ["categories"],
+  // Prefix key: invalidating it covers every task's association list, e.g.
+  // after a category rename/recolor or delete changes what chips show.
+  allTaskCategories: ["task-categories"],
   taskCategories: (taskId: number) => ["task-categories", taskId],
 } as const;

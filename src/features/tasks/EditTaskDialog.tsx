@@ -170,30 +170,36 @@ export function EditTaskDialog({
     queryKey: QUERY_KEYS.taskCategories(task.id),
     queryFn: () => listTaskCategories(task.id),
   });
-  const [categories, setCategories] = useState<Category[]>();
-  const [categoriesSeeded, setCategoriesSeeded] = useState(false);
-  // Derived state adjusted during render (not an effect): when the stored
-  // associations resolve, merge them with anything picked beforehand — an
-  // early pick must never silently erase the task's existing categories.
-  if (initialCategories && !categoriesSeeded) {
-    const initialIds = new Set(initialCategories.map((c) => c.id));
-    setCategories([
-      ...initialCategories,
-      ...(categories ?? []).filter((c) => !initialIds.has(c.id)),
-    ]);
-    setCategoriesSeeded(true);
-  }
+  // The selection is derived state: stored associations minus the chips the
+  // user removed plus the ones they added. Deriving it (rather than seeding
+  // state once) keeps picks intact when the query resolves late *and* lets
+  // a refetch update what chips show — e.g. after a category is recolored.
+  const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(new Set());
+  const [picked, setPicked] = useState<Category[]>([]);
+  const stored = initialCategories ?? [];
+  const storedIds = new Set(stored.map((c) => c.id));
+  const categories = [
+    ...stored.filter((c) => !removedIds.has(c.id)),
+    ...picked.filter((c) => !storedIds.has(c.id)),
+  ];
+  const onCategoriesChange = (next: Category[]) => {
+    const nextIds = new Set(next.map((c) => c.id));
+    setRemovedIds(
+      new Set(stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id)),
+    );
+    setPicked(next.filter((c) => !storedIds.has(c.id)));
+  };
 
   const update = useMutation({
     mutationFn: async (input: Parameters<typeof updateTask>[1]) => {
       await updateTask(task.id, input);
-      const next = new Set((categories ?? []).map((c) => c.id));
-      const prev = new Set((initialCategories ?? []).map((c) => c.id));
+      const next = new Set(categories.map((c) => c.id));
+      const prev = new Set(stored.map((c) => c.id));
       await Promise.all([
-        ...(categories ?? [])
+        ...categories
           .filter((c) => !prev.has(c.id))
           .map((c) => addTaskCategory(task.id, c.id)),
-        ...(initialCategories ?? [])
+        ...stored
           .filter((c) => !next.has(c.id))
           .map((c) => removeTaskCategory(task.id, c.id)),
       ]);
@@ -380,8 +386,8 @@ export function EditTaskDialog({
             </span>
             <CategoryMultiSelect
               idPrefix="edit-task"
-              selected={categories ?? []}
-              onChange={setCategories}
+              selected={categories}
+              onChange={onCategoriesChange}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
