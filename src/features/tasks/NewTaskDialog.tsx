@@ -1,9 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { addTaskCategory } from "@/api/categories";
+import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   MAX_DURATION_MINUTES,
@@ -18,9 +20,11 @@ import {
   TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
+import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
+  CATEGORIES_FIELD_LABEL,
   CARRY_OVER_OPTIONS,
   CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
@@ -90,6 +94,7 @@ interface NewTaskDialogProps {
 
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -118,7 +123,12 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   }, [setFocus]);
 
   const create = useMutation({
-    mutationFn: createTask,
+    mutationFn: async (input: Parameters<typeof createTask>[0]) => {
+      const task = await createTask(input);
+      // The join table is managed per-association; a failure here surfaces
+      // as the dialog's server error while the task itself already exists.
+      await Promise.all(categories.map((c) => addTaskCategory(task.id, c.id)));
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       onClose();
@@ -243,6 +253,17 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
                 {errors.description.message}
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-muted">
+              {CATEGORIES_FIELD_LABEL}{" "}
+              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+            </span>
+            <CategoryMultiSelect
+              idPrefix="new-task"
+              selected={categories}
+              onChange={setCategories}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-muted">

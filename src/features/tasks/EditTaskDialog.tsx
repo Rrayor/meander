@@ -1,9 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
+import {
+  addTaskCategory,
+  listTaskCategories,
+  removeTaskCategory,
+} from "@/api/categories";
+import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   MAX_DURATION_MINUTES,
@@ -20,9 +26,11 @@ import {
   TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
+import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
+  CATEGORIES_FIELD_LABEL,
   CARRY_OVER_OPTIONS,
   CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
@@ -158,11 +166,36 @@ export function EditTaskDialog({
     setFocus("title");
   }, [setFocus]);
 
+  const { data: initialCategories } = useQuery({
+    queryKey: QUERY_KEYS.taskCategories(task.id),
+    queryFn: () => listTaskCategories(task.id),
+  });
+  const [categories, setCategories] = useState<Category[]>();
+  // Derived state adjusted during render (not an effect): seeds the field
+  // once the associations resolve without clobbering earlier edits.
+  if (initialCategories && categories === undefined) {
+    setCategories(initialCategories);
+  }
+
   const update = useMutation({
-    mutationFn: (input: Parameters<typeof updateTask>[1]) =>
-      updateTask(task.id, input),
+    mutationFn: async (input: Parameters<typeof updateTask>[1]) => {
+      await updateTask(task.id, input);
+      const next = new Set((categories ?? []).map((c) => c.id));
+      const prev = new Set((initialCategories ?? []).map((c) => c.id));
+      await Promise.all([
+        ...(categories ?? [])
+          .filter((c) => !prev.has(c.id))
+          .map((c) => addTaskCategory(task.id, c.id)),
+        ...(initialCategories ?? [])
+          .filter((c) => !next.has(c.id))
+          .map((c) => removeTaskCategory(task.id, c.id)),
+      ]);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.taskCategories(task.id),
+      });
       onClose();
     },
   });
@@ -330,6 +363,17 @@ export function EditTaskDialog({
                 {errors.description.message}
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-muted">
+              {CATEGORIES_FIELD_LABEL}{" "}
+              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+            </span>
+            <CategoryMultiSelect
+              idPrefix="edit-task"
+              selected={categories ?? []}
+              onChange={setCategories}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">

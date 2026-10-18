@@ -6,4 +6,5 @@ export const QUERY_KEYS = {
   dbPath: ["db-path"],
   tasks: ["tasks"],
   categories: ["categories"],
+  taskCategories: (taskId: number) => ["task-categories", taskId],
 } as const;

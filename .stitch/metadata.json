@@ -53,7 +53,7 @@
       "deviceType": "DESKTOP",
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
-      "notes": "Task creation dialog: Title* input, Description textarea, Estimated time as paired hours+minutes inputs, Carry-over rule as segmented control (Ask / Carry over / Return to backlog), Cancel/Create task footer over dimmed backlog"
+      "notes": "Task creation dialog: Title* input, Description textarea, Categories multivalue autocomplete (selected pill chips tinted per category color, open dropdown with color dots + check marks on selected rows, 'New category...' create row), Estimated time, Carry-over segmented control, Cancel/Create task footer over dimmed backlog. Category field markup spliced locally from the Stitch DOM edit event \u2014 the remote htmlCode/screenshot artifacts lag behind DOM operations."
     },
     {
       "id": "05f3a99d44754d6dbc60e516a5b71da5",

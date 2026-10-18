@@ -119,6 +119,37 @@ test("creating a task via the dialog adds it to the backlog", async ({
   await expect(dialog).not.toBeVisible();
 });
 
+test("creating a task with a category sends the association", async ({
+  page,
+}) => {
+  const errands = { id: 1, title: "Errands", color: "#2dd4bf" };
+  const created = { ...tasks[0], id: 3 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([[], [created]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: created,
+    [COMMANDS.listCategories]: [errands],
+    [COMMANDS.addTaskCategory]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox").focus();
+  await dialog
+    .getByRole("option", { name: /Errands/ })
+    .dispatchEvent("mousedown");
+  await expect(
+    dialog.getByRole("button", { name: "Remove Errands" }),
+  ).toBeVisible();
+  await dialog.getByLabel(/^Title/).fill("Groceries");
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+  const addCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.addTaskCategory,
+  );
+  expect(addCall?.args).toEqual({ taskId: 3, categoryId: errands.id });
+});
+
 test("a blank title shows validation without calling the backend", async ({
   page,
 }) => {
@@ -343,6 +374,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
     [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.updateTask]: updated,
+    [COMMANDS.listTaskCategories]: [],
   });
   await page.goto(`/#${backlogPath}`);
 

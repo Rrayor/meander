@@ -78,3 +78,7 @@ export const CUSTOM_COLOR_LABEL = "Custom color";
 export const CUSTOM_COLOR_PICKER_LABEL = "Pick a custom color";
 export const CATEGORY_TITLE_REQUIRED_MESSAGE = "Category title is required";
 export const categorySwatchLabel = (color: string) => `Color ${color}`;
+export const CATEGORIES_FIELD_LABEL = "Categories";
+export const CATEGORY_SEARCH_LABEL = "Search or add category";
+export const createCategoryOptionLabel = (title: string) => `Create "${title}"`;
+export const removeTaskCategoryLabel = (title: string) => `Remove ${title}`;
