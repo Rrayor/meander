@@ -8,6 +8,7 @@ import { expect, test } from "./fixtures";
 import {
   ADD_CATEGORY_LABEL,
   ADD_TASK_LABEL,
+  editCategoryLabel,
   editTaskLabel,
 } from "@/lib/labels";
 
@@ -122,6 +123,30 @@ test("the new category dialog has no WCAG AA violations", async ({ page }) => {
   });
   await page.goto(`/#${categoriesPath}`);
   await page.getByRole("button", { name: ADD_CATEGORY_LABEL }).click();
+  await expectAccessible(page);
+});
+
+test("the edit category dialog has no WCAG AA violations", async ({ page }) => {
+  const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
+  const category = {
+    id: 1,
+    profile_id: 1,
+    title: "Errands",
+    description: "Weekly shopping",
+    color: "#4ade80",
+    created_at: "2026-10-10 09:00:00",
+    updated_at: "2026-10-10 09:00:00",
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listCategories]: [category],
+  });
+  await page.goto(`/#${categoriesPath}`);
+  await page
+    .getByRole("button", { name: editCategoryLabel(category.title) })
+    .click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
   await expectAccessible(page);
 });
 
