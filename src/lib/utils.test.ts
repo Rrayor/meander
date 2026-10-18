@@ -1,4 +1,5 @@
 import { codePointsWithin, unicodeTrim } from "@/lib/utils";
+import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 // The regex serves as the oracle: \p{White_Space} is the same Unicode
 // property Rust's str::trim uses, so both implementations must agree.
@@ -26,15 +27,15 @@ describe("unicodeTrim", () => {
   it("removes every White_Space char from both edges, matching the oracle", () => {
     for (const ws of ALL_WHITESPACE) {
       const hex = `U+${ws.codePointAt(0)!.toString(16)}`;
-      expect(unicodeTrim(`${ws}text${ws}`), hex).toBe(
-        oracleTrim(`${ws}text${ws}`),
-      );
+      const padded = `${ws}text${ws}`;
+      expect(unicodeTrim(padded), hex).toBe(oracleTrim(padded));
     }
   });
 
   it("preserves interior whitespace", () => {
     expect(unicodeTrim("  a  b  ")).toBe("a  b");
-    expect(unicodeTrim("ab")).toBe("ab");
+    const nelInterior = "a\u0085b";
+    expect(unicodeTrim(nelInterior)).toBe(nelInterior);
   });
 
   it("handles empty and all-whitespace strings", () => {
@@ -45,16 +46,17 @@ describe("unicodeTrim", () => {
   it("does not remove non-whitespace edge chars", () => {
     for (const ch of NOT_WHITESPACE) {
       const hex = `U+${ch.codePointAt(0)!.toString(16)}`;
-      expect(unicodeTrim(`${ch}a${ch}`), hex).toBe(`${ch}a${ch}`);
+      const wrapped = `${ch}a${ch}`;
+      expect(unicodeTrim(wrapped), hex).toBe(wrapped);
     }
     // Emoji around the edges must survive (multi-unit code points).
-    expect(unicodeTrim(" 🛒 ")).toBe("🛒");
+    expect(unicodeTrim(` ${MULTI_UNIT_EMOJI} `)).toBe(MULTI_UNIT_EMOJI);
   });
 });
 
 describe("codePointsWithin", () => {
   it("counts code points, not UTF-16 units", () => {
-    expect(codePointsWithin("🛒", 1)).toBe(true);
+    expect(codePointsWithin(MULTI_UNIT_EMOJI, 1)).toBe(true);
     expect(codePointsWithin("ab", 2)).toBe(true);
     expect(codePointsWithin("abc", 2)).toBe(false);
   });
