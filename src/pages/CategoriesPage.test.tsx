@@ -67,6 +67,13 @@ const PROFILE: Profile = {
 
 const OTHER_PROFILE: Profile = { ...PROFILE, id: 2, name: "Work" };
 
+const OTHER_CATEGORY: Category = {
+  ...SECOND_CATEGORY,
+  id: 3,
+  profile_id: OTHER_PROFILE.id,
+  title: "Meetings",
+};
+
 beforeEach(() => {
   vi.mocked(currentProfile).mockResolvedValue(PROFILE);
 });
@@ -203,16 +210,11 @@ test("a failed delete leaves the list untouched and surfaces an alert", async ()
 });
 
 test("a delete failure from the old profile does not follow the switch", async () => {
-  const OTHER_CATEGORY: Category = {
-    ...SECOND_CATEGORY,
-    id: 3,
-    profile_id: OTHER_PROFILE.id,
-    title: "Meetings",
-  };
+  const DELETE_ERROR = "delete blew up";
   vi.mocked(listCategories)
     .mockResolvedValueOnce([CATEGORY])
     .mockResolvedValue([OTHER_CATEGORY]);
-  vi.mocked(deleteCategory).mockRejectedValue(new Error("delete blew up"));
+  vi.mocked(deleteCategory).mockRejectedValue(new Error(DELETE_ERROR));
   vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
   vi.mocked(currentProfile)
     .mockResolvedValueOnce(PROFILE)
@@ -231,7 +233,7 @@ test("a delete failure from the old profile does not follow the switch", async (
     }),
   );
   await waitFor(() =>
-    expect(screen.getByRole("alert")).toHaveTextContent("delete blew up"),
+    expect(screen.getByRole("alert")).toHaveTextContent(DELETE_ERROR),
   );
 
   fireEvent.click(
@@ -248,12 +250,6 @@ test("a delete failure from the old profile does not follow the switch", async (
 });
 
 test("switching profiles refetches the category list", async () => {
-  const OTHER_CATEGORY: Category = {
-    ...SECOND_CATEGORY,
-    id: 3,
-    profile_id: OTHER_PROFILE.id,
-    title: "Meetings",
-  };
   vi.mocked(listCategories)
     .mockResolvedValueOnce([CATEGORY])
     .mockResolvedValue([OTHER_CATEGORY]);
