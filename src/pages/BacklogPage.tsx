@@ -16,8 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   ADD_TASK_LABEL,
@@ -155,6 +156,17 @@ export function BacklogPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
     },
   });
+  const { data: profile } = useQuery({
+    queryKey: QUERY_KEYS.currentProfile,
+    queryFn: currentProfile,
+  });
+  // Same rule as the categories page: a failed delete is scoped to the
+  // profile it ran under — reset on profile change so the alert can't
+  // leak across a switch.
+  const { reset: resetDelete } = del;
+  useEffect(() => {
+    resetDelete();
+  }, [profile?.id, resetDelete]);
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!tasks || !over || active.id === over.id) {

@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   DEFAULT_CATEGORY_COLOR,
   deleteCategory,
   listCategories,
 } from "@/api/categories";
+import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { DeleteButton } from "@/components/DeleteButton";
 import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
@@ -36,6 +37,17 @@ export function CategoriesPage() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories }),
   });
+  const { data: profile } = useQuery({
+    queryKey: QUERY_KEYS.currentProfile,
+    queryFn: currentProfile,
+  });
+  // A failed delete belongs to the profile it ran under — clear the
+  // mutation when the active profile changes so the alert can't leak
+  // across a switch. reset is bound once on the observer, so it's stable.
+  const { reset: resetDelete } = del;
+  useEffect(() => {
+    resetDelete();
+  }, [profile?.id, resetDelete]);
 
   return (
     <>

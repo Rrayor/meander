@@ -23,6 +23,11 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   deleteTask: vi.fn(),
 }));
 
+vi.mock("@/api/profiles", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/profiles")>()),
+  currentProfile: vi.fn().mockResolvedValue(null),
+}));
+
 // jsdom reports zero-sized rects, so dnd-kit's closestCenter can never
 // resolve a droppable. Stub it to report the collision the test sets up;
 // the real drag pipeline (sensors, onDragEnd, mutation) still runs.

@@ -67,6 +67,10 @@ const PROFILE: Profile = {
 
 const OTHER_PROFILE: Profile = { ...PROFILE, id: 2, name: "Work" };
 
+beforeEach(() => {
+  vi.mocked(currentProfile).mockResolvedValue(PROFILE);
+});
+
 const renderPage = () =>
   render(
     <QueryClientProvider client={testQueryClient()}>
@@ -196,6 +200,51 @@ test("a failed delete leaves the list untouched and surfaces an alert", async ()
     expect(screen.getByRole("alert")).toHaveTextContent(DELETE_ERROR),
   );
   expect(screen.getByText(CATEGORY.title)).toBeInTheDocument();
+});
+
+test("a delete failure from the old profile does not follow the switch", async () => {
+  const OTHER_CATEGORY: Category = {
+    ...SECOND_CATEGORY,
+    id: 3,
+    profile_id: OTHER_PROFILE.id,
+    title: "Meetings",
+  };
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(deleteCategory).mockRejectedValue(new Error("delete blew up"));
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(currentProfile)
+    .mockResolvedValueOnce(PROFILE)
+    .mockResolvedValue(OTHER_PROFILE);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: deleteCategoryLabel(CATEGORY.title),
+    }),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent("delete blew up"),
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByText(OTHER_CATEGORY.title)).toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
 test("switching profiles refetches the category list", async () => {

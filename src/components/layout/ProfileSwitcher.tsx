@@ -30,9 +30,11 @@ export function ProfileSwitcher() {
     mutationFn: switchProfile,
     onSuccess: () => {
       setOpen(false);
-      // All cached data is profile-scoped — wipe the cache so mounted and
-      // later-mounted queries refetch against the new profile.
+      // All cached data is profile-scoped — refetch queries and drop
+      // mutation state (e.g. delete errors) so nothing from the old
+      // profile leaks into the new one.
       void queryClient.resetQueries();
+      queryClient.getMutationCache().clear();
     },
   });
 
