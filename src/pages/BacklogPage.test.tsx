@@ -1,8 +1,11 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
+import type { Profile } from "@/api/profiles";
 import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
+import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 import { BacklogPage } from "@/pages/BacklogPage";
 import {
   ADD_TASK_LABEL,
@@ -26,6 +29,8 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
 vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
   currentProfile: vi.fn().mockResolvedValue(null),
+  listProfiles: vi.fn(),
+  switchProfile: vi.fn(),
 }));
 
 // jsdom reports zero-sized rects, so dnd-kit's closestCenter can never
@@ -160,6 +165,61 @@ describe("BacklogPage", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
+    );
+  });
+
+  it("a reorder failure from the old profile does not follow the switch", async () => {
+    const MOVE_ERROR = "move rejected";
+    const FIRST: Profile = {
+      id: 1,
+      name: "Default",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-01",
+    };
+    const SECOND: Profile = { ...FIRST, id: 2, name: "Work" };
+    vi.mocked(listTasks)
+      .mockResolvedValueOnce([
+        task({ id: 1, title: TITLE_A, sort_order: 1 }),
+        task({ id: 2, title: TITLE_B, sort_order: 2 }),
+      ])
+      .mockResolvedValue([task({ id: 2, title: TITLE_B, sort_order: 1 })]);
+    vi.mocked(moveTask).mockRejectedValue(new Error(MOVE_ERROR));
+    vi.mocked(listProfiles).mockResolvedValue([FIRST, SECOND]);
+    vi.mocked(currentProfile)
+      .mockReset()
+      .mockResolvedValueOnce(FIRST)
+      .mockResolvedValue(SECOND);
+    vi.mocked(switchProfile).mockResolvedValue(undefined);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <BacklogPage />
+        <ProfileSwitcher />
+      </QueryClientProvider>,
+    );
+    const reorder = await screen.findByRole("button", {
+      name: reorderLabel(TITLE_A),
+    });
+    draggedOver = 2;
+
+    reorder.focus();
+    fireEvent.keyDown(reorder, { code: KEY_SPACE });
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.keyDown(document, { code: "ArrowDown" });
+    fireEvent.keyDown(document, { code: KEY_SPACE });
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(FIRST.name) }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: SECOND.name }));
+
+    await waitFor(() => expect(screen.getByText(TITLE_B)).toBeInTheDocument());
+    // The reset fires once the current-profile refetch lands — the tasks
+    // query may win the race, so poll for the alert to disappear.
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
     );
   });
 

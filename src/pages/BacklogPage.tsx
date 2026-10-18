@@ -160,13 +160,15 @@ export function BacklogPage() {
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
-  // Same rule as the categories page: a failed delete is scoped to the
-  // profile it ran under — reset on profile change so the alert can't
+  // Same rule as the categories page: failed mutations are scoped to the
+  // profile they ran under — reset on profile change so alerts can't
   // leak across a switch.
   const { reset: resetDelete } = del;
+  const { reset: resetMove } = move;
   useEffect(() => {
     resetDelete();
-  }, [profile?.id, resetDelete]);
+    resetMove();
+  }, [profile?.id, resetDelete, resetMove]);
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!tasks || !over || active.id === over.id) {
