@@ -66,6 +66,7 @@ export const CATEGORIES_SUBTITLE = "Labels for grouping tasks";
 export const EMPTY_CATEGORIES_MESSAGE =
   "No categories yet — created categories will appear here.";
 export const categoryCreatedLabel = (date: string) => `Created ${date}`;
+export const deleteCategoryLabel = (title: string) => `Delete ${title}`;
 export const ADD_CATEGORY_LABEL = "Add category";
 export const CREATE_CATEGORY_LABEL = "Create category";
 export const NEW_CATEGORY_HEADING = "New category";

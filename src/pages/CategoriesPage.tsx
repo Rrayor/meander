@@ -1,8 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
-import { DEFAULT_CATEGORY_COLOR, listCategories } from "@/api/categories";
+import {
+  DEFAULT_CATEGORY_COLOR,
+  deleteCategory,
+  listCategories,
+} from "@/api/categories";
+import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import { DeleteButton } from "@/components/DeleteButton";
 import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
 import {
   ADD_CATEGORY_LABEL,
@@ -10,6 +16,7 @@ import {
   CATEGORIES_SUBTITLE,
   EMPTY_CATEGORIES_MESSAGE,
   categoryCreatedLabel,
+  deleteCategoryLabel,
 } from "@/lib/labels";
 import { errorMessage, formatDate } from "@/lib/utils";
 
@@ -20,10 +27,36 @@ const UNCOLORED = DEFAULT_CATEGORY_COLOR;
 
 export function CategoriesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
   const { data: categories, error } = useQuery({
     queryKey: QUERY_KEYS.categories,
     queryFn: listCategories,
   });
+  const del = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories }),
+  });
+  const { data: profile } = useQuery({
+    queryKey: QUERY_KEYS.currentProfile,
+    queryFn: currentProfile,
+  });
+  // A failed delete belongs to the profile it ran under — clear the
+  // mutation on a switch so the alert can't leak across. Only a
+  // transition between two resolved ids counts: the first profile load
+  // must not clear an error raised while it was still pending.
+  const { reset: resetDelete } = del;
+  const lastProfileId = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (profile?.id == null) return;
+    if (
+      lastProfileId.current !== undefined &&
+      lastProfileId.current !== profile.id
+    ) {
+      resetDelete();
+    }
+    lastProfileId.current = profile.id;
+  }, [profile?.id, resetDelete]);
 
   return (
     <>
@@ -45,9 +78,9 @@ export function CategoriesPage() {
             {ADD_CATEGORY_LABEL}
           </button>
         </div>
-        {error && (
+        {(error ?? del.error) && (
           <p role="alert" className="text-sm text-danger">
-            {errorMessage(error)}
+            {errorMessage(error ?? del.error!)}
           </p>
         )}
         {categories?.length === 0 && (
@@ -57,7 +90,10 @@ export function CategoriesPage() {
         )}
         <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
           {categories?.map((category) => (
-            <li key={category.id} className="flex items-center gap-3 px-4 py-3">
+            <li
+              key={category.id}
+              className="group flex items-center gap-3 px-4 py-3"
+            >
               <span
                 aria-hidden="true"
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -67,6 +103,11 @@ export function CategoriesPage() {
               <span className="text-xs text-text-muted">
                 {categoryCreatedLabel(formatDate(category.created_at))}
               </span>
+              <DeleteButton
+                label={deleteCategoryLabel(category.title)}
+                disabled={del.isPending}
+                onDelete={() => del.mutate(category.id)}
+              />
             </li>
           ))}
         </ul>

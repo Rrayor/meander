@@ -38,6 +38,9 @@ export const listCategories = () =>
 export const createCategory = (input: NewCategory) =>
   transport.invoke<Category>(COMMANDS.createCategory, { input });
 
+export const deleteCategory = (categoryId: number) =>
+  transport.invoke<void>(COMMANDS.deleteCategory, { categoryId });
+
 export const listTaskCategories = (taskId: number) =>
   transport.invoke<Category[]>(COMMANDS.listTaskCategories, { taskId });
 

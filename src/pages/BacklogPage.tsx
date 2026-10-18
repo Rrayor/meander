@@ -16,8 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   ADD_TASK_LABEL,
@@ -31,6 +32,7 @@ import {
 import { errorMessage } from "@/lib/utils";
 import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
+import { DeleteButton } from "@/components/DeleteButton";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 
@@ -108,33 +110,11 @@ function TaskRow({
         >
           {STATUS_LABELS[task.status]}
         </span>
-        <button
-          type="button"
-          aria-label={deleteTaskLabel(task.title)}
+        <DeleteButton
+          label={deleteTaskLabel(task.title)}
           disabled={deletePending}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="rounded p-1 text-text-muted opacity-0 transition-colors duration-150 ease-out hover:bg-surface hover:text-text focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 group-hover:opacity-100 group-focus-within:opacity-100"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M3 6h18" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            <line x1="10" x2="10" y1="11" y2="17" />
-            <line x1="14" x2="14" y1="11" y2="17" />
-          </svg>
-        </button>
+          onDelete={onDelete}
+        />
       </div>
     </li>
   );
@@ -176,6 +156,28 @@ export function BacklogPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
     },
   });
+  const { data: profile } = useQuery({
+    queryKey: QUERY_KEYS.currentProfile,
+    queryFn: currentProfile,
+  });
+  // Failed mutations are scoped to the profile they ran under — reset on
+  // a switch so alerts can't leak across. Only a transition between two
+  // resolved ids counts: the first profile load must not clear an error
+  // raised while it was still pending.
+  const { reset: resetDelete } = del;
+  const { reset: resetMove } = move;
+  const lastProfileId = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (profile?.id == null) return;
+    if (
+      lastProfileId.current !== undefined &&
+      lastProfileId.current !== profile.id
+    ) {
+      resetDelete();
+      resetMove();
+    }
+    lastProfileId.current = profile.id;
+  }, [profile?.id, resetDelete, resetMove]);
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!tasks || !over || active.id === over.id) {
@@ -223,9 +225,9 @@ export function BacklogPage() {
             {ADD_TASK_LABEL}
           </button>
         </div>
-        {(error ?? del.error) && (
+        {(error ?? del.error ?? move.error) && (
           <p role="alert" className="text-sm text-danger">
-            {errorMessage(error ?? del.error)}
+            {errorMessage((error ?? del.error ?? move.error)!)}
           </p>
         )}
         {tasks?.length === 0 && (

@@ -116,6 +116,19 @@ describe("ProfileSwitcher", () => {
     );
   });
 
+  it("surfaces a failed profile switch in an alert", async () => {
+    const SWITCH_ERROR = "profile switch rejected";
+    vi.mocked(switchProfile).mockRejectedValue(new Error(SWITCH_ERROR));
+    renderSwitcher();
+    fireEvent.click(
+      await screen.findByRole("button", { name: DEFAULT_PROFILE_NAME }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: WORK_PROFILE_NAME }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(SWITCH_ERROR),
+    );
+  });
+
   it("closes the menu on Escape", async () => {
     renderSwitcher();
     fireEvent.click(

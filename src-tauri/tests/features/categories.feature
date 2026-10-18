@@ -71,6 +71,20 @@ Feature: Categories
     Then the categories of Alpha are ""
     And the category list is empty
 
+  Scenario: deleting another profile's category is rejected
+    Given an application state on a temporary seeded database
+    And a category named Office exists on a second profile
+    When the category Office is deleted
+    Then the deletion fails
+    And the second profile's category list is "Office"
+
+  Scenario: deleting an unknown category is rejected
+    Given an application state on a temporary seeded database
+    And a category named Errands exists on the active profile
+    When a category that does not exist is deleted
+    Then the deletion fails
+    And the category list is "Errands"
+
   Scenario: creating a category trims and defaults its color
     Given an application state on a temporary seeded database
     When I create a category with surrounding whitespace

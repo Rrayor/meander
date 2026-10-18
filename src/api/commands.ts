@@ -11,6 +11,7 @@ export const COMMANDS = {
   listTasks: "list_tasks",
   listCategories: "list_categories",
   createCategory: "create_category",
+  deleteCategory: "delete_category",
   listTaskCategories: "list_task_categories",
   addTaskCategory: "add_task_category",
   removeTaskCategory: "remove_task_category",

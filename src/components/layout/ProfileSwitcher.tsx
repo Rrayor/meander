@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import { errorMessage } from "@/lib/utils";
 
 export function ProfileSwitcher() {
   const queryClient = useQueryClient();
@@ -30,9 +31,11 @@ export function ProfileSwitcher() {
     mutationFn: switchProfile,
     onSuccess: () => {
       setOpen(false);
-      // All cached data is profile-scoped — wipe the cache so mounted and
-      // later-mounted queries refetch against the new profile.
+      // All cached data is profile-scoped — refetch queries and drop
+      // mutation state (e.g. delete errors) so nothing from the old
+      // profile leaks into the new one.
       void queryClient.resetQueries();
+      queryClient.getMutationCache().clear();
     },
   });
 
@@ -68,6 +71,11 @@ export function ProfileSwitcher() {
             </li>
           ))}
         </ul>
+      )}
+      {select.error && (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {errorMessage(select.error)}
+        </p>
       )}
       <button
         type="button"

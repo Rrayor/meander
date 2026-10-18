@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   DEFAULT_CATEGORY_COLOR,
   createCategory,
+  deleteCategory,
   listCategories,
 } from "@/api/categories";
 import type { Category } from "@/api/categories";
@@ -18,6 +19,7 @@ import {
   EMPTY_CATEGORIES_MESSAGE,
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
+  deleteCategoryLabel,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
@@ -28,6 +30,7 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   listCategories: vi.fn(),
   createCategory: vi.fn(),
+  deleteCategory: vi.fn(),
 }));
 
 vi.mock("@/api/profiles", async (importOriginal) => ({
@@ -63,6 +66,17 @@ const PROFILE: Profile = {
 };
 
 const OTHER_PROFILE: Profile = { ...PROFILE, id: 2, name: "Work" };
+
+const OTHER_CATEGORY: Category = {
+  ...SECOND_CATEGORY,
+  id: 3,
+  profile_id: OTHER_PROFILE.id,
+  title: "Meetings",
+};
+
+beforeEach(() => {
+  vi.mocked(currentProfile).mockResolvedValue(PROFILE);
+});
 
 const renderPage = () =>
   render(
@@ -154,13 +168,88 @@ test("a successful create refreshes the list", async () => {
   expect(listCategories).toHaveBeenCalledTimes(2);
 });
 
+test("deleting a category calls the backend and refreshes the list", async () => {
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY, SECOND_CATEGORY])
+    .mockResolvedValue([SECOND_CATEGORY]);
+  vi.mocked(deleteCategory).mockResolvedValue(undefined);
+  renderPage();
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: deleteCategoryLabel(CATEGORY.title),
+    }),
+  );
+
+  await waitFor(() =>
+    expect(deleteCategory).toHaveBeenCalledWith(CATEGORY.id, expect.anything()),
+  );
+  await waitFor(() =>
+    expect(screen.queryByText(CATEGORY.title)).not.toBeInTheDocument(),
+  );
+  expect(screen.getByText(SECOND_CATEGORY.title)).toBeInTheDocument();
+  expect(listCategories).toHaveBeenCalledTimes(2);
+});
+
+test("a failed delete leaves the list untouched and surfaces an alert", async () => {
+  const DELETE_ERROR = "fk locked";
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY]);
+  vi.mocked(deleteCategory).mockRejectedValue(new Error(DELETE_ERROR));
+  renderPage();
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: deleteCategoryLabel(CATEGORY.title),
+    }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent(DELETE_ERROR),
+  );
+  expect(screen.getByText(CATEGORY.title)).toBeInTheDocument();
+});
+
+test("a delete failure from the old profile does not follow the switch", async () => {
+  const DELETE_ERROR = "delete blew up";
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(deleteCategory).mockRejectedValue(new Error(DELETE_ERROR));
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(currentProfile)
+    .mockResolvedValueOnce(PROFILE)
+    .mockResolvedValue(OTHER_PROFILE);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: deleteCategoryLabel(CATEGORY.title),
+    }),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent(DELETE_ERROR),
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByText(OTHER_CATEGORY.title)).toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
 test("switching profiles refetches the category list", async () => {
-  const OTHER_CATEGORY: Category = {
-    ...SECOND_CATEGORY,
-    id: 3,
-    profile_id: OTHER_PROFILE.id,
-    title: "Meetings",
-  };
   vi.mocked(listCategories)
     .mockResolvedValueOnce([CATEGORY])
     .mockResolvedValue([OTHER_CATEGORY]);
