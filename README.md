@@ -1,5 +1,9 @@
 # Meander
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Rrayor_meander&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=Rrayor_meander)
+
 Offline desktop weekly kanban planner. Tauri app: Rust backend, React (Vite) + TypeScript + Tailwind frontend, SQLite storage.
 
 ## Development setup

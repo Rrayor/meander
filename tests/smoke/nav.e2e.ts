@@ -1,8 +1,9 @@
+import { NAV_LABEL } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
 describe("Meander smoke", () => {
   it("launches and navigates between pages", async () => {
-    const nav = await $("aria/Main Navigation");
+    const nav = await $(`aria/${NAV_LABEL}`);
     await expect(nav).toExist();
 
     for (const { label } of ROUTES) {

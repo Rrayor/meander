@@ -27,6 +27,7 @@ export const ESTIMATED_TIME_LABEL = "Estimated time";
 export const SPENT_TIME_LABEL = "Time spent";
 export const TASK_STATUS_FIELD_LABEL = "Status";
 export const CARRY_OVER_FIELD_LABEL = "Carry-over rule";
+export const NAV_LABEL = "Main Navigation";
 export const CLOSE_LABEL = "Close";
 export const CLOSE_DIALOG_LABEL = "Close dialog";
 export const HOURS_UNIT_LABEL = "h";
