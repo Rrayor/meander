@@ -12,6 +12,7 @@ import {
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
   categorySwatchLabel,
+  deleteCategoryLabel,
 } from "@/lib/labels";
 import { CATEGORY_COLORS } from "@/api/categories";
 import { CATEGORY_COLOR_INVALID_MESSAGE } from "@/lib/errors";
@@ -274,4 +275,28 @@ test("an empty category list shows the empty state", async ({ page }) => {
   await page.goto(`/#${categoriesPath}`);
 
   await expect(page.getByText(EMPTY_CATEGORIES_MESSAGE)).toBeVisible();
+});
+
+test("deleting a category removes it from the list", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listProfiles]: [current],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.listCategories]: stubSequence([[CATEGORY], []]),
+    [COMMANDS.deleteCategory]: null,
+  });
+  await page.goto(`/#${categoriesPath}`);
+  await expect(page.getByText(CATEGORY.title)).toBeVisible();
+
+  await page.locator("li", { hasText: CATEGORY.title }).hover();
+  await page
+    .getByRole("button", { name: deleteCategoryLabel(CATEGORY.title) })
+    .click();
+
+  await expect(page.getByText(EMPTY_CATEGORIES_MESSAGE)).toBeVisible();
+  const invocations = await getInvocations(page);
+  expect(invocations).toContainEqual({
+    cmd: COMMANDS.deleteCategory,
+    args: { categoryId: CATEGORY.id },
+  });
 });

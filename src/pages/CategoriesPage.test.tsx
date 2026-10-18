@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   DEFAULT_CATEGORY_COLOR,
   createCategory,
+  deleteCategory,
   listCategories,
 } from "@/api/categories";
 import type { Category } from "@/api/categories";
@@ -18,6 +19,7 @@ import {
   EMPTY_CATEGORIES_MESSAGE,
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
+  deleteCategoryLabel,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
@@ -28,6 +30,7 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   listCategories: vi.fn(),
   createCategory: vi.fn(),
+  deleteCategory: vi.fn(),
 }));
 
 vi.mock("@/api/profiles", async (importOriginal) => ({
@@ -152,6 +155,44 @@ test("a successful create refreshes the list", async () => {
     expect(screen.getByText(CATEGORY.title)).toBeInTheDocument(),
   );
   expect(listCategories).toHaveBeenCalledTimes(2);
+});
+
+test("deleting a category calls the backend and refreshes the list", async () => {
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY, SECOND_CATEGORY])
+    .mockResolvedValue([SECOND_CATEGORY]);
+  vi.mocked(deleteCategory).mockResolvedValue(undefined);
+  renderPage();
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: deleteCategoryLabel(CATEGORY.title),
+    }),
+  );
+
+  await waitFor(() =>
+    expect(deleteCategory).toHaveBeenCalledWith(CATEGORY.id, expect.anything()),
+  );
+  await waitFor(() =>
+    expect(screen.queryByText(CATEGORY.title)).not.toBeInTheDocument(),
+  );
+  expect(screen.getByText(SECOND_CATEGORY.title)).toBeInTheDocument();
+  expect(listCategories).toHaveBeenCalledTimes(2);
+});
+
+test("a failed delete leaves the list untouched", async () => {
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY]);
+  vi.mocked(deleteCategory).mockRejectedValue(new Error("fk locked"));
+  renderPage();
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: deleteCategoryLabel(CATEGORY.title),
+    }),
+  );
+
+  await waitFor(() => expect(deleteCategory).toHaveBeenCalled());
+  expect(screen.getByText(CATEGORY.title)).toBeInTheDocument();
 });
 
 test("switching profiles refetches the category list", async () => {

@@ -611,12 +611,28 @@ fn remove_category(world: &mut MeanderWorld, category: String, task: String) {
 #[when(expr = "the category {word} is deleted")]
 fn delete_category(world: &mut MeanderWorld, title: String) {
     let category_id = category_id_by_title(world, &title);
-    let pool = world.state.as_ref().expect("no app state").pool();
-    if let Err(e) = world.rt().block_on(
-        sqlx::query("DELETE FROM categories WHERE id = ?")
-            .bind(category_id)
-            .execute(&pool),
-    ) {
+    let state = world.state.as_ref().expect("no app state");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    if let Err(e) = world.rt().block_on(meander_lib::categories::delete(
+        &pool,
+        profile_id,
+        category_id,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("a category that does not exist is deleted")]
+fn delete_missing_category(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    if let Err(e) =
+        world
+            .rt()
+            .block_on(meander_lib::categories::delete(&pool, profile_id, i64::MAX))
+    {
         world.error = Some(e.to_string());
     }
 }

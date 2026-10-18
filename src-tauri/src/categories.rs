@@ -160,6 +160,21 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Category>> {
     .await?)
 }
 
+/// Deletes a category scoped to its owning profile. task_categories rows
+/// cascade away; the tasks themselves are untouched. Deleting an unknown id
+/// — or another profile's category — is an error, not a silent no-op.
+pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
+    let result = sqlx::query("DELETE FROM categories WHERE id = ? AND profile_id = ?")
+        .bind(id)
+        .bind(profile_id)
+        .execute(pool)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(category_not_found());
+    }
+    Ok(())
+}
+
 async fn ensure_exists(pool: &SqlitePool, profile_id: i64, category_id: i64) -> Result<()> {
     let row: Option<(i64,)> =
         sqlx::query_as("SELECT id FROM categories WHERE id = ? AND profile_id = ?")
@@ -358,6 +373,49 @@ mod tests {
             .await
             .unwrap()
             .last_insert_rowid()
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_category_and_its_associations() {
+        let (pool, pid) = seeded_pool().await;
+        let category = new_category(&pool, pid, TITLE_A).await;
+        let task = new_task(&pool, pid, "Alpha").await;
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        delete(&pool, pid, category).await.unwrap();
+
+        assert!(list(&pool, pid).await.unwrap().is_empty());
+        assert!(for_task(&pool, pid, task).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_leaves_associated_tasks_intact() {
+        let (pool, pid) = seeded_pool().await;
+        let category = new_category(&pool, pid, TITLE_A).await;
+        let task = new_task(&pool, pid, "Alpha").await;
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        delete(&pool, pid, category).await.unwrap();
+
+        assert_eq!(crate::tasks::list(&pool, pid).await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn deleting_a_foreign_or_unknown_category_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+        let foreign = new_category(&pool, other.id, TITLE_B).await;
+
+        assert!(delete(&pool, pid, foreign).await.is_err());
+        assert!(delete(&pool, pid, i64::MAX).await.is_err());
+        // The foreign category itself survives.
+        assert!(
+            list(&pool, other.id)
+                .await
+                .unwrap()
+                .iter()
+                .any(|c| c.id == foreign)
+        );
     }
 
     #[tokio::test]

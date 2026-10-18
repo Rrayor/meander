@@ -44,6 +44,13 @@ pub async fn create_category(
 }
 
 #[tauri::command]
+pub async fn delete_category(category_id: i64, state: State<'_, AppState>) -> Result<(), ApiError> {
+    crate::categories::delete(&state.pool(), state.active_profile_id(), category_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_task_categories(
     task_id: i64,
     state: State<'_, AppState>,
@@ -326,6 +333,26 @@ mod tests {
         let categories = list_categories(state.clone()).await.unwrap();
         assert_eq!(categories.len(), 1);
         assert_eq!(categories[0].title, CATEGORY_TITLE);
+    }
+
+    #[tokio::test]
+    async fn delete_category_removes_it_and_surfaces_errors() {
+        let app = test_app().await;
+        let state = app.state::<AppState>();
+        let category_id: i64 = sqlx::query_scalar(
+            "INSERT INTO categories (profile_id, title) VALUES (?, ?) RETURNING id",
+        )
+        .bind(state.active_profile_id())
+        .bind("Errands")
+        .fetch_one(&state.pool())
+        .await
+        .unwrap();
+
+        delete_category(category_id, state.clone()).await.unwrap();
+        assert!(list_categories(state.clone()).await.unwrap().is_empty());
+
+        let err = delete_category(i64::MAX, state.clone()).await.unwrap_err();
+        assert_eq!(err.code, crate::errors::ErrorCode::CategoryNotFound);
     }
 
     #[tokio::test]
