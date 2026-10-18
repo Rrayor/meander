@@ -57,9 +57,9 @@ export function CategoriesPage() {
             {ADD_CATEGORY_LABEL}
           </button>
         </div>
-        {error && (
+        {(error ?? del.error) && (
           <p role="alert" className="text-sm text-danger">
-            {errorMessage(error)}
+            {errorMessage(error ?? del.error!)}
           </p>
         )}
         {categories?.length === 0 && (

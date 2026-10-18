@@ -180,9 +180,10 @@ test("deleting a category calls the backend and refreshes the list", async () =>
   expect(listCategories).toHaveBeenCalledTimes(2);
 });
 
-test("a failed delete leaves the list untouched", async () => {
+test("a failed delete leaves the list untouched and surfaces an alert", async () => {
+  const DELETE_ERROR = "fk locked";
   vi.mocked(listCategories).mockResolvedValue([CATEGORY]);
-  vi.mocked(deleteCategory).mockRejectedValue(new Error("fk locked"));
+  vi.mocked(deleteCategory).mockRejectedValue(new Error(DELETE_ERROR));
   renderPage();
 
   fireEvent.click(
@@ -191,7 +192,9 @@ test("a failed delete leaves the list untouched", async () => {
     }),
   );
 
-  await waitFor(() => expect(deleteCategory).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent(DELETE_ERROR),
+  );
   expect(screen.getByText(CATEGORY.title)).toBeInTheDocument();
 });
 

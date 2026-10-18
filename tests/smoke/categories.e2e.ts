@@ -4,6 +4,7 @@ import {
   CLOSE_LABEL,
   CUSTOM_COLOR_LABEL,
   NAV_LABEL,
+  deleteCategoryLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
@@ -29,6 +30,16 @@ describe("Categories smoke", () => {
 
     const list = await $("ul");
     await browser.waitUntil(async () => (await list.getText()).includes(title));
+
+    // Delete through the real backend too — the row is hover-revealed, so
+    // move to it before clicking its labeled button.
+    const row = await $("li");
+    await row.moveTo();
+    const deleteBtn = await $(`aria/${deleteCategoryLabel(title)}`);
+    await deleteBtn.click();
+    await browser.waitUntil(
+      async () => !(await list.getText()).includes(title),
+    );
   });
 
   it("shows the color radiogroup with a selected default", async () => {
