@@ -34,6 +34,16 @@ pub async fn list_categories(
 }
 
 #[tauri::command]
+pub async fn create_category(
+    input: crate::categories::NewCategory,
+    state: State<'_, AppState>,
+) -> Result<crate::categories::Category, ApiError> {
+    crate::categories::create(&state.pool(), state.active_profile_id(), &input)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_task_categories(
     task_id: i64,
     state: State<'_, AppState>,

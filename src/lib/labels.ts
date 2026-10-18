@@ -65,3 +65,12 @@ export const CATEGORIES_SUBTITLE = "Labels for grouping tasks";
 export const EMPTY_CATEGORIES_MESSAGE =
   "No categories yet — created categories will appear here.";
 export const categoryCreatedLabel = (date: string) => `Created ${date}`;
+export const ADD_CATEGORY_LABEL = "Add category";
+export const CREATE_CATEGORY_LABEL = "Create category";
+export const NEW_CATEGORY_HEADING = "New category";
+export const COLOR_FIELD_LABEL = "Color";
+export const DEFAULT_COLOR_LABEL = "Default color";
+export const CUSTOM_COLOR_LABEL = "Custom color";
+export const CUSTOM_COLOR_PICKER_LABEL = "Pick a custom color";
+export const CATEGORY_TITLE_REQUIRED_MESSAGE = "Category title is required";
+export const categorySwatchLabel = (color: string) => `Color ${color}`;

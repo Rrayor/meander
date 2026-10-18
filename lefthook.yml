@@ -13,10 +13,11 @@ pre-commit:
       run: npx tsc --noEmit
     migrations:
       run: bash scripts/check-migrations.sh
-    bindings:
-      run: bash scripts/check-bindings.sh
-    cargo-test:
-      run: cargo test --manifest-path src-tauri/Cargo.toml
+    # bindings regenerates src/api/bindings.ts while cargo-test's
+    # bindings freshness test reads it — running them in parallel races.
+    # Keep them sequential in one job; everything else stays parallel.
+    rust-serial:
+      run: bash scripts/check-bindings.sh && cargo test --manifest-path src-tauri/Cargo.toml
     vitest:
       run: npx vitest run
     playwright:

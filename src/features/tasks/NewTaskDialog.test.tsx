@@ -1,13 +1,18 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { MAX_DURATION_MINUTES } from "@/api/tasks";
+import { MAX_DURATION_MINUTES, MAX_TASK_TITLE_LENGTH } from "@/api/tasks";
 import { ApiError } from "@/api/transport";
 import { createTask } from "@/api/tasks";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
-import { SERVER_ERROR_MESSAGES, serverErrorMessage } from "@/lib/errors";
+import {
+  SERVER_ERROR_MESSAGES,
+  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+  serverErrorMessage,
+} from "@/lib/errors";
 import { TITLE_REQUIRED_MESSAGE } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
+import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
@@ -92,6 +97,52 @@ describe("NewTaskDialog", () => {
     submit();
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
     expect(mockedCreate.mock.calls[0][0].carry_over_rule).toBeNull();
+  });
+
+  it("rejects control characters inline without calling the backend", async () => {
+    renderDialog();
+
+    fillTitle(`${VALID_TITLE}`);
+    submit();
+
+    expect(
+      await screen.findByText(TASK_TITLE_INVALID_CHARACTERS_MESSAGE),
+    ).toBeInTheDocument();
+    expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepts a title past the UTF-16 length but within the char bound", async () => {
+    renderDialog();
+    mockedCreate.mockResolvedValue(
+      {} as Awaited<ReturnType<typeof createTask>>,
+    );
+    // Emoji are 2 UTF-16 units each — the backend's len_char_max counts code
+    // points, so the client schema must not cap them earlier.
+    const EMOJI_TITLE = MULTI_UNIT_EMOJI.repeat(
+      Math.floor(MAX_TASK_TITLE_LENGTH / 2) + 1,
+    );
+
+    fillTitle(EMOJI_TITLE);
+    submit();
+
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
+    expect(mockedCreate.mock.calls[0][0].title).toBe(EMOJI_TITLE);
+  });
+
+  it("trims U+0085 like the backend before validating", async () => {
+    renderDialog();
+    mockedCreate.mockResolvedValue(
+      {} as Awaited<ReturnType<typeof createTask>>,
+    );
+    // Rust's trim removes U+0085 (Unicode White_Space); JS trim does not —
+    // the client must sanitize the same way so it doesn't reject valid input.
+    const NEL_PADDED = `\u0085${VALID_TITLE}\u0085`;
+
+    fillTitle(NEL_PADDED);
+    submit();
+
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
+    expect(mockedCreate.mock.calls[0][0].title).toBe(VALID_TITLE);
   });
 
   // The end-to-end server-error path (reject → React Query → inline alert →

@@ -63,7 +63,6 @@
         "designs/task-detail-dialog.html",
         "designs/task-detail-dialog.png"
       ],
-      "implemented": false,
       "implemented": true,
       "notes": "Task edit dialog over dimmed backlog: pre-filled title/description, Estimated time + Time spent paired h/min inputs, Status and Carry-over segmented controls, read-only Created/Updated footer metadata, Cancel/Save actions"
     },
@@ -72,8 +71,19 @@
       "title": "Meander — Categories",
       "deviceType": "DESKTOP",
       "files": ["designs/categories.html", "designs/categories.png"],
-      "implemented": false,
-      "notes": "Categories list: color dot + title rows with 'N tasks · Created <date>' metadata, Categories nav item between Backlog and Settings, empty state. Generated extras omitted: stats cards, Add Category button (step 21), footer tip"
+      "implemented": true,
+      "notes": "Categories list: color dot + title rows with 'Created <date>' metadata, Categories nav item between Backlog and Settings, Add Category button, empty state. Generated extras omitted: stats cards, 'N tasks' counts (step 24), footer tip"
+    },
+    {
+      "id": "00738f47ad1c41189a03ef98bfcf61d3",
+      "title": "Meander — New Category Modal",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/new-category-dialog.html",
+        "designs/new-category-dialog.png"
+      ],
+      "implemented": true,
+      "notes": "Category creation dialog: Title* input, optional Description textarea, Color as a radiogroup of palette swatches with a default option and a custom color picker, Cancel/Create category footer over dimmed categories page"
     }
   ]
 }

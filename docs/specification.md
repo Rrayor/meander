@@ -181,7 +181,7 @@ Categories hold the following information (This is not a database schema, just t
 
 - Title: The name of the category (Required)
 - Description: Don't forget why you created a category :D (Optional)
-- Color: The color to use for the border of associated tasks (Defaults to random color)
+- Color: The color to use for the border of associated tasks (Optional; defaults to the app's primary accent color. Users can pick from the palette or define a fully custom color)
 - Audit information: Created at, updated at
 
 **Acceptance Criteria:**

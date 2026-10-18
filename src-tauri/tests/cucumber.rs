@@ -644,6 +644,117 @@ fn task_categories_are(world: &mut MeanderWorld, task: String, expected: String)
     assert_eq!(titles, expected);
 }
 
+fn create_category_input(world: &mut MeanderWorld, input: meander_lib::categories::NewCategory) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let profile_id = state.active_profile_id();
+    match world
+        .rt()
+        .block_on(meander_lib::categories::create(&pool, profile_id, &input))
+    {
+        Ok(_) => world.error = None,
+        Err(e) => world.error = Some(e.to_string()),
+    }
+}
+
+#[when("I create a category with surrounding whitespace")]
+fn create_padded_category(world: &mut MeanderWorld) {
+    create_category_input(
+        world,
+        meander_lib::categories::NewCategory {
+            title: "  Errands  ".into(),
+            description: None,
+            color: None,
+        },
+    );
+}
+
+#[when(expr = "I create a category titled {word} with color {string}")]
+fn create_category_with_color(world: &mut MeanderWorld, title: String, color: String) {
+    create_category_input(
+        world,
+        meander_lib::categories::NewCategory {
+            title,
+            description: None,
+            color: Some(color),
+        },
+    );
+}
+
+#[when("I create a category with an overlong description")]
+fn create_category_with_overlong_description(world: &mut MeanderWorld) {
+    create_category_input(
+        world,
+        meander_lib::categories::NewCategory {
+            title: "Errands".into(),
+            description: Some(
+                "x".repeat(meander_lib::categories::CATEGORY_DESCRIPTION_MAX_LEN + 1),
+            ),
+            color: None,
+        },
+    );
+}
+
+#[when("I create a category with a blank title")]
+fn create_blank_category(world: &mut MeanderWorld) {
+    create_category_input(
+        world,
+        meander_lib::categories::NewCategory {
+            title: "   ".into(),
+            description: None,
+            color: None,
+        },
+    );
+}
+
+#[then("the category creation succeeds")]
+fn category_creation_succeeds(world: &mut MeanderWorld) {
+    assert!(
+        world.error.is_none(),
+        "category creation failed: {:?}",
+        world.error
+    );
+}
+
+#[then("the category creation fails")]
+fn category_creation_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "expected category creation to fail");
+    world.error = None;
+}
+
+#[then(expr = "a category named {word} exists in the list")]
+fn category_exists_in_list(world: &mut MeanderWorld, title: String) {
+    category_id_by_title(world, &title);
+}
+
+#[then(expr = "the category {word} has the default color")]
+fn category_has_default_color(world: &mut MeanderWorld, title: String) {
+    let pool = world.state.as_ref().expect("no app state").pool();
+    let color: String = world
+        .rt()
+        .block_on(
+            sqlx::query_scalar("SELECT color FROM categories WHERE title = ?")
+                .bind(&title)
+                .fetch_one(&pool),
+        )
+        .expect("category missing");
+    assert_eq!(color, meander_lib::categories::DEFAULT_CATEGORY_COLOR);
+}
+
+#[then(expr = "the category {word} has color {string}")]
+fn category_has_color(world: &mut MeanderWorld, title: String, expected: String) {
+    let pool = world.state.as_ref().expect("no app state").pool();
+    let color: String = world
+        .rt()
+        .block_on(
+            sqlx::query_scalar("SELECT color FROM categories WHERE title = ?")
+                .bind(&title)
+                .fetch_one(&pool),
+        )
+        .expect("category missing");
+    assert_eq!(color, expected);
+}
+
 #[then("the association succeeds")]
 fn association_succeeds(world: &mut MeanderWorld) {
     assert!(

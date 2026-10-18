@@ -15,6 +15,9 @@ import type { Task } from "@/api/tasks";
 import {
   DURATION_RANGE_MESSAGE,
   SPENT_RANGE_MESSAGE,
+  TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+  TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
 import {
@@ -41,7 +44,7 @@ import {
   TITLE_REQUIRED_MESSAGE,
   auditTimestampsLabel,
 } from "@/lib/labels";
-import { formatDate } from "@/lib/utils";
+import { codePointsWithin, formatDate, unicodeTrim } from "@/lib/utils";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -50,18 +53,23 @@ const schema = z
   .object({
     title: z
       .string()
-      .trim()
-      .min(1, TITLE_REQUIRED_MESSAGE)
-      .max(
-        MAX_TASK_TITLE_LENGTH,
-        `Task title must be ${MAX_TASK_TITLE_LENGTH} characters or fewer`,
+      .transform(unicodeTrim)
+      .pipe(
+        z
+          .string()
+          .min(1, TITLE_REQUIRED_MESSAGE)
+          .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
+            message: TASK_TITLE_TOO_LONG_MESSAGE,
+          })
+          .refine((s) => !/\p{Cc}/u.test(s), {
+            message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
+          }),
       ),
     description: z
       .string()
-      .max(
-        MAX_TASK_DESCRIPTION_LENGTH,
-        `Description must be ${MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()} characters or fewer`,
-      ),
+      .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
+        message: TASK_DESCRIPTION_TOO_LONG_MESSAGE,
+      }),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
     spentHours: optionalDurationPart("Hours"),
@@ -167,7 +175,7 @@ export function EditTaskDialog({
   const onSubmit = (values: FormValues) => {
     update.mutate({
       title: values.title,
-      description: values.description.trim() || null,
+      description: unicodeTrim(values.description) || null,
       estimated_minutes: toMinutes(values.estHours, values.estMinutes),
       spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       carry_over_rule: values.carryOver === "" ? null : values.carryOver,
@@ -278,7 +286,6 @@ export function EditTaskDialog({
             <input
               id="edit-task-title-input"
               type="text"
-              maxLength={MAX_TASK_TITLE_LENGTH}
               aria-invalid={!!errors.title}
               aria-describedby={
                 errors.title ? "edit-task-title-error" : undefined
@@ -307,7 +314,6 @@ export function EditTaskDialog({
             <textarea
               id="edit-task-description"
               rows={3}
-              maxLength={MAX_TASK_DESCRIPTION_LENGTH}
               aria-invalid={!!errors.description}
               aria-describedby={
                 errors.description ? "edit-task-description-error" : undefined
