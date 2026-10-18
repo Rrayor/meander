@@ -5,9 +5,9 @@ interface DeleteButtonProps {
   disabled?: boolean;
 }
 
-// Hover-reveal delete affordance shared by list rows. Kept in sync with the
-// row's `group`/`group-focus-within` classes: the button is reachable by
-// keyboard even when visually hidden (focus:opacity-100).
+// Delete affordance shared by list rows. Always rendered muted rather than
+// hidden-until-hover — an invisible control can't be discovered by keyboard
+// or touch users.
 export function DeleteButton({
   label,
   onDelete,
@@ -22,7 +22,7 @@ export function DeleteButton({
         e.stopPropagation();
         onDelete();
       }}
-      className="rounded p-1 text-text-muted opacity-0 transition-colors duration-150 ease-out hover:bg-surface hover:text-text focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 group-hover:opacity-100 group-focus-within:opacity-100"
+      className="rounded p-1 text-text-muted transition-colors duration-150 ease-out hover:bg-surface hover:text-text focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
     >
       <svg
         viewBox="0 0 24 24"
