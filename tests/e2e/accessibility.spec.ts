@@ -24,6 +24,8 @@ const current = {
   updated_at: "2026-10-10 09:14:00",
 };
 
+const AUDIT_TS = "2026-10-10 09:00:00";
+
 const task = {
   id: 1,
   profile_id: 1,
@@ -36,8 +38,8 @@ const task = {
   placement: "backlog",
   scheduled_date: null,
   sort_order: 1,
-  created_at: "2026-10-10 09:00:00",
-  updated_at: "2026-10-10 09:00:00",
+  created_at: AUDIT_TS,
+  updated_at: AUDIT_TS,
 };
 
 const expectAccessible = async (page: Page) => {
@@ -106,8 +108,8 @@ test("the categories page has no WCAG AA violations", async ({ page }) => {
         title: "Errands",
         description: null,
         color: "#2DD4BF",
-        created_at: "2026-10-10 09:00:00",
-        updated_at: "2026-10-10 09:00:00",
+        created_at: AUDIT_TS,
+        updated_at: AUDIT_TS,
       },
     ],
   });
@@ -134,8 +136,8 @@ test("the edit category dialog has no WCAG AA violations", async ({ page }) => {
     title: "Errands",
     description: "Weekly shopping",
     color: "#4ade80",
-    created_at: "2026-10-10 09:00:00",
-    updated_at: "2026-10-10 09:00:00",
+    created_at: AUDIT_TS,
+    updated_at: AUDIT_TS,
   };
   await stubTauriCommands(page, {
     [COMMANDS.currentProfile]: current,
