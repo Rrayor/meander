@@ -1,14 +1,21 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { CATEGORY_COLORS, createCategory } from "@/api/categories";
-import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
+import {
+  CATEGORY_COLORS,
+  createCategory,
+  updateCategory,
+} from "@/api/categories";
+import type { Category } from "@/api/categories";
+import { CategoryDialog } from "@/features/categories/CategoryDialog";
 import {
   CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
   CATEGORY_TITLE_TOO_LONG_MESSAGE,
 } from "@/lib/errors";
 import {
   CATEGORY_TITLE_REQUIRED_MESSAGE,
+  EDIT_CATEGORY_HEADING,
+  SAVE_BUTTON_LABEL,
   CANCEL_BUTTON_LABEL,
   COLOR_FIELD_LABEL,
   CUSTOM_COLOR_LABEL,
@@ -24,6 +31,7 @@ import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   createCategory: vi.fn(),
+  updateCategory: vi.fn(),
 }));
 
 const CATEGORY_TITLE = "Errands";
@@ -31,7 +39,7 @@ const CATEGORY_TITLE = "Errands";
 const renderDialog = (onClose = vi.fn()) =>
   render(
     <QueryClientProvider client={testQueryClient()}>
-      <NewCategoryDialog onClose={onClose} />
+      <CategoryDialog onClose={onClose} />
     </QueryClientProvider>,
   );
 
@@ -71,7 +79,6 @@ test("submits title, description, and picked color on the wire", async () => {
         description: "Things to buy",
         color: picked,
       }),
-      expect.anything(),
     ),
   );
 });
@@ -92,7 +99,6 @@ test("a custom color from the picker is sent on the wire", async () => {
   await waitFor(() =>
     expect(createCategory).toHaveBeenCalledWith(
       expect.objectContaining({ color: CUSTOM_HEX }),
-      expect.anything(),
     ),
   );
 
@@ -115,7 +121,6 @@ test("no color pick sends null so the backend applies the default", async () => 
   await waitFor(() =>
     expect(createCategory).toHaveBeenCalledWith(
       expect.objectContaining({ color: null }),
-      expect.anything(),
     ),
   );
 });
@@ -187,7 +192,6 @@ test("titles beyond the UTF-16 length but within the char bound submit", async (
   await waitFor(() =>
     expect(createCategory).toHaveBeenCalledWith(
       expect.objectContaining({ title: EMOJI_TITLE }),
-      expect.anything(),
     ),
   );
 });
@@ -207,7 +211,6 @@ test("trims U+0085 like the backend before validating", async () => {
   await waitFor(() =>
     expect(createCategory).toHaveBeenCalledWith(
       expect.objectContaining({ title: CATEGORY_TITLE }),
-      expect.anything(),
     ),
   );
 });
@@ -228,4 +231,75 @@ test("typed server errors map to the matching copy", async () => {
       CATEGORY_TITLE_TOO_LONG_MESSAGE,
     ),
   );
+});
+
+const EXISTING: Category = {
+  id: 7,
+  profile_id: 1,
+  title: "Errands",
+  description: "Weekly shopping",
+  color: CATEGORY_COLORS[4],
+  created_at: "2026-01-01",
+  updated_at: "2026-01-01",
+};
+
+const renderEditDialog = (onClose = vi.fn()) =>
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoryDialog category={EXISTING} onClose={onClose} />
+    </QueryClientProvider>,
+  );
+
+test("edit mode pre-fills every field and selects the stored color", async () => {
+  renderEditDialog();
+
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL))).toHaveValue(
+    EXISTING.title,
+  );
+  expect(screen.getByLabelText(/Description/)).toHaveValue(
+    EXISTING.description,
+  );
+  // The stored palette color reports checked to AT.
+  expect(
+    screen.getByRole("radio", {
+      name: categorySwatchLabel(EXISTING.color as string),
+    }),
+  ).toHaveAttribute("aria-checked", "true");
+});
+
+test("edit mode submits the id and full payload to updateCategory", async () => {
+  vi.mocked(updateCategory).mockResolvedValue(EXISTING);
+  const onClose = vi.fn();
+  renderEditDialog(onClose);
+
+  const RENAMED = "Chores";
+  const title = screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL));
+  fireEvent.change(title, { target: { value: RENAMED } });
+  fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+
+  await waitFor(() =>
+    expect(updateCategory).toHaveBeenCalledWith(EXISTING.id, {
+      title: RENAMED,
+      description: EXISTING.description,
+      color: EXISTING.color,
+    }),
+  );
+  await waitFor(() => expect(onClose).toHaveBeenCalled());
+  expect(createCategory).not.toHaveBeenCalled();
+});
+
+test("edit mode surfaces typed server errors inline and stays open", async () => {
+  vi.mocked(updateCategory).mockRejectedValue(
+    new ApiError("category_not_found", "validation", "gone"),
+  );
+  const onClose = vi.fn();
+  renderEditDialog(onClose);
+
+  fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+
+  await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+  expect(onClose).not.toHaveBeenCalled();
 });

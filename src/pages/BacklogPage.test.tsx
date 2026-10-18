@@ -10,6 +10,7 @@ import { BacklogPage } from "@/pages/BacklogPage";
 import {
   ADD_TASK_LABEL,
   CANCEL_BUTTON_LABEL,
+  EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
   deleteTaskLabel,
@@ -209,6 +210,97 @@ describe("BacklogPage", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(MOVE_ERROR),
+    );
+  });
+
+  it("an open task editor does not survive a profile switch", async () => {
+    vi.mocked(listTasks)
+      .mockResolvedValueOnce([task({ id: 1, title: TITLE_A, sort_order: 1 })])
+      .mockResolvedValue([task({ id: 2, title: TITLE_B, sort_order: 1 })]);
+    vi.mocked(listProfiles).mockResolvedValue([FIRST_PROFILE, SECOND_PROFILE]);
+    vi.mocked(currentProfile)
+      .mockReset()
+      .mockResolvedValueOnce(FIRST_PROFILE)
+      .mockResolvedValue(SECOND_PROFILE);
+    vi.mocked(switchProfile).mockResolvedValue(undefined);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <BacklogPage />
+        <ProfileSwitcher />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByText(TITLE_A));
+    expect(
+      await screen.findByRole("heading", { name: EDIT_TASK_HEADING }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(FIRST_PROFILE.name) }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: SECOND_PROFILE.name }),
+    );
+
+    await waitFor(() => expect(screen.getByText(TITLE_B)).toBeInTheDocument());
+    expect(
+      screen.queryByRole("heading", { name: EDIT_TASK_HEADING }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("an editor opened from the new list survives the delayed profile load", async () => {
+    // Post-switch race: the tasks query can resolve before
+    // currentProfile. An editor opened for a new-profile row belongs to
+    // that profile — the switch handler must not close it when the
+    // delayed response lands.
+    let resolveProfile: (p: Profile) => void = () => {};
+    vi.mocked(currentProfile)
+      .mockReset()
+      .mockResolvedValueOnce(FIRST_PROFILE)
+      .mockImplementation(
+        () => new Promise<Profile>((r) => (resolveProfile = r)),
+      );
+    vi.mocked(listTasks)
+      .mockResolvedValueOnce([task({ id: 1, title: TITLE_A, sort_order: 1 })])
+      .mockResolvedValue([
+        task({
+          id: 2,
+          profile_id: SECOND_PROFILE.id,
+          title: TITLE_B,
+          sort_order: 1,
+        }),
+      ]);
+    vi.mocked(listProfiles).mockResolvedValue([FIRST_PROFILE, SECOND_PROFILE]);
+    vi.mocked(switchProfile).mockResolvedValue(undefined);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <BacklogPage />
+        <ProfileSwitcher />
+      </QueryClientProvider>,
+    );
+    await screen.findByText(TITLE_A);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(FIRST_PROFILE.name) }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: SECOND_PROFILE.name }),
+    );
+
+    // The new list renders while currentProfile is still pending.
+    fireEvent.click(await screen.findByText(TITLE_B));
+    expect(
+      await screen.findByRole("heading", { name: EDIT_TASK_HEADING }),
+    ).toBeInTheDocument();
+
+    resolveProfile(SECOND_PROFILE);
+
+    // Give the effect a beat to run, then confirm the editor stayed open.
+    await new Promise((r) => setTimeout(r));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: EDIT_TASK_HEADING }),
+      ).toBeInTheDocument(),
     );
   });
 

@@ -6,10 +6,12 @@ import {
   deleteCategory,
   listCategories,
 } from "@/api/categories";
+import type { Category } from "@/api/categories";
 import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { DeleteButton } from "@/components/DeleteButton";
-import { NewCategoryDialog } from "@/features/categories/NewCategoryDialog";
+import { EditButton } from "@/components/EditButton";
+import { CategoryDialog } from "@/features/categories/CategoryDialog";
 import {
   ADD_CATEGORY_LABEL,
   CATEGORIES_HEADING,
@@ -17,6 +19,7 @@ import {
   EMPTY_CATEGORIES_MESSAGE,
   categoryCreatedLabel,
   deleteCategoryLabel,
+  editCategoryLabel,
 } from "@/lib/labels";
 import { errorMessage, formatDate } from "@/lib/utils";
 
@@ -27,6 +30,7 @@ const UNCOLORED = DEFAULT_CATEGORY_COLOR;
 
 export function CategoriesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Category>();
   const queryClient = useQueryClient();
   const { data: categories, error } = useQuery({
     queryKey: QUERY_KEYS.categories,
@@ -54,6 +58,13 @@ export function CategoriesPage() {
       lastProfileId.current !== profile.id
     ) {
       resetDelete();
+      // An open editor bound to the old profile's category must close —
+      // submitting it now would hit the scoped update as CategoryNotFound.
+      // Guard by ownership: the new list can render before currentProfile
+      // resolves, and an editor opened there belongs to this profile.
+      setEditing((open) =>
+        open && open.profile_id !== profile.id ? undefined : open,
+      );
     }
     lastProfileId.current = profile.id;
   }, [profile?.id, resetDelete]);
@@ -103,6 +114,10 @@ export function CategoriesPage() {
               <span className="text-xs text-text-muted">
                 {categoryCreatedLabel(formatDate(category.created_at))}
               </span>
+              <EditButton
+                label={editCategoryLabel(category.title)}
+                onEdit={() => setEditing(category)}
+              />
               <DeleteButton
                 label={deleteCategoryLabel(category.title)}
                 disabled={del.isPending}
@@ -112,7 +127,13 @@ export function CategoriesPage() {
           ))}
         </ul>
       </section>
-      {dialogOpen && <NewCategoryDialog onClose={() => setDialogOpen(false)} />}
+      {dialogOpen && <CategoryDialog onClose={() => setDialogOpen(false)} />}
+      {editing && (
+        <CategoryDialog
+          category={editing}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
     </>
   );
 }

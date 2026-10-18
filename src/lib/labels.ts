@@ -67,6 +67,8 @@ export const EMPTY_CATEGORIES_MESSAGE =
   "No categories yet — created categories will appear here.";
 export const categoryCreatedLabel = (date: string) => `Created ${date}`;
 export const deleteCategoryLabel = (title: string) => `Delete ${title}`;
+export const editCategoryLabel = (title: string) => `Edit ${title}`;
+export const EDIT_CATEGORY_HEADING = "Edit category";
 export const ADD_CATEGORY_LABEL = "Add category";
 export const CREATE_CATEGORY_LABEL = "Create category";
 export const NEW_CATEGORY_HEADING = "New category";

@@ -20,6 +20,8 @@ import {
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
   deleteCategoryLabel,
+  editCategoryLabel,
+  EDIT_CATEGORY_HEADING,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
@@ -30,6 +32,7 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   listCategories: vi.fn(),
   createCategory: vi.fn(),
+  updateCategory: vi.fn(),
   deleteCategory: vi.fn(),
 }));
 
@@ -168,6 +171,24 @@ test("a successful create refreshes the list", async () => {
   expect(listCategories).toHaveBeenCalledTimes(2);
 });
 
+test("the edit button opens the dialog pre-filled with the row's category", async () => {
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY]);
+  renderPage();
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: editCategoryLabel(CATEGORY.title),
+    }),
+  );
+
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText(new RegExp(TITLE_FIELD_LABEL))).toHaveValue(
+    CATEGORY.title,
+  );
+});
+
 test("deleting a category calls the backend and refreshes the list", async () => {
   vi.mocked(listCategories)
     .mockResolvedValueOnce([CATEGORY, SECOND_CATEGORY])
@@ -247,6 +268,99 @@ test("a delete failure from the old profile does not follow the switch", async (
     expect(screen.getByText(OTHER_CATEGORY.title)).toBeInTheDocument(),
   );
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("an open editor does not survive a profile switch", async () => {
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(currentProfile)
+    .mockResolvedValueOnce(PROFILE)
+    .mockResolvedValue(OTHER_PROFILE);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: editCategoryLabel(CATEGORY.title),
+    }),
+  );
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByText(OTHER_CATEGORY.title)).toBeInTheDocument(),
+  );
+  expect(
+    screen.queryByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).not.toBeInTheDocument();
+});
+
+test("an editor opened from the new list survives the delayed profile load", async () => {
+  // Post-switch race: the category query can resolve before
+  // currentProfile. An editor opened for a new-profile row belongs to
+  // that profile — the switch handler must not close it when the
+  // delayed response lands.
+  let resolveProfile: (p: Profile) => void = () => {};
+  vi.mocked(currentProfile)
+    .mockReset()
+    .mockResolvedValueOnce(PROFILE)
+    .mockImplementation(
+      () => new Promise<Profile>((r) => (resolveProfile = r)),
+    );
+  vi.mocked(listCategories)
+    .mockResolvedValueOnce([CATEGORY])
+    .mockResolvedValue([OTHER_CATEGORY]);
+  vi.mocked(listProfiles).mockResolvedValue([PROFILE, OTHER_PROFILE]);
+  vi.mocked(switchProfile).mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <CategoriesPage />
+      <ProfileSwitcher />
+    </QueryClientProvider>,
+  );
+  await screen.findByText(CATEGORY.title);
+
+  fireEvent.click(
+    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+  );
+
+  // The new list renders while currentProfile is still pending.
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: editCategoryLabel(OTHER_CATEGORY.title),
+    }),
+  );
+  expect(
+    screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+  ).toBeInTheDocument();
+
+  resolveProfile(OTHER_PROFILE);
+
+  // Give the effect a beat to run, then confirm the editor stayed open.
+  await new Promise((r) => setTimeout(r));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
+    ).toBeInTheDocument(),
+  );
 });
 
 test("switching profiles refetches the category list", async () => {

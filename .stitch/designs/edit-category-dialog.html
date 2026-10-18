@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — New Category Modal</title>
+<!-- Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration verbatim from Design System -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary": "#2e3135",
+            "surface-raised": "#22262B",
+            "on-error": "#690005",
+            "threshold-blue": "#60A5FA",
+            "secondary-container": "#46494e",
+            "on-tertiary": "#4b2800",
+            "primary-fixed-dim": "#3cddc7",
+            "text-muted": "#9AA0A6",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "on-background": "#dde4e1",
+            "surface-container": "#1a211f",
+            "on-secondary-fixed-variant": "#44474b",
+            "threshold-orange": "#FB923C",
+            "surface-bright": "#333b39",
+            "background": "#121417",
+            "error": "#ffb4ab",
+            "secondary-fixed-dim": "#c5c6cc",
+            "primary": "#57f1db",
+            "secondary": "#c5c6cc",
+            "on-tertiary-fixed": "#2d1600",
+            "on-primary-container": "#00574d",
+            "on-error-container": "#ffdad6",
+            "inverse-surface": "#dde4e1",
+            "surface-container-high": "#242b2a",
+            "tertiary-fixed": "#ffdcc0",
+            "on-secondary-container": "#b6b8be",
+            "tertiary-fixed-dim": "#ffb875",
+            "outline-variant": "#3c4a46",
+            "on-primary": "#0B1B19",
+            "outline": "#859490",
+            "on-tertiary-container": "#744000",
+            "threshold-red": "#F87171",
+            "surface-container-lowest": "#09100e",
+            "surface-dim": "#0e1513",
+            "threshold-green": "#4ADE80",
+            "surface-container-highest": "#2f3634",
+            "secondary-fixed": "#e1e2e8",
+            "on-surface": "#dde4e1",
+            "on-secondary-fixed": "#191c20",
+            "surface-tint": "#3cddc7",
+            "on-primary-fixed": "#00201c",
+            "surface": "#1A1D21",
+            "tertiary-container": "#ffac5a",
+            "primary-fixed": "#62fae3",
+            "surface-container-low": "#161d1b",
+            "border": "#2E3338",
+            "on-primary-fixed-variant": "#005047",
+            "primary-container": "#2dd4bf",
+            "error-container": "#93000a",
+            "inverse-on-surface": "#2b3230",
+            "on-surface-variant": "#bacac5",
+            "threshold-violet": "#A78BFA",
+            "tertiary": "#ffd1aa",
+            "surface-variant": "#2f3634",
+            "text": "#E8EAED",
+            "inverse-primary": "#006b5f"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-sm": "8px",
+            "space-xl": "24px",
+            "space-md": "12px",
+            "gutter": "16px",
+            "space-xs": "4px",
+            "space-lg": "16px",
+            "margin": "24px"
+          },
+          "fontFamily": {
+            "title": ["Inter"],
+            "label": ["Inter"],
+            "display": ["Inter"],
+            "body": ["Inter"]
+          },
+          "fontSize": {
+            "title": [
+              "16px",
+              {
+                "lineHeight": "24px",
+                "fontWeight": "600"
+              }
+            ],
+            "label": [
+              "12px",
+              {
+                "lineHeight": "16px",
+                "fontWeight": "500"
+              }
+            ],
+            "display": [
+              "24px",
+              {
+                "lineHeight": "32px",
+                "fontWeight": "600"
+              }
+            ],
+            "body": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "fontWeight": "400"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body class="bg-background text-text font-body antialiased selection:bg-primary-container selection:text-on-primary-container overflow-hidden min-h-screen flex">
+<!-- ========================================== -->
+<!-- LEFT RAIL NAVIGATION (Shared Component: SideNavBar) -->
+<!-- ========================================== -->
+<aside class="w-56 h-screen flex flex-col justify-between p-space-lg bg-surface border-r border-border shrink-0 select-none">
+<div class="flex flex-col gap-space-xl">
+<!-- App Header / Wordmark -->
+<div class="flex items-center justify-between px-space-xs">
+<div class="flex items-center gap-2.5">
+<div class="w-6 h-6 rounded bg-surface-raised flex items-center justify-center border border-border">
+<span class="w-2.5 h-2.5 rounded-full bg-primary" title="Offline Ready"></span>
+</div>
+<div>
+<span class="font-title text-title font-semibold text-text tracking-tight block">Meander</span>
+<span class="font-label text-label text-text-muted text-[10px] block leading-none mt-0.5">Offline Planner</span>
+</div>
+</div>
+</div>
+<!-- Main Navigation Items -->
+<nav class="flex flex-col gap-1">
+<!-- Board -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_view_week">calendar_view_week</span>
+<span>Board</span>
+</a>
+<!-- Backlog -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span>Backlog</span>
+</a>
+<!-- Categories (Current Section - Active) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg bg-surface-raised text-primary font-body text-body" href="#">
+<span class="material-symbols-outlined" data-icon="label">label</span>
+<span class="font-medium">Categories</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Footer Profile Anchor -->
+<div class="pt-space-md border-t border-border/50">
+<button class="flex items-center justify-between w-full px-space-md py-space-sm rounded-lg hover:bg-surface-raised text-text-muted hover:text-text transition-colors duration-150">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-[18px]" data-icon="folder_open">folder_open</span>
+<span class="font-body text-body text-text font-medium">Default</span>
+</div>
+<span class="material-symbols-outlined text-xs text-text-muted" data-icon="unfold_more">unfold_more</span>
+</button>
+</div>
+</aside>
+<!-- ========================================== -->
+<!-- MAIN CONTENT CANVAS (Categories Backdrop View) -->
+<!-- ========================================== -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+<!-- Top Bar Header -->
+<header class="flex justify-between items-center w-full px-margin py-space-md bg-background border-b border-border shrink-0">
+<div class="flex items-center gap-space-md">
+<div>
+<h1 class="font-display text-display font-semibold text-text tracking-tight">Categories</h1>
+<p class="font-label text-label text-text-muted">Labels for grouping tasks</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-muted hover:text-text hover:bg-surface transition-colors duration-150 font-body text-body">
+<span class="material-symbols-outlined text-[16px]" data-icon="tune">tune</span>
+<span>Filter</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary font-medium hover:opacity-90 transition-opacity font-body text-body">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+<span>+ Add Category</span>
+</button>
+</div>
+</header>
+<!-- Canvas Scrollable Area -->
+<div class="flex-1 overflow-y-auto px-margin py-space-xl space-y-6">
+<!-- Metrics Summary Cards -->
+<div class="grid grid-cols-3 gap-4">
+<div class="bg-surface rounded-lg p-4 border border-border/40">
+<span class="font-label text-label text-text-muted block">Total Categories</span>
+<span class="font-title text-title text-text font-semibold mt-1 block">4 categories</span>
+</div>
+<div class="bg-surface rounded-lg p-4 border border-border/40">
+<span class="font-label text-label text-text-muted block">Categorized Tasks</span>
+<span class="font-title text-title text-text font-semibold mt-1 block">14 tasks</span>
+</div>
+<div class="bg-surface rounded-lg p-4 border border-border/40">
+<span class="font-label text-label text-text-muted block">Uncategorized Tasks</span>
+<span class="font-title text-title text-text font-semibold mt-1 block">1 task</span>
+</div>
+</div>
+<!-- Categories Table View -->
+<div class="bg-surface rounded-lg border border-border overflow-hidden">
+<div class="px-4 py-3 border-b border-border/60 flex items-center justify-between text-text-muted font-label text-label">
+<div class="w-1/3">Category Name</div>
+<div class="w-1/3">Scope / Description</div>
+<div class="w-1/6 text-right">Tasks</div>
+<div class="w-1/12 text-right">Actions</div>
+</div>
+<!-- Row 1: Engineering -->
+<div class="px-4 py-3.5 border-b border-border/30 flex items-center justify-between hover:bg-surface-raised transition-colors">
+<div class="w-1/3 flex items-center gap-2.5">
+<span class="w-2.5 h-2.5 rounded-full bg-[#2DD4BF] shrink-0"></span>
+<span class="font-body text-body font-medium text-text">Engineering</span>
+</div>
+<div class="w-1/3 font-body text-body text-text-muted truncate">
+            Architecture, core offline engine, algorithms
+          </div>
+<div class="w-1/6 text-right font-body text-body text-text-muted">
+            6 tasks
+          </div>
+<div class="w-1/12 text-right">
+<button class="text-text-muted hover:text-text p-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</div>
+<!-- Row 2: Product & Design -->
+<div class="px-4 py-3.5 border-b border-border/30 flex items-center justify-between hover:bg-surface-raised transition-colors">
+<div class="w-1/3 flex items-center gap-2.5">
+<span class="w-2.5 h-2.5 rounded-full bg-[#FBBF24] shrink-0"></span>
+<span class="font-body text-body font-medium text-text">Product &amp; Design</span>
+</div>
+<div class="w-1/3 font-body text-body text-text-muted truncate">
+            Design tokens, flows, aesthetic calibration
+          </div>
+<div class="w-1/6 text-right font-body text-body text-text-muted">
+            4 tasks
+          </div>
+<div class="w-1/12 text-right">
+<button class="text-text-muted hover:text-text p-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</div>
+<!-- Row 3: Infrastructure -->
+<div class="px-4 py-3.5 border-b border-border/30 flex items-center justify-between hover:bg-surface-raised transition-colors">
+<div class="w-1/3 flex items-center gap-2.5">
+<span class="w-2.5 h-2.5 rounded-full bg-[#A78BFA] shrink-0"></span>
+<span class="font-body text-body font-medium text-text">Infrastructure</span>
+</div>
+<div class="w-1/3 font-body text-body text-text-muted truncate">
+            Local SQLite sync, file dumps, build pipelines
+          </div>
+<div class="w-1/6 text-right font-body text-body text-text-muted">
+            3 tasks
+          </div>
+<div class="w-1/12 text-right">
+<button class="text-text-muted hover:text-text p-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</div>
+<!-- Row 4: Personal & Admin -->
+<div class="px-4 py-3.5 flex items-center justify-between hover:bg-surface-raised transition-colors">
+<div class="w-1/3 flex items-center gap-2.5">
+<span class="w-2.5 h-2.5 rounded-full bg-[#4ADE80] shrink-0"></span>
+<span class="font-body text-body font-medium text-text">Personal &amp; Admin</span>
+</div>
+<div class="w-1/3 font-body text-body text-text-muted truncate">
+            Weekly planning, retrospectives, time budgets
+          </div>
+<div class="w-1/6 text-right font-body text-body text-text-muted">
+            1 task
+          </div>
+<div class="w-1/12 text-right">
+<button class="text-text-muted hover:text-text p-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- ========================================== -->
+<!-- MODAL BACKDROP OVERLAY -->
+<!-- ========================================== -->
+<div class="fixed inset-0 z-50 bg-[#121417]/80 backdrop-blur-sm flex items-center justify-center p-4">
+<!-- ========================================== -->
+<!-- CENTERED MODAL DIALOG CONTAINER -->
+<!-- ========================================== -->
+<div aria-labelledby="modal-title" aria-modal="true" class="bg-surface rounded-lg border border-border p-6 max-w-lg w-full shadow-2xl relative flex flex-col gap-5 text-left focus:outline-none" role="dialog">
+<!-- Modal Header -->
+<div class="flex items-center justify-between">
+<h2 class="font-title text-title text-text font-semibold tracking-tight" id="modal-title">Edit category</h2>
+<button aria-label="Close dialog" class="text-text-muted hover:text-text hover:bg-surface-raised p-1 rounded transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="close">close</span>
+</button>
+</div>
+<!-- Form Fields Stack -->
+<form class="space-y-4" onsubmit="event.preventDefault();">
+<!-- Field 1: Title -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-label text-text-muted flex items-center gap-0.5" for="category-title">
+            Title <span class="text-primary">*</span>
+</label>
+<input autofocus="" class="w-full bg-surface-raised border border-primary ring-1 ring-primary rounded-lg px-3 py-2 font-body text-body text-text placeholder:text-text-muted/60 focus:outline-none transition-all duration-150" id="category-title" placeholder="e.g. Engineering or Research" type="text" value="Errands"/>
+</div>
+<!-- Field 2: Description -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center gap-1.5">
+<label class="font-label text-label text-text-muted" for="category-description">Description</label>
+<span class="font-label text-label text-text-muted/60 text-[11px]">(optional)</span>
+</div>
+<textarea class="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 font-body text-body text-text placeholder:text-text-muted/60 h-20 resize-none focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all duration-150" id="category-description" placeholder="Add context or scope for this category..." rows="3">Personal errands, household restocking, and weekly appointments.</textarea>
+</div>
+<!-- Field 3: Color Swatch Picker -->
+<div class="flex flex-col gap-2 pt-1">
+<div class="flex items-center gap-1.5">
+<label class="font-label text-label text-text-muted">Color</label>
+<span class="font-label text-label text-text-muted/60 text-[11px]">(optional)</span>
+</div>
+<!-- 8 Color Circles -->
+<div class="flex items-center gap-3 pt-1">
+<!-- 1) Teal (#2DD4BF) - SELECTED -->
+<button aria-label="Color Teal" class="w-7 h-7 rounded-full bg-[#2DD4BF] hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-primary" title="Teal" type="button"></button>
+<!-- 2) Amber (#FBBF24) -->
+<button aria-label="Color Amber, selected" class="w-7 h-7 rounded-full bg-[#FBBF24] ring-2 ring-primary ring-offset-2 ring-offset-surface transition-transform scale-105 flex items-center justify-center focus:outline-none" title="Amber (Selected)" type="button"><span class="w-1.5 h-1.5 rounded-full bg-on-primary"></span></button>
+<!-- 3) Orange (#FB923C) -->
+<button aria-label="Color Orange" class="w-7 h-7 rounded-full bg-[#FB923C] hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-[#FB923C]" title="Orange" type="button"></button>
+<!-- 4) Red (#F87171) -->
+<button aria-label="Color Red" class="w-7 h-7 rounded-full bg-[#F87171] hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-[#F87171]" title="Red" type="button"></button>
+<!-- 5) Violet (#A78BFA) -->
+<button aria-label="Color Violet" class="w-7 h-7 rounded-full bg-[#A78BFA] hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-[#A78BFA]" title="Violet" type="button"></button>
+<!-- 6) Blue (#60A5FA) -->
+<button aria-label="Color Blue" class="w-7 h-7 rounded-full bg-[#60A5FA] hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-[#60A5FA]" title="Blue" type="button"></button>
+<!-- 7) Green (#4ADE80) -->
+<button aria-label="Color Green" class="w-7 h-7 rounded-full bg-[#4ADE80] hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-[#4ADE80]" title="Green" type="button"></button>
+<!-- 8) Neutral/None -->
+<button aria-label="No specific color" class="w-7 h-7 rounded-full border border-dashed border-text-muted/60 bg-surface-raised flex items-center justify-center text-text-muted hover:border-text hover:text-text transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface focus:ring-text-muted" title="No color" type="button">
+<span class="material-symbols-outlined text-[14px]" data-icon="block">block</span>
+</button>
+</div>
+</div>
+<!-- Footer Action Buttons -->
+<div class="flex items-center justify-end gap-3 pt-5 mt-2 border-t border-border/50">
+<button class="px-4 py-2 font-body text-body text-text-muted hover:text-text rounded-lg hover:bg-surface-raised transition-colors duration-150 focus:outline-none" type="button">
+            Cancel
+          </button>
+<button class="px-4 py-2 font-body text-body font-medium bg-primary text-on-primary rounded-lg hover:opacity-90 active:scale-[0.99] transition-all duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface" type="submit">Save changes</button>
+</div>
+</form>
+</div>
+</div>
+</body></html>

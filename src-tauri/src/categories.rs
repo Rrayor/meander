@@ -175,6 +175,42 @@ pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Updates a category scoped to its owning profile. Unknown or foreign ids
+/// are rejected as not-found. Edits take effect for every associated task —
+/// the association table stores ids, so there's nothing to cascade.
+pub async fn update(
+    pool: &SqlitePool,
+    profile_id: i64,
+    id: i64,
+    input: &NewCategory,
+) -> Result<Category> {
+    let title = CategoryTitle::parse(&input.title)?.into_inner();
+    let description = parse_category_description(input.description.as_deref())?;
+    let color =
+        parse_color(input.color.as_deref())?.unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
+    let result = sqlx::query(
+        "UPDATE categories SET title = ?, description = ?, color = ?,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND profile_id = ?",
+    )
+    .bind(title)
+    .bind(description)
+    .bind(color)
+    .bind(id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(category_not_found());
+    }
+    Ok(
+        sqlx::query_as::<_, Category>("SELECT * FROM categories WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await?,
+    )
+}
+
 async fn ensure_exists(pool: &SqlitePool, profile_id: i64, category_id: i64) -> Result<()> {
     let row: Option<(i64,)> =
         sqlx::query_as("SELECT id FROM categories WHERE id = ? AND profile_id = ?")
@@ -398,6 +434,80 @@ mod tests {
         delete(&pool, pid, category).await.unwrap();
 
         assert_eq!(crate::tasks::list(&pool, pid).await.unwrap().len(), 1);
+    }
+
+    const RENAMED: &str = "Chores";
+    const NEW_DESC: &str = "desc";
+    const NEW_COLOR: &str = "#4ade80";
+
+    #[tokio::test]
+    async fn update_changes_the_fields() {
+        let (pool, pid) = seeded_pool().await;
+        let id = new_category(&pool, pid, TITLE_A).await;
+
+        let updated = update(
+            &pool,
+            pid,
+            id,
+            &NewCategory {
+                title: RENAMED.into(),
+                description: Some(NEW_DESC.into()),
+                color: Some(NEW_COLOR.into()),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.id, id);
+        assert_eq!(updated.title, RENAMED);
+        assert_eq!(updated.description.as_deref(), Some(NEW_DESC));
+        assert_eq!(updated.color.as_deref(), Some(NEW_COLOR));
+    }
+
+    #[tokio::test]
+    async fn update_is_visible_on_associated_tasks() {
+        let (pool, pid) = seeded_pool().await;
+        let category = new_category(&pool, pid, TITLE_A).await;
+        let task = new_task(&pool, pid, "Alpha").await;
+        add_to_task(&pool, pid, task, category).await.unwrap();
+
+        update(
+            &pool,
+            pid,
+            category,
+            &NewCategory {
+                title: RENAMED.into(),
+                description: None,
+                color: Some(NEW_COLOR.into()),
+            },
+        )
+        .await
+        .unwrap();
+
+        let titles: Vec<String> = for_task(&pool, pid, task)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|c| c.title)
+            .collect();
+        assert_eq!(titles, [RENAMED]);
+    }
+
+    #[tokio::test]
+    async fn updating_a_foreign_or_unknown_category_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+        let foreign = new_category(&pool, other.id, TITLE_B).await;
+        let input = NewCategory {
+            title: RENAMED.into(),
+            description: None,
+            color: None,
+        };
+
+        assert!(update(&pool, pid, foreign, &input).await.is_err());
+        assert!(update(&pool, pid, i64::MAX, &input).await.is_err());
+        // The foreign category is untouched.
+        assert_eq!(list(&pool, other.id).await.unwrap()[0].title, TITLE_B);
     }
 
     #[tokio::test]
