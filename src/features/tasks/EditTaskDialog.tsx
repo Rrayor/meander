@@ -27,6 +27,8 @@ import {
   serverErrorMessage,
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
+import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import type { NewSeries } from "@/api/bindings";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -176,6 +178,7 @@ export function EditTaskDialog({
   // a refetch update what chips show — e.g. after a category is recolored.
   const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(new Set());
   const [picked, setPicked] = useState<Category[]>([]);
+  const [series, setSeries] = useState<NewSeries | null>(null);
   const stored = initialCategories ?? [];
   const storedIds = new Set(stored.map((c) => c.id));
   const categories = [
@@ -228,7 +231,7 @@ export function EditTaskDialog({
       spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       carry_over_rule: values.carryOver === "" ? null : values.carryOver,
       status: values.status,
-      series: null,
+      series,
     });
   };
 
@@ -513,6 +516,9 @@ export function EditTaskDialog({
               )}
             />
           </div>
+          {task.series_id === null && (
+            <RepeatScheduleFields idPrefix="edit-task" onChange={setSeries} />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-danger">
               {serverError}

@@ -19,7 +19,11 @@ import {
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
-import { TITLE_REQUIRED_MESSAGE, removeTaskCategoryLabel } from "@/lib/labels";
+import {
+  FREQUENCY_FIELD_LABEL,
+  TITLE_REQUIRED_MESSAGE,
+  removeTaskCategoryLabel,
+} from "@/lib/labels";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -315,5 +319,29 @@ describe("NewTaskDialog", () => {
     const onClose = renderDialog();
     act(onClose);
     expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
+  it("submits a series payload when the repeat section is expanded", async () => {
+    renderDialog();
+    mockedCreate.mockResolvedValue(
+      {} as Awaited<ReturnType<typeof createTask>>,
+    );
+
+    fillTitle();
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.change(screen.getByLabelText(FREQUENCY_FIELD_LABEL), {
+      target: { value: "weekly" },
+    });
+    submit();
+
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
+    expect(mockedCreate.mock.calls[0][0].series).toMatchObject({
+      recurrence: {
+        kind: "weekly",
+        interval_weeks: 1,
+        weekdays: ["monday"],
+      },
+      end_date: null,
+    });
   });
 });

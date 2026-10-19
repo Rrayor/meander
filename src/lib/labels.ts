@@ -82,3 +82,41 @@ export const CATEGORIES_FIELD_LABEL = "Categories";
 export const CATEGORY_SEARCH_LABEL = "Search or add category";
 export const createCategoryOptionLabel = (title: string) => `Create "${title}"`;
 export const removeTaskCategoryLabel = (title: string) => `Remove ${title}`;
+
+export const REPEAT_SECTION_LABEL = "Repeat";
+export const REPEAT_NONE_SUMMARY = "Does not repeat";
+export const FREQUENCY_FIELD_LABEL = "Frequency";
+export const REPEAT_EVERY_LABEL = "Every";
+export const REPEAT_ON_LABEL = "On";
+export const REPEAT_STARTS_LABEL = "Starts";
+export const REPEAT_ENDS_LABEL = "Ends";
+export const REPEAT_ENDS_PLACEHOLDER = "No end date";
+export const REPEAT_DAY_LABEL = "Day of month";
+export const REPEAT_MONTHLY_CLAMP_HINT =
+  "Days past the end of a shorter month land on its last day.";
+export const REPEAT_FREQUENCY_OPTIONS = [
+  { value: "daily", label: "Daily", unit: "day(s)" },
+  { value: "weekly", label: "Weekly", unit: "week(s)" },
+  { value: "monthly_day", label: "Monthly on day", unit: "month(s)" },
+  {
+    value: "monthly_nth_weekday",
+    label: "Monthly on weekday",
+    unit: "month(s)",
+  },
+] as const;
+export const WEEKDAY_OPTIONS = [
+  { value: "monday", label: "Monday", short: "Mo" },
+  { value: "tuesday", label: "Tuesday", short: "Tu" },
+  { value: "wednesday", label: "Wednesday", short: "We" },
+  { value: "thursday", label: "Thursday", short: "Th" },
+  { value: "friday", label: "Friday", short: "Fr" },
+  { value: "saturday", label: "Saturday", short: "Sa" },
+  { value: "sunday", label: "Sunday", short: "Su" },
+] as const;
+export const REPEAT_NTH_OPTIONS = [
+  { value: "1", label: "First" },
+  { value: "2", label: "Second" },
+  { value: "3", label: "Third" },
+  { value: "4", label: "Fourth" },
+  { value: "-1", label: "Last" },
+] as const;

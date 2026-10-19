@@ -461,4 +461,24 @@ describe("EditTaskDialog", () => {
       );
     });
   });
+
+  it("attaches a schedule when the repeat section is expanded", async () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
+    expect(mockedUpdate.mock.calls[0][1].series).toMatchObject({
+      recurrence: { kind: "daily", interval_days: 1 },
+      end_date: null,
+    });
+  });
+
+  it("hides the repeat section for a task already in a series", () => {
+    renderDialog({ ...baseTask, series_id: 3 });
+    expect(
+      screen.queryByRole("button", { name: /Repeat/ }),
+    ).not.toBeInTheDocument();
+  });
 });

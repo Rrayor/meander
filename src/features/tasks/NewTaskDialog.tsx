@@ -22,6 +22,8 @@ import {
   serverErrorMessage,
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
+import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import type { NewSeries } from "@/api/bindings";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -96,6 +98,7 @@ interface NewTaskDialogProps {
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [series, setSeries] = useState<NewSeries | null>(null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -136,8 +139,11 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       const taskId = createdId.current ?? (await createTask(input)).id;
       if (createdId.current !== undefined) {
         // Retry: persist the current field values onto the existing row.
+        // The series was already attached by create_task — re-sending it
+        // would trip the backend's already-in-series rejection.
         await updateTask(taskId, {
           ...input,
+          series: null,
           spent_minutes: null,
           status: "todo",
         });
@@ -188,7 +194,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       description: unicodeTrim(description) || null,
       estimated_minutes: hasEstimate ? total : null,
       carry_over_rule: carryOver === "" ? null : carryOver,
-      series: null,
+      series,
     });
   };
 
@@ -398,6 +404,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               )}
             />
           </div>
+          <RepeatScheduleFields idPrefix="new-task" onChange={setSeries} />
           {serverError && (
             <p role="alert" className="text-sm text-danger">
               {serverError}

@@ -329,7 +329,7 @@
 </div>
 </div>
 <div aria-labelledby="modal-task-title" aria-modal="true" class="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" role="dialog">
-<div class="bg-surface border border-border rounded-lg shadow-2xl p-6 flex flex-col gap-6 w-full max-w-lg">
+<div class="bg-surface border border-border rounded-lg shadow-2xl p-6 flex flex-col gap-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
 <!-- Modal Header -->
 <div class="flex items-center justify-between">
 <h2 class="font-title text-title text-[18px] font-semibold text-text tracking-tight" id="modal-task-title">New task</h2>
@@ -414,6 +414,63 @@
 <div class="flex items-center gap-2">
 <input class="w-44 bg-surface-raised border border-border text-text placeholder-text-muted/60 rounded px-3 py-2 font-body text-body outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" id="task-est-input" placeholder="e.g. 45m or 1.5h" type="text"/>
 <span class="font-label text-label text-text-muted">duration</span>
+</div>
+</div>
+<!-- Repeat Section (collapsible, shown expanded) -->
+<div class="flex flex-col rounded-lg border border-border bg-surface-raised/40 overflow-hidden">
+<button type="button" class="w-full flex items-center justify-between p-3 hover:bg-surface-raised transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary rounded-t-lg group text-left">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="sync">sync</span>
+<span class="font-body text-body font-medium text-text">Repeat</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-label text-label text-text-muted">Every week on Monday</span>
+<span class="material-symbols-outlined text-text-muted text-[18px] group-hover:text-text transition-colors" data-icon="expand_less">expand_less</span>
+</div>
+</button>
+<div class="p-3 border-t border-border flex flex-col gap-3 bg-surface/40">
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-label text-text-muted" for="task-repeat-frequency">Frequency</label>
+<div class="relative">
+<select id="task-repeat-frequency" class="w-full bg-surface-raised border border-border text-text rounded px-3 py-2 font-body text-body outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer appearance-none pr-8">
+<option value="daily">Daily</option>
+<option value="weekly" selected="">Weekly</option>
+<option value="monthly-day">Monthly on day</option>
+<option value="monthly-weekday">Monthly on weekday</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none text-[18px]" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-label text-text-muted" for="task-repeat-interval">Every</label>
+<div class="flex items-center gap-2">
+<input id="task-repeat-interval" type="number" min="1" value="1" class="w-16 bg-surface-raised border border-border text-center text-text rounded px-2 py-1.5 font-body text-body outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"/>
+<span class="font-label text-label text-text-muted">week(s)</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-label text-text-muted">On</label>
+<div class="flex items-center gap-1.5 select-none">
+<button type="button" class="w-8 h-8 rounded-full bg-primary text-on-primary font-label text-label font-medium flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary shadow-sm" aria-pressed="true">Mo</button>
+<button type="button" class="w-8 h-8 rounded-full bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface-bright font-label text-label flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary" aria-pressed="false">Tu</button>
+<button type="button" class="w-8 h-8 rounded-full bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface-bright font-label text-label flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary" aria-pressed="false">We</button>
+<button type="button" class="w-8 h-8 rounded-full bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface-bright font-label text-label flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary" aria-pressed="false">Th</button>
+<button type="button" class="w-8 h-8 rounded-full bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface-bright font-label text-label flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary" aria-pressed="false">Fr</button>
+<button type="button" class="w-8 h-8 rounded-full bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface-bright font-label text-label flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary" aria-pressed="false">Sa</button>
+<button type="button" class="w-8 h-8 rounded-full bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface-bright font-label text-label flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-primary" aria-pressed="false">Su</button>
+</div>
+<span class="font-label text-[11px] text-text-muted/80 italic mt-0.5">Repeats every Monday</span>
+</div>
+<div class="grid grid-cols-2 gap-3 pt-1">
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-label text-text-muted" for="task-repeat-starts">Starts</label>
+<input id="task-repeat-starts" type="date" class="bg-surface-raised border border-border text-text rounded px-3 py-2 font-body text-body outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-label text-text-muted" for="task-repeat-ends">Ends</label>
+<input id="task-repeat-ends" type="date" placeholder="No end date" class="bg-surface-raised border border-border text-text rounded px-3 py-2 font-body text-body outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"/>
+</div>
+</div>
 </div>
 </div>
 <!-- Modal Actions / Footer -->
