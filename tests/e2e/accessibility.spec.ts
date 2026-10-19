@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 import {
   ADD_CATEGORY_LABEL,
   ADD_TASK_LABEL,
-  FREQUENCY_FIELD_LABEL,
+  REPEAT_ON_THE_LABEL,
   REPEAT_SECTION_LABEL,
   editCategoryLabel,
   editTaskLabel,
@@ -112,9 +112,9 @@ test("the repeat schedule fields have no WCAG AA violations", async ({
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
-  await dialog
-    .getByLabel(FREQUENCY_FIELD_LABEL)
-    .selectOption("monthly_nth_weekday");
+  await dialog.getByRole("button", { name: "months" }).click();
+  await dialog.getByRole("radio", { name: REPEAT_ON_THE_LABEL }).click();
+  await dialog.getByRole("button", { name: "Last" }).click();
 
   await expectAccessible(page);
 });

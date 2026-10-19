@@ -19,11 +19,7 @@ import {
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
-import {
-  FREQUENCY_FIELD_LABEL,
-  TITLE_REQUIRED_MESSAGE,
-  removeTaskCategoryLabel,
-} from "@/lib/labels";
+import { TITLE_REQUIRED_MESSAGE, removeTaskCategoryLabel } from "@/lib/labels";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -329,9 +325,7 @@ describe("NewTaskDialog", () => {
 
     fillTitle();
     fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
-    fireEvent.change(screen.getByLabelText(FREQUENCY_FIELD_LABEL), {
-      target: { value: "weekly" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
     submit();
 
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());

@@ -2,26 +2,29 @@ import { useState } from "react";
 
 import type { NewSeries, Recurrence, Weekday } from "@/api/bindings";
 import {
-  FREQUENCY_FIELD_LABEL,
-  REPEAT_DAY_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_EVERY_LABEL,
-  REPEAT_FREQUENCY_OPTIONS,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NONE_SUMMARY,
   REPEAT_NTH_OPTIONS,
+  REPEAT_DAY_OF_MONTH_LABEL,
+  REPEAT_ON_DAY_LABEL,
   REPEAT_ON_LABEL,
+  REPEAT_ON_THE_LABEL,
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
+  REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
 } from "@/lib/labels";
 
-type Frequency = (typeof REPEAT_FREQUENCY_OPTIONS)[number]["value"];
+type Unit = (typeof REPEAT_UNIT_OPTIONS)[number]["value"];
+type MonthMode = "day" | "weekday";
 
 interface RepeatDraft {
-  frequency: Frequency;
   interval: number;
+  unit: Unit;
   weekdays: Weekday[];
+  monthMode: MonthMode;
   day: number;
   nth: number;
   weekday: Weekday;
@@ -31,10 +34,24 @@ interface RepeatDraft {
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
+const WEEKDAYS_BY_JS_DAY: Weekday[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+const weekdayOf = (iso: string): Weekday =>
+  WEEKDAYS_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
+
 const defaultDraft = (): RepeatDraft => ({
-  frequency: "daily",
   interval: 1,
-  weekdays: ["monday"],
+  unit: "day",
+  weekdays: [weekdayOf(todayIso())],
+  monthMode: "day",
   day: 1,
   nth: 1,
   weekday: "monday",
@@ -43,28 +60,28 @@ const defaultDraft = (): RepeatDraft => ({
 });
 
 const toRecurrence = (draft: RepeatDraft): Recurrence => {
-  switch (draft.frequency) {
-    case "daily":
+  switch (draft.unit) {
+    case "day":
       return { kind: "daily", interval_days: draft.interval };
-    case "weekly":
+    case "week":
       return {
         kind: "weekly",
         interval_weeks: draft.interval,
         weekdays: draft.weekdays,
       };
-    case "monthly_day":
-      return {
-        kind: "monthly_day",
-        interval_months: draft.interval,
-        day: draft.day,
-      };
-    case "monthly_nth_weekday":
-      return {
-        kind: "monthly_nth_weekday",
-        interval_months: draft.interval,
-        nth: draft.nth,
-        weekday: draft.weekday,
-      };
+    case "month":
+      return draft.monthMode === "day"
+        ? {
+            kind: "monthly_day",
+            interval_months: draft.interval,
+            day: draft.day,
+          }
+        : {
+            kind: "monthly_nth_weekday",
+            interval_months: draft.interval,
+            nth: draft.nth,
+            weekday: draft.weekday,
+          };
   }
 };
 
@@ -74,35 +91,30 @@ const toNewSeries = (draft: RepeatDraft): NewSeries => ({
   end_date: draft.endDate === "" ? null : draft.endDate,
 });
 
+const pluralize = (interval: number, singular: string) =>
+  interval === 1 ? `Every ${singular}` : `Every ${interval} ${singular}s`;
+
 const summarize = (draft: RepeatDraft): string => {
-  switch (draft.frequency) {
-    case "daily":
-      return draft.interval === 1
-        ? "Every day"
-        : `Every ${draft.interval} days`;
-    case "weekly": {
+  switch (draft.unit) {
+    case "day":
+      return pluralize(draft.interval, "day");
+    case "week": {
       const days = WEEKDAY_OPTIONS.filter((w) =>
         draft.weekdays.includes(w.value),
       )
         .map((w) => w.label)
         .join(", ");
-      const span =
-        draft.interval === 1 ? "Every week" : `Every ${draft.interval} weeks`;
-      return `${span} on ${days}`;
+      return `${pluralize(draft.interval, "week")} on ${days}`;
     }
-    case "monthly_day":
-      return draft.interval === 1
-        ? `Every month on day ${draft.day}`
-        : `Every ${draft.interval} months on day ${draft.day}`;
-    case "monthly_nth_weekday": {
+    case "month": {
+      const span = pluralize(draft.interval, "month");
+      if (draft.monthMode === "day") return `${span} on day ${draft.day}`;
       const nth = REPEAT_NTH_OPTIONS.find(
         (o) => o.value === String(draft.nth),
-      )?.label;
+      )?.aria;
       const weekday = WEEKDAY_OPTIONS.find(
         (w) => w.value === draft.weekday,
       )?.label;
-      const span =
-        draft.interval === 1 ? "Every month" : `Every ${draft.interval} months`;
       return `${span} on the ${nth} ${weekday}`;
     }
   }
@@ -110,6 +122,20 @@ const summarize = (draft: RepeatDraft): string => {
 
 const FIELD_CLASSES =
   "rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary";
+
+const segmentClasses = (active: boolean) =>
+  `flex-1 rounded px-3 py-1.5 text-center text-xs font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${
+    active
+      ? "bg-surface-raised text-primary shadow-sm"
+      : "text-text-muted hover:text-text"
+  }`;
+
+const chipClasses = (selected: boolean) =>
+  `flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${
+    selected
+      ? "bg-primary text-on-primary shadow-sm"
+      : "border border-border bg-surface-raised text-text-muted hover:bg-surface-bright hover:text-text"
+  }`;
 
 interface RepeatScheduleFieldsProps {
   idPrefix: string;
@@ -125,6 +151,9 @@ export function RepeatScheduleFields({
 }: Readonly<RepeatScheduleFieldsProps>) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState<RepeatDraft>(defaultDraft);
+  // The weekday selection tracks the start date until the user picks days
+  // manually — the common case is "repeat on the same weekday it starts".
+  const [weekdaysTouched, setWeekdaysTouched] = useState(false);
 
   const patch = (part: Partial<RepeatDraft>) => {
     const next = { ...draft, ...part };
@@ -143,36 +172,37 @@ export function RepeatScheduleFields({
   };
 
   const toggleWeekday = (weekday: Weekday) => {
+    setWeekdaysTouched(true);
     const next = draft.weekdays.includes(weekday)
       ? draft.weekdays.filter((w) => w !== weekday)
       : [...draft.weekdays, weekday];
     if (next.length > 0) patch({ weekdays: next });
   };
 
-  const unit = REPEAT_FREQUENCY_OPTIONS.find(
-    (o) => o.value === draft.frequency,
-  )?.unit;
-  const interval = (
-    <div className="flex flex-col gap-1.5">
-      <label
-        htmlFor={`${idPrefix}-repeat-interval`}
-        className="text-xs font-medium text-text-muted"
-      >
-        {REPEAT_EVERY_LABEL}
-      </label>
-      <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-repeat-interval`}
-          type="number"
-          min={1}
-          value={draft.interval}
-          onChange={(e) =>
-            patch({ interval: Math.max(1, Number(e.target.value) || 1) })
-          }
-          className={`${FIELD_CLASSES} w-16 px-2 py-1.5 text-center`}
-        />
-        <span className="text-xs text-text-muted">{unit}</span>
-      </div>
+  const onStartChange = (iso: string) => {
+    patch({
+      startDate: iso,
+      ...(weekdaysTouched ? {} : { weekdays: [weekdayOf(iso)] }),
+    });
+  };
+
+  const weekdayChips = (
+    selected: readonly Weekday[],
+    onPick: (w: Weekday) => void,
+  ) => (
+    <div className="flex items-center gap-1.5">
+      {WEEKDAY_OPTIONS.map(({ value, label, short }) => (
+        <button
+          key={value}
+          type="button"
+          aria-label={label}
+          aria-pressed={selected.includes(value)}
+          onClick={() => onPick(value)}
+          className={chipClasses(selected.includes(value))}
+        >
+          {short}
+        </button>
+      ))}
     </div>
   );
 
@@ -189,7 +219,7 @@ export function RepeatScheduleFields({
           {REPEAT_SECTION_LABEL}
         </span>
         <span className="flex items-center gap-2">
-          <span className="text-xs text-text-muted">
+          <span className="rounded border border-border bg-surface-raised px-1.5 py-0.5 text-xs text-text-muted">
             {expanded ? summarize(draft) : REPEAT_NONE_SUMMARY}
           </span>
           <svg
@@ -211,116 +241,134 @@ export function RepeatScheduleFields({
         >
           <div className="flex flex-col gap-1.5">
             <label
-              htmlFor={`${idPrefix}-repeat-frequency`}
+              htmlFor={`${idPrefix}-repeat-interval`}
               className="text-xs font-medium text-text-muted"
             >
-              {FREQUENCY_FIELD_LABEL}
+              {REPEAT_EVERY_LABEL}
             </label>
-            <select
-              id={`${idPrefix}-repeat-frequency`}
-              value={draft.frequency}
-              onChange={(e) =>
-                patch({ frequency: e.target.value as Frequency })
-              }
-              className={`${FIELD_CLASSES} w-full cursor-pointer`}
-            >
-              {REPEAT_FREQUENCY_OPTIONS.map(({ value, label }) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <input
+                id={`${idPrefix}-repeat-interval`}
+                type="number"
+                min={1}
+                value={draft.interval}
+                onChange={(e) =>
+                  patch({ interval: Math.max(1, Number(e.target.value) || 1) })
+                }
+                className={`${FIELD_CLASSES} w-14 px-2 py-1.5 text-center`}
+              />
+              <div
+                role="group"
+                aria-label="Repeat unit"
+                className="flex h-[34px] w-60 items-center rounded border border-border bg-surface-dim p-0.5"
+              >
+                {REPEAT_UNIT_OPTIONS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={draft.unit === value}
+                    onClick={() => patch({ unit: value })}
+                    className={segmentClasses(draft.unit === value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          {interval}
-          {draft.frequency === "weekly" && (
+          {draft.unit === "week" && (
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-text-muted">
                 {REPEAT_ON_LABEL}
               </span>
-              <div className="flex items-center gap-1.5">
-                {WEEKDAY_OPTIONS.map(({ value, label, short }) => {
-                  const selected = draft.weekdays.includes(value);
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-label={label}
-                      aria-pressed={selected}
-                      onClick={() => toggleWeekday(value)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${
-                        selected
-                          ? "bg-primary text-on-primary shadow-sm"
-                          : "border border-border bg-surface-raised text-text-muted hover:bg-surface-bright hover:text-text"
-                      }`}
-                    >
-                      {short}
-                    </button>
-                  );
-                })}
-              </div>
+              {weekdayChips(draft.weekdays, toggleWeekday)}
             </div>
           )}
-          {draft.frequency === "monthly_day" && (
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor={`${idPrefix}-repeat-day`}
-                className="text-xs font-medium text-text-muted"
-              >
-                {REPEAT_DAY_LABEL}
-              </label>
-              <input
-                id={`${idPrefix}-repeat-day`}
-                type="number"
-                min={1}
-                max={31}
-                value={draft.day}
-                onChange={(e) =>
-                  patch({
-                    day: Math.min(31, Math.max(1, Number(e.target.value) || 1)),
-                  })
-                }
-                className={`${FIELD_CLASSES} w-16 px-2 py-1.5 text-center`}
-              />
-              {draft.day > 28 && (
+          {draft.unit === "month" && (
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex items-center gap-2">
+                <input
+                  id={`${idPrefix}-repeat-month-day`}
+                  name={`${idPrefix}-repeat-month-mode`}
+                  type="radio"
+                  checked={draft.monthMode === "day"}
+                  onChange={() => patch({ monthMode: "day" })}
+                  className="text-primary focus:ring-0"
+                />
+                <label
+                  htmlFor={`${idPrefix}-repeat-month-day`}
+                  className="text-xs text-text"
+                >
+                  {REPEAT_ON_DAY_LABEL}
+                </label>
+                <input
+                  aria-label={REPEAT_DAY_OF_MONTH_LABEL}
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={draft.day}
+                  onChange={(e) =>
+                    patch({
+                      monthMode: "day",
+                      day: Math.min(
+                        31,
+                        Math.max(1, Number(e.target.value) || 1),
+                      ),
+                    })
+                  }
+                  className="w-12 rounded border border-border bg-surface-raised px-2 py-1 text-center text-sm text-text outline-none focus:border-primary"
+                />
+              </div>
+              {draft.monthMode === "day" && draft.day > 28 && (
                 <p className="text-xs text-text-muted/80 italic">
                   {REPEAT_MONTHLY_CLAMP_HINT}
                 </p>
               )}
-            </div>
-          )}
-          {draft.frequency === "monthly_nth_weekday" && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-text-muted">
-                {REPEAT_ON_LABEL}
-              </span>
               <div className="flex items-center gap-2">
-                <select
+                <input
+                  id={`${idPrefix}-repeat-month-weekday`}
+                  name={`${idPrefix}-repeat-month-mode`}
+                  type="radio"
+                  checked={draft.monthMode === "weekday"}
+                  onChange={() => patch({ monthMode: "weekday" })}
+                  className="text-primary focus:ring-0"
+                />
+                <label
+                  htmlFor={`${idPrefix}-repeat-month-weekday`}
+                  className="text-xs text-text"
+                >
+                  {REPEAT_ON_THE_LABEL}
+                </label>
+                <div
+                  role="group"
                   aria-label="Which occurrence"
-                  value={String(draft.nth)}
-                  onChange={(e) => patch({ nth: Number(e.target.value) })}
-                  className={`${FIELD_CLASSES} cursor-pointer`}
+                  className="flex items-center rounded border border-border bg-surface-dim p-0.5"
                 >
-                  {REPEAT_NTH_OPTIONS.map(({ value, label }) => (
-                    <option key={value} value={value}>
+                  {REPEAT_NTH_OPTIONS.map(({ value, label, aria }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-label={aria}
+                      aria-pressed={draft.nth === Number(value)}
+                      onClick={() =>
+                        patch({
+                          monthMode: "weekday",
+                          nth: Number(value),
+                        })
+                      }
+                      className={`rounded px-1.5 py-0.5 text-[11px] transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${
+                        draft.nth === Number(value)
+                          ? "bg-surface-raised text-primary"
+                          : "text-text-muted hover:text-text"
+                      }`}
+                    >
                       {label}
-                    </option>
+                    </button>
                   ))}
-                </select>
-                <select
-                  aria-label="Weekday"
-                  value={draft.weekday}
-                  onChange={(e) =>
-                    patch({ weekday: e.target.value as Weekday })
-                  }
-                  className={`${FIELD_CLASSES} cursor-pointer`}
-                >
-                  {WEEKDAY_OPTIONS.map(({ value, label }) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                </div>
               </div>
+              {draft.monthMode === "weekday" &&
+                weekdayChips([draft.weekday], (w) => patch({ weekday: w }))}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -336,7 +384,7 @@ export function RepeatScheduleFields({
                 type="date"
                 required
                 value={draft.startDate}
-                onChange={(e) => patch({ startDate: e.target.value })}
+                onChange={(e) => onStartChange(e.target.value)}
                 className={FIELD_CLASSES}
               />
             </div>

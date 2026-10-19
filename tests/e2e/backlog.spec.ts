@@ -2,7 +2,6 @@ import { COMMANDS } from "@/api/commands";
 import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
-  FREQUENCY_FIELD_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_SECTION_LABEL,
   SAVE_BUTTON_LABEL,
@@ -27,6 +26,15 @@ import {
 } from "./stubs";
 
 const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
+const WEEKDAY_BY_JS_DAY = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 const TITLE_MILESTONE = "Review quarterly milestone planning";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
@@ -430,7 +438,7 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
-  await dialog.getByLabel(FREQUENCY_FIELD_LABEL).selectOption("weekly");
+  await dialog.getByRole("button", { name: "weeks" }).click();
   await dialog.getByRole("button", { name: "Friday" }).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
@@ -438,14 +446,15 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   const createCall = (await getInvocations(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  expect(createCall?.args.input.series).toMatchObject({
-    recurrence: {
-      kind: "weekly",
-      interval_weeks: 1,
-      weekdays: ["monday", "friday"],
-    },
-    end_date: "2027-01-01",
-  });
+  const { recurrence, end_date } = createCall!.args.input.series;
+  expect(recurrence.kind).toBe("weekly");
+  expect(recurrence.interval_weeks).toBe(1);
+  // The weekday set is today's weekday (auto-synced to the start date)
+  // plus the Friday the user picked.
+  expect(new Set(recurrence.weekdays)).toEqual(
+    new Set([WEEKDAY_BY_JS_DAY[new Date().getDay()], "friday"]),
+  );
+  expect(end_date).toBe("2027-01-01");
   expect(createCall?.args.input.series.start_date).toMatch(
     /^\d{4}-\d{2}-\d{2}$/,
   );

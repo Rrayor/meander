@@ -1,15 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import type { NewSeries } from "@/api/bindings";
+import type { NewSeries, Weekday } from "@/api/bindings";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import {
-  FREQUENCY_FIELD_LABEL,
-  REPEAT_DAY_LABEL,
+  REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_LABEL,
+  REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NONE_SUMMARY,
+  REPEAT_ON_THE_LABEL,
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
+  WEEKDAY_OPTIONS,
 } from "@/lib/labels";
 
 const ID_PREFIX = "test-task";
@@ -26,15 +28,28 @@ const expand = () =>
 const lastSeries = (onChange: ReturnType<typeof vi.fn>) =>
   onChange.mock.calls[onChange.mock.calls.length - 1]?.[0] as NewSeries | null;
 
+const WEEKDAY_BY_JS_DAY: Weekday[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+const weekdayOf = (iso: string) =>
+  WEEKDAY_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
+
+const WEDNESDAY_ISO = "2026-10-21"; // a Wednesday
+const FRIDAY_ISO = "2026-10-23"; // a Friday
+
 describe("RepeatScheduleFields", () => {
   it("starts collapsed with a no-repeat summary", () => {
     renderField();
     const toggle = screen.getByRole("button", { name: /Repeat/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(REPEAT_NONE_SUMMARY)).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText(FREQUENCY_FIELD_LABEL),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(REPEAT_EVERY_LABEL)).not.toBeInTheDocument();
   });
 
   it("emits a daily series with today's start date on expand", () => {
@@ -60,38 +75,66 @@ describe("RepeatScheduleFields", () => {
   it("emits weekly weekdays from the toggle chips", () => {
     const onChange = renderField();
     expand();
-    fireEvent.change(screen.getByLabelText(FREQUENCY_FIELD_LABEL), {
-      target: { value: "weekly" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
     fireEvent.click(screen.getByRole("button", { name: "Friday" }));
-    expect(lastSeries(onChange)?.recurrence).toEqual({
+    const series = lastSeries(onChange);
+    expect(series?.recurrence).toMatchObject({
       kind: "weekly",
       interval_weeks: 1,
-      weekdays: ["monday", "friday"],
     });
+    const { weekdays } = series?.recurrence as {
+      weekdays: Weekday[];
+    };
+    expect(new Set(weekdays)).toEqual(
+      new Set([weekdayOf(new Date().toISOString().slice(0, 10)), "friday"]),
+    );
   });
 
   it("does not allow deselecting the last weekly weekday", () => {
     const onChange = renderField();
     expand();
-    fireEvent.change(screen.getByLabelText(FREQUENCY_FIELD_LABEL), {
-      target: { value: "weekly" },
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+    const only = screen.getByRole("button", {
+      name: WEEKDAY_OPTIONS.find(
+        (w) => w.value === weekdayOf(new Date().toISOString().slice(0, 10)),
+      )!.label,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Monday" }));
+    fireEvent.click(only);
+    expect(
+      (lastSeries(onChange)?.recurrence as { weekdays: Weekday[] }).weekdays
+        .length,
+    ).toBe(1);
+  });
+
+  it("syncs the weekly weekday to the start date until touched", () => {
+    const onChange = renderField();
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: WEDNESDAY_ISO },
+    });
     expect(lastSeries(onChange)?.recurrence).toEqual({
       kind: "weekly",
       interval_weeks: 1,
-      weekdays: ["monday"],
+      weekdays: ["wednesday"],
+    });
+    // Once the user picks a day manually, start-date changes leave it alone.
+    fireEvent.click(screen.getByRole("button", { name: "Monday" }));
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: FRIDAY_ISO },
+    });
+    expect(lastSeries(onChange)?.recurrence).toEqual({
+      kind: "weekly",
+      interval_weeks: 1,
+      weekdays: ["wednesday", "monday"],
     });
   });
 
   it("emits monthly-day recurrence and shows the clamp hint above 28", () => {
     const onChange = renderField();
     expand();
-    fireEvent.change(screen.getByLabelText(FREQUENCY_FIELD_LABEL), {
-      target: { value: "monthly_day" },
-    });
-    fireEvent.change(screen.getByLabelText(REPEAT_DAY_LABEL), {
+    fireEvent.click(screen.getByRole("button", { name: "months" }));
+    fireEvent.change(screen.getByLabelText(REPEAT_DAY_OF_MONTH_LABEL), {
       target: { value: "31" },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
@@ -105,15 +148,10 @@ describe("RepeatScheduleFields", () => {
   it("emits monthly nth-weekday recurrence", () => {
     const onChange = renderField();
     expand();
-    fireEvent.change(screen.getByLabelText(FREQUENCY_FIELD_LABEL), {
-      target: { value: "monthly_nth_weekday" },
-    });
-    fireEvent.change(screen.getByLabelText("Which occurrence"), {
-      target: { value: "-1" },
-    });
-    fireEvent.change(screen.getByLabelText("Weekday"), {
-      target: { value: "friday" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "months" }));
+    fireEvent.click(screen.getByRole("radio", { name: REPEAT_ON_THE_LABEL }));
+    fireEvent.click(screen.getByRole("button", { name: "Last" }));
+    fireEvent.click(screen.getByRole("button", { name: "Friday" }));
     expect(lastSeries(onChange)?.recurrence).toEqual({
       kind: "monthly_nth_weekday",
       interval_months: 1,
@@ -129,11 +167,5 @@ describe("RepeatScheduleFields", () => {
       target: { value: "2027-01-01" },
     });
     expect(lastSeries(onChange)?.end_date).toBe("2027-01-01");
-  });
-
-  it("labels the start date field", () => {
-    renderField();
-    expand();
-    expect(screen.getByLabelText(REPEAT_STARTS_LABEL)).toBeRequired();
   });
 });
