@@ -29,27 +29,28 @@ describe("Categories smoke", () => {
     await (await $(titleInput)).setValue(title);
     await (await $(submit)).click();
 
-    const list = await $("ul");
-    await browser.waitUntil(async () => (await list.getText()).includes(title));
+    // WebKitWebDriver's getText omits button contents — the row title now
+    // lives in the edit affordance, so assert its aria-label instead.
+    await browser.waitUntil(async () =>
+      (await $(`aria/${editCategoryLabel(title)}`)).isExisting(),
+    );
 
     // Edit through the real backend: rename via the dialog and confirm the
     // list refetches the updated row.
     const renamed = `${title} renamed`;
-    const row = await $("li");
-    await row.moveTo();
     await (await $(`aria/${editCategoryLabel(title)}`)).click();
     const editInput = await $(titleInput);
     await editInput.setValue(renamed);
     await (await $(submit)).click();
     await browser.waitUntil(async () =>
-      (await list.getText()).includes(renamed),
+      (await $(`aria/${editCategoryLabel(renamed)}`)).isExisting(),
     );
 
     // Delete through the real backend too.
     const deleteBtn = await $(`aria/${deleteCategoryLabel(renamed)}`);
     await deleteBtn.click();
     await browser.waitUntil(
-      async () => !(await list.getText()).includes(renamed),
+      async () => !(await $(`aria/${editCategoryLabel(renamed)}`).isExisting()),
     );
   });
 
