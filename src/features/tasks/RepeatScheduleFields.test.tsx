@@ -41,6 +41,14 @@ const WEEKDAY_BY_JS_DAY: Weekday[] = [
 const weekdayOf = (iso: string) =>
   WEEKDAY_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
 
+// Local calendar date — mirrors the component's todayIso; toISOString would
+// take the UTC date and can land on a different day outside UTC.
+const todayLocalIso = () => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
 const WEDNESDAY_ISO = "2026-10-21"; // a Wednesday
 const FRIDAY_ISO = "2026-10-23"; // a Friday
 
@@ -87,7 +95,7 @@ describe("RepeatScheduleFields", () => {
       weekdays: Weekday[];
     };
     expect(new Set(weekdays)).toEqual(
-      new Set([weekdayOf(new Date().toISOString().slice(0, 10)), "friday"]),
+      new Set([weekdayOf(todayLocalIso()), "friday"]),
     );
   });
 
@@ -96,9 +104,8 @@ describe("RepeatScheduleFields", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "weeks" }));
     const only = screen.getByRole("button", {
-      name: WEEKDAY_OPTIONS.find(
-        (w) => w.value === weekdayOf(new Date().toISOString().slice(0, 10)),
-      )!.label,
+      name: WEEKDAY_OPTIONS.find((w) => w.value === weekdayOf(todayLocalIso()))!
+        .label,
     });
     fireEvent.click(only);
     expect(

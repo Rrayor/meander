@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import type { Weekday } from "@/api/bindings";
 import {
   addTaskCategory,
   listCategories,
@@ -63,6 +64,20 @@ const submit = () =>
   fireEvent.click(screen.getByRole("button", { name: "Create task" }));
 
 const ERRANDS = categoryFixture();
+
+const WEEKDAY_BY_JS_DAY: Weekday[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
+
+// The component derives the weekday from the local calendar date — using
+// toISOString (UTC) here would expect the wrong weekday outside UTC.
+const todayWeekday = (): Weekday => WEEKDAY_BY_JS_DAY[new Date().getDay()];
 
 describe("NewTaskDialog", () => {
   beforeEach(() => {
@@ -390,7 +405,7 @@ describe("NewTaskDialog", () => {
       recurrence: {
         kind: "weekly",
         interval_weeks: 1,
-        weekdays: ["monday"],
+        weekdays: [todayWeekday()],
       },
       end_date: null,
     });
