@@ -54,8 +54,17 @@ export function escapeXml(s) {
   return String(s).replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
 }
 
-const truncate = (s) =>
-  s.length > LABEL_MAX ? `${s.slice(0, LABEL_MAX - 1)}…` : s;
+// For markdown bodies (the <details> block): XML escaping first, then
+// backslash-escape characters that would form markdown syntax.
+const escapeMarkdown = (s) =>
+  escapeXml(s).replace(/[\\`*_[\]]/g, (c) => `\\${c}`);
+
+const truncate = (s) => {
+  const chars = [...s];
+  return chars.length > LABEL_MAX
+    ? `${chars.slice(0, LABEL_MAX - 1).join("")}…`
+    : s;
+};
 
 const gradientDef = (id) =>
   `<linearGradient id="${id}" x1="0" x2="1">${GRADIENT_STOPS.map(
@@ -127,8 +136,8 @@ export function sanitizeStages(raw) {
           ? e.name.trim()
           : `Stage ${i + 1}`,
       score:
-        typeof e.score === "number" && Number.isFinite(e.score)
-          ? Math.min(CELLS, Math.max(0, Math.round(e.score)))
+        typeof e.score === "number" && Number.isInteger(e.score)
+          ? Math.min(CELLS, Math.max(0, e.score))
           : null,
       explanation:
         typeof e.explanation === "string" ? e.explanation.trim() : "",
@@ -141,8 +150,10 @@ const pictureBlock = (base, dark, light, alt, width) =>
   `  <img src="${base}/${light}" alt="${alt}" width="${width}">\n` +
   `</picture>`;
 
+const formatAverage = (avg) => (avg === null ? "—" : avg.toFixed(1));
+
 export function renderReadmeSnippet(stages, avg, assetPath) {
-  const base = String(assetPath).replace(/\/$/, "");
+  const base = escapeXml(String(assetPath).replace(/\/$/, ""));
   const parts = [
     pictureBlock(
       base,
@@ -156,7 +167,7 @@ export function renderReadmeSnippet(stages, avg, assetPath) {
       base,
       "ai-usage-avg-dark.svg",
       "ai-usage-avg.svg",
-      `Average AI usage score: ${avg ?? "—"} / 5`,
+      `Average AI usage score: ${formatAverage(avg)} / 5`,
       240,
     ),
     "",
@@ -167,7 +178,7 @@ export function renderReadmeSnippet(stages, avg, assetPath) {
     const items = explained
       .map((s) => {
         const score = s.score === null ? "not yet rated" : s.score;
-        return `- **${escapeXml(s.name)} (${score})** — ${escapeXml(s.explanation)}`;
+        return `- **${escapeMarkdown(s.name)} (${score})** — ${escapeMarkdown(s.explanation)}`;
       })
       .join("\n");
     parts.push(
@@ -184,7 +195,6 @@ const MINI_BAR_X = 46;
 const MINI_BAR_W = 120;
 const MINI_BAR_H = 14;
 const MINI_CELL_W = MINI_BAR_W / CELLS;
-const NO_RATING_LABEL = "— / 5";
 
 export function averageScore(stages) {
   const rated = stages.map((s) => s.score).filter((s) => s !== null);
@@ -210,7 +220,7 @@ export function renderBadge(avg, theme) {
         `<line x1="${i * MINI_CELL_W}" y1="0" x2="${i * MINI_CELL_W}" y2="${MINI_BAR_H}"/>`,
     )
     .join("")}</g>`;
-  const value = avg === null ? NO_RATING_LABEL : `${avg} / 5`;
+  const value = `${formatAverage(avg)} / 5`;
   return (
     `<svg width="${BADGE_W}" height="${BADGE_H}" xmlns="http://www.w3.org/2000/svg" ` +
     `font-family="${FONT_STACK}">` +

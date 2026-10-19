@@ -80,6 +80,7 @@ const renderStages = () => {
   stagesEl.replaceChildren();
   stages.forEach((stage, i) => {
     const id = uid();
+    const label = () => stage.name.trim() || `stage ${i + 1}`;
     const row = document.createElement("div");
     row.className = "stage";
 
@@ -89,7 +90,6 @@ const renderStages = () => {
     up.type = "button";
     up.textContent = "↑";
     up.disabled = i === 0;
-    up.setAttribute("aria-label", `Move ${stage.name} up`);
     up.addEventListener("click", () => {
       [stages[i - 1], stages[i]] = [stages[i], stages[i - 1]];
       renderStages();
@@ -99,7 +99,6 @@ const renderStages = () => {
     down.type = "button";
     down.textContent = "↓";
     down.disabled = i === stages.length - 1;
-    down.setAttribute("aria-label", `Move ${stage.name} down`);
     down.addEventListener("click", () => {
       [stages[i], stages[i + 1]] = [stages[i + 1], stages[i]];
       renderStages();
@@ -115,10 +114,6 @@ const renderStages = () => {
     name.value = stage.name;
     name.setAttribute("aria-label", "Stage name");
     name.placeholder = `Stage ${i + 1}`;
-    name.addEventListener("input", () => {
-      stage.name = name.value;
-      refresh();
-    });
 
     const scoreField = document.createElement("fieldset");
     scoreField.style.border = "none";
@@ -126,12 +121,11 @@ const renderStages = () => {
     scoreField.style.margin = "0";
     const legend = document.createElement("legend");
     legend.className = "visually-hidden";
-    legend.textContent = `Score for ${stage.name || `stage ${i + 1}`}`;
     scoreField.append(legend);
     const scoreWrap = document.createElement("div");
     scoreWrap.className = "scores";
     for (const value of [...SCORE_RANGE, null]) {
-      const label = document.createElement("label");
+      const option = document.createElement("label");
       const input = document.createElement("input");
       input.type = "radio";
       input.name = `score-${id}`;
@@ -142,18 +136,14 @@ const renderStages = () => {
       });
       const span = document.createElement("span");
       span.textContent = value === null ? NOT_RATED_LABEL : String(value);
-      label.append(input, span);
-      scoreWrap.append(label);
+      option.append(input, span);
+      scoreWrap.append(option);
     }
     scoreField.append(scoreWrap);
 
     const explanation = document.createElement("input");
     explanation.type = "text";
     explanation.value = stage.explanation;
-    explanation.setAttribute(
-      "aria-label",
-      `Explanation for ${stage.name || `stage ${i + 1}`}`,
-    );
     explanation.placeholder = "Optional explanation";
     explanation.addEventListener("input", () => {
       stage.explanation = explanation.value;
@@ -165,10 +155,23 @@ const renderStages = () => {
     del.type = "button";
     del.className = "del";
     del.textContent = "✕";
-    del.setAttribute("aria-label", `Delete ${stage.name || `stage ${i + 1}`}`);
     del.addEventListener("click", () => {
       stages.splice(i, 1);
       renderStages();
+      refresh();
+    });
+
+    const syncNames = () => {
+      legend.textContent = `Score for ${label()}`;
+      explanation.setAttribute("aria-label", `Explanation for ${label()}`);
+      del.setAttribute("aria-label", `Delete ${label()}`);
+      up.setAttribute("aria-label", `Move ${label()} up`);
+      down.setAttribute("aria-label", `Move ${label()} down`);
+    };
+    syncNames();
+    name.addEventListener("input", () => {
+      stage.name = name.value;
+      syncNames();
       refresh();
     });
 
@@ -187,13 +190,18 @@ document.getElementById("load").addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
+  const errorEl = document.getElementById("load-error");
   reader.addEventListener("load", () => {
     try {
-      stages = sanitizeStages(JSON.parse(reader.result));
+      const raw = JSON.parse(reader.result);
+      if (!Array.isArray(raw)) throw new Error("not a stage list");
+      stages = sanitizeStages(raw);
+      errorEl.hidden = true;
       renderStages();
       refresh();
     } catch {
-      // ignore malformed files
+      errorEl.textContent = "Could not read stages from that file.";
+      errorEl.hidden = false;
     }
   });
   reader.readAsText(file);

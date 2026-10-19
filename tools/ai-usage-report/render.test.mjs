@@ -91,6 +91,11 @@ describe("renderBadge", () => {
     assert.match(svg, />— \/ 5</);
     assert.doesNotMatch(svg, /fill="url\(#/);
   });
+
+  it("formats an integral average to one decimal", () => {
+    const svg = renderBadge(4, "light");
+    assert.match(svg, />4\.0 \/ 5</);
+  });
 });
 
 describe("sanitizeStages", () => {
@@ -108,9 +113,9 @@ describe("sanitizeStages", () => {
     ]);
   });
 
-  it("rounds non-integer scores to nearest integer before clamping", () => {
+  it("treats non-integer scores as unrated", () => {
     const out = sanitizeStages([{ name: "A", score: 2.6 }]);
-    assert.equal(out[0].score, 3);
+    assert.equal(out[0].score, null);
   });
 });
 
@@ -156,6 +161,27 @@ describe("renderReadmeSnippet", () => {
       "x",
     );
     assert.match(md, /A &lt;b&gt;/);
+  });
+
+  it("escapes the asset path inside html attributes", () => {
+    const md = renderReadmeSnippet(stages, 3, 'a"b');
+    assert.doesNotMatch(md, /a"b/);
+    assert.match(md, /a&quot;b/);
+  });
+
+  it("escapes markdown metacharacters in names and explanations", () => {
+    const md = renderReadmeSnippet(
+      [{ name: "A **b**", score: 1, explanation: "see [x](y)" }],
+      1,
+      "x",
+    );
+    assert.match(md, /A \\\*\\\*b\\\*\\\*/);
+    assert.match(md, /see \\\[x\\\]\(y\)/);
+  });
+
+  it("formats an integral average to one decimal in the alt text", () => {
+    const md = renderReadmeSnippet(stages, 4, "x");
+    assert.match(md, /Average AI usage score: 4\.0 \/ 5/);
   });
 });
 

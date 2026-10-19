@@ -16,10 +16,13 @@ import {
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
   const i = args.indexOf(name);
-  return i === -1 ? fallback : args[i + 1];
+  const value = i === -1 ? undefined : args[i + 1];
+  return value !== undefined && !value.startsWith("--") ? value : fallback;
 };
 
-const dataFile = args[0];
+const dataFile = args.find(
+  (a, i) => !a.startsWith("--") && !args[i - 1]?.startsWith("--"),
+);
 const outDir = flag("--out", null);
 const assets = flag("--assets", "docs/ai-usage");
 

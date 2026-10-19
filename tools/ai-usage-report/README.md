@@ -64,6 +64,11 @@ GitHub renders the dark variant for visitors using dark mode and the light
 one otherwise — no JavaScript needed. The badge and `<details>` explanation
 block follow the same pattern.
 
+> **Note:** the SVGs use shared internal `id`s for gradients and clip paths.
+> They are designed to be referenced via `<img>`/`<picture>` (as the snippet
+> does). If you inline multiple same-theme SVGs into one HTML page instead,
+> the ids can collide — regenerate or rename ids in that case.
+
 ## Scripted regeneration
 
 `generate.mjs` regenerates the assets from a `data.json` without opening the
