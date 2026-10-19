@@ -14,7 +14,7 @@
   "screens": [
     {
       "id": "ef4d2e752da940fcbc48cdbfcc4d4302",
-      "title": "Meander \u2014 Application Shell",
+      "title": "Meander — Application Shell",
       "deviceType": "DESKTOP",
       "files": ["designs/app-shell.html", "designs/app-shell.png"],
       "implemented": true,
@@ -22,7 +22,7 @@
     },
     {
       "id": "d476865cf375443295d630ca59879bac",
-      "title": "Meander \u2014 Settings",
+      "title": "Meander — Settings",
       "deviceType": "DESKTOP",
       "files": ["designs/settings.html", "designs/settings.png"],
       "implemented": false,
@@ -30,7 +30,7 @@
     },
     {
       "id": "22a33c7a1c7d47f3bb4ce25895bba65e",
-      "title": "Meander \u2014 Settings (Inline Profile Edit)",
+      "title": "Meander — Settings (Inline Profile Edit)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/settings-inline-edit.html",
@@ -41,7 +41,7 @@
     },
     {
       "id": "48b6b70647e54fb29b3098892858181c",
-      "title": "Meander \u2014 Backlog",
+      "title": "Meander — Backlog",
       "deviceType": "DESKTOP",
       "files": ["designs/backlog.html", "designs/backlog.png"],
       "implemented": true,
@@ -49,15 +49,15 @@
     },
     {
       "id": "97873034b9be4fa7a233b4f910b2734d",
-      "title": "Meander \u2014 New Task Modal",
+      "title": "Meander — New Task Modal",
       "deviceType": "DESKTOP",
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
-      "notes": "Task creation dialog: Title* input, Description textarea, Categories multivalue autocomplete (selected pill chips tinted per category color, open dropdown with color dots + check marks on selected rows, 'New category...' create row), Estimated time, Carry-over segmented control, Cancel/Create task footer over dimmed backlog. Category field markup spliced locally from the Stitch DOM edit event \u2014 the remote htmlCode/screenshot artifacts lag behind DOM operations."
+      "notes": "Task creation dialog: Title* input, Description textarea, Categories token-field multiselect (selected pill chips tinted per category color inline inside the field box, input caret right of the last chip, open dropdown with color dots + check marks + 'New category...' create row), Estimated time, Carry-over segmented control, Cancel/Create task footer over dimmed backlog. Category field markup spliced locally from Stitch DOM edit events — the remote htmlCode/screenshot artifacts lag behind DOM operations."
     },
     {
       "id": "05f3a99d44754d6dbc60e516a5b71da5",
-      "title": "Meander \u2014 Task Detail Modal",
+      "title": "Meander — Task Detail Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/task-detail-dialog.html",
@@ -68,7 +68,7 @@
     },
     {
       "id": "4bcee8b161a546dab7d35783828aa203",
-      "title": "Meander \u2014 Categories",
+      "title": "Meander — Categories",
       "deviceType": "DESKTOP",
       "files": ["designs/categories.html", "designs/categories.png"],
       "implemented": true,
@@ -76,7 +76,7 @@
     },
     {
       "id": "00738f47ad1c41189a03ef98bfcf61d3",
-      "title": "Meander \u2014 New Category Modal",
+      "title": "Meander — New Category Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/new-category-dialog.html",
@@ -87,7 +87,7 @@
     },
     {
       "id": "f94c4df04f39428a924d1e7a49be52ef",
-      "title": "Meander \u2014 Edit Category Modal",
+      "title": "Meander — Edit Category Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/edit-category-dialog.html",

@@ -159,6 +159,27 @@ describe("CategoryMultiSelect", () => {
     ).toBeInTheDocument();
   });
 
+  it("Backspace on an empty input removes the last chip only", async () => {
+    renderSelect();
+    fireEvent.focus(input());
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    // Backspace pops the most recent chip; typing guards against pops.
+    fireEvent.keyDown(input(), { key: "Backspace" });
+    expect(
+      screen.queryByRole("button", {
+        name: removeTaskCategoryLabel(WORK.title),
+      }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(input(), { target: { value: "e" } });
+    fireEvent.keyDown(input(), { key: "Backspace" });
+    expect(
+      screen.getByRole("button", {
+        name: removeTaskCategoryLabel(ERRANDS.title),
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("surfaces a failed quick-create inline", async () => {
     mockedCreate.mockRejectedValue(new Error("offline"));
     renderSelect();

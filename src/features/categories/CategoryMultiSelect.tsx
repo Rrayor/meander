@@ -98,6 +98,12 @@ export function CategoryMultiSelect({
       });
       return;
     }
+    if (e.key === "Backspace" && query === "" && selected.length > 0) {
+      // Token-field convention: Backspace on an empty input removes the
+      // last chip.
+      onChange(selected.slice(0, -1));
+      return;
+    }
     if (e.key === "Enter" && open && activeIndex >= 0) {
       e.preventDefault();
       if (activeIndex < options.length) {
@@ -117,16 +123,23 @@ export function CategoryMultiSelect({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {selected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        {/* Token field: chips live inside the same bordered box as the
+            input — the whole surface focuses the input on click. Keyboard
+            users Tab straight into the input, so the wrapper is
+            pointer-only by design. */}
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- click-to-focus convenience; the real control is the combobox inside */}
+        <div
+          className="flex min-h-[42px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-raised p-2 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary"
+          onClick={() => inputRef.current?.focus()}
+        >
           {selected.map((category) => {
             const color = category.color ?? DEFAULT_CATEGORY_COLOR;
             return (
               <span
                 key={category.id}
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
+                className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium"
                 style={{
-                  borderColor: `${color}4d`,
                   backgroundColor: `${color}26`,
                   color,
                 }}
@@ -140,7 +153,10 @@ export function CategoryMultiSelect({
                 <button
                   type="button"
                   aria-label={removeTaskCategoryLabel(category.title)}
-                  onClick={() => toggle(category)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggle(category);
+                  }}
                   className="flex items-center justify-center hover:opacity-75 focus:outline-none"
                 >
                   <svg
@@ -157,34 +173,32 @@ export function CategoryMultiSelect({
               </span>
             );
           })}
+          <input
+            ref={inputRef}
+            id={`${idPrefix}-categories`}
+            type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-activedescendant={
+              activeIndex >= 0 ? optionId(activeIndex) : undefined
+            }
+            aria-autocomplete="list"
+            aria-label={CATEGORY_SEARCH_LABEL}
+            placeholder={CATEGORY_SEARCH_LABEL}
+            autoComplete="off"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+              setActiveIndex(-1);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={onKeyDown}
+            className="min-w-[120px] flex-1 border-0 bg-transparent p-0 text-sm text-text outline-none placeholder:text-text-muted/60 focus:outline-none focus:ring-0"
+          />
         </div>
-      )}
-      <div className="relative">
-        <input
-          ref={inputRef}
-          id={`${idPrefix}-categories`}
-          type="text"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-activedescendant={
-            activeIndex >= 0 ? optionId(activeIndex) : undefined
-          }
-          aria-autocomplete="list"
-          aria-label={CATEGORY_SEARCH_LABEL}
-          placeholder={CATEGORY_SEARCH_LABEL}
-          autoComplete="off"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-            setActiveIndex(-1);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
-          onKeyDown={onKeyDown}
-          className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-        />
         {open && optionCount > 0 && (
           <ul
             id={listboxId}
