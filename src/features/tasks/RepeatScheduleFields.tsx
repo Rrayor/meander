@@ -21,6 +21,7 @@ import {
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
 } from "@/lib/labels";
+import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 
 type Unit = (typeof REPEAT_UNIT_OPTIONS)[number]["value"];
 type MonthMode = "day" | "weekday";
@@ -37,27 +38,6 @@ interface RepeatDraft {
   endDate: string;
 }
 
-// The schedule's start is a local calendar date — `toISOString` would take
-// the UTC date and can land on tomorrow/yesterday outside UTC.
-const todayIso = () => {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-};
-
-const WEEKDAYS_BY_JS_DAY: Weekday[] = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-
-const weekdayOf = (iso: string): Weekday =>
-  WEEKDAYS_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
-
 // Monthly defaults derive from the start date too — the first instance is
 // the task itself, so an untouched schedule should include its own date.
 // A 5th occurrence isn't expressible (nth is 1-4 or last), so days past the
@@ -68,7 +48,7 @@ const monthlyDefaults = (iso: string) => {
   return {
     day,
     nth: occurrence >= 5 ? -1 : occurrence,
-    weekday: weekdayOf(iso),
+    weekday: weekdayOfIso(iso),
   };
 };
 
@@ -136,10 +116,10 @@ const firstError = (errors: DraftErrors) =>
 const defaultDraft = (): RepeatDraft => ({
   interval: 1,
   unit: "day",
-  weekdays: [weekdayOf(todayIso())],
+  weekdays: [weekdayOfIso(todayLocalIso())],
   monthMode: "day",
-  ...monthlyDefaults(todayIso()),
-  startDate: todayIso(),
+  ...monthlyDefaults(todayLocalIso()),
+  startDate: todayLocalIso(),
   endDate: "",
 });
 
@@ -284,7 +264,7 @@ export function RepeatScheduleFields({
     const valid = ISO_DATE_PATTERN.test(iso);
     patch({
       startDate: iso,
-      ...(!weekdaysTouched && valid ? { weekdays: [weekdayOf(iso)] } : {}),
+      ...(!weekdaysTouched && valid ? { weekdays: [weekdayOfIso(iso)] } : {}),
       ...(!monthlyTouched && valid ? monthlyDefaults(iso) : {}),
     });
   };

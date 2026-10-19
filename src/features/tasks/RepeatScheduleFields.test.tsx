@@ -14,6 +14,7 @@ import {
   REPEAT_STARTS_LABEL,
   WEEKDAY_OPTIONS,
 } from "@/lib/labels";
+import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 
 const ID_PREFIX = "test-task";
 
@@ -29,25 +30,7 @@ const expand = () =>
 const lastSeries = (onChange: ReturnType<typeof vi.fn>) =>
   onChange.mock.calls[onChange.mock.calls.length - 1]?.[0] as NewSeries | null;
 
-const WEEKDAY_BY_JS_DAY: Weekday[] = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-const weekdayOf = (iso: string) =>
-  WEEKDAY_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
-
-// Local calendar date — mirrors the component's todayIso; toISOString would
-// take the UTC date and can land on a different day outside UTC.
-const todayLocalIso = () => {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-};
+const todayWeekday = () => weekdayOfIso(todayLocalIso());
 
 const WEDNESDAY_ISO = "2026-10-21"; // a Wednesday
 const FRIDAY_ISO = "2026-10-23"; // a Friday
@@ -94,9 +77,7 @@ describe("RepeatScheduleFields", () => {
     const { weekdays } = series?.recurrence as {
       weekdays: Weekday[];
     };
-    expect(new Set(weekdays)).toEqual(
-      new Set([weekdayOf(todayLocalIso()), "friday"]),
-    );
+    expect(new Set(weekdays)).toEqual(new Set([todayWeekday(), "friday"]));
   });
 
   it("does not allow deselecting the last weekly weekday", () => {
@@ -104,8 +85,7 @@ describe("RepeatScheduleFields", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "weeks" }));
     const only = screen.getByRole("button", {
-      name: WEEKDAY_OPTIONS.find((w) => w.value === weekdayOf(todayLocalIso()))!
-        .label,
+      name: WEEKDAY_OPTIONS.find((w) => w.value === todayWeekday())!.label,
     });
     fireEvent.click(only);
     expect(

@@ -1,4 +1,9 @@
-import { codePointsWithin, unicodeTrim } from "@/lib/utils";
+import {
+  codePointsWithin,
+  todayLocalIso,
+  unicodeTrim,
+  weekdayOfIso,
+} from "@/lib/utils";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 // The regex serves as the oracle: \p{White_Space} is the same Unicode
@@ -59,5 +64,25 @@ describe("codePointsWithin", () => {
     expect(codePointsWithin(MULTI_UNIT_EMOJI, 1)).toBe(true);
     expect(codePointsWithin("ab", 2)).toBe(true);
     expect(codePointsWithin("abc", 2)).toBe(false);
+  });
+});
+
+describe("todayLocalIso", () => {
+  it("formats the local calendar date, not the UTC date", () => {
+    vi.useFakeTimers();
+    // Late local evening — the UTC date can already differ.
+    vi.setSystemTime(new Date(2026, 9, 21, 23, 59));
+    try {
+      expect(todayLocalIso()).toBe("2026-10-21");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("weekdayOfIso", () => {
+  it("maps a local ISO date to its weekday", () => {
+    expect(weekdayOfIso("2026-10-21")).toBe("wednesday"); // a Wednesday
+    expect(weekdayOfIso("2026-10-25")).toBe("sunday");
   });
 });

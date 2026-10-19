@@ -1,7 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import type { Weekday } from "@/api/bindings";
 import {
   addTaskCategory,
   listCategories,
@@ -21,6 +20,7 @@ import {
   serverErrorMessage,
 } from "@/lib/errors";
 import { TITLE_REQUIRED_MESSAGE, removeTaskCategoryLabel } from "@/lib/labels";
+import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -65,19 +65,7 @@ const submit = () =>
 
 const ERRANDS = categoryFixture();
 
-const WEEKDAY_BY_JS_DAY: Weekday[] = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-
-// The component derives the weekday from the local calendar date — using
-// toISOString (UTC) here would expect the wrong weekday outside UTC.
-const todayWeekday = (): Weekday => WEEKDAY_BY_JS_DAY[new Date().getDay()];
+const todayWeekday = () => weekdayOfIso(todayLocalIso());
 
 describe("NewTaskDialog", () => {
   beforeEach(() => {
