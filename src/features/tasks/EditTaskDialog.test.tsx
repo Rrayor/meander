@@ -76,6 +76,7 @@ const baseTask: Task = {
   spent_minutes: 30,
   placement: "backlog",
   scheduled_date: null,
+  series_id: null,
   sort_order: 1,
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-12 09:00:00",
@@ -161,6 +162,7 @@ describe("EditTaskDialog", () => {
         spent_minutes: 150,
         carry_over_rule: "return",
         status: "done",
+        series: null,
       }),
     );
   });
@@ -190,6 +192,7 @@ describe("EditTaskDialog", () => {
         spent_minutes: 30,
         carry_over_rule: "carry",
         status: "todo",
+        series: null,
       }),
     );
   });

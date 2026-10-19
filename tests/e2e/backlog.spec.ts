@@ -289,6 +289,7 @@ test("the estimate pair sends combined minutes on the wire", async ({
       description: null,
       estimated_minutes: 90,
       carry_over_rule: "carry",
+      series: null,
     },
   });
 });
@@ -403,6 +404,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
       spent_minutes: null,
       carry_over_rule: null,
       status: "in_progress",
+      series: null,
     },
   });
 });

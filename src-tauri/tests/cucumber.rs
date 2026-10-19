@@ -1381,6 +1381,7 @@ fn update_task_by_id(world: &mut MeanderWorld, id: i64, title: &str) {
             spent_minutes,
             carry_over_rule,
             status: meander_lib::tasks::TaskStatus::Done,
+            series: None,
         },
     )) {
         world.error = Some(e.to_string());
@@ -1485,6 +1486,7 @@ fn update_task_spent(world: &mut MeanderWorld, title: String, minutes: i64) {
             spent_minutes: Some(minutes),
             carry_over_rule: task.carry_over_rule,
             status: task.status,
+            series: None,
         },
     )) {
         world.error = Some(e.to_string());

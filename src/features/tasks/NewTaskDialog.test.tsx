@@ -114,6 +114,7 @@ describe("NewTaskDialog", () => {
       description: null,
       estimated_minutes: 90,
       carry_over_rule: "carry",
+      series: null,
     });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });

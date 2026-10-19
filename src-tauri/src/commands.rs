@@ -430,6 +430,7 @@ mod tests {
                 description: None,
                 estimated_minutes: None,
                 carry_over_rule: None,
+                series: None,
             },
             state.clone(),
         )
@@ -515,6 +516,7 @@ mod tests {
                 spent_minutes: Some(30),
                 carry_over_rule: None,
                 status: crate::tasks::TaskStatus::Done,
+                series: None,
             },
             state.clone(),
         )

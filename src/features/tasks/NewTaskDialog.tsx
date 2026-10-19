@@ -188,6 +188,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       description: unicodeTrim(description) || null,
       estimated_minutes: hasEstimate ? total : null,
       carry_over_rule: carryOver === "" ? null : carryOver,
+      series: null,
     });
   };
 

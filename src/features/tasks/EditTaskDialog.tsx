@@ -228,6 +228,7 @@ export function EditTaskDialog({
       spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       carry_over_rule: values.carryOver === "" ? null : values.carryOver,
       status: values.status,
+      series: null,
     });
   };
 

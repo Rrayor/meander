@@ -54,6 +54,7 @@ const task = (over: Partial<Task>): Task => ({
   spent_minutes: null,
   placement: "backlog",
   scheduled_date: null,
+  series_id: null,
   sort_order: 0,
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
