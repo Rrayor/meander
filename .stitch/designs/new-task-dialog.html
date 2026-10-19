@@ -355,7 +355,57 @@
 </div>
 <textarea class="w-full bg-surface-raised border border-border text-text placeholder-text-muted/60 rounded px-3 py-2 font-body text-body outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none transition-colors" id="task-desc-input" placeholder="Add details, links, or context" rows="3"></textarea>
 </div>
-<!-- Field 3: Estimated Time -->
+<!-- Field 3: Categories -->
+<div class="flex flex-col gap-1.5 relative">
+<div class="flex items-center justify-between">
+<label class="font-label text-label text-text-muted" for="category-search-input">Categories</label>
+<span class="font-label text-[10px] text-text-muted/60">(optional)</span>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 p-2 bg-surface-raised border border-border rounded focus-within:border-primary focus-within:ring-1 focus-within:ring-primary min-h-[42px]">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-threshold-orange/15 text-threshold-orange font-label text-label">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-orange"></span>
+<span>Errands</span>
+<button aria-label="Remove Errands" class="hover:text-text focus:outline-none flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-[14px] leading-none" data-icon="close">close</span>
+</button>
+</span>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-primary/15 text-primary font-label text-label">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Work</span>
+<button aria-label="Remove Work" class="hover:text-text focus:outline-none flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-[14px] leading-none" data-icon="close">close</span>
+</button>
+</span>
+<input class="flex-1 min-w-[120px] bg-transparent border-0 p-0 text-text placeholder-text-muted/60 font-body text-body outline-none focus:outline-none focus:ring-0" id="category-search-input" placeholder="Search or add..." type="text"/>
+</div>
+<div class="mt-1 bg-surface border border-border rounded-lg shadow-2xl py-1 flex flex-col z-10 divide-y divide-border/40">
+<div class="flex items-center justify-between px-3 py-1.5 hover:bg-surface-raised cursor-pointer transition-colors text-body">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-threshold-orange"></span>
+<span class="text-text font-body text-body">Errands</span>
+</div>
+<span class="material-symbols-outlined text-primary text-[16px]" data-icon="check">check</span>
+</div>
+<div class="flex items-center justify-between px-3 py-1.5 hover:bg-surface-raised cursor-pointer transition-colors text-body">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-text font-body text-body">Work</span>
+</div>
+<span class="material-symbols-outlined text-primary text-[16px]" data-icon="check">check</span>
+</div>
+<div class="flex items-center justify-between px-3 py-1.5 hover:bg-surface-raised cursor-pointer transition-colors text-body">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-threshold-violet"></span>
+<span class="text-text font-body text-body">Hobbies</span>
+</div>
+</div>
+<div class="flex items-center gap-2 px-3 py-2 hover:bg-surface-raised cursor-pointer transition-colors text-primary text-body border-t border-border">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+<span class="font-medium font-body text-body">New category...</span>
+</div>
+</div>
+</div>
+<!-- Field 4: Estimated Time -->
 <div class="flex flex-col gap-1.5">
 <div class="flex items-center justify-between">
 <label class="font-label text-label text-text-muted" for="task-est-input">Estimated time</label>

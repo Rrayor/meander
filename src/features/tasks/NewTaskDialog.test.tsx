@@ -1,7 +1,16 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { MAX_DURATION_MINUTES, MAX_TASK_TITLE_LENGTH } from "@/api/tasks";
+import {
+  addTaskCategory,
+  listCategories,
+  removeTaskCategory,
+} from "@/api/categories";
+import {
+  MAX_DURATION_MINUTES,
+  MAX_TASK_TITLE_LENGTH,
+  updateTask,
+} from "@/api/tasks";
 import { ApiError } from "@/api/transport";
 import { createTask } from "@/api/tasks";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
@@ -10,16 +19,29 @@ import {
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
-import { TITLE_REQUIRED_MESSAGE } from "@/lib/labels";
+import { TITLE_REQUIRED_MESSAGE, removeTaskCategoryLabel } from "@/lib/labels";
+import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
   createTask: vi.fn(),
+  updateTask: vi.fn(),
+}));
+
+vi.mock("@/api/categories", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/categories")>()),
+  listCategories: vi.fn(),
+  addTaskCategory: vi.fn(),
+  removeTaskCategory: vi.fn(),
 }));
 
 const mockedCreate = vi.mocked(createTask);
+const mockedListCategories = vi.mocked(listCategories);
+const mockedAddTaskCategory = vi.mocked(addTaskCategory);
+const mockedRemoveTaskCategory = vi.mocked(removeTaskCategory);
+const mockedUpdate = vi.mocked(updateTask);
 
 const renderDialog = (onClose = vi.fn()) => {
   render(
@@ -40,8 +62,16 @@ const fillTitle = (value = VALID_TITLE) =>
 const submit = () =>
   fireEvent.click(screen.getByRole("button", { name: "Create task" }));
 
+const ERRANDS = categoryFixture();
+
 describe("NewTaskDialog", () => {
-  beforeEach(() => mockedCreate.mockReset());
+  beforeEach(() => {
+    mockedCreate.mockReset();
+    mockedListCategories.mockReset().mockResolvedValue([ERRANDS]);
+    mockedAddTaskCategory.mockReset().mockResolvedValue(undefined);
+    mockedRemoveTaskCategory.mockReset().mockResolvedValue(undefined);
+    mockedUpdate.mockReset().mockResolvedValue({} as never);
+  });
 
   it("validates the title on blur before submit", async () => {
     renderDialog();
@@ -154,6 +184,98 @@ describe("NewTaskDialog", () => {
     );
     expect(SERVER_ERROR_MESSAGES.estimated_time_out_of_range).toContain(
       `${MAX_DURATION_MINUTES / 60} hours`,
+    );
+  });
+
+  it("does not create a second task when a failed association is retried", async () => {
+    mockedCreate.mockResolvedValue({ id: 42 } as never);
+    mockedAddTaskCategory
+      .mockRejectedValueOnce(new Error("flaky join"))
+      .mockResolvedValue(undefined);
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fillTitle();
+    submit();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    submit();
+    await waitFor(() => expect(mockedCreate).toHaveBeenCalledTimes(1));
+    expect(mockedAddTaskCategory).toHaveBeenCalledTimes(2);
+  });
+
+  it("a retry after a failed association persists revised details", async () => {
+    mockedCreate.mockResolvedValue({ id: 42 } as never);
+    mockedAddTaskCategory
+      .mockRejectedValueOnce(new Error("flaky join"))
+      .mockResolvedValue(undefined);
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fillTitle();
+    submit();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fillTitle("Renamed task");
+    submit();
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({ title: "Renamed task" }),
+      ),
+    );
+  });
+
+  it("a retry removes an association the user unselected", async () => {
+    const WORK = categoryFixture({ id: 2, title: "Work", color: "#fb923c" });
+    mockedListCategories.mockResolvedValue([ERRANDS, WORK]);
+    mockedCreate.mockResolvedValue({ id: 42 } as never);
+    // Errands links fine; Work fails — leaving Errands already committed.
+    mockedAddTaskCategory.mockImplementation((_taskId, categoryId) =>
+      categoryId === WORK.id
+        ? Promise.reject(new Error("flaky join"))
+        : Promise.resolve(),
+    );
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /Work/ }));
+    fillTitle();
+    submit();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    // Unselect Errands — its committed association must be removed on retry.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: removeTaskCategoryLabel(ERRANDS.title),
+      }),
+    );
+    submit();
+    await waitFor(() =>
+      expect(mockedRemoveTaskCategory).toHaveBeenCalledWith(42, ERRANDS.id),
+    );
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape closes only the open category dropdown, not the dialog", async () => {
+    const onClose = renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    await screen.findByRole("option", { name: /Errands/ });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("option", { name: /Errands/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("associates the picked categories after creating the task", async () => {
+    mockedCreate.mockResolvedValue({ id: 42 } as never);
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fillTitle();
+    submit();
+    await waitFor(() =>
+      expect(mockedAddTaskCategory).toHaveBeenCalledWith(42, ERRANDS.id),
     );
   });
 

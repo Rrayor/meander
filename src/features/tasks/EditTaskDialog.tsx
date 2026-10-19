@@ -1,9 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
+import {
+  addTaskCategory,
+  listTaskCategories,
+  removeTaskCategory,
+} from "@/api/categories";
+import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   MAX_DURATION_MINUTES,
@@ -20,9 +26,11 @@ import {
   TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
+import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
+  CATEGORIES_FIELD_LABEL,
   CARRY_OVER_OPTIONS,
   CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
@@ -158,12 +166,52 @@ export function EditTaskDialog({
     setFocus("title");
   }, [setFocus]);
 
+  const { data: initialCategories } = useQuery({
+    queryKey: QUERY_KEYS.taskCategories(task.id),
+    queryFn: () => listTaskCategories(task.id),
+  });
+  // The selection is derived state: stored associations minus the chips the
+  // user removed plus the ones they added. Deriving it (rather than seeding
+  // state once) keeps picks intact when the query resolves late *and* lets
+  // a refetch update what chips show — e.g. after a category is recolored.
+  const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(new Set());
+  const [picked, setPicked] = useState<Category[]>([]);
+  const stored = initialCategories ?? [];
+  const storedIds = new Set(stored.map((c) => c.id));
+  const categories = [
+    ...stored.filter((c) => !removedIds.has(c.id)),
+    ...picked.filter((c) => !storedIds.has(c.id)),
+  ];
+  const onCategoriesChange = (next: Category[]) => {
+    const nextIds = new Set(next.map((c) => c.id));
+    setRemovedIds(
+      new Set(stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id)),
+    );
+    setPicked(next.filter((c) => !storedIds.has(c.id)));
+  };
+
   const update = useMutation({
-    mutationFn: (input: Parameters<typeof updateTask>[1]) =>
-      updateTask(task.id, input),
-    onSuccess: () => {
+    mutationFn: async (input: Parameters<typeof updateTask>[1]) => {
+      await updateTask(task.id, input);
+      const next = new Set(categories.map((c) => c.id));
+      const prev = new Set(stored.map((c) => c.id));
+      await Promise.all([
+        ...categories
+          .filter((c) => !prev.has(c.id))
+          .map((c) => addTaskCategory(task.id, c.id)),
+        ...stored
+          .filter((c) => !next.has(c.id))
+          .map((c) => removeTaskCategory(task.id, c.id)),
+      ]);
+    },
+    onSuccess: onClose,
+    onSettled: () => {
+      // Also on failure: update_task may have committed before a category
+      // association rejected, so the list must reflect what was saved.
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
-      onClose();
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.taskCategories(task.id),
+      });
     },
   });
 
@@ -330,6 +378,17 @@ export function EditTaskDialog({
                 {errors.description.message}
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-muted">
+              {CATEGORIES_FIELD_LABEL}{" "}
+              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+            </span>
+            <CategoryMultiSelect
+              idPrefix="edit-task"
+              selected={categories}
+              onChange={onCategoriesChange}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">

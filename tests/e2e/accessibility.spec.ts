@@ -10,6 +10,7 @@ import {
   ADD_TASK_LABEL,
   editCategoryLabel,
   editTaskLabel,
+  removeTaskCategoryLabel,
 } from "@/lib/labels";
 
 import { STUB_DB_PATH, stubTauriCommands } from "./stubs";
@@ -25,6 +26,16 @@ const current = {
 };
 
 const AUDIT_TS = "2026-10-10 09:00:00";
+
+const errands = {
+  id: 1,
+  profile_id: 1,
+  title: "Errands",
+  description: null,
+  color: "#2DD4BF",
+  created_at: AUDIT_TS,
+  updated_at: AUDIT_TS,
+};
 
 const task = {
   id: 1,
@@ -85,10 +96,34 @@ test("the new task dialog has no WCAG AA violations", async ({ page }) => {
   await expectAccessible(page);
 });
 
+test("the category picker has no WCAG AA violations", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.listCategories]: [errands],
+  });
+  await page.goto(`/#${backlogPath}`);
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox").focus();
+  await dialog
+    .getByRole("option", { name: new RegExp(errands.title) })
+    .dispatchEvent("mousedown");
+  await expect(
+    dialog.getByRole("button", {
+      name: removeTaskCategoryLabel(errands.title),
+    }),
+  ).toBeVisible();
+  await dialog.getByRole("combobox").focus();
+
+  await expectAccessible(page);
+});
+
 test("the edit task dialog has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [task],
+    [COMMANDS.listTaskCategories]: [],
   });
   await page.goto(`/#${backlogPath}`);
   await page.getByRole("button", { name: editTaskLabel(task.title) }).click();
@@ -101,17 +136,7 @@ test("the categories page has no WCAG AA violations", async ({ page }) => {
   const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
   await stubTauriCommands(page, {
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.listCategories]: [
-      {
-        id: 1,
-        profile_id: 1,
-        title: "Errands",
-        description: null,
-        color: "#2DD4BF",
-        created_at: AUDIT_TS,
-        updated_at: AUDIT_TS,
-      },
-    ],
+    [COMMANDS.listCategories]: [errands],
   });
   await page.goto(`/#${categoriesPath}`);
   await expectAccessible(page);

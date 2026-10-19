@@ -1,15 +1,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { addTaskCategory, removeTaskCategory } from "@/api/categories";
+import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   MAX_DURATION_MINUTES,
   MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_TITLE_LENGTH,
   createTask,
+  updateTask,
 } from "@/api/tasks";
 import {
   DURATION_RANGE_MESSAGE,
@@ -18,9 +21,11 @@ import {
   TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
+import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
+  CATEGORIES_FIELD_LABEL,
   CARRY_OVER_OPTIONS,
   CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
@@ -90,6 +95,7 @@ interface NewTaskDialogProps {
 
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -117,11 +123,54 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
     setFocus("title");
   }, [setFocus]);
 
+  // Set once create_task succeeds: a failed association leaves the task in
+  // place, so a retry must reconcile with it — update the (possibly edited)
+  // fields and diff the already-linked categories — never insert a
+  // duplicate row. Refs keep the values consistent within the in-flight
+  // mutation's own callbacks (a state update could lag behind them).
+  const createdId = useRef<number | undefined>(undefined);
+  const linkedIds = useRef(new Set<number>());
+
   const create = useMutation({
-    mutationFn: createTask,
+    mutationFn: async (input: Parameters<typeof createTask>[0]) => {
+      const taskId = createdId.current ?? (await createTask(input)).id;
+      if (createdId.current !== undefined) {
+        // Retry: persist the current field values onto the existing row.
+        await updateTask(taskId, {
+          ...input,
+          spent_minutes: null,
+          status: "todo",
+        });
+      }
+      createdId.current = taskId;
+      const wanted = new Set(categories.map((c) => c.id));
+      await Promise.all([
+        ...categories
+          .filter((c) => !linkedIds.current.has(c.id))
+          .map((c) =>
+            addTaskCategory(taskId, c.id).then(() =>
+              linkedIds.current.add(c.id),
+            ),
+          ),
+        ...[...linkedIds.current]
+          .filter((id) => !wanted.has(id))
+          .map((id) =>
+            removeTaskCategory(taskId, id).then(() =>
+              linkedIds.current.delete(id),
+            ),
+          ),
+      ]);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       onClose();
+    },
+    onError: () => {
+      // The task may already exist even though the mutation failed —
+      // refresh the list so the backlog shows what was actually saved.
+      if (createdId.current !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      }
     },
   });
 
@@ -243,6 +292,17 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
                 {errors.description.message}
               </p>
             )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-muted">
+              {CATEGORIES_FIELD_LABEL}{" "}
+              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+            </span>
+            <CategoryMultiSelect
+              idPrefix="new-task"
+              selected={categories}
+              onChange={setCategories}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-muted">
