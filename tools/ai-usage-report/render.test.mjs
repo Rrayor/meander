@@ -220,4 +220,8 @@ describe("escapeXml", () => {
   it("escapes all five XML entities", () => {
     assert.equal(escapeXml(`<b>&'"`), "&lt;b&gt;&amp;&#x27;&quot;");
   });
+
+  it("strips characters forbidden in XML 1.0", () => {
+    assert.equal(escapeXml("ab"), "ab");
+  });
 });

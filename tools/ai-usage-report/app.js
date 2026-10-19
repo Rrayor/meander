@@ -23,6 +23,8 @@ let stages = [
   "Documentation",
 ].map((name) => ({ name, score: null, explanation: "" }));
 
+window.__aiUsageReady = true;
+
 const stagesEl = document.getElementById("stages");
 const assetPathEl = document.getElementById("asset-path");
 

@@ -26,8 +26,17 @@ block in the snippet.
 
 ## Using the editor
 
-Open `index.html` in a browser, or serve the folder as a static site — it
-works both ways and needs no build step.
+Serve the folder locally and open `index.html`, or host it as a static
+site — no build step needed:
+
+```sh
+cd tools/ai-usage-report && python3 -m http.server 8000
+# then open http://localhost:8000/
+```
+
+(Opening `index.html` directly via `file://` only works in browsers that
+allow module scripts on local files — Chromium blocks them, and the page
+shows a warning when that happens.)
 
 - Edit stage names, pick a score (0–5 or "not rated"), add an optional
   explanation.

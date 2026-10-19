@@ -9,8 +9,8 @@ export const THEMES = {
     divider: "#fff",
     chipBg: "#fff",
     chipBorder: "#e2e8f0",
-    muted: "#94a3b8",
-    unratedStroke: "#cbd5e1",
+    muted: "#64748b",
+    unratedStroke: "#94a3b8",
   },
   dark: {
     text: "#c9d1d9",
@@ -50,8 +50,14 @@ const XML_ESCAPES = {
   "'": "&#x27;",
 };
 
+// XML 1.0 forbids control characters other than tab, LF, CR.
+// eslint-disable-next-line no-control-regex -- intentionally matching control characters
+const XML_FORBIDDEN = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g;
+
 export function escapeXml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
+  return String(s)
+    .replace(XML_FORBIDDEN, "")
+    .replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
 }
 
 // For markdown bodies (the <details> block): XML escaping first, then

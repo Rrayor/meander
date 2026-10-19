@@ -222,26 +222,45 @@
         gap: 12px;
       }
       .pane {
-        background: var(--panel);
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 12px;
+      }
+      /* Fixed per-theme so the preview matches the exported SVG on GitHub
+         regardless of the editor's own color scheme. */
+      .pane--light {
+        background: #fff;
+        color: #334155;
+      }
+      .pane--dark {
+        background: #0d1117;
+        color: #c9d1d9;
       }
       .pane h2 {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: var(--muted);
         margin: 0 0 8px;
         font-weight: 650;
+      }
+      .pane--light h2 {
+        color: #64748b;
+      }
+      .pane--dark h2 {
+        color: #8b949e;
       }
       .pane svg {
         max-width: 100%;
         height: auto;
         display: block;
       }
-      .pane.dark {
-        background: #0d1117;
+      .module-warning {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
       }
       .visually-hidden {
         position: absolute;
@@ -259,6 +278,11 @@
       <p class="sub">
         Score each stage 0 (no AI at all) to 5 (only vibes). Export the assets
         and paste the generated snippet into your README.
+      </p>
+      <p class="module-warning" id="module-warning" hidden>
+        The editor could not initialize — browsers block module scripts over
+        <code>file://</code>. Serve this folder instead, e.g.
+        <code>python3 -m http.server</code>, or host it as a static site.
       </p>
       <div class="layout">
         <section aria-label="Stages">
@@ -293,12 +317,12 @@
           </div>
         </section>
         <div class="preview" aria-label="Preview">
-          <div class="pane">
+          <div class="pane pane--light">
             <h2>Light</h2>
             <div id="preview-light"></div>
             <div id="badge-light"></div>
           </div>
-          <div class="pane dark">
+          <div class="pane pane--dark">
             <h2>Dark</h2>
             <div id="preview-dark"></div>
             <div id="badge-dark"></div>
@@ -306,6 +330,14 @@
         </div>
       </div>
     </main>
+    <script>
+      // Classic script: runs even when file:// CORS blocks the module below.
+      setTimeout(() => {
+        if (!window.__aiUsageReady) {
+          document.getElementById("module-warning").hidden = false;
+        }
+      }, 500);
+    </script>
     <script type="module" src="app.js"></script>
   </body>
 </html>
