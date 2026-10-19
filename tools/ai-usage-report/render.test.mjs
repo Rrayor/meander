@@ -222,6 +222,10 @@ describe("escapeXml", () => {
   });
 
   it("strips characters forbidden in XML 1.0", () => {
-    assert.equal(escapeXml("ab"), "ab");
+    assert.equal(escapeXml("a\u0001b\u001f"), "ab");
+  });
+
+  it("keeps permitted C1 characters", () => {
+    assert.equal(escapeXml("a\u0085b"), "a\u0085b");
   });
 });

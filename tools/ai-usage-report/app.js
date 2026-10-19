@@ -24,6 +24,8 @@ let stages = [
 ].map((name) => ({ name, score: null, explanation: "" }));
 
 window.__aiUsageReady = true;
+// A slow module load may have already shown the warning — hide it now.
+document.getElementById("module-warning").hidden = true;
 
 const stagesEl = document.getElementById("stages");
 const assetPathEl = document.getElementById("asset-path");

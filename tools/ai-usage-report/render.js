@@ -50,9 +50,9 @@ const XML_ESCAPES = {
   "'": "&#x27;",
 };
 
-// XML 1.0 forbids control characters other than tab, LF, CR.
+// XML 1.0 forbids C0 control characters other than tab, LF, CR.
 // eslint-disable-next-line no-control-regex -- intentionally matching control characters
-const XML_FORBIDDEN = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g;
+const XML_FORBIDDEN = /[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
 
 export function escapeXml(s) {
   return String(s)
