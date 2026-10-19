@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Usage Transparency Report</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f8fb;
+        --panel: #fff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #7c4dff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --panel: #161b22;
+          --border: #30363d;
+          --text: #f0f6fc;
+          --muted: #8b949e;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 0 0 20px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 440px;
+        gap: 20px;
+        align-items: start;
+      }
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      fieldset.stages {
+        border: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .stage {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: start;
+      }
+      .moves {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .moves button,
+      .del {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        line-height: 1;
+        padding: 4px 7px;
+      }
+      .moves button:hover,
+      .del:hover {
+        color: var(--text);
+        border-color: var(--muted);
+      }
+      .fields {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+      }
+      input[type="text"],
+      input:not([type]) {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 13px;
+      }
+      .scores {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        width: fit-content;
+      }
+      .scores label {
+        position: relative;
+        cursor: pointer;
+      }
+      .scores input {
+        position: absolute;
+        opacity: 0;
+        inset: 0;
+        margin: 0;
+        cursor: pointer;
+      }
+      .scores span {
+        display: block;
+        padding: 5px 11px;
+        font-size: 12px;
+        color: var(--muted);
+        border-right: 1px solid var(--border);
+      }
+      .scores label:last-child span {
+        border-right: none;
+      }
+      .scores input:checked + span {
+        background: var(--accent);
+        color: #fff;
+        font-weight: 650;
+      }
+      .scores input:focus-visible + span {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+      }
+      .del {
+        align-self: start;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 14px 0;
+        align-items: center;
+      }
+      .toolbar label {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .toolbar input[type="text"] {
+        width: 180px;
+      }
+      button.action,
+      .toolbar label.file {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 7px 12px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.action.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 650;
+      }
+      button.action:hover,
+      .toolbar label.file:hover {
+        border-color: var(--muted);
+      }
+      input[type="file"] {
+        display: none;
+      }
+      .preview {
+        position: sticky;
+        top: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .pane {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .pane h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 0 0 8px;
+        font-weight: 650;
+      }
+      .pane svg {
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+      .pane.dark {
+        background: #0d1117;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AI Usage Transparency Report</h1>
+      <p class="sub">
+        Score each stage 0 (no AI at all) to 5 (only vibes). Export the assets
+        and paste the generated snippet into your README.
+      </p>
+      <div class="layout">
+        <section aria-label="Stages">
+          <fieldset class="stages" id="stages"></fieldset>
+          <div class="toolbar">
+            <button class="action" id="add" type="button">Add stage</button>
+            <label>
+              Asset path
+              <input
+                type="text"
+                id="asset-path"
+                value="docs/ai-usage/"
+                aria-label="Asset path prefix for generated README links"
+              />
+            </label>
+          </div>
+          <div class="toolbar">
+            <label class="file">
+              Load data.json
+              <input type="file" id="load" accept=".json,application/json" />
+            </label>
+            <button class="action" id="download-json" type="button">
+              Download data.json
+            </button>
+            <button class="action primary" id="export-zip" type="button">
+              Export zip
+            </button>
+          </div>
+        </section>
+        <div class="preview" aria-label="Preview">
+          <div class="pane">
+            <h2>Light</h2>
+            <div id="preview-light"></div>
+            <div id="badge-light"></div>
+          </div>
+          <div class="pane dark">
+            <h2>Dark</h2>
+            <div id="preview-dark"></div>
+            <div id="badge-dark"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
