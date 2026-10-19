@@ -44,3 +44,4 @@ meander.db*
 
 # Superpowers brainstorm server runtime state
 .superpowers/brainstorm/
+.worktrees/
