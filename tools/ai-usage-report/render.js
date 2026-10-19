@@ -113,3 +113,50 @@ export function renderGauge(stages, theme) {
     `</defs>${rows}</svg>`
   );
 }
+
+const BADGE_W = 240;
+const BADGE_H = 30;
+const MINI_BAR_X = 46;
+const MINI_BAR_W = 120;
+const MINI_BAR_H = 14;
+const MINI_CELL_W = MINI_BAR_W / CELLS;
+const NO_RATING_LABEL = "— / 5";
+
+export function averageScore(stages) {
+  const rated = stages.map((s) => s.score).filter((s) => s !== null);
+  if (rated.length === 0) return null;
+  return (
+    Math.round((rated.reduce((a, b) => a + b, 0) / rated.length) * 10) / 10
+  );
+}
+
+export function renderBadge(avg, theme) {
+  const t = THEMES[theme];
+  const gradId = `bg-${theme}`;
+  const clipId = `bc-${theme}`;
+  const fill = avg === null ? 0 : (avg / CELLS) * MINI_BAR_W;
+  const bar =
+    avg === null
+      ? `<rect width="${MINI_BAR_W}" height="${MINI_BAR_H}" fill="${t.empty}"/>`
+      : `<rect width="${MINI_BAR_W}" height="${MINI_BAR_H}" fill="url(#${gradId})"/>` +
+        `<rect x="${fill}" width="${MINI_BAR_W - fill}" height="${MINI_BAR_H}" fill="${t.empty}"/>`;
+  const dividers = `<g stroke="${t.divider}" stroke-width="1.5">${[1, 2, 3, 4]
+    .map(
+      (i) =>
+        `<line x1="${i * MINI_CELL_W}" y1="0" x2="${i * MINI_CELL_W}" y2="${MINI_BAR_H}"/>`,
+    )
+    .join("")}</g>`;
+  const value = avg === null ? NO_RATING_LABEL : `${avg} / 5`;
+  return (
+    `<svg width="${BADGE_W}" height="${BADGE_H}" xmlns="http://www.w3.org/2000/svg" ` +
+    `font-family="${FONT_STACK}">` +
+    `<defs>${gradientDef(gradId)}` +
+    `<clipPath id="${clipId}"><rect x="0" y="0" width="${MINI_BAR_W}" height="${MINI_BAR_H}" rx="7"/></clipPath>` +
+    `</defs>` +
+    `<rect width="${BADGE_W}" height="${BADGE_H}" rx="8" fill="${t.chipBg}" stroke="${t.chipBorder}"/>` +
+    `<text x="12" y="20" font-size="11" font-weight="650" fill="${t.muted}">avg</text>` +
+    `<g transform="translate(${MINI_BAR_X},8)" clip-path="url(#${clipId})">${bar}${dividers}</g>` +
+    `<text x="176" y="20" font-size="11" font-weight="700" fill="${t.score}">${value}</text>` +
+    `</svg>`
+  );
+}

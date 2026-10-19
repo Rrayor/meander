@@ -1,7 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { THEMES, escapeXml, renderGauge } from "./render.js";
+import {
+  THEMES,
+  averageScore,
+  escapeXml,
+  renderBadge,
+  renderGauge,
+} from "./render.js";
 
 const oneStage = [{ name: "Specification", score: 1 }];
 
@@ -51,6 +57,33 @@ describe("renderGauge", () => {
   it("exposes theme colors from Global Constraints", () => {
     assert.equal(THEMES.light.text, "#334155");
     assert.equal(THEMES.dark.text, "#c9d1d9");
+  });
+});
+
+describe("averageScore", () => {
+  it("means rated stages to one decimal, ignoring unrated", () => {
+    assert.equal(
+      averageScore([{ score: 1 }, { score: 4 }, { score: null }]),
+      2.5,
+    );
+  });
+
+  it("returns null when nothing is rated", () => {
+    assert.equal(averageScore([{ score: null }, { score: null }]), null);
+  });
+});
+
+describe("renderBadge", () => {
+  it("fills the mini bar to a fractional average", () => {
+    const svg = renderBadge(3.5, "light");
+    assert.match(svg, /x="84"[^>]*fill="#eef1f6"/);
+    assert.match(svg, />3\.5 \/ 5</);
+  });
+
+  it("renders an empty bar and em-dash when nothing is rated", () => {
+    const svg = renderBadge(null, "light");
+    assert.match(svg, />— \/ 5</);
+    assert.doesNotMatch(svg, /fill="url\(#/);
   });
 });
 
