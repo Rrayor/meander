@@ -14,36 +14,14 @@ const SCORE_RANGE = [0, 1, 2, 3, 4, 5];
 const NOT_RATED_LABEL = "not rated";
 
 let stages = [
-  {
-    name: "Specification",
-    score: 1,
-    explanation: "AI has corrected mistakes and filled in gaps",
-  },
-  {
-    name: "Architecture Design",
-    score: 4,
-    explanation:
-      "I skimmed through the AI design and made corrections in the few places where it seemed necessary",
-  },
-  {
-    name: "UI design",
-    score: 4,
-    explanation: "The AI had free hand with some directions",
-  },
-  { name: "Implementation", score: 5, explanation: "Fully AI generated" },
-  {
-    name: "Review",
-    score: 3,
-    explanation: "Both AI and human review was used, but not entirely thorough",
-  },
-  {
-    name: "Testing",
-    score: 4,
-    explanation:
-      "The AI wrote the tests, I suggested adjustments and did manual testing",
-  },
-  { name: "Documentation", score: null, explanation: "" },
-];
+  "Specification",
+  "Architecture Design",
+  "UI design",
+  "Implementation",
+  "Review",
+  "Testing",
+  "Documentation",
+].map((name) => ({ name, score: null, explanation: "" }));
 
 const stagesEl = document.getElementById("stages");
 const assetPathEl = document.getElementById("asset-path");
