@@ -7,6 +7,8 @@ import {
   escapeXml,
   renderBadge,
   renderGauge,
+  renderReadmeSnippet,
+  sanitizeStages,
 } from "./render.js";
 
 const oneStage = [{ name: "Specification", score: 1 }];
@@ -84,6 +86,72 @@ describe("renderBadge", () => {
     const svg = renderBadge(null, "light");
     assert.match(svg, />— \/ 5</);
     assert.doesNotMatch(svg, /fill="url\(#/);
+  });
+});
+
+describe("sanitizeStages", () => {
+  it("clamps scores, drops non-objects, and applies fallbacks", () => {
+    const out = sanitizeStages([
+      { name: " A ", score: 7 },
+      { name: 5, score: "hi" },
+      null,
+      { name: "B", score: 3, explanation: "  note  " },
+    ]);
+    assert.deepEqual(out, [
+      { name: "A", score: 5, explanation: "" },
+      { name: "Stage 2", score: null, explanation: "" },
+      { name: "B", score: 3, explanation: "note" },
+    ]);
+  });
+
+  it("rounds non-integer scores to nearest integer before clamping", () => {
+    const out = sanitizeStages([{ name: "A", score: 2.6 }]);
+    assert.equal(out[0].score, 3);
+  });
+});
+
+describe("renderReadmeSnippet", () => {
+  const stages = [
+    { name: "Spec", score: 1, explanation: "AI filled gaps" },
+    { name: "Impl", score: 5, explanation: "" },
+  ];
+
+  it("joins the asset path to the svg filenames", () => {
+    const md = renderReadmeSnippet(stages, 3.0, "docs/ai-usage/");
+    assert.match(md, /srcset="docs\/ai-usage\/ai-usage-dark\.svg"/);
+    assert.match(md, /src="docs\/ai-usage\/ai-usage\.svg"/);
+    assert.match(md, /srcset="docs\/ai-usage\/ai-usage-avg-dark\.svg"/);
+  });
+
+  it("includes the scale legend", () => {
+    const md = renderReadmeSnippet(stages, 3.0, "x");
+    assert.match(md, /0 = no AI at all/);
+    assert.match(md, /5 = only vibes/);
+  });
+
+  it("lists only stages that have explanations", () => {
+    const md = renderReadmeSnippet(stages, 3.0, "x");
+    assert.match(md, /<details>/);
+    assert.match(md, /\*\*Spec \(1\)\*\* — AI filled gaps/);
+    assert.doesNotMatch(md, /\*\*Impl/);
+  });
+
+  it("omits the details block entirely when no stage explains", () => {
+    const md = renderReadmeSnippet(
+      [{ name: "A", score: 2, explanation: "" }],
+      2,
+      "x",
+    );
+    assert.doesNotMatch(md, /<details>/);
+  });
+
+  it("escapes markdown/html in stage names", () => {
+    const md = renderReadmeSnippet(
+      [{ name: "A <b>", score: 1, explanation: "x" }],
+      1,
+      "x",
+    );
+    assert.match(md, /A &lt;b&gt;/);
   });
 });
 

@@ -114,6 +114,70 @@ export function renderGauge(stages, theme) {
   );
 }
 
+const LEGEND_LINE = "0 = no AI at all · 5 = only vibes";
+const DETAILS_SUMMARY = "Per-stage explanations";
+
+export function sanitizeStages(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e) => e !== null && typeof e === "object" && !Array.isArray(e))
+    .map((e, i) => ({
+      name:
+        typeof e.name === "string" && e.name.trim() !== ""
+          ? e.name.trim()
+          : `Stage ${i + 1}`,
+      score:
+        typeof e.score === "number" && Number.isFinite(e.score)
+          ? Math.min(CELLS, Math.max(0, Math.round(e.score)))
+          : null,
+      explanation:
+        typeof e.explanation === "string" ? e.explanation.trim() : "",
+    }));
+}
+
+const pictureBlock = (base, dark, light, alt, width) =>
+  `<picture>\n` +
+  `  <source srcset="${base}/${dark}" media="(prefers-color-scheme: dark)">\n` +
+  `  <img src="${base}/${light}" alt="${alt}" width="${width}">\n` +
+  `</picture>`;
+
+export function renderReadmeSnippet(stages, avg, assetPath) {
+  const base = String(assetPath).replace(/\/$/, "");
+  const parts = [
+    pictureBlock(
+      base,
+      "ai-usage-dark.svg",
+      "ai-usage.svg",
+      "AI usage transparency: per-stage gauge from 0 (no AI) to 5 (only vibes)",
+      520,
+    ),
+    "",
+    pictureBlock(
+      base,
+      "ai-usage-avg-dark.svg",
+      "ai-usage-avg.svg",
+      `Average AI usage score: ${avg ?? "—"} / 5`,
+      240,
+    ),
+    "",
+    `_${LEGEND_LINE}_`,
+  ];
+  const explained = stages.filter((s) => s.explanation !== "");
+  if (explained.length > 0) {
+    const items = explained
+      .map((s) => {
+        const score = s.score === null ? "not yet rated" : s.score;
+        return `- **${escapeXml(s.name)} (${score})** — ${escapeXml(s.explanation)}`;
+      })
+      .join("\n");
+    parts.push(
+      "",
+      `<details>\n<summary>${DETAILS_SUMMARY}</summary>\n\n${items}\n</details>`,
+    );
+  }
+  return parts.join("\n") + "\n";
+}
+
 const BADGE_W = 240;
 const BADGE_H = 30;
 const MINI_BAR_X = 46;
