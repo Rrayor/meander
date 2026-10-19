@@ -26,6 +26,7 @@ const WORK = categoryFixture({ id: 2, title: "Work", color: "#fb923c" });
 const HOBBIES = categoryFixture({ id: 3, title: "Hobbies", color: "#a78bfa" });
 
 const NEW_TITLE = "Gardening";
+const BACKSPACE = "Backspace";
 
 const Harness = () => {
   const [selected, setSelected] = useState<Category[]>([]);
@@ -165,14 +166,14 @@ describe("CategoryMultiSelect", () => {
     fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
     fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
     // Backspace pops the most recent chip; typing guards against pops.
-    fireEvent.keyDown(input(), { key: "Backspace" });
+    fireEvent.keyDown(input(), { key: BACKSPACE });
     expect(
       screen.queryByRole("button", {
         name: removeTaskCategoryLabel(WORK.title),
       }),
     ).not.toBeInTheDocument();
     fireEvent.change(input(), { target: { value: "e" } });
-    fireEvent.keyDown(input(), { key: "Backspace" });
+    fireEvent.keyDown(input(), { key: BACKSPACE });
     expect(
       screen.getByRole("button", {
         name: removeTaskCategoryLabel(ERRANDS.title),
