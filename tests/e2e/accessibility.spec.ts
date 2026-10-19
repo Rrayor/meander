@@ -8,6 +8,8 @@ import { expect, test } from "./fixtures";
 import {
   ADD_CATEGORY_LABEL,
   ADD_TASK_LABEL,
+  FREQUENCY_FIELD_LABEL,
+  REPEAT_SECTION_LABEL,
   editCategoryLabel,
   editTaskLabel,
   removeTaskCategoryLabel,
@@ -48,6 +50,7 @@ const task = {
   spent_minutes: null,
   placement: "backlog",
   scheduled_date: null,
+  series_id: null,
   sort_order: 1,
   created_at: AUDIT_TS,
   updated_at: AUDIT_TS,
@@ -92,6 +95,26 @@ test("the new task dialog has no WCAG AA violations", async ({ page }) => {
   await page.goto(`/#${backlogPath}`);
   await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+
+  await expectAccessible(page);
+});
+
+test("the repeat schedule fields have no WCAG AA violations", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog
+    .getByLabel(FREQUENCY_FIELD_LABEL)
+    .selectOption("monthly_nth_weekday");
 
   await expectAccessible(page);
 });

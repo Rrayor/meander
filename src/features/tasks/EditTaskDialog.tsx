@@ -300,7 +300,7 @@ export function EditTaskDialog({
       <dialog
         open
         aria-labelledby="edit-task-title"
-        className="relative m-0 flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
+        className="relative m-0 flex max-h-[90vh] w-full max-w-lg flex-col gap-6 overflow-y-auto rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <h2
