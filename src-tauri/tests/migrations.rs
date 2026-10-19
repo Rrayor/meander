@@ -107,12 +107,12 @@ async fn check_bounds(
 
 /// Inserts a probe row into `table`, synthesizing a value for every non-pk
 /// column so they can be verified later. Returns the new row's pk and its
-/// probed values.
+/// probed values — `None` when a composite-pk repeat probe was ignored.
 async fn probe_insert(
     pool: &SqlitePool,
     table: &str,
     step: usize,
-) -> (i64, Vec<(String, ProbeVal)>) {
+) -> Option<(i64, Vec<(String, ProbeVal)>)> {
     let cols = schema(pool, table).await;
     let (ins, betweens) = check_bounds(pool, table).await;
     // A single-column INTEGER PRIMARY KEY is the rowid alias — auto-assigned,
@@ -148,8 +148,16 @@ async fn probe_insert(
         values.push((col.name.clone(), value));
     }
     let placeholders = vec!["?"; names.len()].join(", ");
+    // Composite-PK tables (join tables) synthesize only parent FK ids, so a
+    // repeat probe would collide on the PK — OR IGNORE keeps the first row,
+    // whose probed values the later checks still verify.
+    let verb = if pk_count > 1 {
+        "INSERT OR IGNORE"
+    } else {
+        "INSERT"
+    };
     let sql = format!(
-        "INSERT INTO {table} ({}) VALUES ({placeholders})",
+        "{verb} INTO {table} ({}) VALUES ({placeholders})",
         names.join(", ")
     );
     let mut q = sqlx::query(&sql);
@@ -160,8 +168,13 @@ async fn probe_insert(
             ProbeVal::Text(t) => q.bind(t.clone()),
         };
     }
-    let pk = q.execute(pool).await.unwrap().last_insert_rowid();
-    (pk, values)
+    let result = q.execute(pool).await.unwrap();
+    // OR IGNORE on a duplicate reports a phantom last_insert_rowid — the
+    // row it would point at isn't this probe's, so nothing can be checked.
+    if result.rows_affected() == 0 {
+        return None;
+    }
+    Some((result.last_insert_rowid(), values))
 }
 
 async fn probe_check(pool: &SqlitePool, table: &str, pk: i64, col: &str, expected: &ProbeVal) {
@@ -222,8 +235,9 @@ fn migrations_preserve_existing_data() {
             // Alphabetical order puts `profiles` before `tasks`, so FK parents
             // get their probe row first and children can reference it.
             for table in user_tables(&pool).await {
-                let (pk, values) = probe_insert(&pool, &table, step).await;
-                probes.push((table, pk, values));
+                if let Some((pk, values)) = probe_insert(&pool, &table, step).await {
+                    probes.push((table, pk, values));
+                }
             }
         }
 

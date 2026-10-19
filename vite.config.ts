@@ -18,6 +18,10 @@ export default defineConfig(() => ({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/test/setup.ts",
+    // The pre-commit gate runs vitest alongside playwright and the rust
+    // suite; the default 5s ceiling flakes under that parallel load even
+    // though tests take ~1-3s on a quiet machine.
+    testTimeout: 20_000,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     coverage: {
       provider: "v8",
