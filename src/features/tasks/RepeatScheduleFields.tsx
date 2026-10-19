@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { NewSeries, Recurrence, Weekday } from "@/api/bindings";
 import {
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_INVALID_MESSAGE,
   REPEAT_ENDS_LABEL,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
@@ -14,6 +15,7 @@ import {
   REPEAT_ON_LABEL,
   REPEAT_ON_THE_LABEL,
   REPEAT_SECTION_LABEL,
+  REPEAT_STARTS_INVALID_MESSAGE,
   REPEAT_STARTS_LABEL,
   REPEAT_STARTS_REQUIRED_MESSAGE,
   REPEAT_UNIT_OPTIONS,
@@ -72,6 +74,16 @@ const monthlyDefaults = (iso: string) => {
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// Mirrors series.rs::iso_date — a real Gregorian date, not just the shape.
+const isRealIsoDate = (iso: string) => {
+  if (!ISO_DATE_PATTERN.test(iso)) return false;
+  const [year, month, day] = iso.split("-").map(Number);
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth =
+    month === 2 ? (leap ? 29 : 28) : [4, 6, 9, 11].includes(month) ? 30 : 31;
+  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth;
+};
+
 // Mirrors the backend's bounds (series.rs::validate / iso_date); the
 // backend stays authoritative — this schema exists for immediate feedback.
 const draftSchema = z
@@ -80,13 +92,19 @@ const draftSchema = z
     day: z.number().int().min(1).max(31),
     startDate: z
       .string()
-      .regex(ISO_DATE_PATTERN, REPEAT_STARTS_REQUIRED_MESSAGE),
-    endDate: z.string(),
+      .min(1, REPEAT_STARTS_REQUIRED_MESSAGE)
+      .refine(isRealIsoDate, REPEAT_STARTS_INVALID_MESSAGE),
+    endDate: z
+      .string()
+      .refine(
+        (iso) => iso === "" || isRealIsoDate(iso),
+        REPEAT_ENDS_INVALID_MESSAGE,
+      ),
   })
   .superRefine(({ startDate, endDate }, ctx) => {
     if (
-      ISO_DATE_PATTERN.test(startDate) &&
-      ISO_DATE_PATTERN.test(endDate) &&
+      isRealIsoDate(startDate) &&
+      isRealIsoDate(endDate) &&
       endDate < startDate
     ) {
       ctx.addIssue({
@@ -377,7 +395,7 @@ export function RepeatScheduleFields({
                   name={`${idPrefix}-repeat-month-mode`}
                   type="radio"
                   checked={draft.monthMode === "day"}
-                  onChange={() => patchMonthly({ monthMode: "day" })}
+                  onChange={() => patch({ monthMode: "day" })}
                   className="text-primary focus:ring-0"
                 />
                 <label
@@ -415,7 +433,7 @@ export function RepeatScheduleFields({
                   name={`${idPrefix}-repeat-month-mode`}
                   type="radio"
                   checked={draft.monthMode === "weekday"}
-                  onChange={() => patchMonthly({ monthMode: "weekday" })}
+                  onChange={() => patch({ monthMode: "weekday" })}
                   className="text-primary focus:ring-0"
                 />
                 <label

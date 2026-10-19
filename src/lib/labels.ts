@@ -96,6 +96,8 @@ export const REPEAT_MONTHLY_CLAMP_HINT =
   "Days past the end of a shorter month land on its last day.";
 export const REPEAT_STARTS_REQUIRED_MESSAGE =
   "A repeat schedule needs a start date.";
+export const REPEAT_STARTS_INVALID_MESSAGE = "Starts must be a real date.";
+export const REPEAT_ENDS_INVALID_MESSAGE = "Ends must be a real date.";
 export const REPEAT_ENDS_BEFORE_START_MESSAGE =
   "Ends must not be before Starts.";
 export const REPEAT_UNIT_OPTIONS = [

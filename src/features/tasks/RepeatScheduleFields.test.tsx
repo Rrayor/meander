@@ -167,17 +167,28 @@ describe("RepeatScheduleFields", () => {
       nth: 3,
       weekday: "monday",
     });
-    // A manual change stops the tracking — later start changes keep the
-    // user's selection.
-    fireEvent.click(screen.getByRole("button", { name: "First" }));
+    // A mode switch alone is not a manual edit — the selection keeps
+    // tracking the start date (3rd Wednesday for 2026-10-21).
     fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
       target: { value: WEDNESDAY_ISO },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
       kind: "monthly_nth_weekday",
       interval_months: 1,
+      nth: 3,
+      weekday: "wednesday",
+    });
+    // A manual change stops the tracking — later start changes keep the
+    // user's selection.
+    fireEvent.click(screen.getByRole("button", { name: "First" }));
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: FRIDAY_ISO },
+    });
+    expect(lastSeries(onChange)?.recurrence).toEqual({
+      kind: "monthly_nth_weekday",
+      interval_months: 1,
       nth: 1,
-      weekday: "monday",
+      weekday: "wednesday",
     });
   });
 

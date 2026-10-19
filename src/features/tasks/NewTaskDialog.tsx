@@ -161,6 +161,10 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       if (task.series_id != null) {
         createdHasSeries.current = true;
         setLinkedToSeries(true);
+        // The section unmounts now — a schedule edit made while the create
+        // was in flight must not leave a stale error disabling the retry.
+        setSeries(null);
+        setSeriesError(null);
       }
       const taskId = task.id ?? createdId.current;
       const wanted = new Set(categories.map((c) => c.id));
