@@ -23,7 +23,7 @@ export type ApiError = { code: ErrorCode; kind: ErrorKind; message: string }
  * contract — UI copy maps from it; `message` is only a human-readable
  * fallback. Keep variants snake_case; they serialize directly.
  */
-export type ErrorCode = "task_title_required" | "task_title_too_long" | "task_title_invalid_characters" | "task_description_too_long" | "estimated_time_out_of_range" | "spent_time_out_of_range" | "task_not_found" | "category_not_found" | "category_title_required" | "category_title_too_long" | "category_title_invalid_characters" | "category_description_too_long" | "category_color_invalid" | "reorder_anchors_not_adjacent" | "profile_name_required" | "profile_name_too_long" | "profile_name_invalid_characters" | "internal"
+export type ErrorCode = "task_title_required" | "task_title_too_long" | "task_title_invalid_characters" | "task_description_too_long" | "estimated_time_out_of_range" | "spent_time_out_of_range" | "task_not_found" | "category_not_found" | "category_title_required" | "category_title_too_long" | "category_title_invalid_characters" | "category_description_too_long" | "category_color_invalid" | "reorder_anchors_not_adjacent" | "series_not_found" | "recurrence_invalid" | "start_date_invalid" | "end_date_invalid" | "end_date_before_start" | "workday_rules_unsupported" | "already_in_series" | "profile_name_required" | "profile_name_too_long" | "profile_name_invalid_characters" | "internal"
 /**
  * Broad category so a client can pick "inline form error" vs "generic toast"
  * without maintaining its own lookup of every code.

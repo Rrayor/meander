@@ -7,6 +7,7 @@ pub mod config;
 pub mod db;
 pub mod errors;
 pub mod profiles;
+pub mod series;
 pub mod state;
 pub mod tasks;
 
