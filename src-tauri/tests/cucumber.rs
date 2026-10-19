@@ -1492,3 +1492,104 @@ fn update_task_spent(world: &mut MeanderWorld, title: String, minutes: i64) {
         world.error = Some(e.to_string());
     }
 }
+
+fn weekly_monday() -> meander_lib::series::NewSeries {
+    meander_lib::series::NewSeries {
+        recurrence: meander_lib::series::Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![meander_lib::series::Weekday::Monday],
+        },
+        start_date: "2026-10-19".to_string(),
+        end_date: None,
+    }
+}
+
+#[when(expr = "I create a task titled {string} repeating weekly on Monday")]
+fn create_repeating_task(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title,
+            series: Some(weekly_monday()),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+fn add_schedule_to(world: &mut MeanderWorld, title: &str) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .expect("task missing");
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::update(
+        &pool,
+        active,
+        task.id,
+        &meander_lib::tasks::UpdateTask {
+            title: task.title.clone(),
+            description: task.description.clone(),
+            estimated_minutes: task.estimated_minutes,
+            spent_minutes: task.spent_minutes,
+            carry_over_rule: task.carry_over_rule,
+            status: task.status,
+            series: Some(weekly_monday()),
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I add a weekly Monday schedule to {word}")]
+fn schedule_named_task(world: &mut MeanderWorld, title: String) {
+    add_schedule_to(world, &title);
+}
+
+#[when("I add a weekly Monday schedule to the linked task")]
+fn schedule_linked_task(world: &mut MeanderWorld) {
+    add_schedule_to(world, "Standup");
+}
+
+#[then(expr = "the series list has {int} series")]
+fn series_list_len(world: &mut MeanderWorld, expected: usize) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, active))
+        .expect("series list failed");
+    assert_eq!(series.len(), expected);
+}
+
+#[then("the series list is empty")]
+fn series_list_empty(world: &mut MeanderWorld) {
+    series_list_len(world, 0);
+}
+
+#[then("the task is linked to the series")]
+fn task_is_linked(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, active))
+        .expect("series list failed");
+    assert_eq!(tasks[0].series_id, Some(series[0].id));
+}
