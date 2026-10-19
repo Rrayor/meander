@@ -1,5 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   THEMES,
@@ -152,6 +156,37 @@ describe("renderReadmeSnippet", () => {
       "x",
     );
     assert.match(md, /A &lt;b&gt;/);
+  });
+});
+
+describe("generate.mjs", () => {
+  it("writes all five artifacts honoring --out and --assets", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ai-usage-"));
+    const dataFile = join(dir, "data.json");
+    const outDir = join(dir, "out");
+    writeFileSync(
+      dataFile,
+      JSON.stringify([{ name: "Spec", score: 1, explanation: "gaps" }]),
+    );
+    execFileSync("node", [
+      "tools/ai-usage-report/generate.mjs",
+      dataFile,
+      "--out",
+      outDir,
+      "--assets",
+      "img/ai",
+    ]);
+    for (const f of [
+      "ai-usage.svg",
+      "ai-usage-dark.svg",
+      "ai-usage-avg.svg",
+      "ai-usage-avg-dark.svg",
+      "README-snippet.md",
+    ]) {
+      assert.ok(existsSync(join(outDir, f)), f);
+    }
+    const snippet = readFileSync(join(outDir, "README-snippet.md"), "utf8");
+    assert.match(snippet, /img\/ai\/ai-usage\.svg/);
   });
 });
 
