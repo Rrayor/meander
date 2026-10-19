@@ -175,7 +175,7 @@ export function renderReadmeSnippet(stages, avg, assetPath) {
       `<details>\n<summary>${DETAILS_SUMMARY}</summary>\n\n${items}\n</details>`,
     );
   }
-  return parts.join("\n") + "\n";
+  return parts.join("\n") + "\n\n";
 }
 
 const BADGE_W = 240;
