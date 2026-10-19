@@ -99,6 +99,11 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
   const [categories, setCategories] = useState<Category[]>([]);
   const [series, setSeries] = useState<NewSeries | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  // Once the create retried task is linked to a series its schedule is no
+  // longer editable here — same rule as the edit dialog (series editing is
+  // a later milestone).
+  const [linkedToSeries, setLinkedToSeries] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -132,23 +137,32 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   // duplicate row. Refs keep the values consistent within the in-flight
   // mutation's own callbacks (a state update could lag behind them).
   const createdId = useRef<number | undefined>(undefined);
+  const createdHasSeries = useRef(false);
   const linkedIds = useRef(new Set<number>());
 
   const create = useMutation({
     mutationFn: async (input: Parameters<typeof createTask>[0]) => {
-      const taskId = createdId.current ?? (await createTask(input)).id;
-      if (createdId.current !== undefined) {
-        // Retry: persist the current field values onto the existing row.
-        // The series was already attached by create_task — re-sending it
-        // would trip the backend's already-in-series rejection.
-        await updateTask(taskId, {
+      let task;
+      if (createdId.current === undefined) {
+        task = await createTask(input);
+        createdId.current = task.id;
+      } else {
+        // Retry: persist the current field values onto the existing row. A
+        // schedule can still be attached while the task is plain; once it is
+        // linked, re-sending one would trip already_in_series — the section
+        // is hidden by then anyway.
+        task = await updateTask(createdId.current, {
           ...input,
-          series: null,
+          series: createdHasSeries.current ? null : input.series,
           spent_minutes: null,
           status: "todo",
         });
       }
-      createdId.current = taskId;
+      if (task.series_id != null) {
+        createdHasSeries.current = true;
+        setLinkedToSeries(true);
+      }
+      const taskId = task.id ?? createdId.current;
       const wanted = new Set(categories.map((c) => c.id));
       await Promise.all([
         ...categories
@@ -404,7 +418,15 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               )}
             />
           </div>
-          <RepeatScheduleFields idPrefix="new-task" onChange={setSeries} />
+          {!linkedToSeries && (
+            <RepeatScheduleFields
+              idPrefix="new-task"
+              onChange={(next, error) => {
+                setSeries(next);
+                setSeriesError(error);
+              }}
+            />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-danger">
               {serverError}
@@ -420,7 +442,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
             </button>
             <button
               type="submit"
-              disabled={create.isPending}
+              disabled={create.isPending || seriesError !== null}
               className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
               {CREATE_TASK_LABEL}

@@ -122,31 +122,53 @@ impl Recurrence {
     }
 }
 
-/// Spec §125: a start date is required, an end date optional. Both are ISO
-/// `YYYY-MM-DD`; the shape is validated, calendar sanity is left to the
-/// later occurrence-calculation milestone.
+/// Spec §125: a start date is required, an end date optional. Both must be
+/// real Gregorian `YYYY-MM-DD` dates — a stored schedule that can never
+/// occur ("2026-02-30") would break later occurrence calculation.
 fn iso_date(raw: &str, code: ErrorCode, field: &str) -> Result<()> {
-    let valid = raw.len() == 10
-        && raw.chars().enumerate().all(|(i, c)| {
-            if i == 4 || i == 7 {
-                c == '-'
-            } else {
-                c.is_ascii_digit()
-            }
-        });
-    if !valid {
-        return Err(DbError::Validation {
-            code,
-            message: format!("{field} must be an ISO date (YYYY-MM-DD)"),
-        });
+    let reject = || DbError::Validation {
+        code,
+        message: format!("{field} must be a real ISO date (YYYY-MM-DD)"),
+    };
+    if raw.len() != 10 {
+        return Err(reject());
+    }
+    if raw.as_bytes()[4] != b'-' || raw.as_bytes()[7] != b'-' {
+        return Err(reject());
+    }
+    let year: u32 = raw[0..4].parse().map_err(|_| reject())?;
+    let month: u32 = raw[5..7].parse().map_err(|_| reject())?;
+    let day: u32 = raw[8..10].parse().map_err(|_| reject())?;
+    if !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
+        return Err(reject());
     }
     Ok(())
 }
 
+fn days_in_month(year: u32, month: u32) -> u32 {
+    match month {
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+fn is_leap_year(year: u32) -> bool {
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
+}
+
 /// Input carrying the schedule — a `series` field on task create/update.
+/// `recurrence` arrives as untrusted JSON: decoding it inside the typed
+/// boundary maps malformed payloads to `RecurrenceInvalid` instead of an
+/// opaque Tauri argument error (see `insert`).
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct NewSeries {
-    pub recurrence: Recurrence,
+    /// Arrives untyped so malformed payloads reach our typed validation
+    /// (a Tauri argument error would bypass `ApiError`); the exported
+    /// contract stays the `Recurrence` union it must decode to.
+    #[specta(type = Recurrence)]
+    pub recurrence: serde_json::Value,
     pub start_date: String,
     pub end_date: Option<String>,
 }
@@ -228,7 +250,9 @@ pub(crate) async fn insert(
     profile_id: i64,
     fields: &SeriesFields<'_>,
 ) -> Result<TaskSeries> {
-    fields.series.recurrence.validate()?;
+    let recurrence: Recurrence = serde_json::from_value(fields.series.recurrence.clone())
+        .map_err(|e| invalid(format!("recurrence is not a known schedule: {e}")))?;
+    recurrence.validate()?;
     let title = TaskTitle::parse(fields.title)?.into_inner();
     let description = fields
         .description
@@ -262,11 +286,10 @@ pub(crate) async fn insert(
             });
         }
     }
-    let recurrence_json =
-        serde_json::to_string(&fields.series.recurrence).map_err(|e| DbError::Validation {
-            code: ErrorCode::Internal,
-            message: format!("recurrence could not be serialized: {e}"),
-        })?;
+    let recurrence_json = serde_json::to_string(&recurrence).map_err(|e| DbError::Validation {
+        code: ErrorCode::Internal,
+        message: format!("recurrence could not be serialized: {e}"),
+    })?;
     // Spec §95: carry-over defaults to return-to-backlog for series.
     let carry_over = fields.carry_over_rule.unwrap_or(CarryOverRule::Return);
     let row: SeriesRow = sqlx::query_as(&format!(
@@ -362,7 +385,7 @@ mod tests {
 
     fn series(recurrence: Recurrence) -> NewSeries {
         NewSeries {
-            recurrence,
+            recurrence: serde_json::to_value(recurrence).unwrap(),
             start_date: START.to_string(),
             end_date: None,
         }
@@ -470,6 +493,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn malformed_recurrence_is_a_typed_error() {
+        let (pool, pid) = seeded_pool().await;
+        for (raw, case) in [
+            (
+                serde_json::json!({"kind": "weekly", "interval_weeks": 1, "weekdays": null}),
+                "null weekdays",
+            ),
+            (
+                serde_json::json!({"kind": "weekly", "interval_weeks": 1, "weekdays": ["funday"]}),
+                "unknown weekday",
+            ),
+            (serde_json::json!({"kind": "quarterly"}), "unknown kind"),
+            (
+                serde_json::json!({"kind": "monthly_day", "interval_months": 1, "day": 300}),
+                "day out of u8 range",
+            ),
+        ] {
+            let input = NewSeries {
+                recurrence: raw,
+                start_date: START.into(),
+                end_date: None,
+            };
+            let err = create(&pool, pid, &fields_for(&input)).await.unwrap_err();
+            assert_code(&err, ErrorCode::RecurrenceInvalid);
+            assert_eq!(list(&pool, pid).await.unwrap().len(), 0, "{case}");
+        }
+    }
+
+    #[tokio::test]
     async fn workday_rules_are_rejected_until_settings_exist() {
         let (pool, pid) = seeded_pool().await;
         let input = series(Recurrence::WorkdayAfter { day: 11 });
@@ -486,6 +538,27 @@ mod tests {
             .await
             .unwrap_err();
         assert_code(&err, ErrorCode::StartDateInvalid);
+
+        for (date, case) in [
+            ("2026-02-30", "nonexistent day"),
+            ("2025-02-29", "non-leap February"),
+            ("2026-13-01", "month 13"),
+            ("2026-04-31", "April 31"),
+        ] {
+            let mut impossible = series(weekly());
+            impossible.start_date = date.into();
+            let err = create(&pool, pid, &fields_for(&impossible))
+                .await
+                .unwrap_err();
+            assert_code(&err, ErrorCode::StartDateInvalid);
+            assert_eq!(list(&pool, pid).await.unwrap().len(), 0, "{case}");
+        }
+        // Boundary cases that DO exist must pass.
+        for date in ["2024-02-29", "2026-01-31"] {
+            let mut leap = series(weekly());
+            leap.start_date = date.into();
+            create(&pool, pid, &fields_for(&leap)).await.unwrap();
+        }
 
         let mut bad_end = series(weekly());
         bad_end.end_date = Some("October".into());

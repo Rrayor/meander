@@ -94,6 +94,10 @@ export const REPEAT_STARTS_LABEL = "Starts";
 export const REPEAT_ENDS_LABEL = "Ends";
 export const REPEAT_MONTHLY_CLAMP_HINT =
   "Days past the end of a shorter month land on its last day.";
+export const REPEAT_STARTS_REQUIRED_MESSAGE =
+  "A repeat schedule needs a start date.";
+export const REPEAT_ENDS_BEFORE_START_MESSAGE =
+  "Ends must not be before Starts.";
 export const REPEAT_UNIT_OPTIONS = [
   { value: "day", label: "days" },
   { value: "week", label: "weeks" },

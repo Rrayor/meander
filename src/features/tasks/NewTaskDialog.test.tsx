@@ -225,6 +225,63 @@ describe("NewTaskDialog", () => {
     );
   });
 
+  it("a retry attaches a schedule configured after a failed association", async () => {
+    mockedCreate.mockResolvedValue({ id: 42, series_id: null } as never);
+    mockedAddTaskCategory
+      .mockRejectedValueOnce(new Error("flaky join"))
+      .mockResolvedValue(undefined);
+    mockedUpdate.mockResolvedValue({ id: 42, series_id: 7 } as never);
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fillTitle();
+    submit();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    // The task exists but stayed plain — a schedule picked now must still
+    // reach the backend on retry instead of being silently dropped.
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+    submit();
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          series: expect.objectContaining({
+            recurrence: expect.objectContaining({
+              kind: "weekly",
+              interval_weeks: 1,
+            }),
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("hides the repeat controls once the retried task is linked", async () => {
+    mockedCreate.mockResolvedValue({ id: 42, series_id: 7 } as never);
+    mockedAddTaskCategory
+      .mockRejectedValueOnce(new Error("flaky join"))
+      .mockResolvedValue(undefined);
+    renderDialog();
+    fireEvent.focus(screen.getByRole("combobox"));
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fillTitle();
+    submit();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    // Created with a schedule: the section is gone, and the retry must not
+    // re-send a series (the backend would reject already_in_series).
+    expect(
+      screen.queryByRole("button", { name: /Repeat/ }),
+    ).not.toBeInTheDocument();
+    submit();
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({ series: null }),
+      ),
+    );
+  });
+
   it("a retry removes an association the user unselected", async () => {
     const WORK = categoryFixture({ id: 2, title: "Work", color: "#fb923c" });
     mockedListCategories.mockResolvedValue([ERRANDS, WORK]);

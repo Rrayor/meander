@@ -1495,10 +1495,11 @@ fn update_task_spent(world: &mut MeanderWorld, title: String, minutes: i64) {
 
 fn weekly_monday() -> meander_lib::series::NewSeries {
     meander_lib::series::NewSeries {
-        recurrence: meander_lib::series::Recurrence::Weekly {
+        recurrence: serde_json::to_value(meander_lib::series::Recurrence::Weekly {
             interval_weeks: 1,
             weekdays: vec![meander_lib::series::Weekday::Monday],
-        },
+        })
+        .unwrap(),
         start_date: "2026-10-19".to_string(),
         end_date: None,
     }

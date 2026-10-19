@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { z } from "zod";
 
 import type { NewSeries, Recurrence, Weekday } from "@/api/bindings";
 import {
+  REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
@@ -13,6 +15,7 @@ import {
   REPEAT_ON_THE_LABEL,
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
+  REPEAT_STARTS_REQUIRED_MESSAGE,
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
 } from "@/lib/labels";
@@ -32,7 +35,13 @@ interface RepeatDraft {
   endDate: string;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// The schedule's start is a local calendar date — `toISOString` would take
+// the UTC date and can land on tomorrow/yesterday outside UTC.
+const todayIso = () => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
 
 const WEEKDAYS_BY_JS_DAY: Weekday[] = [
   "sunday",
@@ -47,14 +56,71 @@ const WEEKDAYS_BY_JS_DAY: Weekday[] = [
 const weekdayOf = (iso: string): Weekday =>
   WEEKDAYS_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
 
+// Monthly defaults derive from the start date too — the first instance is
+// the task itself, so an untouched schedule should include its own date.
+// A 5th occurrence isn't expressible (nth is 1-4 or last), so days past the
+// fourth week collapse to "last".
+const monthlyDefaults = (iso: string) => {
+  const day = Number(iso.slice(8, 10));
+  const occurrence = Math.ceil(day / 7);
+  return {
+    day,
+    nth: occurrence >= 5 ? -1 : occurrence,
+    weekday: weekdayOf(iso),
+  };
+};
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// Mirrors the backend's bounds (series.rs::validate / iso_date); the
+// backend stays authoritative — this schema exists for immediate feedback.
+const draftSchema = z
+  .object({
+    interval: z.number().int().min(1),
+    day: z.number().int().min(1).max(31),
+    startDate: z
+      .string()
+      .regex(ISO_DATE_PATTERN, REPEAT_STARTS_REQUIRED_MESSAGE),
+    endDate: z.string(),
+  })
+  .superRefine(({ startDate, endDate }, ctx) => {
+    if (
+      ISO_DATE_PATTERN.test(startDate) &&
+      ISO_DATE_PATTERN.test(endDate) &&
+      endDate < startDate
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: REPEAT_ENDS_BEFORE_START_MESSAGE,
+      });
+    }
+  });
+
+type DraftErrors = Partial<Record<"startDate" | "endDate", string>>;
+
+const validateDraft = (draft: RepeatDraft): DraftErrors => {
+  const result = draftSchema.safeParse(draft);
+  if (result.success) return {};
+  const errors: DraftErrors = {};
+  for (const issue of result.error.issues) {
+    const field = issue.path[0];
+    if (field === "startDate" || field === "endDate") {
+      errors[field] ??= issue.message;
+    }
+  }
+  return errors;
+};
+
+const firstError = (errors: DraftErrors) =>
+  errors.startDate ?? errors.endDate ?? null;
+
 const defaultDraft = (): RepeatDraft => ({
   interval: 1,
   unit: "day",
   weekdays: [weekdayOf(todayIso())],
   monthMode: "day",
-  day: 1,
-  nth: 1,
-  weekday: "monday",
+  ...monthlyDefaults(todayIso()),
   startDate: todayIso(),
   endDate: "",
 });
@@ -139,7 +205,9 @@ const chipClasses = (selected: boolean) =>
 
 interface RepeatScheduleFieldsProps {
   idPrefix: string;
-  onChange: (series: NewSeries | null) => void;
+  // `error` is the first validation message while a schedule is configured;
+  // parents disable submission until it clears.
+  onChange: (series: NewSeries | null, error: string | null) => void;
 }
 
 // Collapsed ⇔ no schedule: expanding the section emits a default series and
@@ -154,20 +222,35 @@ export function RepeatScheduleFields({
   // The weekday selection tracks the start date until the user picks days
   // manually — the common case is "repeat on the same weekday it starts".
   const [weekdaysTouched, setWeekdaysTouched] = useState(false);
+  // The monthly selections track the start date the same way.
+  const [monthlyTouched, setMonthlyTouched] = useState(false);
+
+  const errors = expanded ? validateDraft(draft) : {};
+  const errorFor = (field: keyof DraftErrors) =>
+    errors[field] ? `${idPrefix}-repeat-${field}-error` : undefined;
+
+  const emit = (next: RepeatDraft) => {
+    onChange(toNewSeries(next), firstError(validateDraft(next)));
+  };
 
   const patch = (part: Partial<RepeatDraft>) => {
     const next = { ...draft, ...part };
     setDraft(next);
-    onChange(toNewSeries(next));
+    emit(next);
+  };
+
+  const patchMonthly = (part: Partial<RepeatDraft>) => {
+    setMonthlyTouched(true);
+    patch(part);
   };
 
   const toggle = () => {
     if (expanded) {
       setExpanded(false);
-      onChange(null);
+      onChange(null, null);
     } else {
       setExpanded(true);
-      onChange(toNewSeries(draft));
+      emit(draft);
     }
   };
 
@@ -180,9 +263,11 @@ export function RepeatScheduleFields({
   };
 
   const onStartChange = (iso: string) => {
+    const valid = ISO_DATE_PATTERN.test(iso);
     patch({
       startDate: iso,
-      ...(weekdaysTouched ? {} : { weekdays: [weekdayOf(iso)] }),
+      ...(!weekdaysTouched && valid ? { weekdays: [weekdayOf(iso)] } : {}),
+      ...(!monthlyTouched && valid ? monthlyDefaults(iso) : {}),
     });
   };
 
@@ -292,7 +377,7 @@ export function RepeatScheduleFields({
                   name={`${idPrefix}-repeat-month-mode`}
                   type="radio"
                   checked={draft.monthMode === "day"}
-                  onChange={() => patch({ monthMode: "day" })}
+                  onChange={() => patchMonthly({ monthMode: "day" })}
                   className="text-primary focus:ring-0"
                 />
                 <label
@@ -308,7 +393,7 @@ export function RepeatScheduleFields({
                   max={31}
                   value={draft.day}
                   onChange={(e) =>
-                    patch({
+                    patchMonthly({
                       monthMode: "day",
                       day: Math.min(
                         31,
@@ -330,7 +415,7 @@ export function RepeatScheduleFields({
                   name={`${idPrefix}-repeat-month-mode`}
                   type="radio"
                   checked={draft.monthMode === "weekday"}
-                  onChange={() => patch({ monthMode: "weekday" })}
+                  onChange={() => patchMonthly({ monthMode: "weekday" })}
                   className="text-primary focus:ring-0"
                 />
                 <label
@@ -351,7 +436,7 @@ export function RepeatScheduleFields({
                       aria-label={aria}
                       aria-pressed={draft.nth === Number(value)}
                       onClick={() =>
-                        patch({
+                        patchMonthly({
                           monthMode: "weekday",
                           nth: Number(value),
                         })
@@ -368,7 +453,9 @@ export function RepeatScheduleFields({
                 </div>
               </div>
               {draft.monthMode === "weekday" &&
-                weekdayChips([draft.weekday], (w) => patch({ weekday: w }))}
+                weekdayChips([draft.weekday], (w) =>
+                  patchMonthly({ weekday: w }),
+                )}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -385,8 +472,19 @@ export function RepeatScheduleFields({
                 required
                 value={draft.startDate}
                 onChange={(e) => onStartChange(e.target.value)}
+                aria-invalid={!!errors.startDate}
+                aria-describedby={errorFor("startDate")}
                 className={FIELD_CLASSES}
               />
+              {errors.startDate && (
+                <p
+                  id={errorFor("startDate")}
+                  role="alert"
+                  className="text-xs text-danger"
+                >
+                  {errors.startDate}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label
@@ -401,8 +499,19 @@ export function RepeatScheduleFields({
                 min={draft.startDate}
                 value={draft.endDate}
                 onChange={(e) => patch({ endDate: e.target.value })}
+                aria-invalid={!!errors.endDate}
+                aria-describedby={errorFor("endDate")}
                 className={FIELD_CLASSES}
               />
+              {errors.endDate && (
+                <p
+                  id={errorFor("endDate")}
+                  role="alert"
+                  className="text-xs text-danger"
+                >
+                  {errors.endDate}
+                </p>
+              )}
             </div>
           </div>
         </div>

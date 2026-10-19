@@ -201,6 +201,14 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     let description = parse_description(input.description.as_deref())?;
     let estimated = parse_estimate(input.estimated_minutes)?;
     let mut tx = pool.begin().await?;
+    // When a schedule links the task to a series, both rows must carry the
+    // same policy — the series normalizes an unset rule to Return (spec
+    // §95), so the first instance binds that same effective value.
+    let carry_over = if input.series.is_some() {
+        Some(input.carry_over_rule.unwrap_or(CarryOverRule::Return))
+    } else {
+        input.carry_over_rule
+    };
     let series_id = match &input.series {
         Some(series) => Some(
             crate::series::insert(
@@ -209,7 +217,7 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
                 &series_fields(
                     &title,
                     description.as_deref(),
-                    input.carry_over_rule,
+                    carry_over,
                     estimated,
                     series,
                 ),
@@ -227,7 +235,7 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     .bind(title)
     .bind(description)
     .bind(estimated)
-    .bind(input.carry_over_rule)
+    .bind(carry_over)
     .bind(series_id)
     .bind(profile_id)
     .execute(&mut *tx)
@@ -340,6 +348,13 @@ pub async fn update(
     let estimated = parse_estimate(input.estimated_minutes)?;
     let spent = parse_spent(input.spent_minutes)?;
     let mut tx = pool.begin().await?;
+    // Attaching a series shares the series' normalized policy with the
+    // instance — an unset rule means Return for both (spec §95).
+    let carry_over = if input.series.is_some() {
+        Some(input.carry_over_rule.unwrap_or(CarryOverRule::Return))
+    } else {
+        input.carry_over_rule
+    };
     if let Some(series) = &input.series {
         // A schedule on a plain task links it to a new series; on an
         // already-linked task the schedule belongs to the series —
@@ -359,7 +374,7 @@ pub async fn update(
                     &series_fields(
                         &title,
                         description.as_deref(),
-                        input.carry_over_rule,
+                        carry_over,
                         estimated,
                         series,
                     ),
@@ -389,7 +404,7 @@ pub async fn update(
     .bind(description)
     .bind(estimated)
     .bind(spent)
-    .bind(input.carry_over_rule)
+    .bind(carry_over)
     .bind(input.status)
     .bind(id)
     .bind(profile_id)
@@ -687,10 +702,11 @@ mod tests {
 
     fn weekly_schedule() -> crate::series::NewSeries {
         crate::series::NewSeries {
-            recurrence: crate::series::Recurrence::Weekly {
+            recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
                 interval_weeks: 1,
                 weekdays: vec![crate::series::Weekday::Monday],
-            },
+            })
+            .unwrap(),
             start_date: "2026-10-19".to_string(),
             end_date: None,
         }
@@ -716,6 +732,10 @@ mod tests {
         assert_eq!(series_list.len(), 1);
         assert_eq!(series_list[0].id, task.series_id.unwrap());
         assert_eq!(series_list[0].title, TITLE_A);
+        // The instance and its series must carry the same policy — an unset
+        // rule normalizes to Return on both (spec §95).
+        assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
+        assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
     }
 
     #[tokio::test]
@@ -738,10 +758,12 @@ mod tests {
         .unwrap();
 
         assert!(updated.series_id.is_some());
-        // Instance fields are untouched — the task only gained a link.
+        // Instance fields are untouched — the task only gained a link and
+        // the normalized carry-over policy shared with its series.
         assert_eq!(updated.status, existing.status);
         assert_eq!(updated.placement, existing.placement);
         assert_eq!(updated.sort_order, existing.sort_order);
+        assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
     }
 
     #[tokio::test]

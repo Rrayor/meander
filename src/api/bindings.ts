@@ -13,6 +13,9 @@ export type UpdateTask = { title: string; description: string | null; estimated_
 export type TaskSeries = { id: number; profile_id: number; title: string; description: string | null; carry_over_rule: CarryOverRule; estimated_minutes: number | null; recurrence: Recurrence; start_date: string; end_date: string | null; created_at: string; updated_at: string }
 /**
  * Input carrying the schedule — a `series` field on task create/update.
+ * `recurrence` arrives as untrusted JSON: decoding it inside the typed
+ * boundary maps malformed payloads to `RecurrenceInvalid` instead of an
+ * opaque Tauri argument error (see `insert`).
  */
 export type NewSeries = { recurrence: Recurrence; start_date: string; end_date: string | null }
 /**

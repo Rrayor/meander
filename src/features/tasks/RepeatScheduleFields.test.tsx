@@ -4,6 +4,7 @@ import type { NewSeries, Weekday } from "@/api/bindings";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
+  REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
@@ -143,6 +144,64 @@ describe("RepeatScheduleFields", () => {
       day: 31,
     });
     expect(screen.getByText(REPEAT_MONTHLY_CLAMP_HINT)).toBeInTheDocument();
+  });
+
+  it("syncs the monthly selections to the start date until touched", () => {
+    const onChange = renderField();
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "months" }));
+    // 2026-10-19 is a Monday and the month's 3rd Monday.
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: "2026-10-19" },
+    });
+    expect(lastSeries(onChange)?.recurrence).toEqual({
+      kind: "monthly_day",
+      interval_months: 1,
+      day: 19,
+    });
+    // Switching to "On the" keeps the synced 3rd Monday.
+    fireEvent.click(screen.getByRole("radio", { name: REPEAT_ON_THE_LABEL }));
+    expect(lastSeries(onChange)?.recurrence).toEqual({
+      kind: "monthly_nth_weekday",
+      interval_months: 1,
+      nth: 3,
+      weekday: "monday",
+    });
+    // A manual change stops the tracking — later start changes keep the
+    // user's selection.
+    fireEvent.click(screen.getByRole("button", { name: "First" }));
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: WEDNESDAY_ISO },
+    });
+    expect(lastSeries(onChange)?.recurrence).toEqual({
+      kind: "monthly_nth_weekday",
+      interval_months: 1,
+      nth: 1,
+      weekday: "monday",
+    });
+  });
+
+  it("flags an end date before the start date and reports the error", () => {
+    const onChange = renderField();
+    expand();
+    fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
+      target: { value: "2027-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: "2027-02-01" },
+    });
+    const ends = screen.getByLabelText(REPEAT_ENDS_LABEL);
+    expect(ends).toHaveAttribute("aria-invalid", "true");
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(REPEAT_ENDS_BEFORE_START_MESSAGE);
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+    expect(lastCall[1]).toBe(REPEAT_ENDS_BEFORE_START_MESSAGE);
+    // Correcting the range clears the error again.
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: "2026-12-01" },
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBeNull();
   });
 
   it("emits monthly nth-weekday recurrence", () => {

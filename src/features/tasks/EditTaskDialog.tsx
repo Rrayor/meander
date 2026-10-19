@@ -179,6 +179,7 @@ export function EditTaskDialog({
   const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(new Set());
   const [picked, setPicked] = useState<Category[]>([]);
   const [series, setSeries] = useState<NewSeries | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
   const stored = initialCategories ?? [];
   const storedIds = new Set(stored.map((c) => c.id));
   const categories = [
@@ -517,7 +518,13 @@ export function EditTaskDialog({
             />
           </div>
           {task.series_id === null && (
-            <RepeatScheduleFields idPrefix="edit-task" onChange={setSeries} />
+            <RepeatScheduleFields
+              idPrefix="edit-task"
+              onChange={(next, error) => {
+                setSeries(next);
+                setSeriesError(error);
+              }}
+            />
           )}
           {serverError && (
             <p role="alert" className="text-sm text-danger">
@@ -541,7 +548,7 @@ export function EditTaskDialog({
               </button>
               <button
                 type="submit"
-                disabled={update.isPending}
+                disabled={update.isPending || seriesError !== null}
                 className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               >
                 {SAVE_BUTTON_LABEL}
