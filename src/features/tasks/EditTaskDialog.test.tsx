@@ -815,6 +815,47 @@ describe("EditTaskDialog", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the selected instance's title in the heading", async () => {
+    const other = {
+      ...baseTask,
+      id: 42,
+      title: TITLE_EDITED,
+      series_id: baseSeries.id,
+      scheduled_date: "2026-10-26",
+    };
+    mockedListSeriesInstances.mockResolvedValue([other]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: "2026-10-19",
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: TITLE_ORIGINAL }),
+    ).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
+    expect(
+      await screen.findByRole("dialog", { name: TITLE_EDITED }),
+    ).toBeInTheDocument();
+  });
+
+  it("moves focus into the dialog when it opens in view mode", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+
   it("a series instance still updates its fields with no schedule on the wire", async () => {
     renderDialog({ ...baseTask, series_id: 3 });
     fireEvent.change(screen.getByLabelText(/Title/), {

@@ -100,12 +100,16 @@ export function InstanceCalendar({
           </span>
         ))}
         {cells.map(({ iso, inMonth, day }) => {
-          const scheduled = isScheduledOn(
-            series.recurrence,
-            series.start_date,
-            series.end_date,
-            iso,
-          );
+          const scheduled =
+            isScheduledOn(
+              series.recurrence,
+              series.start_date,
+              series.end_date,
+              iso,
+            ) ||
+            // A persisted instance stays reachable even if its date no
+            // longer matches the schedule (e.g. after a series edit).
+            instances.some((t) => t.scheduled_date === iso);
           if (!scheduled) {
             // Padding days outside the month stay blank — showing them
             // faded fails contrast and adds noise.

@@ -227,9 +227,15 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
         ),
         None => None,
     };
+    // A schedule's first instance occupies the series start date — the
+    // details view's calendar locates instances by scheduled_date.
+    let first_date = input
+        .series
+        .as_ref()
+        .map(|s| s.start_date.trim().to_string());
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, scheduled_date, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
@@ -237,6 +243,7 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     .bind(estimated)
     .bind(carry_over)
     .bind(series_id)
+    .bind(first_date)
     .bind(profile_id)
     .execute(&mut *tx)
     .await?;
@@ -381,8 +388,10 @@ pub async fn update(
                 )
                 .await?
                 .id;
-                sqlx::query("UPDATE tasks SET series_id = ? WHERE id = ?")
+                // The existing task becomes the start date's instance.
+                sqlx::query("UPDATE tasks SET series_id = ?, scheduled_date = ? WHERE id = ?")
                     .bind(series_id)
+                    .bind(series.start_date.trim())
                     .bind(id)
                     .execute(&mut *tx)
                     .await?;
@@ -752,6 +761,8 @@ mod tests {
         // rule normalizes to Return on both (spec §95).
         assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
         assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
+        // The first instance occupies the series start date.
+        assert_eq!(task.scheduled_date.as_deref(), Some("2026-10-19"));
     }
 
     #[tokio::test]
@@ -769,8 +780,9 @@ mod tests {
         .await
         .unwrap();
         let sid = first.series_id.unwrap();
-        // A second instance of the same series, dated before the first, and
-        // an unrelated task that must not leak in.
+        // A second, later instance of the same series, and an unrelated
+        // task that must not leak in. The first instance is dated by create.
+        assert_eq!(first.scheduled_date.as_deref(), Some("2026-10-19"));
         sqlx::query(
             "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, sort_order) \
              VALUES (?, ?, ?, '2026-10-26', ?)",
@@ -782,11 +794,6 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("UPDATE tasks SET scheduled_date = '2026-10-19' WHERE id = ?")
-            .bind(first.id)
-            .execute(&pool)
-            .await
-            .unwrap();
         create(&pool, pid, &task(TITLE_C)).await.unwrap();
 
         let instances = list_instances(&pool, pid, sid).await.unwrap();
@@ -844,6 +851,8 @@ mod tests {
         assert_eq!(updated.placement, existing.placement);
         assert_eq!(updated.sort_order, existing.sort_order);
         assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
+        // The existing task becomes the start date's instance.
+        assert_eq!(updated.scheduled_date.as_deref(), Some("2026-10-19"));
     }
 
     #[tokio::test]

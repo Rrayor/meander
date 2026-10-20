@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -179,8 +179,15 @@ export function EditTaskDialog({
     },
   });
 
+  const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    if (mode === "edit") setFocus("title");
+    if (mode === "edit") {
+      setFocus("title");
+    } else {
+      // Read-only mode has no field to focus — move focus onto the dialog
+      // itself so keyboard users aren't stranded behind it.
+      dialogRef.current?.focus();
+    }
   }, [mode, setFocus]);
 
   // Which instance the read-only view is showing — the opened task until the
@@ -208,8 +215,19 @@ export function EditTaskDialog({
   // user removed plus the ones they added. Deriving it (rather than seeding
   // state once) keeps picks intact when the query resolves late *and* lets
   // a refetch update what chips show — e.g. after a category is recolored.
-  const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(new Set());
-  const [picked, setPicked] = useState<Category[]>([]);
+  // Local category overrides belong to the viewed instance — keying the
+  // draft by its id means switching instances never carries a previous
+  // selection across.
+  const [categoryDraft, setCategoryDraft] = useState<{
+    taskId: number;
+    removedIds: ReadonlySet<number>;
+    picked: Category[];
+  }>({ taskId: viewed.id, removedIds: new Set(), picked: [] });
+  const removedIds =
+    categoryDraft.taskId === viewed.id
+      ? categoryDraft.removedIds
+      : new Set<number>();
+  const picked = categoryDraft.taskId === viewed.id ? categoryDraft.picked : [];
   const [series, setSeries] = useState<NewSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const stored = initialCategories ?? [];
@@ -220,10 +238,13 @@ export function EditTaskDialog({
   ];
   const onCategoriesChange = (next: Category[]) => {
     const nextIds = new Set(next.map((c) => c.id));
-    setRemovedIds(
-      new Set(stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id)),
-    );
-    setPicked(next.filter((c) => !storedIds.has(c.id)));
+    setCategoryDraft({
+      taskId: viewed.id,
+      removedIds: new Set(
+        stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id),
+      ),
+      picked: next.filter((c) => !storedIds.has(c.id)),
+    });
   };
 
   const update = useMutation({
@@ -331,7 +352,9 @@ export function EditTaskDialog({
         className="absolute inset-0 h-full w-full cursor-default bg-black/60"
       />
       <dialog
+        ref={dialogRef}
         open
+        tabIndex={-1}
         aria-labelledby="edit-task-title"
         className="relative m-0 flex max-h-[90vh] w-full max-w-lg flex-col gap-6 overflow-y-auto rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
       >
@@ -340,7 +363,7 @@ export function EditTaskDialog({
             id="edit-task-title"
             className="font-title text-lg font-semibold text-text"
           >
-            {mode === "view" ? task.title : EDIT_TASK_HEADING}
+            {mode === "view" ? viewed.title : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
             {mode === "view" &&
@@ -469,10 +492,10 @@ export function EditTaskDialog({
                 )}
               </p>
             )}
-            {seriesRow && (
+            {seriesRow && seriesInstances && (
               <InstanceCalendar
                 series={seriesRow}
-                instances={seriesInstances ?? []}
+                instances={seriesInstances}
                 selectedIso={pendingIso ?? viewed.scheduled_date}
                 onPick={(picked, iso) => {
                   if (picked) {

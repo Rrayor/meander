@@ -116,6 +116,14 @@ describe("InstanceCalendar", () => {
     expect(onPick).toHaveBeenCalledWith(persisted, "2026-10-19");
   });
 
+  it("keeps a persisted instance selectable off the schedule", () => {
+    // A Wednesday — not a scheduled date for a Monday series.
+    const offSchedule = instance("2026-10-21");
+    const onPick = renderCalendar([offSchedule]);
+    fireEvent.click(screen.getByRole("button", { name: "2026-10-21" }));
+    expect(onPick).toHaveBeenCalledWith(offSchedule, "2026-10-21");
+  });
+
   it("picking a scheduled but unpersisted date returns null", () => {
     const onPick = renderCalendar([]);
     fireEvent.click(screen.getByRole("button", { name: "2026-10-26" }));
