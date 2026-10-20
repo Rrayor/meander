@@ -30,7 +30,7 @@ import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
-import type { NewSeries } from "@/api/bindings";
+import type { NewSeries, TaskSeries } from "@/api/bindings";
 import { listSeriesInstances, listTaskSeries } from "@/api/series";
 import {
   CANCEL_BUTTON_LABEL,
@@ -135,6 +135,147 @@ const minutesToParts = (total: number | null) => ({
   hours: total == null ? "" : String(Math.floor(total / 60)),
   minutes: total == null ? "" : String(total % 60),
 });
+
+interface TaskDetailsViewProps {
+  viewed: Task;
+  pendingIso: string | null;
+  categories: Category[];
+  seriesRow: TaskSeries | undefined;
+  seriesInstances: Task[] | undefined;
+  onPick: (picked: Task | null, iso: string) => void;
+  onClose: () => void;
+}
+
+function TaskDetailsView({
+  viewed,
+  pendingIso,
+  categories,
+  seriesRow,
+  seriesInstances,
+  onPick,
+  onClose,
+}: Readonly<TaskDetailsViewProps>) {
+  return (
+    <div className="flex flex-col gap-4">
+      {pendingIso !== null ? (
+        <p className="text-sm text-text-muted italic">
+          {SCHEDULED_INSTANCE_PENDING_MESSAGE}
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+              {DESCRIPTION_FIELD_LABEL}
+            </span>
+            <p className="text-sm text-text">
+              {viewed.description || EMPTY_VALUE_LABEL}
+            </p>
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                {TASK_STATUS_FIELD_LABEL}
+              </span>
+              <span className="text-sm">{STATUS_LABELS[viewed.status]}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                {ESTIMATED_TIME_LABEL}
+              </span>
+              <span className="text-sm">
+                {viewed.estimated_minutes === null
+                  ? EMPTY_VALUE_LABEL
+                  : formatMinutes(viewed.estimated_minutes)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                {SPENT_TIME_LABEL}
+              </span>
+              <span className="text-sm">
+                {viewed.spent_minutes === null
+                  ? EMPTY_VALUE_LABEL
+                  : formatMinutes(viewed.spent_minutes)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                {CARRY_OVER_FIELD_LABEL}
+              </span>
+              <span className="text-sm">
+                {CARRY_OVER_OPTIONS.find(
+                  (o) => o.value === (viewed.carry_over_rule ?? ""),
+                )?.label ?? EMPTY_VALUE_LABEL}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+              {CATEGORIES_FIELD_LABEL}
+            </span>
+            {categories.length === 0 ? (
+              <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
+            ) : (
+              <ul className="flex flex-wrap gap-1.5">
+                {categories.map((category) => (
+                  <li
+                    key={category.id}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
+                    style={{
+                      color: category.color ?? undefined,
+                      backgroundColor: `${category.color ?? "#859490"}26`,
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor: category.color ?? undefined,
+                      }}
+                    />
+                    {category.title}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+      {seriesRow && (
+        <p className="border-t border-border pt-4 text-sm text-text-muted">
+          {seriesAuditLabel(
+            describeRecurrence(seriesRow.recurrence),
+            formatDate(seriesRow.created_at),
+          )}
+        </p>
+      )}
+      {seriesRow && seriesInstances && (
+        <InstanceCalendar
+          series={seriesRow}
+          instances={seriesInstances}
+          selectedIso={pendingIso ?? viewed.scheduled_date}
+          onPick={onPick}
+        />
+      )}
+      {viewed.series_id !== null && <NotesTabs />}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-text-muted">
+          {auditTimestampsLabel(
+            formatDate(viewed.created_at),
+            formatDate(viewed.updated_at),
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+        >
+          {CLOSE_LABEL}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface EditTaskDialogProps {
   task: Task;
@@ -397,133 +538,22 @@ export function EditTaskDialog({
           </div>
         </div>
         {mode === "view" ? (
-          <div className="flex flex-col gap-4">
-            {pendingIso !== null ? (
-              <p className="text-sm text-text-muted italic">
-                {SCHEDULED_INSTANCE_PENDING_MESSAGE}
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                    {DESCRIPTION_FIELD_LABEL}
-                  </span>
-                  <p className="text-sm text-text">
-                    {viewed.description || EMPTY_VALUE_LABEL}
-                  </p>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                      {TASK_STATUS_FIELD_LABEL}
-                    </span>
-                    <span className="text-sm">
-                      {STATUS_LABELS[viewed.status]}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                      {ESTIMATED_TIME_LABEL}
-                    </span>
-                    <span className="text-sm">
-                      {viewed.estimated_minutes === null
-                        ? EMPTY_VALUE_LABEL
-                        : formatMinutes(viewed.estimated_minutes)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                      {SPENT_TIME_LABEL}
-                    </span>
-                    <span className="text-sm">
-                      {viewed.spent_minutes === null
-                        ? EMPTY_VALUE_LABEL
-                        : formatMinutes(viewed.spent_minutes)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                      {CARRY_OVER_FIELD_LABEL}
-                    </span>
-                    <span className="text-sm">
-                      {CARRY_OVER_OPTIONS.find(
-                        (o) => o.value === (viewed.carry_over_rule ?? ""),
-                      )?.label ?? EMPTY_VALUE_LABEL}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                    {CATEGORIES_FIELD_LABEL}
-                  </span>
-                  {categories.length === 0 ? (
-                    <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
-                  ) : (
-                    <ul className="flex flex-wrap gap-1.5">
-                      {categories.map((category) => (
-                        <li
-                          key={category.id}
-                          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-                          style={{
-                            color: category.color ?? undefined,
-                            backgroundColor: `${category.color ?? "#859490"}26`,
-                          }}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="h-2 w-2 rounded-full"
-                            style={{
-                              backgroundColor: category.color ?? undefined,
-                            }}
-                          />
-                          {category.title}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </>
-            )}
-            {seriesRow && (
-              <p className="border-t border-border pt-4 text-sm text-text-muted">
-                {seriesAuditLabel(
-                  describeRecurrence(seriesRow.recurrence),
-                  formatDate(seriesRow.created_at),
-                )}
-              </p>
-            )}
-            {seriesRow && seriesInstances && (
-              <InstanceCalendar
-                series={seriesRow}
-                instances={seriesInstances}
-                selectedIso={pendingIso ?? viewed.scheduled_date}
-                onPick={(picked, iso) => {
-                  if (picked) {
-                    setViewed(picked);
-                    setPendingIso(null);
-                  } else {
-                    setPendingIso(iso);
-                  }
-                }}
-              />
-            )}
-            {task.series_id !== null && <NotesTabs />}
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-text-muted">
-                {auditTimestampsLabel(
-                  formatDate(viewed.created_at),
-                  formatDate(viewed.updated_at),
-                )}
-              </p>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
-              >
-                {CLOSE_LABEL}
-              </button>
-            </div>
-          </div>
+          <TaskDetailsView
+            viewed={viewed}
+            pendingIso={pendingIso}
+            categories={categories}
+            seriesRow={seriesRow}
+            seriesInstances={seriesInstances}
+            onPick={(picked, iso) => {
+              if (picked) {
+                setViewed(picked);
+                setPendingIso(null);
+              } else {
+                setPendingIso(iso);
+              }
+            }}
+            onClose={onClose}
+          />
         ) : (
           <form
             onSubmit={handleSubmit(onSubmit)}

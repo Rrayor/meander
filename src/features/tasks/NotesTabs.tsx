@@ -13,13 +13,18 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const ARROW_DELTAS: Record<string, number> = {
+  ArrowRight: 1,
+  ArrowLeft: -1,
+};
+
 export function NotesTabs() {
   const [active, setActive] = useState<TabId>("instance");
   const refs = useRef(new Map<TabId, HTMLButtonElement>());
 
   // APG tabs: arrow keys move focus and activate the focused tab.
   const onKeyDown = (e: React.KeyboardEvent, index: number) => {
-    const delta = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    const delta = ARROW_DELTAS[e.key] ?? 0;
     if (delta === 0) return;
     e.preventDefault();
     const next = TABS[(index + delta + TABS.length) % TABS.length];

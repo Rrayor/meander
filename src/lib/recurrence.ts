@@ -37,6 +37,61 @@ const monthsBetween = (from: Date, to: Date) =>
   (to.getUTCFullYear() - from.getUTCFullYear()) * 12 +
   (to.getUTCMonth() - from.getUTCMonth());
 
+const matchesDaily = (interval: number, start: number, day: number) =>
+  interval > 0 && (day - start) % (interval * DAY_MS) === 0;
+
+const matchesWeekly = (
+  recurrence: Extract<Recurrence, { kind: "weekly" }>,
+  start: number,
+  day: number,
+  iso: string,
+) => {
+  const interval = recurrence.interval_weeks;
+  const weekday = weekdayOfIso(iso);
+  if (interval <= 0 || !weekday || !recurrence.weekdays.includes(weekday)) {
+    return false;
+  }
+  const weeks = (mondayOf(day) - mondayOf(start)) / (7 * DAY_MS);
+  return weeks % interval === 0;
+};
+
+const matchesMonthlyDay = (
+  recurrence: Extract<Recurrence, { kind: "monthly_day" }>,
+  startDate: Date,
+  isoDate: Date,
+) => {
+  const interval = recurrence.interval_months;
+  if (interval <= 0) return false;
+  const months = monthsBetween(startDate, isoDate);
+  if (months < 0 || months % interval !== 0) return false;
+  const clamped = Math.min(
+    recurrence.day,
+    daysInMonth(isoDate.getUTCFullYear(), isoDate.getUTCMonth() + 1),
+  );
+  return isoDate.getUTCDate() === clamped;
+};
+
+const matchesMonthlyNthWeekday = (
+  recurrence: Extract<Recurrence, { kind: "monthly_nth_weekday" }>,
+  startDate: Date,
+  isoDate: Date,
+  iso: string,
+) => {
+  const interval = recurrence.interval_months;
+  if (interval <= 0 || weekdayOfIso(iso) !== recurrence.weekday) {
+    return false;
+  }
+  const months = monthsBetween(startDate, isoDate);
+  if (months < 0 || months % interval !== 0) return false;
+  const dom = isoDate.getUTCDate();
+  if (recurrence.nth === -1) {
+    return (
+      dom + 7 > daysInMonth(isoDate.getUTCFullYear(), isoDate.getUTCMonth() + 1)
+    );
+  }
+  return recurrence.nth > 0 && Math.floor((dom - 1) / 7) + 1 === recurrence.nth;
+};
+
 // Is `iso` a scheduled occurrence of `recurrence` anchored at `startIso`,
 // optionally bounded by `endIso`? All dates are "YYYY-MM-DD".
 export const isScheduledOn = (
@@ -59,49 +114,14 @@ export const isScheduledOn = (
   const isoDate = new Date(day);
 
   switch (recurrence.kind) {
-    case "daily": {
-      const interval = recurrence.interval_days;
-      if (interval <= 0) return false;
-      return (day - start) % (interval * DAY_MS) === 0;
-    }
-    case "weekly": {
-      const interval = recurrence.interval_weeks;
-      const weekday = weekdayOfIso(iso);
-      if (interval <= 0 || !weekday || !recurrence.weekdays.includes(weekday)) {
-        return false;
-      }
-      const weeks = (mondayOf(day) - mondayOf(start)) / (7 * DAY_MS);
-      return weeks % interval === 0;
-    }
-    case "monthly_day": {
-      const interval = recurrence.interval_months;
-      if (interval <= 0) return false;
-      const months = monthsBetween(startDate, isoDate);
-      if (months < 0 || months % interval !== 0) return false;
-      const clamped = Math.min(
-        recurrence.day,
-        daysInMonth(isoDate.getUTCFullYear(), isoDate.getUTCMonth() + 1),
-      );
-      return isoDate.getUTCDate() === clamped;
-    }
-    case "monthly_nth_weekday": {
-      const interval = recurrence.interval_months;
-      if (interval <= 0 || weekdayOfIso(iso) !== recurrence.weekday) {
-        return false;
-      }
-      const months = monthsBetween(startDate, isoDate);
-      if (months < 0 || months % interval !== 0) return false;
-      const dom = isoDate.getUTCDate();
-      if (recurrence.nth === -1) {
-        return (
-          dom + 7 >
-          daysInMonth(isoDate.getUTCFullYear(), isoDate.getUTCMonth() + 1)
-        );
-      }
-      return (
-        recurrence.nth > 0 && Math.floor((dom - 1) / 7) + 1 === recurrence.nth
-      );
-    }
+    case "daily":
+      return matchesDaily(recurrence.interval_days, start, day);
+    case "weekly":
+      return matchesWeekly(recurrence, start, day, iso);
+    case "monthly_day":
+      return matchesMonthlyDay(recurrence, startDate, isoDate);
+    case "monthly_nth_weekday":
+      return matchesMonthlyNthWeekday(recurrence, startDate, isoDate, iso);
     // Workday-after rules are unsupported (workday_rules_unsupported) — a
     // series carrying one can never produce an occurrence here.
     case "workday_after":
@@ -147,6 +167,61 @@ const toIsoDay = (year: number, month: number, day: number) => {
   return `${String(year).padStart(4, "0")}-${pad(month)}-${pad(day)}`;
 };
 
+const firstWeekly = (
+  recurrence: Extract<Recurrence, { kind: "weekly" }>,
+  start: number,
+  startWeekday: number,
+): string | null => {
+  const { interval_weeks: interval, weekdays } = recurrence;
+  const picks = weekdays
+    .map(weekdayIndex)
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b);
+  if (interval <= 0 || picks.length === 0) return null;
+  const anchor = mondayOf(start);
+  const sameWeek = picks.find((i) => i >= startWeekday);
+  const epoch =
+    sameWeek !== undefined
+      ? anchor + sameWeek * DAY_MS
+      : anchor + interval * 7 * DAY_MS + picks[0] * DAY_MS;
+  const first = new Date(epoch);
+  return toIsoDay(
+    first.getUTCFullYear(),
+    first.getUTCMonth() + 1,
+    first.getUTCDate(),
+  );
+};
+
+const firstMonthlyDay = (
+  recurrence: Extract<Recurrence, { kind: "monthly_day" }>,
+  year: number,
+  month: number,
+  day: number,
+): string | null => {
+  const { interval_months: interval, day: dom } = recurrence;
+  if (interval <= 0) return null;
+  const [y, m] =
+    Math.min(dom, daysInMonth(year, month)) >= day
+      ? [year, month]
+      : shiftMonths(year, month, interval);
+  return toIsoDay(y, m, Math.min(dom, daysInMonth(y, m)));
+};
+
+const firstMonthlyNthWeekday = (
+  recurrence: Extract<Recurrence, { kind: "monthly_nth_weekday" }>,
+  year: number,
+  month: number,
+  day: number,
+): string | null => {
+  const { interval_months: interval, nth, weekday } = recurrence;
+  const valid = nth === -1 || (nth >= 1 && nth <= 4);
+  if (interval <= 0 || !valid || weekdayIndex(weekday) < 0) return null;
+  const dom = nthWeekdayDay(year, month, nth, weekday);
+  const [y, m] =
+    dom >= day ? [year, month] : shiftMonths(year, month, interval);
+  return toIsoDay(y, m, nthWeekdayDay(y, m, nth, weekday));
+};
+
 // The series' first occurrence on or after `startIso` — mirrors
 // series.rs::first_occurrence: weekly/monthly intervals count whole
 // periods anchored at the start, so a start date past its period's
@@ -160,63 +235,26 @@ export const firstOccurrence = (
   const start = dayEpoch(startIso);
   if (start === null) return null;
   const s = new Date(start);
-  const year = s.getUTCFullYear();
-  const month = s.getUTCMonth() + 1;
-  const day = s.getUTCDate();
 
   switch (recurrence.kind) {
     case "daily":
       return recurrence.interval_days > 0 ? startIso : null;
-    case "weekly": {
-      const { interval_weeks: interval, weekdays } = recurrence;
-      const picks = weekdays
-        .map(weekdayIndex)
-        .filter((i) => i >= 0)
-        .sort((a, b) => a - b);
-      if (interval <= 0 || picks.length === 0) return null;
-      const startWd = (s.getUTCDay() + 6) % 7;
-      const anchor = mondayOf(start);
-      const sameWeek = picks.find((i) => i >= startWd);
-      const epoch =
-        sameWeek !== undefined
-          ? anchor + sameWeek * DAY_MS
-          : anchor + interval * 7 * DAY_MS + picks[0] * DAY_MS;
-      const first = new Date(epoch);
-      return toIsoDay(
-        first.getUTCFullYear(),
-        first.getUTCMonth() + 1,
-        first.getUTCDate(),
+    case "weekly":
+      return firstWeekly(recurrence, start, (s.getUTCDay() + 6) % 7);
+    case "monthly_day":
+      return firstMonthlyDay(
+        recurrence,
+        s.getUTCFullYear(),
+        s.getUTCMonth() + 1,
+        s.getUTCDate(),
       );
-    }
-    case "monthly_day": {
-      const { interval_months: interval, day: dom } = recurrence;
-      if (interval <= 0) return null;
-      const clamped = Math.min(dom, daysInMonth(year, month));
-      const [y, m] =
-        clamped >= day ? [year, month] : shiftMonths(year, month, interval);
-      return toIsoDay(y, m, Math.min(dom, daysInMonth(y, m)));
-    }
-    case "monthly_nth_weekday": {
-      const { interval_months: interval, nth, weekday } = recurrence;
-      if (
-        interval <= 0 ||
-        nth === 0 ||
-        nth < -1 ||
-        nth > 4 ||
-        weekdayIndex(weekday) < 0
-      ) {
-        return null;
-      }
-      const dom = nthWeekdayDay(year, month, nth, weekday);
-      const [y, m, d] =
-        dom >= day
-          ? [year, month, dom]
-          : (() => {
-              const [y2, m2] = shiftMonths(year, month, interval);
-              return [y2, m2, nthWeekdayDay(y2, m2, nth, weekday)];
-            })();
-      return toIsoDay(y, m, d);
-    }
+    case "monthly_nth_weekday":
+      return firstMonthlyNthWeekday(
+        recurrence,
+        s.getUTCFullYear(),
+        s.getUTCMonth() + 1,
+        s.getUTCDate(),
+      );
     case "workday_after":
       return null;
   }
