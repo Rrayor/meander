@@ -6,6 +6,7 @@ import {
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
+  REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NONE_SUMMARY,
@@ -198,6 +199,39 @@ describe("RepeatScheduleFields", () => {
     fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
       target: { value: "2026-12-01" },
     });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBeNull();
+  });
+
+  it("flags an end date the schedule never reaches", () => {
+    const onChange = renderField();
+    expand();
+    // Wednesday-only weekly starting Monday 2026-10-19, ending that same
+    // Monday — the schedule can never occur.
+    fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
+      target: { value: "2026-10-19" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wednesday" }));
+    const monday = screen.getByRole("button", { name: "Monday" });
+    // Only Wednesday stays selected — deselect the synced Monday.
+    if (monday.getAttribute("aria-pressed") === "true") {
+      fireEvent.click(monday);
+    }
+    fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
+      target: { value: "2026-10-19" },
+    });
+
+    const ends = screen.getByLabelText(REPEAT_ENDS_LABEL);
+    expect(ends).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
+    );
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe(
+      REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
+    );
+    // Extending the end past the first occurrence clears the error.
+    fireEvent.change(ends, { target: { value: "2026-10-21" } });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBeNull();
   });

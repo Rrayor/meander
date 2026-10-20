@@ -105,6 +105,8 @@ export const REPEAT_STARTS_INVALID_MESSAGE = "Starts must be a real date.";
 export const REPEAT_ENDS_INVALID_MESSAGE = "Ends must be a real date.";
 export const REPEAT_ENDS_BEFORE_START_MESSAGE =
   "Ends must not be before Starts.";
+export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
+  "The schedule never occurs on or before this date.";
 export const REPEAT_UNIT_OPTIONS = [
   { value: "day", label: "days" },
   { value: "week", label: "weeks" },

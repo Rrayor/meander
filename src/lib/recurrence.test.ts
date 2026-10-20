@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Recurrence } from "@/api/bindings";
-import { isScheduledOn } from "@/lib/recurrence";
+import { firstOccurrence, isScheduledOn } from "@/lib/recurrence";
 import {
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
@@ -218,5 +218,109 @@ describe("describeRecurrence", () => {
     expect(describeRecurrence({ kind: "workday_after", day: 15 })).toBe(
       workdayAfterLabel(15),
     );
+  });
+});
+
+describe("firstOccurrence", () => {
+  it("lands on the first matching date", () => {
+    const MONDAY_START = "2026-10-19"; // a Monday
+    // Daily: the start date is always an occurrence.
+    expect(
+      firstOccurrence({ kind: "daily", interval_days: 3 }, MONDAY_START),
+    ).toBe(MONDAY_START);
+    // Weekly including the start weekday.
+    expect(
+      firstOccurrence(
+        { kind: "weekly", interval_weeks: 1, weekdays: ["monday"] },
+        MONDAY_START,
+      ),
+    ).toBe(MONDAY_START);
+    // Weekly excluding it, with a later weekday in the same week.
+    expect(
+      firstOccurrence(
+        { kind: "weekly", interval_weeks: 1, weekdays: ["wednesday"] },
+        MONDAY_START,
+      ),
+    ).toBe("2026-10-21");
+    // No matching weekday left this week: the next eligible week.
+    expect(
+      firstOccurrence(
+        {
+          kind: "weekly",
+          interval_weeks: 2,
+          weekdays: ["monday", "friday"],
+        },
+        "2026-10-24", // a Saturday — past both picks for this week
+      ),
+    ).toBe("2026-11-02");
+    // Monthly-day: clamped into the start month, or the next eligible one.
+    expect(
+      firstOccurrence(
+        { kind: "monthly_day", interval_months: 2, day: 31 },
+        MONDAY_START,
+      ),
+    ).toBe("2026-10-31");
+    expect(
+      firstOccurrence(
+        { kind: "monthly_day", interval_months: 3, day: 15 },
+        MONDAY_START,
+      ),
+    ).toBe("2027-01-15");
+    // Nth weekday: second Monday; start past it moves to the next
+    // eligible month (interval 2 → December's last Friday).
+    expect(
+      firstOccurrence(
+        {
+          kind: "monthly_nth_weekday",
+          interval_months: 1,
+          nth: 2,
+          weekday: "monday",
+        },
+        "2026-10-01",
+      ),
+    ).toBe("2026-10-12");
+    expect(
+      firstOccurrence(
+        {
+          kind: "monthly_nth_weekday",
+          interval_months: 2,
+          nth: -1,
+          weekday: "friday",
+        },
+        "2026-10-31", // past October's last Friday (the 30th)
+      ),
+    ).toBe("2026-12-25");
+  });
+
+  it("rejects unusable and unrepresentable schedules", () => {
+    expect(
+      firstOccurrence(
+        { kind: "weekly", interval_weeks: 0, weekdays: ["monday"] },
+        "2026-10-19",
+      ),
+    ).toBeNull();
+    expect(
+      firstOccurrence(
+        { kind: "weekly", interval_weeks: 1, weekdays: [] },
+        "2026-10-19",
+      ),
+    ).toBeNull();
+    expect(
+      firstOccurrence({ kind: "workday_after", day: 15 }, "2026-10-19"),
+    ).toBeNull();
+    // 9999-12-31 is a Friday — a Monday-only weekly can only recur in
+    // year 10000, outside the four-digit ISO contract.
+    expect(
+      firstOccurrence(
+        { kind: "weekly", interval_weeks: 1, weekdays: ["monday"] },
+        "9999-12-31",
+      ),
+    ).toBeNull();
+    expect(
+      firstOccurrence(
+        { kind: "monthly_day", interval_months: 1, day: 1 },
+        "9999-12-02",
+      ),
+    ).toBeNull();
   });
 });

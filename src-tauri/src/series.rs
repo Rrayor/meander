@@ -278,11 +278,22 @@ pub(crate) fn first_occurrence(
         // Validation rejects workday-aware schedules before insert.
         Recurrence::WorkdayAfter { .. } => return None,
     };
-    let iso = to_iso(first);
-    match end {
-        Some(end) if iso.as_str() > end => None,
-        _ => Some(iso),
+    let (y, m, d) = first;
+    // Only four-digit years are representable (isScheduledOn's strict
+    // \d{4} pattern); a computed occurrence past 9999-12-31 can never be
+    // matched or displayed.
+    if y > 9999 {
+        return None;
     }
+    // Compare civil days, not ISO text — "10000-…" sorts before
+    // "9999-…" lexically.
+    if let Some(end) = end {
+        let (ey, em, ed) = parse_iso(end);
+        if days_from_civil(y, m, d) > days_from_civil(ey, em, ed) {
+            return None;
+        }
+    }
+    Some(to_iso(first))
 }
 
 fn shift_months(y: u32, m: u32, months: u32) -> (u32, u32) {
@@ -723,7 +734,9 @@ mod tests {
         assert_code(&err, ErrorCode::SeriesNotFound);
     }
 
-    // START (2026-10-19) is a Monday.
+    // START (2026-10-19) is a Monday; the first Wednesday after it.
+    const WEDNESDAY_AFTER_START: &str = "2026-10-21";
+
     #[test]
     fn first_occurrence_lands_on_the_first_matching_date() {
         // Daily: the start date is always an occurrence.
@@ -747,7 +760,7 @@ mod tests {
                 None,
             )
             .as_deref(),
-            Some("2026-10-21")
+            Some(WEDNESDAY_AFTER_START)
         );
         // No matching weekday left this week: the next eligible week —
         // `interval_weeks` later, on the earliest selected weekday.
@@ -770,7 +783,7 @@ mod tests {
                     interval_months: 2,
                     day: 31,
                 },
-                "2026-10-19",
+                START,
                 None,
             )
             .as_deref(),
@@ -782,7 +795,7 @@ mod tests {
                     interval_months: 3,
                     day: 15,
                 },
-                "2026-10-19",
+                START,
                 None,
             )
             .as_deref(),
@@ -828,8 +841,34 @@ mod tests {
         assert_eq!(first_occurrence(&never, START, Some("2026-10-20")), None);
         // End on the matching Wednesday → it.
         assert_eq!(
-            first_occurrence(&never, START, Some("2026-10-21")).as_deref(),
-            Some("2026-10-21")
+            first_occurrence(&never, START, Some(WEDNESDAY_AFTER_START)).as_deref(),
+            Some(WEDNESDAY_AFTER_START)
+        );
+    }
+
+    #[test]
+    fn first_occurrence_stays_within_representable_years() {
+        // 9999-12-31 is a Friday. A Monday-only weekly can only occur again
+        // in year 10000, which the four-digit ISO contract cannot represent
+        // — regardless of whether an end date bounds it.
+        let monday = Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![Weekday::Monday],
+        };
+        let last_day = "9999-12-31";
+        assert_eq!(first_occurrence(&monday, last_day, Some(last_day)), None);
+        assert_eq!(first_occurrence(&monday, last_day, None), None);
+        // A monthly schedule rolling into year 10000 is equally rejected.
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::MonthlyDay {
+                    interval_months: 1,
+                    day: 1,
+                },
+                "9999-12-02",
+                None,
+            ),
+            None
         );
     }
 }
