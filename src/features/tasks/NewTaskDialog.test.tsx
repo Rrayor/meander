@@ -19,7 +19,11 @@ import {
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
-import { TITLE_REQUIRED_MESSAGE, removeTaskCategoryLabel } from "@/lib/labels";
+import {
+  REPEAT_ENDS_BEFORE_START_MESSAGE,
+  TITLE_REQUIRED_MESSAGE,
+  removeTaskCategoryLabel,
+} from "@/lib/labels";
 import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
@@ -375,6 +379,99 @@ describe("NewTaskDialog", () => {
     const onClose = renderDialog();
     act(onClose);
     expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
+  it("disables Create while the repeat schedule is invalid", async () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.change(screen.getByLabelText(/Ends/), {
+      target: { value: "2020-01-01" },
+    });
+
+    expect(
+      await screen.findByText(REPEAT_ENDS_BEFORE_START_MESSAGE),
+    ).toBeInTheDocument();
+    // The disabled button is the gate — a synthetic form submit would bypass
+    // it, so assert the state rather than firing submit.
+    expect(screen.getByRole("button", { name: "Create task" })).toBeDisabled();
+    expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
+  it("re-enables Create once a schedule error is fixed", async () => {
+    renderDialog();
+    mockedCreate.mockResolvedValue(
+      {} as Awaited<ReturnType<typeof createTask>>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    const ends = screen.getByLabelText(/Ends/);
+    fireEvent.change(ends, { target: { value: "2020-01-01" } });
+    expect(screen.getByRole("button", { name: "Create task" })).toBeDisabled();
+
+    fireEvent.change(ends, { target: { value: "2027-01-01" } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Create task" })).toBeEnabled(),
+    );
+    fillTitle();
+    submit();
+    await waitFor(() =>
+      expect(mockedCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          series: expect.objectContaining({ end_date: "2027-01-01" }),
+        }),
+      ),
+    );
+  });
+
+  it("sends series: null when the repeat section is collapsed again", async () => {
+    renderDialog();
+    mockedCreate.mockResolvedValue(
+      {} as Awaited<ReturnType<typeof createTask>>,
+    );
+    const toggle = screen.getByRole("button", { name: /Repeat/ });
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    fillTitle();
+    submit();
+    await waitFor(() =>
+      expect(mockedCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ series: null }),
+      ),
+    );
+  });
+
+  it("a stale schedule error does not disable the retry once the task is linked", async () => {
+    let resolveCreate!: (task: { id: number; series_id: number }) => void;
+    mockedCreate.mockReturnValue(
+      new Promise((r) => {
+        resolveCreate = r;
+      }) as never,
+    );
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fillTitle();
+    submit();
+    // While the create is in flight the user breaks the schedule — the
+    // section unmounts when the task links, and that stale error must not
+    // keep the retry disabled.
+    fireEvent.change(screen.getByLabelText(/Ends/), {
+      target: { value: "2020-01-01" },
+    });
+    await screen.findByText(REPEAT_ENDS_BEFORE_START_MESSAGE);
+
+    resolveCreate({ id: 42, series_id: 7 });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /Repeat/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Create task" })).toBeEnabled();
+    submit();
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({ series: null }),
+      ),
+    );
   });
 
   it("submits a series payload when the repeat section is expanded", async () => {
