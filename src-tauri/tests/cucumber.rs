@@ -1620,6 +1620,108 @@ fn task_is_same(world: &mut MeanderWorld, title: String) {
     assert_eq!(matching[0].id, world.task_id.expect("no captured task id"));
 }
 
+#[when(expr = "I try to create a task titled {string} whose repeat ends before it starts")]
+fn create_task_repeat_ends_before_start(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let mut series = weekly_monday();
+    series.end_date = Some("2026-10-18".to_string());
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title,
+            series: Some(series),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I try to create a task titled {string} with an unreadable repeat")]
+fn create_task_unreadable_repeat(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let mut series = weekly_monday();
+    series.recurrence = serde_json::json!({"kind": "every blue moon"});
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::create(
+        &pool,
+        active,
+        &meander_lib::tasks::NewTask {
+            title,
+            series: Some(series),
+            ..Default::default()
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I try to make the foreign task repeat")]
+fn make_foreign_task_repeat(world: &mut MeanderWorld) {
+    let foreign = world.profile_id.expect("no second profile");
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, foreign))
+        .expect("foreign task list failed")[0]
+        .clone();
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::update(
+        &pool,
+        active,
+        task.id,
+        &meander_lib::tasks::UpdateTask {
+            title: task.title.clone(),
+            description: task.description.clone(),
+            estimated_minutes: task.estimated_minutes,
+            spent_minutes: task.spent_minutes,
+            carry_over_rule: task.carry_over_rule,
+            status: task.status,
+            series: Some(weekly_monday()),
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I remove {word}'s repeat")]
+fn remove_repeat(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .expect("task missing");
+    let series_id = task.series_id.expect("the task does not repeat");
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::series::delete(&pool, active, series_id))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "a task titled {string} no longer exists")]
+fn task_no_longer_exists(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    assert!(!tasks.iter().any(|t| t.title == title));
+}
+
 #[then("no repeating tasks exist")]
 fn no_repeating_tasks(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
