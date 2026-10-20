@@ -95,6 +95,17 @@
       ],
       "implemented": true,
       "notes": "Edit variant of the new-category dialog: pre-filled Title/Description, a non-default swatch selected in the color radiogroup, \"Save changes\" primary action over the dimmed categories page."
+    },
+    {
+      "id": "6ec717b319f842ed84e4c4576d7e89a9",
+      "title": "Meander — Task Details Modal (Read-Only)",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/task-details-dialog.html",
+        "designs/task-details-dialog.png"
+      ],
+      "implemented": false,
+      "notes": "Read-only task details view over dimmed backlog: task heading + Edit secondary button + close, description/status/estimate/spent/carry-over/category chips as plain text, Created/Updated metadata, series section ('Repeats weekly on Monday — series created …') with compact month calendar (teal dots on scheduled Mondays, selected day highlighted), 'Current instance'/'Series' notes tabs with 'No notes yet.' empty state, 'Apply changes to' radio group (This instance only selected; Entire series / This and future instances disabled with 'available when series editing lands' hint), Close footer"
     }
   ]
 }
