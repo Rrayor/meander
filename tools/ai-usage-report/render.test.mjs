@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  OVERALL_LABEL,
   THEMES,
   averageScore,
   escapeXml,
@@ -84,7 +85,7 @@ describe("renderBadge", () => {
     const svg = renderBadge(3.5, "light");
     assert.match(svg, /x="72\.8"[^>]*fill="#eef1f6"/);
     assert.match(svg, />3\.5 \/ 5</);
-    assert.match(svg, />Overall</);
+    assert.ok(svg.includes(`>${OVERALL_LABEL}<`));
   });
 
   it("renders an empty bar and em-dash when nothing is rated", () => {
@@ -125,16 +126,17 @@ describe("renderReadmeSnippet", () => {
     { name: "Spec", score: 1, explanation: "AI filled gaps" },
     { name: "Impl", score: 5, explanation: "" },
   ];
+  const ASSET_PATH = "docs/ai-usage/";
 
   it("joins the asset path to the svg filenames", () => {
-    const md = renderReadmeSnippet(stages, 3.0, "docs/ai-usage/");
-    assert.match(md, /srcset="docs\/ai-usage\/ai-usage-dark\.svg"/);
-    assert.match(md, /src="docs\/ai-usage\/ai-usage\.svg"/);
-    assert.match(md, /srcset="docs\/ai-usage\/ai-usage-avg-dark\.svg"/);
+    const md = renderReadmeSnippet(stages, 3.0, ASSET_PATH);
+    assert.ok(md.includes(`srcset="${ASSET_PATH}ai-usage-dark.svg"`));
+    assert.ok(md.includes(`src="${ASSET_PATH}ai-usage.svg"`));
+    assert.ok(md.includes(`srcset="${ASSET_PATH}ai-usage-avg-dark.svg"`));
   });
 
   it("puts the average badge before the per-stage gauge", () => {
-    const md = renderReadmeSnippet(stages, 3.0, "docs/ai-usage/");
+    const md = renderReadmeSnippet(stages, 3.0, ASSET_PATH);
     assert.ok(
       md.indexOf("ai-usage-avg.svg") < md.indexOf("ai-usage.svg"),
       "average badge should come first",

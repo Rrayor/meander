@@ -41,6 +41,7 @@ const CELL_W = BAR_W / CELLS;
 const ROW_H = 30;
 const LABEL_MAX = 18;
 const UNRATED_LABEL = "not yet rated";
+export const OVERALL_LABEL = "Overall";
 
 const XML_ESCAPES = {
   "&": "&amp;",
@@ -234,7 +235,7 @@ export function renderBadge(avg, theme) {
     `<clipPath id="${clipId}"><rect x="0" y="0" width="${MINI_BAR_W}" height="${MINI_BAR_H}" rx="7"/></clipPath>` +
     `</defs>` +
     `<rect width="${BADGE_W}" height="${BADGE_H}" rx="8" fill="${t.chipBg}" stroke="${t.chipBorder}"/>` +
-    `<text x="12" y="20" font-size="11" font-weight="650" fill="${t.muted}">Overall</text>` +
+    `<text x="12" y="20" font-size="11" font-weight="650" fill="${t.muted}">${OVERALL_LABEL}</text>` +
     `<g transform="translate(${MINI_BAR_X},8)" clip-path="url(#${clipId})">${bar}${dividers}</g>` +
     `<text x="176" y="20" font-size="11" font-weight="700" fill="${t.score}">${value}</text>` +
     `</svg>`

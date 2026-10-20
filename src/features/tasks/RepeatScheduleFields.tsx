@@ -55,13 +55,21 @@ const monthlyDefaults = (iso: string) => {
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // Mirrors series.rs::iso_date — a real Gregorian date, not just the shape.
+const isLeapYear = (year: number) =>
+  (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+
+const daysInMonth = (year: number, month: number) => {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  if ([4, 6, 9, 11].includes(month)) return 30;
+  return 31;
+};
+
 const isRealIsoDate = (iso: string) => {
   if (!ISO_DATE_PATTERN.test(iso)) return false;
   const [year, month, day] = iso.split("-").map(Number);
-  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const daysInMonth =
-    month === 2 ? (leap ? 29 : 28) : [4, 6, 9, 11].includes(month) ? 30 : 31;
-  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth;
+  return (
+    month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(year, month)
+  );
 };
 
 // Mirrors the backend's bounds (series.rs::validate / iso_date); the
@@ -340,8 +348,7 @@ export function RepeatScheduleFields({
                 }
                 className={`${FIELD_CLASSES} w-14 px-2 py-1.5 text-center`}
               />
-              <div
-                role="group"
+              <fieldset
                 aria-label="Repeat unit"
                 className="flex h-[34px] w-60 items-center rounded border border-border bg-surface-dim p-0.5"
               >
@@ -356,7 +363,7 @@ export function RepeatScheduleFields({
                     {label}
                   </button>
                 ))}
-              </div>
+              </fieldset>
             </div>
           </div>
           {draft.unit === "week" && (
@@ -422,8 +429,7 @@ export function RepeatScheduleFields({
                 >
                   {REPEAT_ON_THE_LABEL}
                 </label>
-                <div
-                  role="group"
+                <fieldset
                   aria-label="Which occurrence"
                   className="flex items-center rounded border border-border bg-surface-dim p-0.5"
                 >
@@ -448,7 +454,7 @@ export function RepeatScheduleFields({
                       {label}
                     </button>
                   ))}
-                </div>
+                </fieldset>
               </div>
               {draft.monthMode === "weekday" &&
                 weekdayChips([draft.weekday], (w) =>

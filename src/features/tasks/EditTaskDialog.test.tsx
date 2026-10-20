@@ -29,11 +29,15 @@ import {
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_LABEL,
+  REPEAT_SECTION_LABEL,
+  REPEAT_UNIT_OPTIONS,
   SAVE_BUTTON_LABEL,
   SPENT_HOURS_LABEL,
   SPENT_MINUTES_LABEL,
   STATUS_LABELS,
   TITLE_REQUIRED_MESSAGE,
+  WEEKDAY_OPTIONS,
   createCategoryOptionLabel,
   removeTaskCategoryLabel,
 } from "@/lib/labels";
@@ -65,6 +69,9 @@ const mockedCreateCategory = vi.mocked(createCategory);
 const TITLE_ORIGINAL = "Draft weekly reflection notes";
 const TITLE_EDITED = "Review quarterly milestone planning";
 const DESCRIPTION_EDITED = "Flag risks early";
+const REPEAT_END_DATE = "2026-12-31";
+const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
+const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === "wednesday")!;
 
 const baseTask: Task = {
   id: 7,
@@ -465,7 +472,9 @@ describe("EditTaskDialog", () => {
 
   it("attaches a schedule when the repeat section is expanded", async () => {
     renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
+    );
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
     );
@@ -478,11 +487,13 @@ describe("EditTaskDialog", () => {
 
   it("sends the configured weekly schedule on the wire", async () => {
     renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
-    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
-    fireEvent.click(screen.getByRole("button", { name: /Wednesday/ }));
-    fireEvent.change(screen.getByLabelText(/Ends/), {
-      target: { value: "2026-12-31" },
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: WEEKLY_UNIT.label }));
+    fireEvent.click(screen.getByRole("button", { name: WEDNESDAY.label }));
+    fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
+      target: { value: REPEAT_END_DATE },
     });
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
@@ -492,9 +503,9 @@ describe("EditTaskDialog", () => {
       recurrence: {
         kind: "weekly",
         interval_weeks: 1,
-        weekdays: expect.arrayContaining(["wednesday"]),
+        weekdays: expect.arrayContaining([WEDNESDAY.value]),
       },
-      end_date: "2026-12-31",
+      end_date: REPEAT_END_DATE,
     });
   });
 
@@ -504,8 +515,10 @@ describe("EditTaskDialog", () => {
     await screen.findByRole("button", {
       name: removeTaskCategoryLabel(ERRANDS.title),
     });
-    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
-    const ends = screen.getByLabelText(/Ends/);
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
+    );
+    const ends = screen.getByLabelText(REPEAT_ENDS_LABEL);
     fireEvent.change(ends, { target: { value: "2020-01-01" } });
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -521,10 +534,12 @@ describe("EditTaskDialog", () => {
 
   it("clears the schedule when the repeat section is collapsed again", async () => {
     renderDialog();
-    const toggle = screen.getByRole("button", { name: /Repeat/ });
+    const toggle = screen.getByRole("button", {
+      name: new RegExp(REPEAT_SECTION_LABEL),
+    });
     fireEvent.click(toggle);
-    fireEvent.change(screen.getByLabelText(/Ends/), {
-      target: { value: "2026-12-31" },
+    fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
+      target: { value: REPEAT_END_DATE },
     });
     fireEvent.click(toggle);
     fireEvent.submit(
@@ -545,7 +560,9 @@ describe("EditTaskDialog", () => {
       ),
     );
     renderDialog();
-    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
+    );
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
     );
@@ -557,7 +574,7 @@ describe("EditTaskDialog", () => {
   it("hides the repeat section for a task already in a series", () => {
     renderDialog({ ...baseTask, series_id: 3 });
     expect(
-      screen.queryByRole("button", { name: /Repeat/ }),
+      screen.queryByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
     ).not.toBeInTheDocument();
   });
 

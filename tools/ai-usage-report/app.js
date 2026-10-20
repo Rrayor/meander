@@ -12,6 +12,7 @@ import { zipSync } from "./zip.js";
 
 const SCORE_RANGE = [0, 1, 2, 3, 4, 5];
 const NOT_RATED_LABEL = "not rated";
+const COPY_LABEL = "Copy";
 
 let stages = [
   "Specification",
@@ -135,6 +136,7 @@ const renderStages = () => {
     explanation.placeholder = "Optional explanation";
     explanation.addEventListener("input", () => {
       stage.explanation = explanation.value;
+      refresh();
     });
 
     fields.append(name, scoreField, explanation);
@@ -219,13 +221,13 @@ copyBtn.addEventListener("click", async () => {
     sel.addRange(range);
     copyBtn.textContent = "Select + Ctrl-C";
     setTimeout(() => {
-      copyBtn.textContent = "Copy";
+      copyBtn.textContent = COPY_LABEL;
     }, 2000);
     return;
   }
   copyBtn.textContent = "Copied";
   setTimeout(() => {
-    copyBtn.textContent = "Copy";
+    copyBtn.textContent = COPY_LABEL;
   }, 1500);
 });
 
