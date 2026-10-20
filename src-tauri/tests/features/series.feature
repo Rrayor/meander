@@ -1,32 +1,33 @@
-Feature: Task series
-  A repetition schedule on task creation or editing creates a task
-  series; the task stays an ordinary instance linked to it.
+Feature: Repeating tasks
+  A task can repeat on a schedule so routine work does not need to be
+  re-entered. The task the user created remains an ordinary task — the
+  schedule persists alongside it as its series.
 
-  Scenario: creating a task with a schedule creates a linked series
+  Scenario: creating a task that repeats
     Given an application state on a temporary seeded database
     When I create a task titled "Standup" repeating weekly on Monday
     Then the task creation succeeds
-    And the series list has 1 series
-    And the task is linked to the series
+    And a task titled "Standup" exists in the backlog
+    And Standup repeats weekly on Monday
 
-  Scenario: adding a schedule on edit links the existing task
+  Scenario: making an existing task repeat
     Given an application state on a temporary seeded database
     And a backlog task titled Alpha
-    When I add a weekly Monday schedule to Alpha
+    When I make Alpha repeat weekly on Monday
     Then the task update succeeds
-    And the series list has 1 series
-    And the task is linked to the series
+    And Alpha repeats weekly on Monday
+    And Alpha is still the same task
 
-  Scenario: rescheduling an already-linked task is rejected
+  Scenario: a repeating task's schedule belongs to its series
     Given an application state on a temporary seeded database
     When I create a task titled "Standup" repeating weekly on Monday
-    And I add a weekly Monday schedule to the linked task
+    And I try to change Standup's schedule
     Then the task update fails
-    And the series list has 1 series
+    And Standup still repeats weekly on Monday
 
-  Scenario: series are scoped to their owning profile
+  Scenario: repeating tasks are not shared across profiles
     Given an application state on a temporary seeded database
     And a second profile exists
     When I create a task titled "Standup" repeating weekly on Monday
     And the application switches to the second profile
-    Then the series list is empty
+    Then no repeating tasks exist

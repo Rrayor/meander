@@ -11,6 +11,7 @@ struct MeanderWorld {
     candidate: Option<std::path::PathBuf>,
     profile_id: Option<i64>,
     previous_active: Option<i64>,
+    task_id: Option<i64>,
     remembered_updated_at: Option<String>,
     error: Option<String>,
 }
@@ -1534,6 +1535,7 @@ fn add_schedule_to(world: &mut MeanderWorld, title: &str) {
         .into_iter()
         .find(|t| t.title == title)
         .expect("task missing");
+    world.task_id = Some(task.id);
     if let Err(e) = world.rt().block_on(meander_lib::tasks::update(
         &pool,
         active,
@@ -1552,35 +1554,19 @@ fn add_schedule_to(world: &mut MeanderWorld, title: &str) {
     }
 }
 
-#[when(expr = "I add a weekly Monday schedule to {word}")]
-fn schedule_named_task(world: &mut MeanderWorld, title: String) {
+#[when(expr = "I make {word} repeat weekly on Monday")]
+fn make_task_repeat(world: &mut MeanderWorld, title: String) {
     add_schedule_to(world, &title);
 }
 
-#[when("I add a weekly Monday schedule to the linked task")]
-fn schedule_linked_task(world: &mut MeanderWorld) {
-    add_schedule_to(world, "Standup");
+#[when(expr = "I try to change {word}'s schedule")]
+fn reschedule_task(world: &mut MeanderWorld, title: String) {
+    add_schedule_to(world, &title);
 }
 
-#[then(expr = "the series list has {int} series")]
-fn series_list_len(world: &mut MeanderWorld, expected: usize) {
-    let state = world.state.as_ref().expect("no app state in world");
-    let pool = state.pool();
-    let active = state.active_profile_id();
-    let series = world
-        .rt()
-        .block_on(meander_lib::series::list(&pool, active))
-        .expect("series list failed");
-    assert_eq!(series.len(), expected);
-}
-
-#[then("the series list is empty")]
-fn series_list_empty(world: &mut MeanderWorld) {
-    series_list_len(world, 0);
-}
-
-#[then("the task is linked to the series")]
-fn task_is_linked(world: &mut MeanderWorld) {
+/// The capability assertion behind "X repeats weekly on Monday": the task
+/// the user sees is backed by a series carrying exactly that rule.
+fn repeats_weekly_monday(world: &mut MeanderWorld, title: &str) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
@@ -1588,9 +1574,60 @@ fn task_is_linked(world: &mut MeanderWorld) {
         .rt()
         .block_on(meander_lib::tasks::list(&pool, active))
         .expect("task list failed");
+    let task = tasks
+        .iter()
+        .find(|t| t.title == title)
+        .expect("task not found");
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, active))
+        .expect("series list failed")
+        .into_iter()
+        .find(|s| Some(s.id) == task.series_id)
+        .expect("the task does not repeat");
+    assert_eq!(
+        series.recurrence,
+        meander_lib::series::Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![meander_lib::series::Weekday::Monday],
+        }
+    );
+}
+
+#[then(expr = "{word} repeats weekly on Monday")]
+fn task_repeats(world: &mut MeanderWorld, title: String) {
+    repeats_weekly_monday(world, &title);
+}
+
+#[then(expr = "{word} still repeats weekly on Monday")]
+fn task_still_repeats(world: &mut MeanderWorld, title: String) {
+    repeats_weekly_monday(world, &title);
+}
+
+#[then(expr = "{word} is still the same task")]
+fn task_is_same(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let matching: Vec<_> = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .filter(|t| t.title == title)
+        .collect();
+    assert_eq!(matching.len(), 1, "the task was replaced, not updated");
+    assert_eq!(matching[0].id, world.task_id.expect("no captured task id"));
+}
+
+#[then("no repeating tasks exist")]
+fn no_repeating_tasks(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
     let series = world
         .rt()
         .block_on(meander_lib::series::list(&pool, active))
         .expect("series list failed");
-    assert_eq!(tasks[0].series_id, Some(series[0].id));
+    assert!(series.is_empty());
 }
