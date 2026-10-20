@@ -28,6 +28,7 @@ import {
   EDIT_TASK_HEADING,
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
+  REPEAT_ENDS_BEFORE_START_MESSAGE,
   SAVE_BUTTON_LABEL,
   SPENT_HOURS_LABEL,
   SPENT_MINUTES_LABEL,
@@ -475,10 +476,104 @@ describe("EditTaskDialog", () => {
     });
   });
 
+  it("sends the configured weekly schedule on the wire", async () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+    fireEvent.click(screen.getByRole("button", { name: /Wednesday/ }));
+    fireEvent.change(screen.getByLabelText(/Ends/), {
+      target: { value: "2026-12-31" },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
+    expect(mockedUpdate.mock.calls[0][1].series).toMatchObject({
+      recurrence: {
+        kind: "weekly",
+        interval_weeks: 1,
+        weekdays: expect.arrayContaining(["wednesday"]),
+      },
+      end_date: "2026-12-31",
+    });
+  });
+
+  it("blocks saving while the schedule is invalid", async () => {
+    renderDialog();
+    // Let the stored-category query settle before asserting on the form.
+    await screen.findByRole("button", {
+      name: removeTaskCategoryLabel(ERRANDS.title),
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    const ends = screen.getByLabelText(/Ends/);
+    fireEvent.change(ends, { target: { value: "2020-01-01" } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      REPEAT_ENDS_BEFORE_START_MESSAGE,
+    );
+    // Save is disabled while the schedule is invalid — the submit button is
+    // the gate here, so a synthetic form submit would bypass it.
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("clears the schedule when the repeat section is collapsed again", async () => {
+    renderDialog();
+    const toggle = screen.getByRole("button", { name: /Repeat/ });
+    fireEvent.click(toggle);
+    fireEvent.change(screen.getByLabelText(/Ends/), {
+      target: { value: "2026-12-31" },
+    });
+    fireEvent.click(toggle);
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
+    expect(mockedUpdate.mock.calls[0][1].series).toBeNull();
+  });
+
+  it("surfaces an already_in_series rejection from the backend", async () => {
+    const { ApiError } = await import("@/api/transport");
+    const ALREADY_IN_SERIES_MESSAGE = "the task already repeats";
+    mockedUpdate.mockRejectedValue(
+      new ApiError(
+        "already_in_series",
+        "validation",
+        ALREADY_IN_SERIES_MESSAGE,
+      ),
+    );
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      ALREADY_IN_SERIES_MESSAGE,
+    );
+  });
+
   it("hides the repeat section for a task already in a series", () => {
     renderDialog({ ...baseTask, series_id: 3 });
     expect(
       screen.queryByRole("button", { name: /Repeat/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("a series instance still updates its fields with no schedule on the wire", async () => {
+    renderDialog({ ...baseTask, series_id: 3 });
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: TITLE_EDITED },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        baseTask.id,
+        expect.objectContaining({ title: TITLE_EDITED, series: null }),
+      ),
+    );
   });
 });
