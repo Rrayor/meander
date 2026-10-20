@@ -99,6 +99,10 @@ const TITLE_ORIGINAL = "Draft weekly reflection notes";
 const TITLE_EDITED = "Review quarterly milestone planning";
 const DESCRIPTION_EDITED = "Flag risks early";
 const REPEAT_END_DATE = "2026-12-31";
+// Mondays in Oct 2026 — the opened instance's date and a second persisted
+// one the calendar tests pick.
+const OPENED_INSTANCE_DATE = "2026-10-19";
+const OTHER_INSTANCE_DATE = "2026-10-26";
 const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
 const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === "wednesday")!;
 
@@ -739,7 +743,7 @@ describe("EditTaskDialog", () => {
           task={{
             ...baseTask,
             series_id: baseSeries.id,
-            scheduled_date: "2026-10-19",
+            scheduled_date: OPENED_INSTANCE_DATE,
           }}
           onClose={vi.fn()}
         />
@@ -767,7 +771,7 @@ describe("EditTaskDialog", () => {
           task={{
             ...baseTask,
             series_id: baseSeries.id,
-            scheduled_date: "2026-10-19",
+            scheduled_date: OPENED_INSTANCE_DATE,
           }}
           onClose={vi.fn()}
         />
@@ -775,7 +779,9 @@ describe("EditTaskDialog", () => {
     );
 
     // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance.
-    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
     expect(
       await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
@@ -790,7 +796,7 @@ describe("EditTaskDialog", () => {
       id: 42,
       description: "the other occurrence",
       series_id: baseSeries.id,
-      scheduled_date: "2026-10-26",
+      scheduled_date: OTHER_INSTANCE_DATE,
     };
     mockedListSeriesInstances.mockResolvedValue([other]);
     render(
@@ -799,14 +805,16 @@ describe("EditTaskDialog", () => {
           task={{
             ...baseTask,
             series_id: baseSeries.id,
-            scheduled_date: "2026-10-19",
+            scheduled_date: OPENED_INSTANCE_DATE,
           }}
           onClose={vi.fn()}
         />
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
     expect(await screen.findByText(other.description)).toBeInTheDocument();
     // Edit only applies to the opened task — it hides while viewing another
     // instance so it can't silently edit the wrong row.
@@ -821,7 +829,7 @@ describe("EditTaskDialog", () => {
       id: 42,
       title: TITLE_EDITED,
       series_id: baseSeries.id,
-      scheduled_date: "2026-10-26",
+      scheduled_date: OTHER_INSTANCE_DATE,
     };
     mockedListSeriesInstances.mockResolvedValue([other]);
     render(
@@ -830,7 +838,7 @@ describe("EditTaskDialog", () => {
           task={{
             ...baseTask,
             series_id: baseSeries.id,
-            scheduled_date: "2026-10-19",
+            scheduled_date: OPENED_INSTANCE_DATE,
           }}
           onClose={vi.fn()}
         />
@@ -840,7 +848,9 @@ describe("EditTaskDialog", () => {
     expect(
       screen.getByRole("dialog", { name: TITLE_ORIGINAL }),
     ).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
     expect(
       await screen.findByRole("dialog", { name: TITLE_EDITED }),
     ).toBeInTheDocument();
