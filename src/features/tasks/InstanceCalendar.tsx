@@ -15,8 +15,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const toIso = (d: Date) =>
   `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 
-// Monday (index 0) through Sunday — the planner's week order.
-const WEEK_ORDER = [...WEEKDAY_OPTIONS.slice(1), WEEKDAY_OPTIONS[0]];
+// WEEKDAY_OPTIONS is already ordered Monday → Sunday.
+const WEEK_ORDER = WEEKDAY_OPTIONS;
 
 const monthLabel = (year: number, month: number, locale?: string) =>
   new Date(Date.UTC(year, month, 1)).toLocaleDateString(locale, {
@@ -124,7 +124,9 @@ export function InstanceCalendar({
             <button
               key={iso}
               type="button"
-              aria-pressed={selected}
+              // Day-of-month alone is ambiguous across adjacent months.
+              aria-label={iso}
+              aria-current={selected ? "date" : undefined}
               onClick={() => pick(iso)}
               className={`rounded-md py-1 text-center text-xs transition-colors ${
                 selected

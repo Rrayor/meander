@@ -32,7 +32,6 @@ import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import type { NewSeries } from "@/api/bindings";
 import { listSeriesInstances, listTaskSeries } from "@/api/series";
-import { describeRecurrence } from "@/lib/recurrence";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -65,6 +64,7 @@ import {
   TASK_SCOPE_SERIES_LABEL,
   TITLE_REQUIRED_MESSAGE,
   auditTimestampsLabel,
+  describeRecurrence,
   formatMinutes,
   seriesAuditLabel,
 } from "@/lib/labels";
@@ -183,9 +183,15 @@ export function EditTaskDialog({
     if (mode === "edit") setFocus("title");
   }, [mode, setFocus]);
 
+  // Which instance the read-only view is showing — the opened task until the
+  // calendar picks a different persisted date or an unpersisted one (then
+  // `pendingIso` is set and the fields give way to the empty state).
+  const [viewed, setViewed] = useState<Task>(task);
+  const [pendingIso, setPendingIso] = useState<string | null>(null);
+
   const { data: initialCategories } = useQuery({
-    queryKey: QUERY_KEYS.taskCategories(task.id),
-    queryFn: () => listTaskCategories(task.id),
+    queryKey: QUERY_KEYS.taskCategories(viewed.id),
+    queryFn: () => listTaskCategories(viewed.id),
   });
   const { data: taskSeries } = useQuery({
     queryKey: QUERY_KEYS.taskSeries,
@@ -193,16 +199,11 @@ export function EditTaskDialog({
     enabled: task.series_id !== null,
   });
   const { data: seriesInstances } = useQuery({
-    queryKey: QUERY_KEYS.seriesInstances(task.series_id ?? 0),
+    queryKey: QUERY_KEYS.seriesInstances(task.series_id!),
     queryFn: () => listSeriesInstances(task.series_id!),
     enabled: task.series_id !== null,
   });
   const seriesRow = taskSeries?.find((s) => s.id === task.series_id);
-  // Which instance the read-only view is showing — the opened task until the
-  // calendar picks a different persisted date or an unpersisted one (then
-  // `pendingIso` is set and the fields give way to the empty state).
-  const [viewed, setViewed] = useState<Task>(task);
-  const [pendingIso, setPendingIso] = useState<string | null>(null);
   // The selection is derived state: stored associations minus the chips the
   // user removed plus the ones they added. Deriving it (rather than seeding
   // state once) keeps picks intact when the query resolves late *and* lets
@@ -342,15 +343,17 @@ export function EditTaskDialog({
             {mode === "view" ? task.title : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
-            {mode === "view" && (
-              <button
-                type="button"
-                onClick={() => setMode("edit")}
-                className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
-              >
-                {EDIT_BUTTON_LABEL}
-              </button>
-            )}
+            {mode === "view" &&
+              viewed.id === task.id &&
+              pendingIso === null && (
+                <button
+                  type="button"
+                  onClick={() => setMode("edit")}
+                  className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+                >
+                  {EDIT_BUTTON_LABEL}
+                </button>
+              )}
             <button
               type="button"
               onClick={onClose}

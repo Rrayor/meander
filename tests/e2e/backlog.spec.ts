@@ -751,7 +751,7 @@ test("picking a scheduled date without an instance shows the pending state", asy
   const dialog = page.getByRole("dialog");
 
   // Mondays in Oct 2026: 5, 12, 19 (persisted), 26 — 26 has no instance.
-  await dialog.getByRole("button", { name: "26", exact: true }).click();
+  await dialog.getByRole("button", { name: "2026-10-26" }).click();
   await expect(
     dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
   ).toBeVisible();

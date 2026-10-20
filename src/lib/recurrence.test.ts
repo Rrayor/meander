@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Recurrence } from "@/api/bindings";
-import { describeRecurrence, isScheduledOn } from "@/lib/recurrence";
-import { REPEAT_UNIT_OPTIONS, WEEKDAY_OPTIONS } from "@/lib/labels";
+import { isScheduledOn } from "@/lib/recurrence";
+import {
+  REPEAT_UNIT_OPTIONS,
+  WEEKDAY_OPTIONS,
+  describeRecurrence,
+  workdayAfterLabel,
+} from "@/lib/labels";
 
 const MONDAY = WEEKDAY_OPTIONS.find((w) => w.value === "monday")!.label;
 const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!.label;
@@ -211,7 +216,7 @@ describe("describeRecurrence", () => {
       }),
     ).toBe(`every ${singular(month)} on the Last ${FRIDAY}`);
     expect(describeRecurrence({ kind: "workday_after", day: 15 })).toBe(
-      "the first workday after day 15",
+      workdayAfterLabel(15),
     );
   });
 });

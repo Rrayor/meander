@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
-import { CALENDAR_NEXT_LABEL, CALENDAR_PREVIOUS_LABEL } from "@/lib/labels";
+import {
+  CALENDAR_NEXT_LABEL,
+  CALENDAR_PREVIOUS_LABEL,
+  WEEKDAY_OPTIONS,
+} from "@/lib/labels";
 
 const series: TaskSeries = {
   id: 3,
@@ -61,6 +65,23 @@ const renderCalendar = (
 describe("InstanceCalendar", () => {
   afterEach(() => vi.useRealTimers());
 
+  it("renders weekday headers Monday-first, matching the day cells", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-19T12:00:00"));
+    const { container } = render(
+      <InstanceCalendar
+        series={series}
+        instances={[]}
+        selectedIso={null}
+        onPick={vi.fn()}
+      />,
+    );
+    const headerTexts = Array.from(container.querySelector(".grid")!.children)
+      .slice(0, 7)
+      .map((el) => el.textContent);
+    expect(headerTexts).toEqual(WEEKDAY_OPTIONS.map((w) => w.short));
+  });
+
   it("renders the current month with prev/next navigation", () => {
     renderCalendar();
     expect(screen.getByText(/October 2026/)).toBeInTheDocument();
@@ -75,11 +96,15 @@ describe("InstanceCalendar", () => {
   it("only scheduled dates are selectable", () => {
     renderCalendar();
     // Mondays in Oct 2026: 5, 12, 19, 26 — selectable buttons.
-    expect(screen.getByRole("button", { name: "5" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "19" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "2026-10-05" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "2026-10-19" }),
+    ).toBeInTheDocument();
     // A Tuesday is rendered but not selectable.
     expect(
-      screen.queryByRole("button", { name: "20" }),
+      screen.queryByRole("button", { name: "2026-10-20" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("20")).toBeInTheDocument();
   });
@@ -87,21 +112,21 @@ describe("InstanceCalendar", () => {
   it("picking a persisted date returns its task", () => {
     const persisted = instance("2026-10-19");
     const onPick = renderCalendar([persisted]);
-    fireEvent.click(screen.getByRole("button", { name: "19" }));
+    fireEvent.click(screen.getByRole("button", { name: "2026-10-19" }));
     expect(onPick).toHaveBeenCalledWith(persisted, "2026-10-19");
   });
 
   it("picking a scheduled but unpersisted date returns null", () => {
     const onPick = renderCalendar([]);
-    fireEvent.click(screen.getByRole("button", { name: "26" }));
+    fireEvent.click(screen.getByRole("button", { name: "2026-10-26" }));
     expect(onPick).toHaveBeenCalledWith(null, "2026-10-26");
   });
 
   it("marks the selected date", () => {
     renderCalendar([], vi.fn(), "2026-10-12");
-    expect(screen.getByRole("button", { name: "12" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    expect(screen.getByRole("button", { name: "2026-10-12" })).toHaveAttribute(
+      "aria-current",
+      "date",
     );
   });
 });

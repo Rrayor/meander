@@ -1,3 +1,5 @@
+import type { Recurrence } from "@/api/bindings";
+
 export const STATUS_LABELS = {
   todo: "Todo",
   in_progress: "In progress",
@@ -127,6 +129,46 @@ export const REPEAT_NTH_OPTIONS = [
 
 export const seriesAuditLabel = (description: string, created: string) =>
   `Repeats ${description} — series created ${created}`;
+
+export const workdayAfterLabel = (day: number) =>
+  `the first workday after day ${day}`;
+
+const weekdayLabel = (value: string) =>
+  WEEKDAY_OPTIONS.find((w) => w.value === value)?.label ?? value;
+
+const UNIT_LABELS = Object.fromEntries(
+  REPEAT_UNIT_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<string, string>;
+
+const andJoin = (items: string[]) =>
+  items.length <= 2
+    ? items.join(" and ")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+// Human-readable schedule description for the series audit line, e.g.
+// "every 2 weeks on Monday and Friday".
+export const describeRecurrence = (recurrence: Recurrence): string => {
+  const cadence = (interval: number, unit: string) =>
+    interval === 1 ? `every ${unit.slice(0, -1)}` : `every ${interval} ${unit}`;
+  switch (recurrence.kind) {
+    case "daily":
+      return cadence(recurrence.interval_days, UNIT_LABELS.day);
+    case "weekly": {
+      const days = andJoin(recurrence.weekdays.map(weekdayLabel));
+      return `${cadence(recurrence.interval_weeks, UNIT_LABELS.week)} on ${days}`;
+    }
+    case "monthly_day":
+      return `${cadence(recurrence.interval_months, UNIT_LABELS.month)} on day ${recurrence.day}`;
+    case "monthly_nth_weekday": {
+      const nth = REPEAT_NTH_OPTIONS.find(
+        (o) => o.value === String(recurrence.nth),
+      )?.aria;
+      return `${cadence(recurrence.interval_months, UNIT_LABELS.month)} on the ${nth} ${weekdayLabel(recurrence.weekday)}`;
+    }
+    case "workday_after":
+      return workdayAfterLabel(recurrence.day);
+  }
+};
 
 export const TASK_SCOPE_GROUP_LABEL = "Apply changes to";
 export const TASK_SCOPE_INSTANCE_LABEL = "This instance only";

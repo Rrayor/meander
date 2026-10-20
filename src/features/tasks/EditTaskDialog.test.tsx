@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 
 import {
@@ -44,6 +45,8 @@ import {
   STATUS_LABELS,
   TITLE_REQUIRED_MESSAGE,
   formatMinutes,
+  auditTimestampsLabel,
+  describeRecurrence,
   seriesAuditLabel,
   TASK_SCOPE_COMING_SOON_HINT,
   TASK_SCOPE_FUTURE_LABEL,
@@ -54,7 +57,6 @@ import {
   createCategoryOptionLabel,
   removeTaskCategoryLabel,
 } from "@/lib/labels";
-import { describeRecurrence } from "@/lib/recurrence";
 import {
   listSeriesInstances,
   listTaskSeries,
@@ -189,7 +191,14 @@ describe("EditTaskDialog", () => {
 
   it("shows the read-only audit timestamps", () => {
     renderDialog();
-    expect(screen.getByText(/Created .* · Last updated/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        auditTimestampsLabel(
+          formatDate(baseTask.created_at),
+          formatDate(baseTask.updated_at),
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("submits the full update payload", async () => {
@@ -742,7 +751,9 @@ describe("EditTaskDialog", () => {
     expect(
       screen.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText(NOTES_EMPTY_MESSAGE)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tabpanel")).getByText(NOTES_EMPTY_MESSAGE),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }));
     expect(
       screen.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }),
@@ -764,10 +775,13 @@ describe("EditTaskDialog", () => {
     );
 
     // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance.
-    fireEvent.click(await screen.findByRole("button", { name: "26" }));
+    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
     expect(
       await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
   });
 
   it("loads a persisted instance when its date is picked", async () => {
@@ -792,8 +806,13 @@ describe("EditTaskDialog", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "26" }));
+    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
     expect(await screen.findByText(other.description)).toBeInTheDocument();
+    // Edit only applies to the opened task — it hides while viewing another
+    // instance so it can't silently edit the wrong row.
+    expect(
+      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
   });
 
   it("a series instance still updates its fields with no schedule on the wire", async () => {
