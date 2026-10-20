@@ -3,6 +3,9 @@ import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
   EDIT_BUTTON_LABEL,
+  NOTES_TAB_INSTANCE_LABEL,
+  NOTES_TAB_SERIES_LABEL,
+  SCHEDULED_INSTANCE_PENDING_MESSAGE,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
@@ -643,4 +646,113 @@ test("the edit dialog hides the repeat section for a series instance", async ({
   await expect(
     dialog.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
   ).not.toBeVisible();
+});
+
+const seriesFixture = {
+  id: 7,
+  profile_id: 1,
+  title: TITLE_DRAFT_NOTES,
+  description: null,
+  carry_over_rule: "return",
+  estimated_minutes: null,
+  recurrence: {
+    kind: "weekly",
+    interval_weeks: 1,
+    weekdays: ["monday"],
+  },
+  start_date: "2026-10-05",
+  end_date: null,
+  created_at: "2026-10-11 10:00:00",
+  updated_at: "2026-10-11 10:00:00",
+};
+const seriesInstance = {
+  ...tasks[0],
+  series_id: seriesFixture.id,
+  scheduled_date: "2026-10-19",
+};
+const SERIES_MONTH = new Date(Date.UTC(2026, 9, 1)).toLocaleDateString(
+  "en-US",
+  { month: "long", year: "numeric", timeZone: "UTC" },
+);
+
+test("opening a task shows a read-only details view first", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [tasks[0]],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+
+  // Read-only: no form fields at all until Edit is pressed.
+  await expect(dialog.getByRole("textbox")).toHaveCount(0);
+  await expect(dialog.getByLabel(/Title/)).toHaveCount(0);
+  await expect(
+    dialog.getByRole("heading", { name: TITLE_DRAFT_NOTES }),
+  ).toBeVisible();
+  await expect(dialog.getByText(STATUS_LABELS.todo)).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await expect(dialog.getByLabel(/Title/)).toHaveValue(TITLE_DRAFT_NOTES);
+});
+
+test("a series task shows audit info, calendar, and notes tabs", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+
+  await expect(dialog.getByText(/Repeats .* series created/)).toBeVisible();
+  await expect(dialog.getByText(SERIES_MONTH)).toBeVisible();
+  await expect(
+    dialog.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
+  ).toHaveAttribute("aria-selected", "true");
+  await dialog.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }).click();
+  await expect(
+    dialog.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }),
+  ).toHaveAttribute("aria-selected", "true");
+});
+
+test("picking a scheduled date without an instance shows the pending state", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+
+  // Mondays in Oct 2026: 5, 12, 19 (persisted), 26 — 26 has no instance.
+  await dialog.getByRole("button", { name: "26", exact: true }).click();
+  await expect(
+    dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+  ).toBeVisible();
 });

@@ -107,12 +107,13 @@ export function InstanceCalendar({
             iso,
           );
           if (!scheduled) {
+            // Padding days outside the month stay blank — showing them
+            // faded fails contrast and adds noise.
+            if (!inMonth) return <span key={iso} />;
             return (
               <span
                 key={iso}
-                className={`py-1 text-center text-xs ${
-                  inMonth ? "text-text-muted" : "text-text-muted/40"
-                }`}
+                className="py-1 text-center text-xs text-text-muted"
               >
                 {day}
               </span>
