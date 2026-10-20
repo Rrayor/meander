@@ -24,7 +24,7 @@
 
 - `isScheduledOn` month-end clamping: monthly-day `31` must land on Feb 28/29 (per `REPEAT_MONTHLY_CLAMP_HINT`), never skip the month — Task 3 tests pin leap/non-leap.
 - Interval anchoring: "every 2 weeks" must count from `start_date`, not from an epoch Monday — Task 3 tests pin a non-aligned start.
-- `monthly_nth_weekday` with `nth = -1` (last) must find the *last* matching weekday, and `nth` beyond the month's count must not match (no 5th-Monday collapse) — Task 3.
+- `monthly_nth_weekday` with `nth = -1` (last) must find the _last_ matching weekday, and `nth` beyond the month's count must not match (no 5th-Monday collapse) — Task 3.
 - Selecting a date whose instance isn't persisted yet must show the empty state, not a crash or a phantom task — Task 7.
 - Read-only mode must not let a stray submit save anything (form absent/disabled) — Task 5.
 
@@ -33,12 +33,14 @@
 ### Task 1: Backend `list_series_instances` command
 
 **Files:**
+
 - Modify: `src-tauri/src/tasks.rs` (add `list_instances`)
 - Modify: `src-tauri/src/commands.rs:158` (add command next to `list_task_series`)
 - Modify: `src-tauri/src/lib.rs` (register in invoke handler)
 - Regenerate: `src/api/bindings.ts`
 
 **Interfaces:**
+
 - Produces: `pub async fn list_instances(pool: &SqlitePool, profile_id: i64, series_id: i64) -> Result<Vec<Task>, DbError>` returning tasks where `series_id = ?` ordered by `scheduled_date`.
 - Command: `#[tauri::command] pub async fn list_series_instances(state: State<'_, AppState>, series_id: i64) -> Result<Vec<Task>, ApiError>`.
 
@@ -52,6 +54,7 @@
 ### Task 2: Stitch design pass
 
 **Files:**
+
 - Create: `.stitch/designs/task-details-dialog.html`
 - Modify: `.stitch/metadata.json`
 
@@ -62,10 +65,12 @@
 ### Task 3: `isScheduledOn` recurrence predicate
 
 **Files:**
+
 - Create: `src/lib/recurrence.ts`
 - Test: `src/lib/recurrence.test.ts`
 
 **Interfaces:**
+
 - Produces: `export const isScheduledOn = (recurrence: Recurrence, startIso: string, endIso: string | null, iso: string) => boolean` — true when `iso` is a scheduled occurrence in `[startIso, endIso ?? ∞]`. `iso` is `YYYY-MM-DD`.
 
 Rules: daily → `(date - start).days % interval === 0`; weekly → `(weeks between)` `% interval === 0` AND iso's weekday ∈ `weekdays`; monthly_day → `(months since start) % interval === 0` AND iso day == min(day, last day of month); monthly_nth_weekday → same month-interval test AND iso is the nth (or last when nth = -1) matching weekday of its month.
@@ -79,10 +84,12 @@ Rules: daily → `(date - start).days % interval === 0`; weekly → `(weeks betw
 ### Task 4: TS API wrappers + query keys
 
 **Files:**
+
 - Modify: `src/api/tasks.ts` (or new `src/api/series.ts` if cleaner)
 - Modify: `src/api/commands.ts`, `src/api/queryKeys.ts`
 
 **Interfaces:**
+
 - Produces: `listSeriesInstances(seriesId: number): Promise<Task[]>`, `listTaskSeries(): Promise<TaskSeries[]>`; `QUERY_KEYS.seriesInstances(seriesId)`, `QUERY_KEYS.taskSeries` (profile-scoped like existing keys).
 
 - [ ] **Step 1:** Add `listSeriesInstances`/`listTaskSeries` command names, wrappers through `transport.invoke`, and profile-scoped query keys (follow `listTaskCategories` conventions).
@@ -92,6 +99,7 @@ Rules: daily → `(date - start).days % interval === 0`; weekly → `(weeks betw
 ### Task 5: Read-only view mode + Edit toggle in `EditTaskDialog`
 
 **Files:**
+
 - Modify: `src/features/tasks/EditTaskDialog.tsx` (add `mode` state: `"view" | "edit"`, default `"view"`)
 - Test: `src/features/tasks/EditTaskDialog.test.tsx`
 
@@ -104,6 +112,7 @@ Rules: daily → `(date - start).days % interval === 0`; weekly → `(weeks betw
 ### Task 6: Series sections — audit info, save-scope prompt
 
 **Files:**
+
 - Modify: `src/features/tasks/EditTaskDialog.tsx`
 - Modify: `src/lib/labels.ts` (series audit labels, scope labels, disabled hint)
 - Test: `src/features/tasks/EditTaskDialog.test.tsx`
@@ -117,11 +126,13 @@ Rules: daily → `(date - start).days % interval === 0`; weekly → `(weeks betw
 ### Task 7: Instance calendar + notes tabs
 
 **Files:**
+
 - Create: `src/features/tasks/InstanceCalendar.tsx`, `src/features/tasks/NotesTabs.tsx`
 - Modify: `src/features/tasks/EditTaskDialog.tsx` (render both below fields when `task.series_id`)
 - Test: `src/features/tasks/InstanceCalendar.test.tsx`, dialog tests
 
 **Interfaces:**
+
 - Consumes: `isScheduledOn` (Task 3), `listSeriesInstances` (Task 4), `TaskSeries` (Task 4 wrapper), labels registry.
 - `InstanceCalendar({ series, onPick }: { series: TaskSeries; onPick: (task: Task | null, iso: string) => void })` — month grid; scheduled dates (via `isScheduledOn`) are selectable; selecting calls `onPick` with the persisted `Task` for that `scheduled_date` or `null` + the iso.
 
@@ -134,6 +145,7 @@ Rules: daily → `(date - start).days % interval === 0`; weekly → `(weeks betw
 ### Task 8: e2e + a11y coverage
 
 **Files:**
+
 - Modify: `tests/e2e/backlog.spec.ts`, `tests/e2e/accessibility.spec.ts`, `tests/e2e/stubs.ts` (fixture tasks with `series_id`/`scheduled_date`)
 
 - [ ] **Step 1: Failing spec** — opening a task shows read-only details (no inputs); Edit unlocks the form; a series task shows the calendar + tabs; selecting a scheduled date shows the instance or empty state (stub `list_series_instances`/`list_task_series`).

@@ -449,6 +449,22 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     .await?)
 }
 
+/// Persisted instances of one series, oldest first — the details view's
+/// calendar reads these to tell real instances from merely-scheduled dates.
+pub async fn list_instances(
+    pool: &SqlitePool,
+    profile_id: i64,
+    series_id: i64,
+) -> Result<Vec<Task>> {
+    Ok(sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? AND series_id = ? ORDER BY scheduled_date, id",
+    )
+    .bind(profile_id)
+    .bind(series_id)
+    .fetch_all(pool)
+    .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -736,6 +752,70 @@ mod tests {
         // rule normalizes to Return on both (spec §95).
         assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
         assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
+    }
+
+    #[tokio::test]
+    async fn list_instances_returns_a_series_tasks_in_date_order() {
+        let (pool, pid) = seeded_pool().await;
+        let first = create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(weekly_schedule()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let sid = first.series_id.unwrap();
+        // A second instance of the same series, dated before the first, and
+        // an unrelated task that must not leak in.
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, sort_order) \
+             VALUES (?, ?, ?, '2026-10-26', ?)",
+        )
+        .bind(pid)
+        .bind(TITLE_B)
+        .bind(sid)
+        .bind(99.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE tasks SET scheduled_date = '2026-10-19' WHERE id = ?")
+            .bind(first.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        create(&pool, pid, &task(TITLE_C)).await.unwrap();
+
+        let instances = list_instances(&pool, pid, sid).await.unwrap();
+        let names: Vec<&str> = instances.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(names, vec![TITLE_A, TITLE_B]);
+    }
+
+    #[tokio::test]
+    async fn list_instances_is_scoped_to_the_owning_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Other").await.unwrap();
+        let foreign = create(
+            &pool,
+            other.id,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(weekly_schedule()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            list_instances(&pool, pid, foreign.series_id.unwrap())
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

@@ -164,6 +164,16 @@ pub async fn list_task_series(
 }
 
 #[tauri::command]
+pub async fn list_series_instances(
+    series_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::tasks::Task>, ApiError> {
+    crate::tasks::list_instances(&state.pool(), state.active_profile_id(), series_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn delete_task_series(
     series_id: i64,
     state: State<'_, AppState>,

@@ -42,6 +42,7 @@ pub fn run() {
             commands::delete_task,
             commands::update_task,
             commands::list_task_series,
+            commands::list_series_instances,
             commands::delete_task_series,
             commands::current_profile,
             commands::create_profile,
