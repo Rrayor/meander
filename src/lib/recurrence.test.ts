@@ -323,4 +323,15 @@ describe("firstOccurrence", () => {
       ),
     ).toBeNull();
   });
+
+  it("pads early years to four digits so string comparisons hold", () => {
+    // 0999-01-01 is a Tuesday; the first Wednesday after it must keep its
+    // leading zero or "999-…" would sort after a four-digit end date.
+    expect(
+      firstOccurrence(
+        { kind: "weekly", interval_weeks: 1, weekdays: ["wednesday"] },
+        "0999-01-01",
+      ),
+    ).toBe("0999-01-02");
+  });
 });

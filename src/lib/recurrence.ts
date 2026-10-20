@@ -144,7 +144,7 @@ const nthWeekdayDay = (
 const toIsoDay = (year: number, month: number, day: number) => {
   if (year > 9999) return null;
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${year}-${pad(month)}-${pad(day)}`;
+  return `${String(year).padStart(4, "0")}-${pad(month)}-${pad(day)}`;
 };
 
 // The series' first occurrence on or after `startIso` — mirrors
