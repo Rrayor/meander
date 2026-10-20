@@ -239,10 +239,6 @@ document.getElementById("export-zip").addEventListener("click", () => {
     { name: "ai-usage-avg.svg", text: renderBadge(avg, "light") },
     { name: "ai-usage-avg-dark.svg", text: renderBadge(avg, "dark") },
     { name: "data.json", text: JSON.stringify(clean, null, 2) + "\n" },
-    {
-      name: "README-snippet.md",
-      text: renderReadmeSnippet(clean, avg, assetPathEl.value),
-    },
   ].map(({ name, text }) => ({ name, data: enc.encode(text) }));
   download(
     "ai-usage.zip",

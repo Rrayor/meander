@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generate the AI usage report assets from a data.json file.
-// Usage: node generate.mjs <data.json> --out <dir> [--assets <path-prefix>]
+// Usage: node generate.mjs <data.json> --out <dir>
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,7 +9,6 @@ import {
   averageScore,
   renderBadge,
   renderGauge,
-  renderReadmeSnippet,
   sanitizeStages,
 } from "./render.js";
 
@@ -24,12 +23,9 @@ const dataFile = args.find(
   (a, i) => !a.startsWith("--") && !args[i - 1]?.startsWith("--"),
 );
 const outDir = flag("--out", null);
-const assets = flag("--assets", "docs/ai-usage");
 
 if (!dataFile || !outDir) {
-  console.error(
-    "usage: node generate.mjs <data.json> --out <dir> [--assets <path-prefix>]",
-  );
+  console.error("usage: node generate.mjs <data.json> --out <dir>");
   process.exit(1);
 }
 
@@ -42,7 +38,6 @@ const files = {
   "ai-usage-dark.svg": renderGauge(stages, "dark"),
   "ai-usage-avg.svg": renderBadge(avg, "light"),
   "ai-usage-avg-dark.svg": renderBadge(avg, "dark"),
-  "README-snippet.md": renderReadmeSnippet(stages, avg, assets),
 };
 for (const [name, content] of Object.entries(files)) {
   writeFileSync(join(outDir, name), content);

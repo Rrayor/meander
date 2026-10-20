@@ -17,8 +17,10 @@ much of it shows.
 - `ai-usage-avg.svg` / `ai-usage-avg-dark.svg` — an average-score badge
   (one decimal, e.g. `3.5 / 5`)
 - `data.json` — the stage data, for later re-editing
-- `README-snippet.md` — ready-to-paste markdown with theme-aware
-  `<picture>` tags, a legend, and a collapsible per-stage explanations block
+
+The README markdown itself is never saved to a file — the app is a static
+page, so it can only offer downloads. The **README markdown** panel shows
+the snippet live; copy it from there.
 
 Stages without a score render as a dashed "not yet rated" bar and are excluded
 from the average. Optional per-stage explanations appear in a `<details>`
@@ -45,14 +47,14 @@ shows a warning when that happens.)
   files in your repository (default `docs/ai-usage/`). This becomes the URL
   prefix in the generated snippet.
 - Watch the live light/dark preview on the right.
-- **Export zip** downloads all six files at once; **Download data.json**
+- **Export zip** downloads the four SVGs plus `data.json` at once; **Download data.json**
   exports just the data; **Load data.json** restores a previous report.
 - The **README markdown** panel shows the exact snippet to paste into a
   README — copy it with the **Copy** button. Image URLs use the
   asset-path field as the prefix.
 
 Unzip into your repository (e.g. `docs/ai-usage/`), commit the SVGs and
-`data.json`, and paste `README-snippet.md` into your README.
+`data.json`, and paste the copied markdown into your README.
 
 ## Embedding in a GitHub README
 
@@ -87,13 +89,11 @@ block follow the same pattern.
 editor — useful after a manual edit or in CI:
 
 ```sh
-node generate.mjs docs/ai-usage/data.json --out docs/ai-usage --assets docs/ai-usage
+node generate.mjs docs/ai-usage/data.json --out docs/ai-usage
 ```
 
 - `<data.json>` — input file with the stage list
-- `--out` — directory the five output files are written to
-- `--assets` — path prefix embedded in `README-snippet.md` (default
-  `docs/ai-usage`)
+- `--out` — directory the four svg files are written to
 
 ## data.json format
 
