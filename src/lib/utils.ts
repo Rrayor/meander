@@ -46,8 +46,9 @@ export const unicodeTrim = (s: string) => {
 };
 
 // Backend timestamps are UTC "YYYY-MM-DD HH:MM:SS" — normalize for Date.
-export const formatDate = (iso: string) =>
-  new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(undefined, {
+// `locale` exists for tests pinning a deterministic rendering.
+export const formatDate = (iso: string, locale?: string) =>
+  new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",

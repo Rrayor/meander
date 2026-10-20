@@ -5,8 +5,11 @@ import {
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
+  REPEAT_NTH_OPTIONS,
   REPEAT_ON_THE_LABEL,
   REPEAT_SECTION_LABEL,
+  REPEAT_UNIT_OPTIONS,
+  WEEKDAY_OPTIONS,
   SAVE_BUTTON_LABEL,
   deleteTaskLabel,
   editTaskLabel,
@@ -29,6 +32,11 @@ import {
 } from "./stubs";
 
 const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
+const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
+const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "month")!;
+const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!;
+const NTH_SECOND = REPEAT_NTH_OPTIONS.find((o) => o.value === "2")!;
+const REJECTION_MESSAGE = "schedule could not be understood";
 const WEEKDAY_BY_JS_DAY = [
   "sunday",
   "monday",
@@ -441,8 +449,8 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
-  await dialog.getByRole("button", { name: "weeks" }).click();
-  await dialog.getByRole("button", { name: "Friday" }).click();
+  await dialog.getByRole("button", { name: WEEK_UNIT.label }).click();
+  await dialog.getByRole("button", { name: FRIDAY.label }).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
@@ -508,10 +516,10 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
-  await dialog.getByRole("button", { name: "months" }).click();
+  await dialog.getByRole("button", { name: MONTH_UNIT.label }).click();
   await dialog.getByRole("radio", { name: REPEAT_ON_THE_LABEL }).click();
-  await dialog.getByRole("button", { name: "Second" }).click();
-  await dialog.getByRole("button", { name: "Friday" }).click();
+  await dialog.getByRole("button", { name: NTH_SECOND.aria }).click();
+  await dialog.getByRole("button", { name: FRIDAY.label }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   const createCall = (await getInvocations(page)).find(
@@ -544,7 +552,7 @@ test("a monthly day repeat sends the picked day and interval", async ({
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
   await dialog.getByLabel(/Every/).fill("3");
-  await dialog.getByRole("button", { name: "months" }).click();
+  await dialog.getByRole("button", { name: MONTH_UNIT.label }).click();
   await dialog.getByLabel(REPEAT_DAY_OF_MONTH_LABEL).fill("15");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
@@ -565,7 +573,7 @@ test("a typed schedule rejection surfaces in the dialog", async ({ page }) => {
     [COMMANDS.createTask]: stubApiError(
       "recurrence_invalid",
       "validation",
-      "schedule could not be understood",
+      REJECTION_MESSAGE,
     ),
     [COMMANDS.listCategories]: [],
   });
@@ -579,9 +587,7 @@ test("a typed schedule rejection surfaces in the dialog", async ({ page }) => {
     .click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  await expect(dialog.getByRole("alert")).toHaveText(
-    "schedule could not be understood",
-  );
+  await expect(dialog.getByRole("alert")).toHaveText(REJECTION_MESSAGE);
   await expect(dialog).toBeVisible();
 });
 

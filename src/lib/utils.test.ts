@@ -100,9 +100,12 @@ describe("todayLocalIso", () => {
 });
 
 describe("weekdayOfIso", () => {
+  const WEDNESDAY_ISO = "2026-10-21";
+  const SUNDAY_ISO = "2026-10-25";
+
   it("maps a local ISO date to its weekday", () => {
-    expect(weekdayOfIso("2026-10-21")).toBe("wednesday"); // a Wednesday
-    expect(weekdayOfIso("2026-10-25")).toBe("sunday");
+    expect(weekdayOfIso(WEDNESDAY_ISO)).toBe("wednesday"); // a Wednesday
+    expect(weekdayOfIso(SUNDAY_ISO)).toBe("sunday");
   });
 
   it("covers every weekday", () => {
@@ -110,11 +113,11 @@ describe("weekdayOfIso", () => {
     const week = [
       ["2026-10-19", "monday"],
       ["2026-10-20", "tuesday"],
-      ["2026-10-21", "wednesday"],
+      [WEDNESDAY_ISO, "wednesday"],
       ["2026-10-22", "thursday"],
       ["2026-10-23", "friday"],
       ["2026-10-24", "saturday"],
-      ["2026-10-25", "sunday"],
+      [SUNDAY_ISO, "sunday"],
     ] as const;
     for (const [iso, weekday] of week) {
       expect(weekdayOfIso(iso), iso).toBe(weekday);
@@ -138,9 +141,8 @@ describe("weekdayOfIso", () => {
 });
 
 describe("formatDate", () => {
-  it("renders the backend UTC timestamp as a readable local date", () => {
-    const formatted = formatDate("2026-10-11 10:00:00");
-    expect(formatted).toContain("2026");
-    expect(formatted).toContain("11");
+  it("renders the backend UTC timestamp under a pinned locale", () => {
+    // en-US gives a deterministic contract: month short, day, full year.
+    expect(formatDate("2026-10-11 10:00:00", "en-US")).toBe("Oct 11, 2026");
   });
 });
