@@ -45,7 +45,8 @@ const download = (filename, blob) => {
 };
 
 const refresh = () => {
-  const avg = averageScore(stages);
+  const clean = sanitizeStages(stages);
+  const avg = averageScore(clean);
   document.getElementById("preview-light").innerHTML = renderGauge(
     stages,
     "light",
@@ -56,6 +57,11 @@ const refresh = () => {
   );
   document.getElementById("badge-light").innerHTML = renderBadge(avg, "light");
   document.getElementById("badge-dark").innerHTML = renderBadge(avg, "dark");
+  document.getElementById("snippet-md").textContent = renderReadmeSnippet(
+    clean,
+    avg,
+    assetPathEl.value,
+  );
 };
 
 const renderStages = () => {
@@ -199,15 +205,28 @@ document.getElementById("download-json").addEventListener("click", () => {
   );
 });
 
-document.getElementById("download-md").addEventListener("click", () => {
-  const clean = sanitizeStages(stages);
-  const avg = averageScore(clean);
-  download(
-    "README-snippet.md",
-    new Blob([renderReadmeSnippet(clean, avg, assetPathEl.value)], {
-      type: "text/markdown",
-    }),
-  );
+const copyBtn = document.getElementById("copy-md");
+copyBtn.addEventListener("click", async () => {
+  const text = document.getElementById("snippet-md").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // clipboard needs permissions/a secure context — fall back to selection
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("snippet-md"));
+    const sel = globalThis.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    copyBtn.textContent = "Select + Ctrl-C";
+    setTimeout(() => {
+      copyBtn.textContent = "Copy";
+    }, 2000);
+    return;
+  }
+  copyBtn.textContent = "Copied";
+  setTimeout(() => {
+    copyBtn.textContent = "Copy";
+  }, 1500);
 });
 
 document.getElementById("export-zip").addEventListener("click", () => {

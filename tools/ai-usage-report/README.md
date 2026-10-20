@@ -46,9 +46,10 @@ shows a warning when that happens.)
   prefix in the generated snippet.
 - Watch the live light/dark preview on the right.
 - **Export zip** downloads all six files at once; **Download data.json**
-  exports just the data; **Download README-snippet.md** exports just the
-  markdown block (using the asset-path field as the image URL prefix);
-  **Load data.json** restores a previous report.
+  exports just the data; **Load data.json** restores a previous report.
+- The **README markdown** panel shows the exact snippet to paste into a
+  README — copy it with the **Copy** button. Image URLs use the
+  asset-path field as the prefix.
 
 Unzip into your repository (e.g. `docs/ai-usage/`), commit the SVGs and
 `data.json`, and paste `README-snippet.md` into your README.

@@ -197,8 +197,8 @@ export function renderReadmeSnippet(stages, avg, assetPath) {
 
 const BADGE_W = 240;
 const BADGE_H = 30;
-const MINI_BAR_X = 46;
-const MINI_BAR_W = 120;
+const MINI_BAR_X = 62;
+const MINI_BAR_W = 104;
 const MINI_BAR_H = 14;
 const MINI_CELL_W = MINI_BAR_W / CELLS;
 
@@ -234,7 +234,7 @@ export function renderBadge(avg, theme) {
     `<clipPath id="${clipId}"><rect x="0" y="0" width="${MINI_BAR_W}" height="${MINI_BAR_H}" rx="7"/></clipPath>` +
     `</defs>` +
     `<rect width="${BADGE_W}" height="${BADGE_H}" rx="8" fill="${t.chipBg}" stroke="${t.chipBorder}"/>` +
-    `<text x="12" y="20" font-size="11" font-weight="650" fill="${t.muted}">avg</text>` +
+    `<text x="12" y="20" font-size="11" font-weight="650" fill="${t.muted}">Overall</text>` +
     `<g transform="translate(${MINI_BAR_X},8)" clip-path="url(#${clipId})">${bar}${dividers}</g>` +
     `<text x="176" y="20" font-size="11" font-weight="700" fill="${t.score}">${value}</text>` +
     `</svg>`

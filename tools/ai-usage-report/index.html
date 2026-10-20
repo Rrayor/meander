@@ -254,6 +254,10 @@
         height: auto;
         display: block;
       }
+      #badge-light,
+      #badge-dark {
+        margin-bottom: 8px;
+      }
       .module-warning {
         background: #fff7ed;
         border: 1px solid #fed7aa;
@@ -261,6 +265,39 @@
         border-radius: 8px;
         padding: 10px 12px;
         font-size: 13px;
+      }
+      .snippet {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        background: var(--panel);
+      }
+      .snippet-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .snippet-head h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0;
+        font-weight: 650;
+        color: var(--muted);
+      }
+      .snippet pre {
+        margin: 0;
+        padding: 10px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 11px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow: auto;
       }
       .visually-hidden {
         position: absolute;
@@ -311,9 +348,6 @@
             <button class="action" id="download-json" type="button">
               Download data.json
             </button>
-            <button class="action" id="download-md" type="button">
-              Download README-snippet.md
-            </button>
             <button class="action primary" id="export-zip" type="button">
               Export zip
             </button>
@@ -322,13 +356,20 @@
         <div class="preview" aria-label="Preview">
           <div class="pane pane--light">
             <h2>Light</h2>
-            <div id="preview-light"></div>
             <div id="badge-light"></div>
+            <div id="preview-light"></div>
           </div>
           <div class="pane pane--dark">
             <h2>Dark</h2>
-            <div id="preview-dark"></div>
             <div id="badge-dark"></div>
+            <div id="preview-dark"></div>
+          </div>
+          <div class="snippet">
+            <div class="snippet-head">
+              <h2>README markdown</h2>
+              <button class="action" id="copy-md" type="button">Copy</button>
+            </div>
+            <pre id="snippet-md" tabindex="0"></pre>
           </div>
         </div>
       </div>

@@ -82,8 +82,9 @@ describe("averageScore", () => {
 describe("renderBadge", () => {
   it("fills the mini bar to a fractional average", () => {
     const svg = renderBadge(3.5, "light");
-    assert.match(svg, /x="84"[^>]*fill="#eef1f6"/);
+    assert.match(svg, /x="72\.8"[^>]*fill="#eef1f6"/);
     assert.match(svg, />3\.5 \/ 5</);
+    assert.match(svg, />Overall</);
   });
 
   it("renders an empty bar and em-dash when nothing is rated", () => {
