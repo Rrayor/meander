@@ -60,6 +60,9 @@ export const CURRENT_PROFILE_LABEL = "Current";
 export const RENAME_BUTTON_LABEL = "Rename";
 export const SAVE_BUTTON_LABEL = "Save";
 export const CANCEL_BUTTON_LABEL = "Cancel";
+export const EDIT_BUTTON_LABEL = "Edit";
+// Placeholder shown where a task detail has no value.
+export const EMPTY_VALUE_LABEL = "—";
 
 export const CATEGORIES_HEADING = "Categories";
 export const CATEGORIES_SUBTITLE = "Labels for grouping tasks";
@@ -121,3 +124,21 @@ export const REPEAT_NTH_OPTIONS = [
   { value: "4", label: "4th", aria: "Fourth" },
   { value: "-1", label: "Last", aria: "Last" },
 ] as const;
+
+export const seriesAuditLabel = (description: string, created: string) =>
+  `Repeats ${description} — series created ${created}`;
+
+export const TASK_SCOPE_GROUP_LABEL = "Apply changes to";
+export const TASK_SCOPE_INSTANCE_LABEL = "This instance only";
+export const TASK_SCOPE_SERIES_LABEL = "Entire series";
+export const TASK_SCOPE_FUTURE_LABEL = "This and future instances";
+export const TASK_SCOPE_COMING_SOON_HINT =
+  "available when series editing lands";
+
+export const CALENDAR_PREVIOUS_LABEL = "Previous month";
+export const CALENDAR_NEXT_LABEL = "Next month";
+export const NOTES_TAB_INSTANCE_LABEL = "Current instance";
+export const NOTES_TAB_SERIES_LABEL = "Series";
+export const NOTES_EMPTY_MESSAGE = "No notes yet.";
+export const SCHEDULED_INSTANCE_PENDING_MESSAGE =
+  "Scheduled — this instance will be created when the board is generated.";

@@ -2,6 +2,7 @@ import { COMMANDS } from "@/api/commands";
 import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
+  EDIT_BUTTON_LABEL,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
@@ -409,6 +410,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
   await expect(titleButton).toHaveCSS("cursor", "pointer");
   await titleButton.click();
   const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   await expect(dialog.getByLabel(/Title/)).toHaveValue(TITLE_DRAFT_NOTES);
   await dialog.getByLabel(/Title/).fill(`${TITLE_MILESTONE} follow-up`);
   await dialog.getByRole("radio", { name: STATUS_LABELS.in_progress }).click();
@@ -607,6 +609,7 @@ test("attaching a schedule while editing sends the series payload", async ({
     .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
     .click();
   const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
@@ -636,7 +639,7 @@ test("the edit dialog hides the repeat section for a series instance", async ({
     .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
     .click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   await expect(
     dialog.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
   ).not.toBeVisible();

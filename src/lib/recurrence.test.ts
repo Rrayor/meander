@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Recurrence } from "@/api/bindings";
-import { isScheduledOn } from "@/lib/recurrence";
+import { describeRecurrence, isScheduledOn } from "@/lib/recurrence";
+import { REPEAT_UNIT_OPTIONS, WEEKDAY_OPTIONS } from "@/lib/labels";
+
+const MONDAY = WEEKDAY_OPTIONS.find((w) => w.value === "monday")!.label;
+const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!.label;
 
 const START = "2026-10-05"; // a Monday
 
@@ -168,5 +172,46 @@ describe("isScheduledOn", () => {
       false,
     );
     expect(isScheduledOn(recurrence, START, null, "2026-13-40")).toBe(false);
+  });
+});
+
+describe("describeRecurrence", () => {
+  const day = REPEAT_UNIT_OPTIONS.find((o) => o.value === "day")!.label;
+  const week = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!.label;
+  const month = REPEAT_UNIT_OPTIONS.find((o) => o.value === "month")!.label;
+  const singular = (unit: string) => unit.slice(0, -1);
+
+  it("describes each supported cadence", () => {
+    expect(describeRecurrence({ kind: "daily", interval_days: 1 })).toBe(
+      `every ${singular(day)}`,
+    );
+    expect(describeRecurrence({ kind: "daily", interval_days: 3 })).toBe(
+      `every 3 ${day}`,
+    );
+    expect(
+      describeRecurrence({
+        kind: "weekly",
+        interval_weeks: 2,
+        weekdays: ["monday", "friday"],
+      }),
+    ).toBe(`every 2 ${week} on ${MONDAY} and ${FRIDAY}`);
+    expect(
+      describeRecurrence({
+        kind: "monthly_day",
+        interval_months: 1,
+        day: 15,
+      }),
+    ).toBe(`every ${singular(month)} on day 15`);
+    expect(
+      describeRecurrence({
+        kind: "monthly_nth_weekday",
+        interval_months: 1,
+        nth: -1,
+        weekday: "friday",
+      }),
+    ).toBe(`every ${singular(month)} on the Last ${FRIDAY}`);
+    expect(describeRecurrence({ kind: "workday_after", day: 15 })).toBe(
+      "the first workday after day 15",
+    );
   });
 });

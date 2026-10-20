@@ -1,4 +1,9 @@
 import type { Recurrence } from "@/api/bindings";
+import {
+  REPEAT_NTH_OPTIONS,
+  REPEAT_UNIT_OPTIONS,
+  WEEKDAY_OPTIONS,
+} from "@/lib/labels";
 import { weekdayOfIso } from "@/lib/utils";
 
 const DAY_MS = 86_400_000;
@@ -105,5 +110,37 @@ export const isScheduledOn = (
     // series carrying one can never produce an occurrence here.
     case "workday_after":
       return false;
+  }
+};
+
+const weekdayLabel = (value: string) =>
+  WEEKDAY_OPTIONS.find((w) => w.value === value)?.label ?? value;
+
+const UNIT = Object.fromEntries(
+  REPEAT_UNIT_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<string, string>;
+
+// Human-readable schedule description for the series audit line, e.g.
+// "every 2 weeks on Monday and Friday".
+export const describeRecurrence = (recurrence: Recurrence): string => {
+  const cadence = (interval: number, unit: string) =>
+    interval === 1 ? `every ${unit.slice(0, -1)}` : `every ${interval} ${unit}`;
+  switch (recurrence.kind) {
+    case "daily":
+      return cadence(recurrence.interval_days, UNIT.day);
+    case "weekly": {
+      const days = recurrence.weekdays.map(weekdayLabel).join(" and ");
+      return `${cadence(recurrence.interval_weeks, UNIT.week)} on ${days}`;
+    }
+    case "monthly_day":
+      return `${cadence(recurrence.interval_months, UNIT.month)} on day ${recurrence.day}`;
+    case "monthly_nth_weekday": {
+      const nth = REPEAT_NTH_OPTIONS.find(
+        (o) => o.value === String(recurrence.nth),
+      )?.aria;
+      return `${cadence(recurrence.interval_months, UNIT.month)} on the ${nth} ${weekdayLabel(recurrence.weekday)}`;
+    }
+    case "workday_after":
+      return `the first workday after day ${recurrence.day}`;
   }
 };
