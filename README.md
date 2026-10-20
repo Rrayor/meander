@@ -18,13 +18,13 @@ Offline desktop weekly kanban planner. Tauri app: Rust backend, React (Vite) + T
 ## AI usage transparency
 
 <picture>
-  <source srcset="docs/ai-usage/ai-usage-dark.svg" media="(prefers-color-scheme: dark)">
-  <img src="docs/ai-usage/ai-usage.svg" alt="AI usage transparency: per-stage gauge from 0 (no AI) to 5 (only vibes)" width="520">
+  <source srcset="docs/ai-usage/ai-usage-avg-dark.svg" media="(prefers-color-scheme: dark)">
+  <img src="docs/ai-usage/ai-usage-avg.svg" alt="Average AI usage score: 3.5 / 5" width="240">
 </picture>
 
 <picture>
-  <source srcset="docs/ai-usage/ai-usage-avg-dark.svg" media="(prefers-color-scheme: dark)">
-  <img src="docs/ai-usage/ai-usage-avg.svg" alt="Average AI usage score: 3.5 / 5" width="240">
+  <source srcset="docs/ai-usage/ai-usage-dark.svg" media="(prefers-color-scheme: dark)">
+  <img src="docs/ai-usage/ai-usage.svg" alt="AI usage transparency: per-stage gauge from 0 (no AI) to 5 (only vibes)" width="520">
 </picture>
 
 _0 = no AI at all · 5 = only vibes_

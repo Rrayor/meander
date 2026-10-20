@@ -163,18 +163,18 @@ export function renderReadmeSnippet(stages, avg, assetPath) {
   const parts = [
     pictureBlock(
       base,
-      "ai-usage-dark.svg",
-      "ai-usage.svg",
-      "AI usage transparency: per-stage gauge from 0 (no AI) to 5 (only vibes)",
-      520,
-    ),
-    "",
-    pictureBlock(
-      base,
       "ai-usage-avg-dark.svg",
       "ai-usage-avg.svg",
       `Average AI usage score: ${formatAverage(avg)} / 5`,
       240,
+    ),
+    "",
+    pictureBlock(
+      base,
+      "ai-usage-dark.svg",
+      "ai-usage.svg",
+      "AI usage transparency: per-stage gauge from 0 (no AI) to 5 (only vibes)",
+      520,
     ),
     "",
     `_${LEGEND_LINE}_`,

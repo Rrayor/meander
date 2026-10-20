@@ -199,6 +199,17 @@ document.getElementById("download-json").addEventListener("click", () => {
   );
 });
 
+document.getElementById("download-md").addEventListener("click", () => {
+  const clean = sanitizeStages(stages);
+  const avg = averageScore(clean);
+  download(
+    "README-snippet.md",
+    new Blob([renderReadmeSnippet(clean, avg, assetPathEl.value)], {
+      type: "text/markdown",
+    }),
+  );
+});
+
 document.getElementById("export-zip").addEventListener("click", () => {
   const clean = sanitizeStages(stages);
   const avg = averageScore(clean);

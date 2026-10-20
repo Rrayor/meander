@@ -132,6 +132,14 @@ describe("renderReadmeSnippet", () => {
     assert.match(md, /srcset="docs\/ai-usage\/ai-usage-avg-dark\.svg"/);
   });
 
+  it("puts the average badge before the per-stage gauge", () => {
+    const md = renderReadmeSnippet(stages, 3.0, "docs/ai-usage/");
+    assert.ok(
+      md.indexOf("ai-usage-avg.svg") < md.indexOf("ai-usage.svg"),
+      "average badge should come first",
+    );
+  });
+
   it("includes the scale legend", () => {
     const md = renderReadmeSnippet(stages, 3.0, "x");
     assert.match(md, /0 = no AI at all/);
