@@ -394,6 +394,7 @@ mod tests {
                 description: None,
                 estimated_minutes: None,
                 carry_over_rule: None,
+                series: None,
             },
         )
         .await

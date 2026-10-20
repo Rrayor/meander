@@ -2,6 +2,14 @@ import { COMMANDS } from "@/api/commands";
 import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
+  REPEAT_DAY_OF_MONTH_LABEL,
+  REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_LABEL,
+  REPEAT_NTH_OPTIONS,
+  REPEAT_ON_THE_LABEL,
+  REPEAT_SECTION_LABEL,
+  REPEAT_UNIT_OPTIONS,
+  WEEKDAY_OPTIONS,
   SAVE_BUTTON_LABEL,
   deleteTaskLabel,
   editTaskLabel,
@@ -24,6 +32,20 @@ import {
 } from "./stubs";
 
 const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
+const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
+const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "month")!;
+const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!;
+const NTH_SECOND = REPEAT_NTH_OPTIONS.find((o) => o.value === "2")!;
+const REJECTION_MESSAGE = "schedule could not be understood";
+const WEEKDAY_BY_JS_DAY = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 const TITLE_MILESTONE = "Review quarterly milestone planning";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
@@ -47,6 +69,7 @@ const tasks = [
     spent_minutes: null,
     placement: "backlog",
     scheduled_date: null,
+    series_id: null,
     created_at: "2026-10-10 09:00:00",
     updated_at: "2026-10-10 09:00:00",
   },
@@ -61,6 +84,7 @@ const tasks = [
     spent_minutes: 30,
     placement: "backlog",
     scheduled_date: null,
+    series_id: null,
     created_at: "2026-10-11 10:00:00",
     updated_at: "2026-10-11 10:00:00",
   },
@@ -289,6 +313,7 @@ test("the estimate pair sends combined minutes on the wire", async ({
       description: null,
       estimated_minutes: 90,
       carry_over_rule: "carry",
+      series: null,
     },
   });
 });
@@ -403,6 +428,216 @@ test("editing a task updates the backlog row", async ({ page }) => {
       spent_minutes: null,
       carry_over_rule: null,
       status: "in_progress",
+      series: null,
     },
   });
+});
+
+test("creating a repeating task sends the series payload", async ({ page }) => {
+  const created = { ...tasks[0], id: 3, series_id: 1 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([[], [created]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: created,
+    [COMMANDS.listCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill("Weekly review");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByRole("button", { name: WEEK_UNIT.label }).click();
+  await dialog.getByRole("button", { name: FRIDAY.label }).click();
+  await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+
+  const createCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.createTask,
+  );
+  const { recurrence, end_date } = createCall!.args.input.series;
+  expect(recurrence.kind).toBe("weekly");
+  expect(recurrence.interval_weeks).toBe(1);
+  // The weekday set is today's weekday (auto-synced to the start date)
+  // plus the Friday the user picked.
+  expect(new Set(recurrence.weekdays)).toEqual(
+    new Set([WEEKDAY_BY_JS_DAY[new Date().getDay()], "friday"]),
+  );
+  expect(end_date).toBe("2027-01-01");
+  expect(createCall?.args.input.series.start_date).toMatch(
+    /^\d{4}-\d{2}-\d{2}$/,
+  );
+});
+
+test("an invalid repeat schedule keeps the dialog open without a call", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    // createTask intentionally unstubbed: a call would throw.
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill("Backwards repeat");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2020-01-01");
+
+  await expect(
+    dialog.getByText(REPEAT_ENDS_BEFORE_START_MESSAGE),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: CREATE_TASK_LABEL }),
+  ).toBeDisabled();
+  await expect(dialog).toBeVisible();
+});
+
+test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
+  page,
+}) => {
+  const created = { ...tasks[0], id: 3, series_id: 1 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([[], [created]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: created,
+    [COMMANDS.listCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill("Monthly sync");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByRole("button", { name: MONTH_UNIT.label }).click();
+  await dialog.getByRole("radio", { name: REPEAT_ON_THE_LABEL }).click();
+  await dialog.getByRole("button", { name: NTH_SECOND.aria }).click();
+  await dialog.getByRole("button", { name: FRIDAY.label }).click();
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+
+  const createCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.createTask,
+  );
+  expect(createCall?.args.input.series.recurrence).toEqual({
+    kind: "monthly_nth_weekday",
+    interval_months: 1,
+    nth: 2,
+    weekday: "friday",
+  });
+});
+
+test("a monthly day repeat sends the picked day and interval", async ({
+  page,
+}) => {
+  const created = { ...tasks[0], id: 3, series_id: 1 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([[], [created]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: created,
+    [COMMANDS.listCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill("Quarterly-ish");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByLabel(/Every/).fill("3");
+  await dialog.getByRole("button", { name: MONTH_UNIT.label }).click();
+  await dialog.getByLabel(REPEAT_DAY_OF_MONTH_LABEL).fill("15");
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+
+  const createCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.createTask,
+  );
+  expect(createCall?.args.input.series.recurrence).toEqual({
+    kind: "monthly_day",
+    interval_months: 3,
+    day: 15,
+  });
+});
+
+test("a typed schedule rejection surfaces in the dialog", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.createTask]: stubApiError(
+      "recurrence_invalid",
+      "validation",
+      REJECTION_MESSAGE,
+    ),
+    [COMMANDS.listCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill("Rejected repeat");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+
+  await expect(dialog.getByRole("alert")).toHaveText(REJECTION_MESSAGE);
+  await expect(dialog).toBeVisible();
+});
+
+test("attaching a schedule while editing sends the series payload", async ({
+  page,
+}) => {
+  const updated = { ...tasks[0], series_id: 1 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.updateTask]: updated,
+    [COMMANDS.listTaskCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const updateCall = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.updateTask,
+  );
+  expect(updateCall?.args.input.series).toMatchObject({
+    recurrence: { kind: "daily", interval_days: 1 },
+    end_date: null,
+  });
+});
+
+test("the edit dialog hides the repeat section for a series instance", async ({
+  page,
+}) => {
+  const linked = { ...tasks[0], series_id: 1 };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [linked],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
+  ).not.toBeVisible();
 });

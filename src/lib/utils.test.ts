@@ -1,4 +1,10 @@
-import { codePointsWithin, unicodeTrim } from "@/lib/utils";
+import {
+  codePointsWithin,
+  formatDate,
+  todayLocalIso,
+  unicodeTrim,
+  weekdayOfIso,
+} from "@/lib/utils";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 
 // The regex serves as the oracle: \p{White_Space} is the same Unicode
@@ -59,5 +65,84 @@ describe("codePointsWithin", () => {
     expect(codePointsWithin(MULTI_UNIT_EMOJI, 1)).toBe(true);
     expect(codePointsWithin("ab", 2)).toBe(true);
     expect(codePointsWithin("abc", 2)).toBe(false);
+  });
+});
+
+describe("todayLocalIso", () => {
+  const atLocal = (year: number, month: number, day: number, h = 0, m = 0) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(year, month, day, h, m));
+    try {
+      return todayLocalIso();
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  it("formats the local calendar date, not the UTC date", () => {
+    // Late local evening — the UTC date can already differ.
+    expect(atLocal(2026, 9, 21, 23, 59)).toBe("2026-10-21");
+  });
+
+  it("does not roll over at midnight UTC, only at local midnight", () => {
+    expect(atLocal(2026, 9, 21, 0, 0)).toBe("2026-10-21");
+    expect(atLocal(2026, 9, 20, 23, 59)).toBe("2026-10-20");
+  });
+
+  it("zero-pads single-digit months and days", () => {
+    expect(atLocal(2026, 0, 5)).toBe("2026-01-05");
+  });
+
+  it("handles the year boundary", () => {
+    expect(atLocal(2026, 11, 31, 23, 59)).toBe("2026-12-31");
+    expect(atLocal(2027, 0, 1, 0, 0)).toBe("2027-01-01");
+  });
+});
+
+describe("weekdayOfIso", () => {
+  const WEDNESDAY_ISO = "2026-10-21";
+  const SUNDAY_ISO = "2026-10-25";
+
+  it("maps a local ISO date to its weekday", () => {
+    expect(weekdayOfIso(WEDNESDAY_ISO)).toBe("wednesday"); // a Wednesday
+    expect(weekdayOfIso(SUNDAY_ISO)).toBe("sunday");
+  });
+
+  it("covers every weekday", () => {
+    // 2026-10-19 is a Monday — the week below spans all seven values.
+    const week = [
+      ["2026-10-19", "monday"],
+      ["2026-10-20", "tuesday"],
+      [WEDNESDAY_ISO, "wednesday"],
+      ["2026-10-22", "thursday"],
+      ["2026-10-23", "friday"],
+      ["2026-10-24", "saturday"],
+      [SUNDAY_ISO, "sunday"],
+    ] as const;
+    for (const [iso, weekday] of week) {
+      expect(weekdayOfIso(iso), iso).toBe(weekday);
+    }
+  });
+
+  it("maps a leap day correctly", () => {
+    expect(weekdayOfIso("2024-02-29")).toBe("thursday");
+  });
+
+  it("is correct on a DST transition date", () => {
+    // CET→CEST switch 2026-03-29 (a Sunday): the noon anchor keeps the
+    // lookup clear of the 02:00 clock jump.
+    expect(weekdayOfIso("2026-03-29")).toBe("sunday");
+  });
+
+  it("returns undefined for unparseable input rather than a wrong weekday", () => {
+    expect(weekdayOfIso("not-a-date")).toBeUndefined();
+    expect(weekdayOfIso("")).toBeUndefined();
+  });
+});
+
+describe("formatDate", () => {
+  it("renders the backend UTC timestamp under a pinned locale", () => {
+    // en-US gives a deterministic contract: month short, day, full year.
+    expect(formatDate("2026-10-11 10:00:00", "en-US")).toBe("Oct 11, 2026");
   });
 });

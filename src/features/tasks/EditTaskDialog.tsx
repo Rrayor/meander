@@ -27,6 +27,8 @@ import {
   serverErrorMessage,
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
+import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import type { NewSeries } from "@/api/bindings";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -176,6 +178,8 @@ export function EditTaskDialog({
   // a refetch update what chips show — e.g. after a category is recolored.
   const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(new Set());
   const [picked, setPicked] = useState<Category[]>([]);
+  const [series, setSeries] = useState<NewSeries | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
   const stored = initialCategories ?? [];
   const storedIds = new Set(stored.map((c) => c.id));
   const categories = [
@@ -228,6 +232,7 @@ export function EditTaskDialog({
       spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       carry_over_rule: values.carryOver === "" ? null : values.carryOver,
       status: values.status,
+      series,
     });
   };
 
@@ -296,7 +301,7 @@ export function EditTaskDialog({
       <dialog
         open
         aria-labelledby="edit-task-title"
-        className="relative m-0 flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
+        className="relative m-0 flex max-h-[90vh] w-full max-w-lg flex-col gap-6 overflow-y-auto rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <h2
@@ -512,6 +517,15 @@ export function EditTaskDialog({
               )}
             />
           </div>
+          {task.series_id === null && (
+            <RepeatScheduleFields
+              idPrefix="edit-task"
+              onChange={(next, error) => {
+                setSeries(next);
+                setSeriesError(error);
+              }}
+            />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-danger">
               {serverError}
@@ -534,7 +548,7 @@ export function EditTaskDialog({
               </button>
               <button
                 type="submit"
-                disabled={update.isPending}
+                disabled={update.isPending || seriesError !== null}
                 className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               >
                 {SAVE_BUTTON_LABEL}

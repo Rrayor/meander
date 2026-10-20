@@ -41,3 +41,7 @@ node_modules
 # Local database
 data/
 meander.db*
+
+# Superpowers brainstorm server runtime state
+.superpowers/brainstorm/
+.worktrees/

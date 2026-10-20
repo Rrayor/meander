@@ -22,6 +22,8 @@ import {
   serverErrorMessage,
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
+import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import type { NewSeries } from "@/api/bindings";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -96,6 +98,12 @@ interface NewTaskDialogProps {
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [series, setSeries] = useState<NewSeries | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  // Once the create retried task is linked to a series its schedule is no
+  // longer editable here — same rule as the edit dialog (series editing is
+  // a later milestone).
+  const [linkedToSeries, setLinkedToSeries] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -129,20 +137,36 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   // duplicate row. Refs keep the values consistent within the in-flight
   // mutation's own callbacks (a state update could lag behind them).
   const createdId = useRef<number | undefined>(undefined);
+  const createdHasSeries = useRef(false);
   const linkedIds = useRef(new Set<number>());
 
   const create = useMutation({
     mutationFn: async (input: Parameters<typeof createTask>[0]) => {
-      const taskId = createdId.current ?? (await createTask(input)).id;
-      if (createdId.current !== undefined) {
-        // Retry: persist the current field values onto the existing row.
-        await updateTask(taskId, {
+      let task;
+      if (createdId.current === undefined) {
+        task = await createTask(input);
+        createdId.current = task.id;
+      } else {
+        // Retry: persist the current field values onto the existing row. A
+        // schedule can still be attached while the task is plain; once it is
+        // linked, re-sending one would trip already_in_series — the section
+        // is hidden by then anyway.
+        task = await updateTask(createdId.current, {
           ...input,
+          series: createdHasSeries.current ? null : input.series,
           spent_minutes: null,
           status: "todo",
         });
       }
-      createdId.current = taskId;
+      if (task.series_id != null) {
+        createdHasSeries.current = true;
+        setLinkedToSeries(true);
+        // The section unmounts now — a schedule edit made while the create
+        // was in flight must not leave a stale error disabling the retry.
+        setSeries(null);
+        setSeriesError(null);
+      }
+      const taskId = task.id ?? createdId.current;
       const wanted = new Set(categories.map((c) => c.id));
       await Promise.all([
         ...categories
@@ -188,6 +212,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       description: unicodeTrim(description) || null,
       estimated_minutes: hasEstimate ? total : null,
       carry_over_rule: carryOver === "" ? null : carryOver,
+      series,
     });
   };
 
@@ -208,7 +233,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       <dialog
         open
         aria-labelledby="new-task-title"
-        className="relative m-0 flex w-full max-w-lg flex-col gap-6 rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
+        className="relative m-0 flex max-h-[90vh] w-full max-w-lg flex-col gap-6 overflow-y-auto rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <h2
@@ -397,6 +422,15 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
               )}
             />
           </div>
+          {!linkedToSeries && (
+            <RepeatScheduleFields
+              idPrefix="new-task"
+              onChange={(next, error) => {
+                setSeries(next);
+                setSeriesError(error);
+              }}
+            />
+          )}
           {serverError && (
             <p role="alert" className="text-sm text-danger">
               {serverError}
@@ -412,7 +446,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
             </button>
             <button
               type="submit"
-              disabled={create.isPending}
+              disabled={create.isPending || seriesError !== null}
               className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
             >
               {CREATE_TASK_LABEL}

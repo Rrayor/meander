@@ -100,6 +100,8 @@ pub struct Task {
     pub spent_minutes: Option<i64>,
     pub placement: TaskPlacement,
     pub scheduled_date: Option<String>,
+    /// Set when this task is an instance of a repeating-task series.
+    pub series_id: Option<i64>,
     pub sort_order: f64,
     pub created_at: String,
     pub updated_at: String,
@@ -111,6 +113,9 @@ pub struct NewTask {
     pub description: Option<String>,
     pub estimated_minutes: Option<i64>,
     pub carry_over_rule: Option<CarryOverRule>,
+    /// A repetition schedule turns this into a series plus its first
+    /// instance — the returned task is already linked (spec §140).
+    pub series: Option<crate::series::NewSeries>,
 }
 
 /// Full-row update payload for the task detail view — every editable field
@@ -123,6 +128,10 @@ pub struct UpdateTask {
     pub spent_minutes: Option<i64>,
     pub carry_over_rule: Option<CarryOverRule>,
     pub status: TaskStatus,
+    /// Adding a schedule to a plain task attaches it to a new series;
+    /// a task already linked to a series rejects this (series editing is
+    /// a later milestone).
+    pub series: Option<crate::series::NewSeries>,
 }
 
 fn parse_description(raw: Option<&str>) -> Result<Option<String>> {
@@ -169,23 +178,71 @@ fn parse_spent(raw: Option<i64>) -> Result<Option<i64>> {
         .map(PositiveDuration::into_inner))
 }
 
+/// The series a schedule describes shares the task's fields — its first
+/// instance is this task.
+fn series_fields<'a>(
+    title: &'a str,
+    description: Option<&'a str>,
+    carry_over_rule: Option<CarryOverRule>,
+    estimated_minutes: Option<i64>,
+    series: &'a crate::series::NewSeries,
+) -> crate::series::SeriesFields<'a> {
+    crate::series::SeriesFields {
+        title,
+        description,
+        carry_over_rule,
+        estimated_minutes,
+        series,
+    }
+}
+
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
     let title = TaskTitle::parse(&input.title)?.into_inner();
     let description = parse_description(input.description.as_deref())?;
     let estimated = parse_estimate(input.estimated_minutes)?;
+    let mut tx = pool.begin().await?;
+    // When a schedule links the task to a series, both rows must carry the
+    // same policy — the series normalizes an unset rule to Return (spec
+    // §95), so the first instance binds that same effective value.
+    let carry_over = if input.series.is_some() {
+        Some(input.carry_over_rule.unwrap_or(CarryOverRule::Return))
+    } else {
+        input.carry_over_rule
+    };
+    let series_id = match &input.series {
+        Some(series) => Some(
+            crate::series::insert(
+                &mut tx,
+                profile_id,
+                &series_fields(
+                    &title,
+                    description.as_deref(),
+                    carry_over,
+                    estimated,
+                    series,
+                ),
+            )
+            .await?
+            .id,
+        ),
+        None => None,
+    };
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, sort_order)
-         VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
     .bind(description)
     .bind(estimated)
-    .bind(input.carry_over_rule)
+    .bind(carry_over)
+    .bind(series_id)
     .bind(profile_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
-    get(pool, result.last_insert_rowid()).await
+    let id = result.last_insert_rowid();
+    tx.commit().await?;
+    get(pool, id).await
 }
 
 /// Smallest representable gap before the midpoint collapses onto a boundary.
@@ -290,6 +347,54 @@ pub async fn update(
     let description = parse_description(input.description.as_deref())?;
     let estimated = parse_estimate(input.estimated_minutes)?;
     let spent = parse_spent(input.spent_minutes)?;
+    let mut tx = pool.begin().await?;
+    // Attaching a series shares the series' normalized policy with the
+    // instance — an unset rule means Return for both (spec §95).
+    let carry_over = if input.series.is_some() {
+        Some(input.carry_over_rule.unwrap_or(CarryOverRule::Return))
+    } else {
+        input.carry_over_rule
+    };
+    if let Some(series) = &input.series {
+        // A schedule on a plain task links it to a new series; on an
+        // already-linked task the schedule belongs to the series —
+        // editing it is the series milestone's scope.
+        let linked: Option<i64> =
+            sqlx::query_scalar("SELECT series_id FROM tasks WHERE id = ? AND profile_id = ?")
+                .bind(id)
+                .bind(profile_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .flatten();
+        match linked {
+            None => {
+                let series_id = crate::series::insert(
+                    &mut tx,
+                    profile_id,
+                    &series_fields(
+                        &title,
+                        description.as_deref(),
+                        carry_over,
+                        estimated,
+                        series,
+                    ),
+                )
+                .await?
+                .id;
+                sqlx::query("UPDATE tasks SET series_id = ? WHERE id = ?")
+                    .bind(series_id)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            Some(_) => {
+                return Err(crate::db::DbError::Validation {
+                    code: ErrorCode::AlreadyInSeries,
+                    message: "the task's schedule lives on its series".into(),
+                });
+            }
+        }
+    }
     let result = sqlx::query(
         "UPDATE tasks SET title = ?, description = ?, estimated_minutes = ?, spent_minutes = ?,
          carry_over_rule = ?, status = ?, updated_at = CURRENT_TIMESTAMP
@@ -299,15 +404,16 @@ pub async fn update(
     .bind(description)
     .bind(estimated)
     .bind(spent)
-    .bind(input.carry_over_rule)
+    .bind(carry_over)
     .bind(input.status)
     .bind(id)
     .bind(profile_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     if result.rows_affected() == 0 {
         return Err(task_not_found());
     }
+    tx.commit().await?;
     get(pool, id).await
 }
 
@@ -515,6 +621,7 @@ mod tests {
             spent_minutes: task.spent_minutes,
             carry_over_rule: task.carry_over_rule,
             status: task.status,
+            series: None,
         }
     }
 
@@ -537,6 +644,7 @@ mod tests {
                 spent_minutes: Some(15),
                 carry_over_rule: Some(CarryOverRule::Carry),
                 status: TaskStatus::InProgress,
+                series: None,
             },
         )
         .await
@@ -590,6 +698,109 @@ mod tests {
             }
         ));
         assert_eq!(titles(&pool, other.id).await, vec![TITLE_A]);
+    }
+
+    fn weekly_schedule() -> crate::series::NewSeries {
+        crate::series::NewSeries {
+            recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
+                interval_weeks: 1,
+                weekdays: vec![crate::series::Weekday::Monday],
+            })
+            .unwrap(),
+            start_date: "2026-10-19".to_string(),
+            end_date: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn create_with_a_schedule_links_the_task_as_first_instance() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(weekly_schedule()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(task.series_id.is_some());
+        let series_list = crate::series::list(&pool, pid).await.unwrap();
+        assert_eq!(series_list.len(), 1);
+        assert_eq!(series_list[0].id, task.series_id.unwrap());
+        assert_eq!(series_list[0].title, TITLE_A);
+        // The instance and its series must carry the same policy — an unset
+        // rule normalizes to Return on both (spec §95).
+        assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
+        assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
+    }
+
+    #[tokio::test]
+    async fn update_with_a_schedule_links_the_existing_task() {
+        let (pool, pid) = seeded_pool().await;
+        create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        let existing = list(&pool, pid).await.unwrap()[0].clone();
+        assert!(existing.series_id.is_none());
+
+        let updated = update(
+            &pool,
+            pid,
+            existing.id,
+            &UpdateTask {
+                series: Some(weekly_schedule()),
+                ..update_payload(&existing)
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(updated.series_id.is_some());
+        // Instance fields are untouched — the task only gained a link and
+        // the normalized carry-over policy shared with its series.
+        assert_eq!(updated.status, existing.status);
+        assert_eq!(updated.placement, existing.placement);
+        assert_eq!(updated.sort_order, existing.sort_order);
+        assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
+    }
+
+    #[tokio::test]
+    async fn update_with_a_schedule_on_a_linked_task_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(weekly_schedule()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let linked = list(&pool, pid).await.unwrap()[0].clone();
+
+        let err = update(
+            &pool,
+            pid,
+            linked.id,
+            &UpdateTask {
+                series: Some(weekly_schedule()),
+                ..update_payload(&linked)
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::AlreadyInSeries,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]

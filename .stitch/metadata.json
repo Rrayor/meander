@@ -53,7 +53,7 @@
       "deviceType": "DESKTOP",
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
-      "notes": "Task creation dialog: Title* input, Description textarea, Categories token-field multiselect (selected pill chips tinted per category color inline inside the field box, input caret right of the last chip, open dropdown with color dots + check marks + 'New category...' create row), Estimated time, Carry-over segmented control, Cancel/Create task footer over dimmed backlog. Category field markup spliced locally from Stitch DOM edit events — the remote htmlCode/screenshot artifacts lag behind DOM operations."
+      "notes": "Task creation dialog: Title* input, Description textarea, Categories token-field multiselect (selected pill chips tinted per category color inline inside the field box, input caret right of the last chip, open dropdown with color dots + check marks + 'New category...' create row), Estimated time, Carry-over segmented control, collapsible Repeat section (disclosure row with summary chip + expanded controls: 'Every' interval input + days/weeks/months segmented unit, weekday toggle chips for weeks, two radio rows 'On day [n]' / 'On the [1st-Last] [weekday]' for months, Starts/Ends date inputs; no select elements), Cancel/Create task footer over dimmed backlog. Repeat markup and dialog scroll constraint spliced locally from Stitch DOM edit events — the remote htmlCode/screenshot artifacts lag behind DOM operations."
     },
     {
       "id": "05f3a99d44754d6dbc60e516a5b71da5",

@@ -46,9 +46,32 @@ export const unicodeTrim = (s: string) => {
 };
 
 // Backend timestamps are UTC "YYYY-MM-DD HH:MM:SS" — normalize for Date.
-export const formatDate = (iso: string) =>
-  new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(undefined, {
+// `locale` exists for tests pinning a deterministic rendering.
+export const formatDate = (iso: string, locale?: string) =>
+  new Date(iso.replace(" ", "T") + "Z").toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+
+// A local calendar date — `toISOString` would take the UTC date and can land
+// on tomorrow/yesterday outside UTC.
+export const todayLocalIso = () => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+export const WEEKDAYS_BY_JS_DAY = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+// Weekday of a "YYYY-MM-DD" date, read at noon to stay clear of DST edges.
+export const weekdayOfIso = (iso: string) =>
+  WEEKDAYS_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];

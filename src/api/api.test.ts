@@ -24,6 +24,7 @@ describe("api command wiring", () => {
       description: null,
       estimated_minutes: null,
       carry_over_rule: null,
+      series: null,
     };
     await createTask(input);
     expect(invoke).toHaveBeenLastCalledWith(COMMANDS.createTask, { input });

@@ -155,6 +155,25 @@ pub async fn delete_task(task_id: i64, state: State<'_, AppState>) -> Result<(),
 }
 
 #[tauri::command]
+pub async fn list_task_series(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::series::TaskSeries>, ApiError> {
+    crate::series::list(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn delete_task_series(
+    series_id: i64,
+    state: State<'_, AppState>,
+) -> Result<(), ApiError> {
+    crate::series::delete(&state.pool(), state.active_profile_id(), series_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::create(&state.pool(), &name)
         .await
@@ -430,6 +449,7 @@ mod tests {
                 description: None,
                 estimated_minutes: None,
                 carry_over_rule: None,
+                series: None,
             },
             state.clone(),
         )
@@ -515,6 +535,7 @@ mod tests {
                 spent_minutes: Some(30),
                 carry_over_rule: None,
                 status: crate::tasks::TaskStatus::Done,
+                series: None,
             },
             state.clone(),
         )
