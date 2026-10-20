@@ -10,4 +10,6 @@ export const QUERY_KEYS = {
   // after a category rename/recolor or delete changes what chips show.
   allTaskCategories: ["task-categories"],
   taskCategories: (taskId: number) => ["task-categories", taskId],
+  taskSeries: ["task-series"],
+  seriesInstances: (seriesId: number) => ["series-instances", seriesId],
 } as const;
