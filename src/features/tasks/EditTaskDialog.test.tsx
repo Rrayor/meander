@@ -25,6 +25,7 @@ import {
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
 } from "@/lib/errors";
 import {
+  CALENDAR_PREVIOUS_LABEL,
   CANCEL_BUTTON_LABEL,
   CLOSE_LABEL,
   EDIT_BUTTON_LABEL,
@@ -864,6 +865,55 @@ describe("EditTaskDialog", () => {
     );
 
     expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+
+  it("does not render the calendar until the instances query resolves", async () => {
+    const gate = deferred<Task[]>();
+    mockedListSeriesInstances.mockReturnValue(gate.promise);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("dialog", { name: TITLE_ORIGINAL });
+    // A clickable calendar that doesn't know its persisted dates yet would
+    // mark a persisted instance pending — it must stay out until the data
+    // arrives.
+    expect(
+      screen.queryByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: OPENED_INSTANCE_DATE }),
+    ).not.toBeInTheDocument();
+
+    await act(async () => gate.resolve([]));
+    expect(
+      await screen.findByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no series UI for a task without a series", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+    ).not.toBeInTheDocument();
+    // The queries must not even fire — series_id is null.
+    expect(mockedListTaskSeries).not.toHaveBeenCalled();
+    expect(mockedListSeriesInstances).not.toHaveBeenCalled();
   });
 
   it("a series instance still updates its fields with no schedule on the wire", async () => {
