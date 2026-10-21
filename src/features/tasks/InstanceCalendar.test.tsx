@@ -130,6 +130,23 @@ describe("InstanceCalendar", () => {
     expect(onPick).toHaveBeenCalledWith(null, "2026-10-26");
   });
 
+  it("marks scheduled days with a dot and unscheduled days without one", () => {
+    renderCalendar();
+    const scheduled = screen.getByRole("button", { name: "2026-10-19" });
+    // Stitch design: a primary dot under the day number marks an occurrence.
+    expect(scheduled.querySelector("[aria-hidden='true']")).toBeInTheDocument();
+    // An unscheduled day renders plain text — nothing to mark.
+    const plain = screen.getByText("20").closest("span")!;
+    expect(plain.querySelector("[aria-hidden='true']")).toBeNull();
+  });
+
+  it("keeps the marker visible on the selected day in the on-primary color", () => {
+    renderCalendar([], vi.fn(), "2026-10-19");
+    const selected = screen.getByRole("button", { name: "2026-10-19" });
+    const dot = selected.querySelector("[aria-hidden='true']")!;
+    expect(dot).toHaveClass("bg-on-primary");
+  });
+
   it("marks the selected date", () => {
     renderCalendar([], vi.fn(), "2026-10-12");
     expect(screen.getByRole("button", { name: "2026-10-12" })).toHaveAttribute(
