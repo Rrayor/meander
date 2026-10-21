@@ -54,6 +54,16 @@ export const formatDate = (iso: string, locale?: string) =>
     day: "numeric",
   });
 
+// Plain "YYYY-MM-DD" calendar dates (series start/end) carry no time —
+// render them in UTC so the day never shifts with the local timezone.
+export const formatIsoDay = (iso: string, locale?: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+
 // A local calendar date — `toISOString` would take the UTC date and can land
 // on tomorrow/yesterday outside UTC.
 export const todayLocalIso = () => {

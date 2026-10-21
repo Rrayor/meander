@@ -63,7 +63,7 @@ import {
   listTaskSeries,
   type TaskSeries,
 } from "@/api/series";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatIsoDay } from "@/lib/utils";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -702,7 +702,7 @@ describe("EditTaskDialog", () => {
       await screen.findByText(
         seriesAuditLabel(
           describeRecurrence(baseSeries.recurrence),
-          formatDate(baseSeries.start_date),
+          formatIsoDay(baseSeries.start_date),
           null,
           formatDate(baseSeries.created_at),
           formatDate(baseSeries.updated_at),
@@ -727,8 +727,8 @@ describe("EditTaskDialog", () => {
       await screen.findByText(
         seriesAuditLabel(
           describeRecurrence(endedSeries.recurrence),
-          formatDate(endedSeries.start_date),
-          formatDate(endedSeries.end_date!),
+          formatIsoDay(endedSeries.start_date),
+          formatIsoDay(endedSeries.end_date!),
           formatDate(endedSeries.created_at),
           formatDate(endedSeries.updated_at),
         ),
