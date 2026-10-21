@@ -727,7 +727,7 @@ test("a series task shows audit info, calendar, and notes tabs", async ({
   // Scheduled days carry the occurrence marker; unscheduled days don't.
   await expect(
     dialog
-      .getByRole("button", { name: "2026-10-19" })
+      .getByRole("button", { name: seriesInstance.scheduled_date! })
       .locator("[aria-hidden='true']"),
   ).toBeVisible();
   await expect(
