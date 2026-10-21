@@ -11,6 +11,24 @@ import {
 const MONDAY = WEEKDAY_OPTIONS.find((w) => w.value === "monday")!.label;
 const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!.label;
 
+// Contract pin: the recurrence math indexes weekdays by WEEKDAY_OPTIONS
+// order, which must mirror the backend `Weekday` enum (Monday = 0). If the
+// week-start display setting ever tempts a reorder of this registry, this
+// fails before the math silently shifts.
+describe("WEEKDAY_OPTIONS canonical order", () => {
+  it("matches the backend Weekday enum order, Monday first", () => {
+    expect(WEEKDAY_OPTIONS.map((w) => w.value)).toEqual([
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ]);
+  });
+});
+
 const START = "2026-10-05"; // a Monday
 
 describe("isScheduledOn", () => {

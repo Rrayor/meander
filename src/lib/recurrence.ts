@@ -130,7 +130,8 @@ export const isScheduledOn = (
 };
 
 // Weekday value → index (Monday = 0), matching the Rust `Weekday` enum
-// order and the WEEKDAY_OPTIONS registry.
+// order. Relies on WEEKDAY_OPTIONS staying in canonical order — the
+// week-start display setting must rotate a derived copy, not the registry.
 const weekdayIndex = (w: Weekday) =>
   WEEKDAY_OPTIONS.findIndex((o) => o.value === w);
 

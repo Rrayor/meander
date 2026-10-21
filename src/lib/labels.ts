@@ -112,6 +112,10 @@ export const REPEAT_UNIT_OPTIONS = [
   { value: "week", label: "weeks" },
   { value: "month", label: "months" },
 ] as const;
+// Canonical weekday order — Monday first, matching the backend `Weekday`
+// enum. Recurrence math (recurrence.ts) indexes weekdays by this order, so
+// it must never be rotated for display: the week-start setting rotates a
+// derived copy at render time instead.
 export const WEEKDAY_OPTIONS = [
   { value: "monday", label: "Monday", short: "Mo" },
   { value: "tuesday", label: "Tuesday", short: "Tu" },

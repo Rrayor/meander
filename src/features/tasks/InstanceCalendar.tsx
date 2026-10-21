@@ -15,7 +15,9 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const toIso = (d: Date) =>
   `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 
-// WEEKDAY_OPTIONS is already ordered Monday → Sunday.
+// Display order only: canonical WEEKDAY_OPTIONS happens to start on Monday,
+// the default week start. When the week-start setting lands, rotate a copy
+// here — do not reorder the canonical registry.
 const WEEK_ORDER = WEEKDAY_OPTIONS;
 
 const monthLabel = (year: number, month: number, locale?: string) =>

@@ -232,6 +232,8 @@ pub(crate) fn first_occurrence(
         } => {
             // Eligible weeks are Monday-anchored at the start's week, every
             // `interval_weeks` — the same anchor the frontend predicate uses.
+            // This is a fixed internal convention for counting intervals,
+            // independent of the user-facing week-start display setting.
             let start_wd = weekday_index(y, m, d);
             let anchor_monday = days_from_civil(y, m, d) - start_wd;
             let this_week = weekdays
