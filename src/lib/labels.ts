@@ -139,8 +139,10 @@ export const seriesAuditLabel = (
   end: string | null,
   created: string,
   updated: string,
-) =>
-  `Repeats ${description} from ${start}${end ? ` until ${end}` : " with no end date"} — series created ${created} · last updated ${updated}`;
+) => {
+  const range = end === null ? "with no end date" : `until ${end}`;
+  return `Repeats ${description} from ${start} ${range} — series created ${created} · last updated ${updated}`;
+};
 
 export const workdayAfterLabel = (day: number) =>
   `the first workday after day ${day}`;
