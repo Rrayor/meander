@@ -342,6 +342,7 @@ export function EditTaskDialog({
     control,
     handleSubmit,
     setFocus,
+    reset,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -393,7 +394,7 @@ export function EditTaskDialog({
   // Save scope: instance edits today's task; series writes the shared
   // fields + schedule + categories onto the series and every instance.
   const [saveScope, setSaveScope] = useState<"instance" | "series">("instance");
-  const { data: seriesCats } = useQuery({
+  const { data: seriesCats, error: seriesCatsError } = useQuery({
     queryKey: QUERY_KEYS.seriesCategories(task.series_id!),
     queryFn: () => listSeriesCategories(task.series_id!),
     enabled: task.series_id !== null && saveScope === "series",
@@ -404,6 +405,32 @@ export function EditTaskDialog({
   const [seriesDraft, setSeriesDraft] = useState<NewSeries | null>(null);
   const [seriesCleared, setSeriesCleared] = useState(false);
   const [seriesDraftError, setSeriesDraftError] = useState<string | null>(null);
+  // Entering series scope reseeds the shared fields from the series — the
+  // form defaults hold the opened instance's values, which may be custom
+  // edits (spec §146: series scope edits the shared fields, not one
+  // instance's overrides). Instance-only spent/status keep the opened
+  // task's values so they stay valid while disabled. The ref guards
+  // against reseeding on a later refetch, which would clobber typed edits.
+  const seriesScopeSeeded = useRef(false);
+  useEffect(() => {
+    if (saveScope !== "series") {
+      seriesScopeSeeded.current = false;
+      return;
+    }
+    if (seriesScopeSeeded.current || seriesRow === undefined) return;
+    seriesScopeSeeded.current = true;
+    const seriesEstimate = minutesToParts(seriesRow.estimated_minutes);
+    reset({
+      title: seriesRow.title,
+      description: seriesRow.description ?? "",
+      estHours: seriesEstimate.hours,
+      estMinutes: seriesEstimate.minutes,
+      spentHours: spent.hours,
+      spentMinutes: spent.minutes,
+      status: task.status,
+      carryOver: seriesRow.carry_over_rule,
+    });
+  }, [saveScope, seriesRow, reset, spent.hours, spent.minutes, task.status]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteScope, setDeleteScope] = useState<
     "instance" | "series" | "future"
@@ -546,12 +573,20 @@ export function EditTaskDialog({
 
   const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
   const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
-  const serverError = serverErrorMessage(update.error ?? updateSeries.error);
+  const serverError = serverErrorMessage(
+    update.error ?? updateSeries.error ?? seriesCatsError,
+  );
   // A series save needs a schedule: the stored one (untouched draft) or a
-  // valid edited one — collapsing the section disables saving.
+  // valid edited one — collapsing the section disables saving. It also
+  // waits for the series category query: submitting before it resolves
+  // would send an empty set and erase every instance's associations, and
+  // a failed load is surfaced instead of treated as "no categories".
   const seriesSaveBlocked =
     saveScope === "series" &&
-    (seriesRow === undefined || seriesCleared || seriesDraftError !== null);
+    (seriesRow === undefined ||
+      seriesCats === undefined ||
+      seriesCleared ||
+      seriesDraftError !== null);
 
   const durationField = (
     idPrefix: string,

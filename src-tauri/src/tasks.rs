@@ -150,7 +150,7 @@ fn parse_description(raw: Option<&str>) -> Result<Option<String>> {
         .map(TaskDescription::into_inner))
 }
 
-fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
+pub(crate) fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
     Ok(raw
         .map(PositiveDuration::try_new)
         .transpose()

@@ -1008,13 +1008,16 @@ describe("EditTaskDialog", () => {
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
     );
 
-    // Series categories (WORK) replace the instance's (ERRANDS) on save.
+    // Series categories (WORK) replace the instance's (ERRANDS) on save,
+    // and the untouched shared fields submit the series' values — the
+    // instance's description/carry-over/estimate are per-instance overrides
+    // that must not be promoted.
     await waitFor(() =>
       expect(mockedUpdateSeries).toHaveBeenCalledWith(baseSeries.id, {
         title: TITLE_EDITED,
-        description: baseTask.description,
-        carry_over_rule: baseTask.carry_over_rule,
-        estimated_minutes: baseTask.estimated_minutes,
+        description: baseSeries.description,
+        carry_over_rule: baseSeries.carry_over_rule,
+        estimated_minutes: baseSeries.estimated_minutes,
         recurrence: baseSeries.recurrence,
         start_date: baseSeries.start_date,
         end_date: baseSeries.end_date,
@@ -1040,6 +1043,99 @@ describe("EditTaskDialog", () => {
         baseSeries.id,
         expect.objectContaining({ end_date: REPEAT_END_DATE }),
       ),
+    );
+  });
+
+  const SERIES_DESCRIPTION = "the shared series description";
+
+  it("reseeds the shared fields from the series when series scope is picked", async () => {
+    // The opened instance carries custom edits; a series save must not
+    // promote them to every occurrence (spec §146 goes the other way).
+    mockedListTaskSeries.mockResolvedValue([
+      {
+        ...baseSeries,
+        title: TITLE_EDITED,
+        description: SERIES_DESCRIPTION,
+        estimated_minutes: 45,
+        carry_over_rule: "return" as const,
+      },
+    ]);
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Title/)).toHaveValue(TITLE_EDITED),
+    );
+    expect(screen.getByLabelText(/Description/)).toHaveValue(
+      SERIES_DESCRIPTION,
+    );
+    expect(screen.getByLabelText(ESTIMATED_MINUTES_LABEL)).toHaveValue(45);
+    expect(
+      screen.getByRole("radio", { name: "Return to backlog" }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("blocks a series save until the series categories finish loading", async () => {
+    // Saving before the query resolves would submit an empty category set
+    // and erase the stored associations.
+    const pending = deferred<Category[]>();
+    mockedListSeriesCategories.mockReturnValue(pending.promise);
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+
+    const save = screen.getByRole("button", { name: SAVE_BUTTON_LABEL });
+    expect(save).toBeDisabled();
+
+    pending.resolve([WORK]);
+    await waitFor(() => expect(save).toBeEnabled());
+  });
+
+  it("blocks and surfaces a failed series-category load", async () => {
+    const LOAD_ERROR = "offline";
+    mockedListSeriesCategories.mockRejectedValue(new Error(LOAD_ERROR));
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(LOAD_ERROR);
+  });
+
+  it("does not let an invalid spent draft block a series save", async () => {
+    // Spent is instance-only: at series scope its inputs are disabled, and
+    // reseeding restores the task's valid values — a stale draft error must
+    // not keep Save disabled for a submit that doesn't even send spent.
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    const spent = screen.getByLabelText(SPENT_HOURS_LABEL);
+    fireEvent.change(spent, { target: { value: "99" } });
+    fireEvent.blur(spent);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      SPENT_RANGE_MESSAGE,
+    );
+
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+
+    const save = screen.getByRole("button", { name: SAVE_BUTTON_LABEL });
+    await waitFor(() => expect(save).toBeEnabled());
+    expect(screen.queryByText(SPENT_RANGE_MESSAGE)).not.toBeInTheDocument();
+
+    fireEvent.submit(save.closest("form")!);
+    await waitFor(() => expect(mockedUpdateSeries).toHaveBeenCalled());
+    expect(mockedUpdateSeries.mock.calls[0][1]).not.toHaveProperty(
+      "spent_minutes",
     );
   });
 

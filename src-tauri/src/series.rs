@@ -628,6 +628,9 @@ pub async fn update(
     )?;
     // Spec §95: carry-over defaults to return-to-backlog for series.
     let carry_over = input.carry_over_rule.unwrap_or(CarryOverRule::Return);
+    // Same estimate boundary as task writes — without it, invalid values
+    // surface as a generic CHECK failure on instance rows.
+    let estimated = crate::tasks::parse_estimate(input.estimated_minutes)?;
     let result = sqlx::query(
         "UPDATE task_series SET title = ?, description = ?, carry_over_rule = ?, \
          estimated_minutes = ?, recurrence = ?, start_date = ?, end_date = ?, \
@@ -636,7 +639,7 @@ pub async fn update(
     .bind(&prepared.title)
     .bind(&prepared.description)
     .bind(carry_over)
-    .bind(input.estimated_minutes)
+    .bind(estimated)
     .bind(&prepared.recurrence_json)
     .bind(&prepared.start)
     .bind(&prepared.end)
@@ -653,7 +656,7 @@ pub async fn update(
     .bind(&prepared.title)
     .bind(&prepared.description)
     .bind(carry_over)
-    .bind(input.estimated_minutes)
+    .bind(estimated)
     .bind(id)
     .execute(&mut *tx)
     .await?;
@@ -686,7 +689,14 @@ pub async fn truncate(pool: &SqlitePool, profile_id: i64, id: i64, from_date: &s
         .execute(&mut *tx)
         .await?;
     let (y, m, d) = parse_iso(from_date);
-    let new_end = to_iso(civil_from_days(days_from_civil(y, m, d) - 1));
+    let proposed = to_iso(civil_from_days(days_from_civil(y, m, d) - 1));
+    // Deleting a persisted instance beyond an already-set end must not
+    // revive occurrences between the old end and the new cutoff — keep the
+    // earlier of the two.
+    let new_end = match &row.end_date {
+        Some(existing) if existing < &proposed => existing.clone(),
+        _ => proposed,
+    };
     sqlx::query("UPDATE task_series SET end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(new_end)
         .bind(id)
@@ -1372,6 +1382,56 @@ mod tests {
                 .await
                 .unwrap_err(),
             ErrorCode::StartDateInvalid,
+        );
+    }
+
+    #[tokio::test]
+    async fn update_rejects_an_out_of_range_estimate() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+
+        for bad in [Some(0), Some(crate::tasks::MAX_DURATION_MINUTES + 1)] {
+            let mut update_input = update_input(weekly());
+            update_input.estimated_minutes = bad;
+            assert_code(
+                &update(&pool, pid, saved.id, &update_input)
+                    .await
+                    .unwrap_err(),
+                ErrorCode::EstimatedTimeOutOfRange,
+            );
+        }
+        // Nothing was written — the series kept its original estimate.
+        assert_eq!(
+            list(&pool, pid).await.unwrap()[0].estimated_minutes,
+            saved.estimated_minutes
+        );
+    }
+
+    #[tokio::test]
+    async fn truncate_never_extends_an_earlier_end() {
+        let (pool, pid) = seeded_pool().await;
+        let mut input = series(weekly());
+        input.end_date = Some("2026-10-20".to_string());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        // A persisted off-schedule instance beyond the current end.
+        add_instance(&pool, pid, saved.id, "2026-11-10").await;
+
+        truncate(&pool, pid, saved.id, "2026-11-10").await.unwrap();
+
+        // The instance is gone, but the earlier end stands — ending the
+        // series at that date must not revive the weeks in between.
+        let series = list(&pool, pid).await.unwrap();
+        assert_eq!(series[0].end_date.as_deref(), Some("2026-10-20"));
+        assert!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= '2026-11-10'"
+            )
+            .bind(saved.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+                == 0
         );
     }
 }
