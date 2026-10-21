@@ -155,6 +155,47 @@ test("the edit task dialog has no WCAG AA violations", async ({ page }) => {
   await expectAccessible(page);
 });
 
+const seriesFixture = {
+  id: 7,
+  profile_id: 1,
+  title: task.title,
+  description: null,
+  carry_over_rule: "return",
+  estimated_minutes: null,
+  recurrence: {
+    kind: "weekly",
+    interval_weeks: 1,
+    weekdays: ["monday"],
+  },
+  start_date: "2026-10-05",
+  end_date: null,
+  created_at: AUDIT_TS,
+  updated_at: AUDIT_TS,
+};
+
+const seriesInstance = {
+  ...task,
+  series_id: seriesFixture.id,
+  scheduled_date: "2026-10-19",
+};
+
+test("the task details view has no WCAG AA violations", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+  });
+  await page.goto(`/#${backlogPath}`);
+  await page.getByRole("button", { name: editTaskLabel(task.title) }).click();
+  const dialog = page.getByRole("dialog");
+  // Series sections rendered — audit line, calendar, notes tabs.
+  await expect(dialog.getByText(/Repeats/)).toBeVisible();
+
+  await expectAccessible(page);
+});
+
 test("the categories page has no WCAG AA violations", async ({ page }) => {
   const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
   await stubTauriCommands(page, {

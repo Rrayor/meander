@@ -158,6 +158,151 @@ fn is_leap_year(year: u32) -> bool {
     (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }
 
+// Civil-calendar arithmetic (Hinnant's algorithms) — enough to walk dates
+// without pulling in chrono. Inputs are dates `iso_date` already accepted.
+fn parse_iso(raw: &str) -> (u32, u32, u32) {
+    (
+        raw[0..4].parse().unwrap_or(0),
+        raw[5..7].parse().unwrap_or(0),
+        raw[8..10].parse().unwrap_or(0),
+    )
+}
+
+fn to_iso((y, m, d): (u32, u32, u32)) -> String {
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
+fn days_from_civil(y: u32, m: u32, d: u32) -> i64 {
+    let y = i64::from(y) - i64::from(m <= 2);
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let mp = if m > 2 { m - 3 } else { m + 9 };
+    let doy = (153 * i64::from(mp) + 2) / 5 + i64::from(d) - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+fn civil_from_days(z: i64) -> (u32, u32, u32) {
+    let z = z + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    ((yoe + era * 400 + i64::from(m <= 2)) as u32, m, d)
+}
+
+/// Weekday index of a date, Monday = 0 (matches the `Weekday` enum order).
+fn weekday_index(y: u32, m: u32, d: u32) -> i64 {
+    (days_from_civil(y, m, d) + 3).rem_euclid(7)
+}
+
+/// Day-of-month of the nth (1-4) or last (-1) `weekday` in a month. Validation
+/// bounds nth to those values; every month contains each weekday ≥ 4 times.
+fn nth_weekday_day(y: u32, m: u32, nth: i8, weekday: Weekday) -> u32 {
+    let offset = (i64::from(weekday as u8) - weekday_index(y, m, 1)).rem_euclid(7);
+    let first = 1 + offset as u32;
+    if nth == -1 {
+        let last_day = days_in_month(y, m);
+        first + 7 * ((last_day - first) / 7)
+    } else {
+        first + 7 * (nth as u32 - 1)
+    }
+}
+
+/// The first occurrence on or after the series start date — the day the
+/// first instance occupies. Mirrors `isScheduledOn` (src/lib/recurrence.ts):
+/// weekly/monthly intervals count whole periods anchored at the start, so a
+/// start date past its period's matching day pushes the first occurrence
+/// into the next eligible period. `None` when the schedule produces no
+/// occurrence through `end`.
+pub(crate) fn first_occurrence(
+    recurrence: &Recurrence,
+    start: &str,
+    end: Option<&str>,
+) -> Option<String> {
+    let (y, m, d) = parse_iso(start);
+    let first = match recurrence {
+        Recurrence::Daily { .. } => (y, m, d),
+        Recurrence::Weekly {
+            interval_weeks,
+            weekdays,
+        } => {
+            // Eligible weeks are Monday-anchored at the start's week, every
+            // `interval_weeks` — the same anchor the frontend predicate uses.
+            // This is a fixed internal convention for counting intervals,
+            // independent of the user-facing week-start display setting.
+            let start_wd = weekday_index(y, m, d);
+            let anchor_monday = days_from_civil(y, m, d) - start_wd;
+            let this_week = weekdays
+                .iter()
+                .map(|w| i64::from(*w as u8))
+                .filter(|w| *w >= start_wd)
+                .min();
+            let z = match this_week {
+                Some(w) => anchor_monday + w,
+                None => {
+                    anchor_monday
+                        + 7 * i64::from(*interval_weeks)
+                        + weekdays.iter().map(|w| i64::from(*w as u8)).min()?
+                }
+            };
+            civil_from_days(z)
+        }
+        Recurrence::MonthlyDay {
+            interval_months,
+            day,
+        } => {
+            let day = u32::from(*day);
+            let clamped = day.min(days_in_month(y, m));
+            if clamped >= d {
+                (y, m, clamped)
+            } else {
+                let (y2, m2) = shift_months(y, m, *interval_months);
+                (y2, m2, day.min(days_in_month(y2, m2)))
+            }
+        }
+        Recurrence::MonthlyNthWeekday {
+            interval_months,
+            nth,
+            weekday,
+        } => {
+            let day = nth_weekday_day(y, m, *nth, *weekday);
+            if day >= d {
+                (y, m, day)
+            } else {
+                let (y2, m2) = shift_months(y, m, *interval_months);
+                (y2, m2, nth_weekday_day(y2, m2, *nth, *weekday))
+            }
+        }
+        // Validation rejects workday-aware schedules before insert.
+        Recurrence::WorkdayAfter { .. } => return None,
+    };
+    let (y, m, d) = first;
+    // Only four-digit years are representable (isScheduledOn's strict
+    // \d{4} pattern); a computed occurrence past 9999-12-31 can never be
+    // matched or displayed.
+    if y > 9999 {
+        return None;
+    }
+    // Compare civil days, not ISO text — "10000-…" sorts before
+    // "9999-…" lexically.
+    if let Some(end) = end {
+        let (ey, em, ed) = parse_iso(end);
+        if days_from_civil(y, m, d) > days_from_civil(ey, em, ed) {
+            return None;
+        }
+    }
+    Some(to_iso(first))
+}
+
+fn shift_months(y: u32, m: u32, months: u32) -> (u32, u32) {
+    let idx = i64::from(y) * 12 + i64::from(m - 1) + i64::from(months);
+    ((idx / 12) as u32, (idx % 12 + 1) as u32)
+}
+
 /// Input carrying the schedule — a `series` field on task create/update.
 /// `recurrence` arrives as untrusted JSON: decoding it inside the typed
 /// boundary maps malformed payloads to `RecurrenceInvalid` instead of an
@@ -285,6 +430,14 @@ pub(crate) async fn insert(
                 message: "end date must not be before the start date".into(),
             });
         }
+    }
+    // The single write path enforces the occurrence rule for every caller:
+    // a schedule that can never occur through its end date is rejected.
+    if first_occurrence(&recurrence, start, end).is_none() {
+        return Err(DbError::Validation {
+            code: ErrorCode::RecurrenceInvalid,
+            message: "the schedule has no occurrence on or before its end date".into(),
+        });
     }
     let recurrence_json = serde_json::to_string(&recurrence).map_err(|e| DbError::Validation {
         code: ErrorCode::Internal,
@@ -574,6 +727,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn schedule_with_no_occurrence_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        // START (2026-10-19) is a Monday — a Wednesday-only weekly cannot
+        // occur on or before a same-day end.
+        let mut impossible = series(Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![Weekday::Wednesday],
+        });
+        impossible.end_date = Some(START.into());
+        let err = create(&pool, pid, &fields_for(&impossible))
+            .await
+            .unwrap_err();
+        assert_code(&err, ErrorCode::RecurrenceInvalid);
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
     async fn delete_is_profile_scoped() {
         let (pool, pid) = seeded_pool().await;
         let input = series(weekly());
@@ -589,5 +759,143 @@ mod tests {
 
         let err = delete(&pool, pid, saved.id).await.unwrap_err();
         assert_code(&err, ErrorCode::SeriesNotFound);
+    }
+
+    // START (2026-10-19) is a Monday; the first Wednesday after it.
+    const WEDNESDAY_AFTER_START: &str = "2026-10-21";
+
+    #[test]
+    fn first_occurrence_lands_on_the_first_matching_date() {
+        // Daily: the start date is always an occurrence.
+        assert_eq!(
+            first_occurrence(&Recurrence::Daily { interval_days: 3 }, START, None).as_deref(),
+            Some(START)
+        );
+        // Weekly including the start weekday: the start date itself.
+        assert_eq!(
+            first_occurrence(&weekly(), START, None).as_deref(),
+            Some(START)
+        );
+        // Weekly excluding it, but with a later weekday in the same week.
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::Weekly {
+                    interval_weeks: 1,
+                    weekdays: vec![Weekday::Wednesday],
+                },
+                START,
+                None,
+            )
+            .as_deref(),
+            Some(WEDNESDAY_AFTER_START)
+        );
+        // No matching weekday left this week: the next eligible week —
+        // `interval_weeks` later, on the earliest selected weekday.
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::Weekly {
+                    interval_weeks: 2,
+                    weekdays: vec![Weekday::Monday, Weekday::Friday],
+                },
+                "2026-10-24", // a Saturday — past both picks for this week
+                None,
+            )
+            .as_deref(),
+            Some("2026-11-02")
+        );
+        // Monthly-day past this month: clamp into the next eligible month.
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::MonthlyDay {
+                    interval_months: 2,
+                    day: 31,
+                },
+                START,
+                None,
+            )
+            .as_deref(),
+            Some("2026-10-31")
+        );
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::MonthlyDay {
+                    interval_months: 3,
+                    day: 15,
+                },
+                START,
+                None,
+            )
+            .as_deref(),
+            Some("2027-01-15")
+        );
+        // Nth weekday: second Monday of Oct 2026 is the 12th; a start after
+        // it moves to December's second Monday (interval 2).
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::MonthlyNthWeekday {
+                    interval_months: 1,
+                    nth: 2,
+                    weekday: Weekday::Monday,
+                },
+                "2026-10-01",
+                None,
+            )
+            .as_deref(),
+            Some("2026-10-12")
+        );
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::MonthlyNthWeekday {
+                    interval_months: 2,
+                    nth: -1,
+                    weekday: Weekday::Friday,
+                },
+                "2026-10-31", // past Oct's last Friday (the 30th)
+                None,
+            )
+            .as_deref(),
+            Some("2026-12-25") // last Friday of December
+        );
+    }
+
+    #[test]
+    fn first_occurrence_respects_the_end_date() {
+        let never = Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![Weekday::Wednesday],
+        };
+        // End before the first matching Wednesday → no occurrence.
+        assert_eq!(first_occurrence(&never, START, Some("2026-10-20")), None);
+        // End on the matching Wednesday → it.
+        assert_eq!(
+            first_occurrence(&never, START, Some(WEDNESDAY_AFTER_START)).as_deref(),
+            Some(WEDNESDAY_AFTER_START)
+        );
+    }
+
+    #[test]
+    fn first_occurrence_stays_within_representable_years() {
+        // 9999-12-31 is a Friday. A Monday-only weekly can only occur again
+        // in year 10000, which the four-digit ISO contract cannot represent
+        // — regardless of whether an end date bounds it.
+        let monday = Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![Weekday::Monday],
+        };
+        let last_day = "9999-12-31";
+        assert_eq!(first_occurrence(&monday, last_day, Some(last_day)), None);
+        assert_eq!(first_occurrence(&monday, last_day, None), None);
+        // A monthly schedule rolling into year 10000 is equally rejected.
+        assert_eq!(
+            first_occurrence(
+                &Recurrence::MonthlyDay {
+                    interval_months: 1,
+                    day: 1,
+                },
+                "9999-12-02",
+                None,
+            ),
+            None
+        );
     }
 }

@@ -1,3 +1,5 @@
+import type { Recurrence } from "@/api/bindings";
+
 export const STATUS_LABELS = {
   todo: "Todo",
   in_progress: "In progress",
@@ -60,6 +62,9 @@ export const CURRENT_PROFILE_LABEL = "Current";
 export const RENAME_BUTTON_LABEL = "Rename";
 export const SAVE_BUTTON_LABEL = "Save";
 export const CANCEL_BUTTON_LABEL = "Cancel";
+export const EDIT_BUTTON_LABEL = "Edit";
+// Placeholder shown where a task detail has no value.
+export const EMPTY_VALUE_LABEL = "—";
 
 export const CATEGORIES_HEADING = "Categories";
 export const CATEGORIES_SUBTITLE = "Labels for grouping tasks";
@@ -100,11 +105,17 @@ export const REPEAT_STARTS_INVALID_MESSAGE = "Starts must be a real date.";
 export const REPEAT_ENDS_INVALID_MESSAGE = "Ends must be a real date.";
 export const REPEAT_ENDS_BEFORE_START_MESSAGE =
   "Ends must not be before Starts.";
+export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
+  "The schedule never occurs on or before this date.";
 export const REPEAT_UNIT_OPTIONS = [
   { value: "day", label: "days" },
   { value: "week", label: "weeks" },
   { value: "month", label: "months" },
 ] as const;
+// Canonical weekday order — Monday first, matching the backend `Weekday`
+// enum. Recurrence math (recurrence.ts) indexes weekdays by this order, so
+// it must never be rotated for display: the week-start setting rotates a
+// derived copy at render time instead.
 export const WEEKDAY_OPTIONS = [
   { value: "monday", label: "Monday", short: "Mo" },
   { value: "tuesday", label: "Tuesday", short: "Tu" },
@@ -121,3 +132,65 @@ export const REPEAT_NTH_OPTIONS = [
   { value: "4", label: "4th", aria: "Fourth" },
   { value: "-1", label: "Last", aria: "Last" },
 ] as const;
+
+export const seriesAuditLabel = (
+  description: string,
+  created: string,
+  updated: string,
+) =>
+  `Repeats ${description} — series created ${created} · last updated ${updated}`;
+
+export const workdayAfterLabel = (day: number) =>
+  `the first workday after day ${day}`;
+
+const weekdayLabel = (value: string) =>
+  WEEKDAY_OPTIONS.find((w) => w.value === value)?.label ?? value;
+
+const UNIT_LABELS = Object.fromEntries(
+  REPEAT_UNIT_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<string, string>;
+
+const andJoin = (items: string[]) =>
+  items.length <= 2
+    ? items.join(" and ")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+// Human-readable schedule description for the series audit line, e.g.
+// "every 2 weeks on Monday and Friday".
+export const describeRecurrence = (recurrence: Recurrence): string => {
+  const cadence = (interval: number, unit: string) =>
+    interval === 1 ? `every ${unit.slice(0, -1)}` : `every ${interval} ${unit}`;
+  switch (recurrence.kind) {
+    case "daily":
+      return cadence(recurrence.interval_days, UNIT_LABELS.day);
+    case "weekly": {
+      const days = andJoin(recurrence.weekdays.map(weekdayLabel));
+      return `${cadence(recurrence.interval_weeks, UNIT_LABELS.week)} on ${days}`;
+    }
+    case "monthly_day":
+      return `${cadence(recurrence.interval_months, UNIT_LABELS.month)} on day ${recurrence.day}`;
+    case "monthly_nth_weekday": {
+      const nth = REPEAT_NTH_OPTIONS.find(
+        (o) => o.value === String(recurrence.nth),
+      )?.aria;
+      return `${cadence(recurrence.interval_months, UNIT_LABELS.month)} on the ${nth} ${weekdayLabel(recurrence.weekday)}`;
+    }
+    case "workday_after":
+      return workdayAfterLabel(recurrence.day);
+  }
+};
+
+export const TASK_SCOPE_GROUP_LABEL = "Apply changes to";
+export const TASK_SCOPE_INSTANCE_LABEL = "This instance only";
+export const TASK_SCOPE_SERIES_LABEL = "Entire series";
+export const TASK_SCOPE_FUTURE_LABEL = "This and future instances";
+export const TASK_SCOPE_COMING_SOON_HINT =
+  "available when series editing lands";
+
+export const CALENDAR_PREVIOUS_LABEL = "Previous month";
+export const CALENDAR_NEXT_LABEL = "Next month";
+export const NOTES_TAB_INSTANCE_LABEL = "Current instance";
+export const NOTES_TAB_SERIES_LABEL = "Series";
+export const NOTES_EMPTY_MESSAGE = "No notes yet.";
+export const SCHEDULED_INSTANCE_PENDING_MESSAGE =
+  "Scheduled — this instance will be created when the board is generated.";

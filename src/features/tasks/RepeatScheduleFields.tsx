@@ -5,6 +5,7 @@ import type { NewSeries, Recurrence, Weekday } from "@/api/bindings";
 import {
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_INVALID_MESSAGE,
+  REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
   REPEAT_ENDS_LABEL,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
@@ -21,6 +22,7 @@ import {
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
 } from "@/lib/labels";
+import { firstOccurrence } from "@/lib/recurrence";
 import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 
 type Unit = (typeof REPEAT_UNIT_OPTIONS)[number]["value"];
@@ -77,7 +79,12 @@ const isRealIsoDate = (iso: string) => {
 const draftSchema = z
   .object({
     interval: z.number().int().min(1),
+    unit: z.enum(REPEAT_UNIT_OPTIONS.map((o) => o.value) as [Unit, ...Unit[]]),
+    weekdays: z.array(z.string()),
+    monthMode: z.enum(["day", "weekday"]),
     day: z.number().int().min(1).max(31),
+    nth: z.number().int(),
+    weekday: z.string(),
     startDate: z
       .string()
       .min(1, REPEAT_STARTS_REQUIRED_MESSAGE)
@@ -89,16 +96,29 @@ const draftSchema = z
         REPEAT_ENDS_INVALID_MESSAGE,
       ),
   })
-  .superRefine(({ startDate, endDate }, ctx) => {
-    if (
-      isRealIsoDate(startDate) &&
-      isRealIsoDate(endDate) &&
-      endDate < startDate
-    ) {
+  .superRefine((draft, ctx) => {
+    const { startDate, endDate } = draft;
+    if (!isRealIsoDate(startDate) || !isRealIsoDate(endDate)) return;
+    if (endDate < startDate) {
       ctx.addIssue({
         code: "custom",
         path: ["endDate"],
         message: REPEAT_ENDS_BEFORE_START_MESSAGE,
+      });
+      return;
+    }
+    // Mirrors the backend's first-occurrence rejection (tasks.rs's
+    // first_instance_date): an end before the first matching day makes
+    // the schedule unreachable.
+    const first = firstOccurrence(
+      toRecurrence(draft as RepeatDraft),
+      startDate,
+    );
+    if (first === null || first > endDate) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
       });
     }
   });

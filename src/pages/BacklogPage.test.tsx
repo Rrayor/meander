@@ -10,6 +10,7 @@ import { BacklogPage } from "@/pages/BacklogPage";
 import {
   ADD_TASK_LABEL,
   CANCEL_BUTTON_LABEL,
+  EDIT_BUTTON_LABEL,
   EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
@@ -232,6 +233,9 @@ describe("BacklogPage", () => {
     );
 
     fireEvent.click(await screen.findByText(TITLE_A));
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     expect(
       await screen.findByRole("heading", { name: EDIT_TASK_HEADING }),
     ).toBeInTheDocument();
@@ -290,6 +294,9 @@ describe("BacklogPage", () => {
 
     // The new list renders while currentProfile is still pending.
     fireEvent.click(await screen.findByText(TITLE_B));
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     expect(
       await screen.findByRole("heading", { name: EDIT_TASK_HEADING }),
     ).toBeInTheDocument();

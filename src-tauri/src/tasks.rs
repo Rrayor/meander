@@ -196,6 +196,21 @@ fn series_fields<'a>(
     }
 }
 
+/// The date the first instance occupies — the series' first occurrence,
+/// which is the start date only when the recurrence matches it. A schedule
+/// that can never occur through its end date is rejected.
+fn first_instance_date(series: &crate::series::TaskSeries) -> Result<String> {
+    crate::series::first_occurrence(
+        &series.recurrence,
+        &series.start_date,
+        series.end_date.as_deref(),
+    )
+    .ok_or_else(|| crate::db::DbError::Validation {
+        code: ErrorCode::RecurrenceInvalid,
+        message: "the schedule has no occurrence on or before its end date".into(),
+    })
+}
+
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Result<Task> {
     let title = TaskTitle::parse(&input.title)?.into_inner();
     let description = parse_description(input.description.as_deref())?;
@@ -209,7 +224,7 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     } else {
         input.carry_over_rule
     };
-    let series_id = match &input.series {
+    let saved_series = match &input.series {
         Some(series) => Some(
             crate::series::insert(
                 &mut tx,
@@ -222,14 +237,17 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
                     series,
                 ),
             )
-            .await?
-            .id,
+            .await?,
         ),
         None => None,
     };
+    // A schedule's first instance occupies the series' first occurrence —
+    // the details view's calendar locates instances by scheduled_date.
+    let first_date = saved_series.as_ref().map(first_instance_date).transpose()?;
+    let series_id = saved_series.as_ref().map(|s| s.id);
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, scheduled_date, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
@@ -237,6 +255,7 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     .bind(estimated)
     .bind(carry_over)
     .bind(series_id)
+    .bind(first_date)
     .bind(profile_id)
     .execute(&mut *tx)
     .await?;
@@ -368,7 +387,7 @@ pub async fn update(
                 .flatten();
         match linked {
             None => {
-                let series_id = crate::series::insert(
+                let saved_series = crate::series::insert(
                     &mut tx,
                     profile_id,
                     &series_fields(
@@ -379,10 +398,12 @@ pub async fn update(
                         series,
                     ),
                 )
-                .await?
-                .id;
-                sqlx::query("UPDATE tasks SET series_id = ? WHERE id = ?")
+                .await?;
+                let series_id = saved_series.id;
+                // The existing task becomes the first occurrence's instance.
+                sqlx::query("UPDATE tasks SET series_id = ?, scheduled_date = ? WHERE id = ?")
                     .bind(series_id)
+                    .bind(first_instance_date(&saved_series)?)
                     .bind(id)
                     .execute(&mut *tx)
                     .await?;
@@ -445,6 +466,22 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
         "SELECT * FROM tasks WHERE profile_id = ? ORDER BY sort_order, id",
     )
     .bind(profile_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Persisted instances of one series, oldest first — the details view's
+/// calendar reads these to tell real instances from merely-scheduled dates.
+pub async fn list_instances(
+    pool: &SqlitePool,
+    profile_id: i64,
+    series_id: i64,
+) -> Result<Vec<Task>> {
+    Ok(sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? AND series_id = ? ORDER BY scheduled_date, id",
+    )
+    .bind(profile_id)
+    .bind(series_id)
     .fetch_all(pool)
     .await?)
 }
@@ -700,6 +737,10 @@ mod tests {
         assert_eq!(titles(&pool, other.id).await, vec![TITLE_A]);
     }
 
+    // A Monday — the weekly fixture starts on a matching weekday so the
+    // first instance lands on the start date itself.
+    const SCHEDULE_START: &str = "2026-10-19";
+
     fn weekly_schedule() -> crate::series::NewSeries {
         crate::series::NewSeries {
             recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
@@ -707,7 +748,7 @@ mod tests {
                 weekdays: vec![crate::series::Weekday::Monday],
             })
             .unwrap(),
-            start_date: "2026-10-19".to_string(),
+            start_date: SCHEDULE_START.to_string(),
             end_date: None,
         }
     }
@@ -736,6 +777,104 @@ mod tests {
         // rule normalizes to Return on both (spec §95).
         assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
         assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
+        // The first instance occupies the series start date.
+        assert_eq!(task.scheduled_date.as_deref(), Some(SCHEDULE_START));
+    }
+
+    #[tokio::test]
+    async fn a_schedule_with_no_occurrence_through_its_end_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        // Wednesday-only, ending Monday — the schedule can never occur.
+        let mut schedule = weekly_schedule();
+        schedule.recurrence = serde_json::to_value(crate::series::Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![crate::series::Weekday::Wednesday],
+        })
+        .unwrap();
+        schedule.end_date = Some(SCHEDULE_START.to_string());
+
+        let err = create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(schedule),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::RecurrenceInvalid,
+                ..
+            }
+        ));
+        // Both writes roll back — no half-created series remains.
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 0);
+        assert_eq!(crate::series::list(&pool, pid).await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn list_instances_returns_a_series_tasks_in_date_order() {
+        let (pool, pid) = seeded_pool().await;
+        let first = create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(weekly_schedule()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let sid = first.series_id.unwrap();
+        // A second, later instance of the same series, and an unrelated
+        // task that must not leak in. The first instance is dated by create.
+        assert_eq!(first.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, sort_order) \
+             VALUES (?, ?, ?, '2026-10-26', ?)",
+        )
+        .bind(pid)
+        .bind(TITLE_B)
+        .bind(sid)
+        .bind(99.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+        create(&pool, pid, &task(TITLE_C)).await.unwrap();
+
+        let instances = list_instances(&pool, pid, sid).await.unwrap();
+        let names: Vec<&str> = instances.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(names, vec![TITLE_A, TITLE_B]);
+    }
+
+    #[tokio::test]
+    async fn list_instances_is_scoped_to_the_owning_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "Other").await.unwrap();
+        let foreign = create(
+            &pool,
+            other.id,
+            &NewTask {
+                title: TITLE_A.into(),
+                series: Some(weekly_schedule()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            list_instances(&pool, pid, foreign.series_id.unwrap())
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -764,6 +903,8 @@ mod tests {
         assert_eq!(updated.placement, existing.placement);
         assert_eq!(updated.sort_order, existing.sort_order);
         assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
+        // The existing task becomes the start date's instance.
+        assert_eq!(updated.scheduled_date.as_deref(), Some(SCHEDULE_START));
     }
 
     #[tokio::test]

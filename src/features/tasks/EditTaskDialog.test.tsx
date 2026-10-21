@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 
 import {
@@ -24,7 +25,10 @@ import {
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
 } from "@/lib/errors";
 import {
+  CALENDAR_PREVIOUS_LABEL,
   CANCEL_BUTTON_LABEL,
+  CLOSE_LABEL,
+  EDIT_BUTTON_LABEL,
   EDIT_TASK_HEADING,
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
@@ -32,15 +36,34 @@ import {
   REPEAT_ENDS_LABEL,
   REPEAT_SECTION_LABEL,
   REPEAT_UNIT_OPTIONS,
+  NOTES_TAB_INSTANCE_LABEL,
+  NOTES_TAB_SERIES_LABEL,
+  NOTES_EMPTY_MESSAGE,
   SAVE_BUTTON_LABEL,
+  SCHEDULED_INSTANCE_PENDING_MESSAGE,
   SPENT_HOURS_LABEL,
   SPENT_MINUTES_LABEL,
   STATUS_LABELS,
   TITLE_REQUIRED_MESSAGE,
+  formatMinutes,
+  auditTimestampsLabel,
+  describeRecurrence,
+  seriesAuditLabel,
+  TASK_SCOPE_COMING_SOON_HINT,
+  TASK_SCOPE_FUTURE_LABEL,
+  TASK_SCOPE_GROUP_LABEL,
+  TASK_SCOPE_INSTANCE_LABEL,
+  TASK_SCOPE_SERIES_LABEL,
   WEEKDAY_OPTIONS,
   createCategoryOptionLabel,
   removeTaskCategoryLabel,
 } from "@/lib/labels";
+import {
+  listSeriesInstances,
+  listTaskSeries,
+  type TaskSeries,
+} from "@/api/series";
+import { formatDate } from "@/lib/utils";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -59,6 +82,13 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   createCategory: vi.fn(),
 }));
 
+vi.mock("@/api/series", () => ({
+  listTaskSeries: vi.fn(),
+  listSeriesInstances: vi.fn(),
+}));
+
+const mockedListTaskSeries = vi.mocked(listTaskSeries);
+const mockedListSeriesInstances = vi.mocked(listSeriesInstances);
 const mockedUpdate = vi.mocked(updateTask);
 const mockedListCategories = vi.mocked(listCategories);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
@@ -70,6 +100,10 @@ const TITLE_ORIGINAL = "Draft weekly reflection notes";
 const TITLE_EDITED = "Review quarterly milestone planning";
 const DESCRIPTION_EDITED = "Flag risks early";
 const REPEAT_END_DATE = "2026-12-31";
+// Mondays in Oct 2026 — the opened instance's date and a second persisted
+// one the calendar tests pick.
+const OPENED_INSTANCE_DATE = "2026-10-19";
+const OTHER_INSTANCE_DATE = "2026-10-26";
 const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
 const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === "wednesday")!;
 
@@ -90,12 +124,32 @@ const baseTask: Task = {
   updated_at: "2026-10-12 09:00:00",
 };
 
+const baseSeries: TaskSeries = {
+  id: 3,
+  profile_id: 1,
+  title: TITLE_ORIGINAL,
+  description: null,
+  carry_over_rule: "return",
+  estimated_minutes: null,
+  recurrence: {
+    kind: "weekly",
+    interval_weeks: 1,
+    weekdays: ["monday"],
+  },
+  start_date: "2026-10-05",
+  end_date: null,
+  created_at: "2026-10-11 10:00:00",
+  updated_at: "2026-10-11 10:00:00",
+};
+
 const renderDialog = (task: Task = baseTask, client = testQueryClient()) => {
   render(
     <QueryClientProvider client={client}>
       <EditTaskDialog task={task} onClose={vi.fn()} />
     </QueryClientProvider>,
   );
+  // The dialog opens in read-only view mode; these tests exercise editing.
+  fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
   return client;
 };
 
@@ -115,6 +169,8 @@ describe("EditTaskDialog", () => {
     mockedListTaskCategories.mockReset().mockResolvedValue([ERRANDS]);
     mockedAddTaskCategory.mockReset().mockResolvedValue(undefined);
     mockedRemoveTaskCategory.mockReset().mockResolvedValue(undefined);
+    mockedListTaskSeries.mockReset().mockResolvedValue([baseSeries]);
+    mockedListSeriesInstances.mockReset().mockResolvedValue([]);
   });
 
   it("pre-fills every editable field from the task", () => {
@@ -140,7 +196,14 @@ describe("EditTaskDialog", () => {
 
   it("shows the read-only audit timestamps", () => {
     renderDialog();
-    expect(screen.getByText(/Created .* · Last updated/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        auditTimestampsLabel(
+          formatDate(baseTask.created_at),
+          formatDate(baseTask.updated_at),
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("submits the full update payload", async () => {
@@ -318,7 +381,53 @@ describe("EditTaskDialog", () => {
         <EditTaskDialog task={baseTask} onClose={onClose} />
       </QueryClientProvider>,
     );
+    fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
     fireEvent.click(screen.getByRole("button", { name: CANCEL_BUTTON_LABEL }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("opens in a read-only view of the task", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAccessibleName(TITLE_ORIGINAL);
+    expect(screen.getByText(baseTask.description!)).toBeInTheDocument();
+    expect(
+      await screen.findByText(STATUS_LABELS[baseTask.status]),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(formatMinutes(baseTask.estimated_minutes!)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(formatMinutes(baseTask.spent_minutes!)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).toBeInTheDocument();
+    // No form at all: a stray submit cannot save anything.
+    expect(dialog.querySelector("form")).toBeNull();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes from view mode", () => {
+    const onClose = vi.fn();
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={onClose} />
+      </QueryClientProvider>,
+    );
+    // Two "Close" controls exist (header X + footer button) — both close.
+    const [footerClose] = screen
+      .getAllByRole("button", { name: CLOSE_LABEL })
+      .slice(-1);
+    fireEvent.click(footerClose);
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -364,6 +473,7 @@ describe("EditTaskDialog", () => {
         <EditTaskDialog task={baseTask} onClose={vi.fn()} />
       </QueryClientProvider>,
     );
+    fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
     fireEvent.focus(screen.getByRole("combobox"));
     fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
     fireEvent.submit(
@@ -576,6 +686,235 @@ describe("EditTaskDialog", () => {
     expect(
       screen.queryByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the series audit line in view mode", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{ ...baseTask, series_id: baseSeries.id }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        seriesAuditLabel(
+          describeRecurrence(baseSeries.recurrence),
+          formatDate(baseSeries.created_at),
+          formatDate(baseSeries.updated_at),
+        ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the save-scope group in edit mode with series options disabled", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+
+    const group = await screen.findByRole("group", {
+      name: TASK_SCOPE_GROUP_LABEL,
+    });
+    const instance = screen.getByRole("radio", {
+      name: TASK_SCOPE_INSTANCE_LABEL,
+    });
+    const series = screen.getByRole("radio", {
+      name: TASK_SCOPE_SERIES_LABEL,
+    });
+    const future = screen.getByRole("radio", {
+      name: TASK_SCOPE_FUTURE_LABEL,
+    });
+    expect(group).toContainElement(instance);
+    expect(instance).toBeChecked();
+    expect(series).toBeDisabled();
+    expect(future).toBeDisabled();
+    expect(screen.getAllByText(TASK_SCOPE_COMING_SOON_HINT)).toHaveLength(2);
+  });
+
+  it("hides the save-scope group for a task not in a series", () => {
+    renderDialog();
+    expect(
+      screen.queryByRole("group", { name: TASK_SCOPE_GROUP_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the instance calendar and notes tabs for a series task", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    // The calendar anchors on the viewed instance's month (Oct 2026).
+    expect(await screen.findByText(/October 2026/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      within(screen.getByRole("tabpanel")).getByText(NOTES_EMPTY_MESSAGE),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }));
+    expect(
+      screen.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }),
+    ).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows the pending state for a scheduled date without an instance", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance.
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    expect(
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("loads a persisted instance when its date is picked", async () => {
+    const other = {
+      ...baseTask,
+      id: 42,
+      description: "the other occurrence",
+      series_id: baseSeries.id,
+      scheduled_date: OTHER_INSTANCE_DATE,
+    };
+    mockedListSeriesInstances.mockResolvedValue([other]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    expect(await screen.findByText(other.description)).toBeInTheDocument();
+    // Edit only applies to the opened task — it hides while viewing another
+    // instance so it can't silently edit the wrong row.
+    expect(
+      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the selected instance's title in the heading", async () => {
+    const other = {
+      ...baseTask,
+      id: 42,
+      title: TITLE_EDITED,
+      series_id: baseSeries.id,
+      scheduled_date: OTHER_INSTANCE_DATE,
+    };
+    mockedListSeriesInstances.mockResolvedValue([other]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: TITLE_ORIGINAL }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: TITLE_EDITED }),
+    ).toBeInTheDocument();
+  });
+
+  it("moves focus into the dialog when it opens in view mode", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+
+  it("does not render the calendar until the instances query resolves", async () => {
+    const gate = deferred<Task[]>();
+    mockedListSeriesInstances.mockReturnValue(gate.promise);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("dialog", { name: TITLE_ORIGINAL });
+    // A clickable calendar that doesn't know its persisted dates yet would
+    // mark a persisted instance pending — it must stay out until the data
+    // arrives.
+    expect(
+      screen.queryByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: OPENED_INSTANCE_DATE }),
+    ).not.toBeInTheDocument();
+
+    await act(async () => gate.resolve([]));
+    expect(
+      await screen.findByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no series UI for a task without a series", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+    ).not.toBeInTheDocument();
+    // The queries must not even fire — series_id is null.
+    expect(mockedListTaskSeries).not.toHaveBeenCalled();
+    expect(mockedListSeriesInstances).not.toHaveBeenCalled();
   });
 
   it("a series instance still updates its fields with no schedule on the wire", async () => {

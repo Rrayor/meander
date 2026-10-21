@@ -91,6 +91,10 @@ For any UI task, create the design with Stitch before implementing:
 - Tests must cover: happy path, error cases, edge cases, specification
   adherence, accessibility, and communication between layers (typed errors,
   transport behavior, migrations).
+- A single happy-path test is not sufficient: cover thorough positive AND
+  negative scenarios for the behavior being added or changed.
+- When a new issue is found or feedback turns out to be valid, add a test
+  scenario that reproduces it so the same problem cannot regress later.
 - Migration tests must be generic (data-preservation invariants across all
   migrations), not regression tests for a single past bug.
 - Coverage must stay at or above 80% (the Sonar quality gate). Cover
