@@ -4,6 +4,7 @@ import {
   CATEGORIES_HEADING,
   CATEGORY_SEARCH_LABEL,
   CREATE_TASK_LABEL,
+  EDIT_BUTTON_LABEL,
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
   deleteCategoryLabel,
@@ -57,7 +58,10 @@ describe("Task categories smoke", () => {
     );
 
     // Reopen the task: the persisted association must render as a chip.
+    // The dialog opens read-only — enter edit mode for the chip's remove
+    // button to exist.
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
+    await (await $(`aria/${EDIT_BUTTON_LABEL}`)).click();
     await expect(
       await $(`aria/${removeTaskCategoryLabel(categoryTitle)}`),
     ).toExist();
@@ -89,7 +93,9 @@ describe("Task categories smoke", () => {
     );
 
     // Open the task's editor and quick-create a category from the picker.
+    // The details view opens read-only — switch to edit mode first.
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
+    await (await $(`aria/${EDIT_BUTTON_LABEL}`)).click();
     const picker = await $(`aria/${CATEGORY_SEARCH_LABEL}`);
     await picker.click();
     const createdTitle = `Smoke qc ${Date.now()}`;
@@ -110,6 +116,7 @@ describe("Task categories smoke", () => {
 
     // Reopen: the association must have been written through add_task_category.
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
+    await (await $(`aria/${EDIT_BUTTON_LABEL}`)).click();
     await expect(
       await $(`aria/${removeTaskCategoryLabel(createdTitle)}`),
     ).toExist();
