@@ -133,8 +133,12 @@ export const REPEAT_NTH_OPTIONS = [
   { value: "-1", label: "Last", aria: "Last" },
 ] as const;
 
-export const seriesAuditLabel = (description: string, created: string) =>
-  `Repeats ${description} — series created ${created}`;
+export const seriesAuditLabel = (
+  description: string,
+  created: string,
+  updated: string,
+) =>
+  `Repeats ${description} — series created ${created} · last updated ${updated}`;
 
 export const workdayAfterLabel = (day: number) =>
   `the first workday after day ${day}`;

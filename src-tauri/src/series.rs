@@ -431,6 +431,14 @@ pub(crate) async fn insert(
             });
         }
     }
+    // The single write path enforces the occurrence rule for every caller:
+    // a schedule that can never occur through its end date is rejected.
+    if first_occurrence(&recurrence, start, end).is_none() {
+        return Err(DbError::Validation {
+            code: ErrorCode::RecurrenceInvalid,
+            message: "the schedule has no occurrence on or before its end date".into(),
+        });
+    }
     let recurrence_json = serde_json::to_string(&recurrence).map_err(|e| DbError::Validation {
         code: ErrorCode::Internal,
         message: format!("recurrence could not be serialized: {e}"),
@@ -716,6 +724,23 @@ mod tests {
             .await
             .unwrap_err();
         assert_code(&err, ErrorCode::EndDateBeforeStart);
+    }
+
+    #[tokio::test]
+    async fn schedule_with_no_occurrence_is_rejected() {
+        let (pool, pid) = seeded_pool().await;
+        // START (2026-10-19) is a Monday — a Wednesday-only weekly cannot
+        // occur on or before a same-day end.
+        let mut impossible = series(Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![Weekday::Wednesday],
+        });
+        impossible.end_date = Some(START.into());
+        let err = create(&pool, pid, &fields_for(&impossible))
+            .await
+            .unwrap_err();
+        assert_code(&err, ErrorCode::RecurrenceInvalid);
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 0);
     }
 
     #[tokio::test]

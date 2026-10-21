@@ -246,6 +246,7 @@ function TaskDetailsView({
           {seriesAuditLabel(
             describeRecurrence(seriesRow.recurrence),
             formatDate(seriesRow.created_at),
+            formatDate(seriesRow.updated_at),
           )}
         </p>
       )}

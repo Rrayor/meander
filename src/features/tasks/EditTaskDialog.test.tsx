@@ -703,6 +703,7 @@ describe("EditTaskDialog", () => {
         seriesAuditLabel(
           describeRecurrence(baseSeries.recurrence),
           formatDate(baseSeries.created_at),
+          formatDate(baseSeries.updated_at),
         ),
       ),
     ).toBeInTheDocument();
