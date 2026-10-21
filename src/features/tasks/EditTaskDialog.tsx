@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -335,8 +335,20 @@ export function EditTaskDialog({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const estimate = minutesToParts(task.estimated_minutes);
-  const spent = minutesToParts(task.spent_minutes);
+  const instanceDefaults = useMemo<FormValues>(() => {
+    const est = minutesToParts(task.estimated_minutes);
+    const spt = minutesToParts(task.spent_minutes);
+    return {
+      title: task.title,
+      description: task.description ?? "",
+      estHours: est.hours,
+      estMinutes: est.minutes,
+      spentHours: spt.hours,
+      spentMinutes: spt.minutes,
+      status: task.status,
+      carryOver: task.carry_over_rule ?? "",
+    };
+  }, [task]);
   const {
     register,
     control,
@@ -347,16 +359,7 @@ export function EditTaskDialog({
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    defaultValues: {
-      title: task.title,
-      description: task.description ?? "",
-      estHours: estimate.hours,
-      estMinutes: estimate.minutes,
-      spentHours: spent.hours,
-      spentMinutes: spent.minutes,
-      status: task.status,
-      carryOver: task.carry_over_rule ?? "",
-    },
+    defaultValues: instanceDefaults,
   });
 
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -408,29 +411,31 @@ export function EditTaskDialog({
   // Entering series scope reseeds the shared fields from the series — the
   // form defaults hold the opened instance's values, which may be custom
   // edits (spec §146: series scope edits the shared fields, not one
-  // instance's overrides). Instance-only spent/status keep the opened
-  // task's values so they stay valid while disabled. The ref guards
-  // against reseeding on a later refetch, which would clobber typed edits.
+  // instance's overrides). Leaving restores the instance's own values so a
+  // scope round-trip can't overwrite them. The ref guards against
+  // reseeding on a later refetch, which would clobber typed edits — and
+  // the shared controls stay disabled until the row arrives (see
+  // seriesFieldsPending) so nothing is typed before the seed lands.
   const seriesScopeSeeded = useRef(false);
   useEffect(() => {
     if (saveScope !== "series") {
+      if (!seriesScopeSeeded.current) return;
       seriesScopeSeeded.current = false;
+      reset(instanceDefaults);
       return;
     }
     if (seriesScopeSeeded.current || seriesRow === undefined) return;
     seriesScopeSeeded.current = true;
     const seriesEstimate = minutesToParts(seriesRow.estimated_minutes);
     reset({
+      ...instanceDefaults,
       title: seriesRow.title,
       description: seriesRow.description ?? "",
       estHours: seriesEstimate.hours,
       estMinutes: seriesEstimate.minutes,
-      spentHours: spent.hours,
-      spentMinutes: spent.minutes,
-      status: task.status,
       carryOver: seriesRow.carry_over_rule,
     });
-  }, [saveScope, seriesRow, reset, spent.hours, spent.minutes, task.status]);
+  }, [saveScope, seriesRow, reset, instanceDefaults]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteScope, setDeleteScope] = useState<
     "instance" | "series" | "future"
@@ -573,9 +578,17 @@ export function EditTaskDialog({
 
   const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
   const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
+  // The category error only belongs to series scope — a failed load
+  // shouldn't linger on the instance form after switching back.
   const serverError = serverErrorMessage(
-    update.error ?? updateSeries.error ?? seriesCatsError,
+    update.error ??
+      updateSeries.error ??
+      (saveScope === "series" ? seriesCatsError : null),
   );
+  // While the series row is loading, the shared fields still hold the
+  // opened instance's values — editing them before the seed lands would
+  // lose the input to the reset. They stay disabled until it arrives.
+  const seriesFieldsPending = saveScope === "series" && seriesRow === undefined;
   // A series save needs a schedule: the stored one (untouched draft) or a
   // valid edited one — collapsing the section disables saving. It also
   // waits for the series category query: submitting before it resolves
@@ -825,6 +838,7 @@ export function EditTaskDialog({
               <input
                 id="edit-task-title-input"
                 type="text"
+                disabled={seriesFieldsPending}
                 aria-invalid={!!errors.title}
                 aria-describedby={
                   errors.title ? "edit-task-title-error" : undefined
@@ -853,6 +867,7 @@ export function EditTaskDialog({
               <textarea
                 id="edit-task-description"
                 rows={3}
+                disabled={seriesFieldsPending}
                 aria-invalid={!!errors.description}
                 aria-describedby={
                   errors.description ? "edit-task-description-error" : undefined
@@ -879,6 +894,7 @@ export function EditTaskDialog({
                 idPrefix="edit-task"
                 selected={categories}
                 onChange={onCategoriesChange}
+                disabled={seriesFieldsPending}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -897,6 +913,7 @@ export function EditTaskDialog({
                   minutesField: "estMinutes",
                   errorId: "edit-task-estimate-error",
                   invalid: !!estimateError,
+                  disabled: seriesFieldsPending,
                 })}
                 {estimateError && (
                   <p
@@ -1002,6 +1019,7 @@ export function EditTaskDialog({
                         type="button"
                         role="radio"
                         aria-checked={value === option}
+                        disabled={seriesFieldsPending}
                         onClick={() => onChange(option)}
                         className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
                           value === option

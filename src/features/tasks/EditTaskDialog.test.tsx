@@ -27,6 +27,7 @@ import {
 import {
   CALENDAR_PREVIOUS_LABEL,
   CANCEL_BUTTON_LABEL,
+  CARRY_OVER_OPTIONS,
   CLOSE_LABEL,
   DELETE_BUTTON_LABEL,
   DELETE_KEEP_LABEL,
@@ -125,6 +126,7 @@ const OPENED_INSTANCE_DATE = "2026-10-19";
 const OTHER_INSTANCE_DATE = "2026-10-26";
 const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
 const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === "wednesday")!;
+const RETURN_OPTION = CARRY_OVER_OPTIONS.find((o) => o.value === "return")!;
 
 const baseTask: Task = {
   id: 7,
@@ -244,7 +246,7 @@ describe("EditTaskDialog", () => {
       target: { value: "2" },
     });
     fireEvent.click(screen.getByRole("radio", { name: STATUS_LABELS.done }));
-    fireEvent.click(screen.getByRole("radio", { name: "Return to backlog" }));
+    fireEvent.click(screen.getByRole("radio", { name: RETURN_OPTION.label }));
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
     );
@@ -1074,8 +1076,68 @@ describe("EditTaskDialog", () => {
     );
     expect(screen.getByLabelText(ESTIMATED_MINUTES_LABEL)).toHaveValue(45);
     expect(
-      screen.getByRole("radio", { name: "Return to backlog" }),
+      screen.getByRole("radio", { name: RETURN_OPTION.label }),
     ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("restores the instance's own values when scope switches back", async () => {
+    // The series seed must not leak into the instance form — an instance
+    // save after a scope round-trip sends the instance's values, not the
+    // series' shared ones.
+    mockedListTaskSeries.mockResolvedValue([
+      { ...baseSeries, title: TITLE_EDITED, estimated_minutes: 45 },
+    ]);
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Title/)).toHaveValue(TITLE_EDITED),
+    );
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_INSTANCE_LABEL }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Title/)).toHaveValue(TITLE_ORIGINAL),
+    );
+    expect(screen.getByLabelText(/Description/)).toHaveValue(
+      baseTask.description,
+    );
+    expect(screen.getByLabelText(ESTIMATED_MINUTES_LABEL)).toHaveValue(30);
+
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() =>
+      expect(mockedUpdate).toHaveBeenCalledWith(
+        baseTask.id,
+        expect.objectContaining({ title: TITLE_ORIGINAL }),
+      ),
+    );
+    expect(mockedUpdateSeries).not.toHaveBeenCalled();
+  });
+
+  it("keeps the shared fields disabled until the series row loads", async () => {
+    // Typing before the seed lands would be lost to the reset — the fields
+    // stay disabled until the row arrives.
+    const pending = deferred<TaskSeries[]>();
+    mockedListTaskSeries.mockReturnValue(pending.promise);
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+
+    expect(screen.getByLabelText(/Title/)).toBeDisabled();
+    expect(screen.getByLabelText(/Description/)).toBeDisabled();
+    expect(screen.getByLabelText(ESTIMATED_MINUTES_LABEL)).toBeDisabled();
+
+    pending.resolve([{ ...baseSeries, title: TITLE_EDITED }]);
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Title/)).toHaveValue(TITLE_EDITED),
+    );
+    expect(screen.getByLabelText(/Title/)).toBeEnabled();
   });
 
   it("blocks a series save until the series categories finish loading", async () => {

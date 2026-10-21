@@ -20,6 +20,7 @@ interface CategoryMultiSelectProps {
   idPrefix: string;
   selected: Category[];
   onChange: (next: Category[]) => void;
+  disabled?: boolean;
 }
 
 // Spec: a multivalue autocomplete — the input filters all categories, empty
@@ -30,6 +31,7 @@ export function CategoryMultiSelect({
   idPrefix,
   selected,
   onChange,
+  disabled = false,
 }: Readonly<CategoryMultiSelectProps>) {
   const queryClient = useQueryClient();
   const listboxId = useId();
@@ -130,7 +132,7 @@ export function CategoryMultiSelect({
             pointer-only by design. */}
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- click-to-focus convenience; the real control is the combobox inside */}
         <div
-          className="flex min-h-[42px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-raised p-2 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary"
+          className={`flex min-h-[42px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-raised p-2 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary ${disabled ? "opacity-50" : ""}`}
           onClick={() => inputRef.current?.focus()}
         >
           {selected.map((category) => {
@@ -153,6 +155,7 @@ export function CategoryMultiSelect({
                 <button
                   type="button"
                   aria-label={removeTaskCategoryLabel(category.title)}
+                  disabled={disabled}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggle(category);
@@ -187,6 +190,7 @@ export function CategoryMultiSelect({
             aria-label={CATEGORY_SEARCH_LABEL}
             placeholder={CATEGORY_SEARCH_LABEL}
             autoComplete="off"
+            disabled={disabled}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

@@ -1410,24 +1410,30 @@ mod tests {
 
     #[tokio::test]
     async fn truncate_never_extends_an_earlier_end() {
+        const EXISTING_END: &str = "2026-10-20";
+        const OFF_SCHEDULE_INSTANCE: &str = "2026-11-10";
+
         let (pool, pid) = seeded_pool().await;
         let mut input = series(weekly());
-        input.end_date = Some("2026-10-20".to_string());
+        input.end_date = Some(EXISTING_END.to_string());
         let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
         // A persisted off-schedule instance beyond the current end.
-        add_instance(&pool, pid, saved.id, "2026-11-10").await;
+        add_instance(&pool, pid, saved.id, OFF_SCHEDULE_INSTANCE).await;
 
-        truncate(&pool, pid, saved.id, "2026-11-10").await.unwrap();
+        truncate(&pool, pid, saved.id, OFF_SCHEDULE_INSTANCE)
+            .await
+            .unwrap();
 
         // The instance is gone, but the earlier end stands — ending the
         // series at that date must not revive the weeks in between.
         let series = list(&pool, pid).await.unwrap();
-        assert_eq!(series[0].end_date.as_deref(), Some("2026-10-20"));
+        assert_eq!(series[0].end_date.as_deref(), Some(EXISTING_END));
         assert!(
             sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= '2026-11-10'"
+                "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= ?"
             )
             .bind(saved.id)
+            .bind(OFF_SCHEDULE_INSTANCE)
             .fetch_one(&pool)
             .await
             .unwrap()
