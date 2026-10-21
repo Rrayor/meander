@@ -588,57 +588,71 @@ export function EditTaskDialog({
       seriesCleared ||
       seriesDraftError !== null);
 
-  const durationField = (
-    idPrefix: string,
-    hoursLabel: string,
-    minutesLabel: string,
-    hoursField: "estHours" | "spentHours",
-    minutesField: "estMinutes" | "spentMinutes",
-    errorId: string,
-    invalid: boolean,
-    disabled = false,
-  ) => (
-    <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
-      <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-hours`}
-          aria-label={hoursLabel}
-          aria-invalid={invalid}
-          aria-describedby={invalid ? errorId : undefined}
-          type="number"
-          placeholder="0"
-          disabled={disabled}
-          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-          {...register(hoursField)}
-        />
-        <label
-          htmlFor={`${idPrefix}-hours`}
-          className="text-xs text-text-muted"
-        >
-          {HOURS_UNIT_LABEL}
-        </label>
+  const durationField = (options: {
+    idPrefix: string;
+    hoursLabel: string;
+    minutesLabel: string;
+    hoursField: "estHours" | "spentHours";
+    minutesField: "estMinutes" | "spentMinutes";
+    errorId: string;
+    invalid: boolean;
+    disabled?: boolean;
+  }) => {
+    const {
+      idPrefix,
+      hoursLabel,
+      minutesLabel,
+      hoursField,
+      minutesField,
+      errorId,
+      invalid,
+      disabled = false,
+    } = options;
+    return (
+      <div
+        className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}
+      >
+        <div className="flex items-center gap-2">
+          <input
+            id={`${idPrefix}-hours`}
+            aria-label={hoursLabel}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? errorId : undefined}
+            type="number"
+            placeholder="0"
+            disabled={disabled}
+            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+            {...register(hoursField)}
+          />
+          <label
+            htmlFor={`${idPrefix}-hours`}
+            className="text-xs text-text-muted"
+          >
+            {HOURS_UNIT_LABEL}
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id={`${idPrefix}-minutes`}
+            aria-label={minutesLabel}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? errorId : undefined}
+            type="number"
+            placeholder="0"
+            disabled={disabled}
+            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+            {...register(minutesField)}
+          />
+          <label
+            htmlFor={`${idPrefix}-minutes`}
+            className="text-xs text-text-muted"
+          >
+            {MINUTES_UNIT_LABEL}
+          </label>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-minutes`}
-          aria-label={minutesLabel}
-          aria-invalid={invalid}
-          aria-describedby={invalid ? errorId : undefined}
-          type="number"
-          placeholder="0"
-          disabled={disabled}
-          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-          {...register(minutesField)}
-        />
-        <label
-          htmlFor={`${idPrefix}-minutes`}
-          className="text-xs text-text-muted"
-        >
-          {MINUTES_UNIT_LABEL}
-        </label>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -875,15 +889,15 @@ export function EditTaskDialog({
                     {OPTIONAL_FIELD_LABEL}
                   </span>
                 </span>
-                {durationField(
-                  "edit-task-est",
-                  ESTIMATED_HOURS_LABEL,
-                  ESTIMATED_MINUTES_LABEL,
-                  "estHours",
-                  "estMinutes",
-                  "edit-task-estimate-error",
-                  !!estimateError,
-                )}
+                {durationField({
+                  idPrefix: "edit-task-est",
+                  hoursLabel: ESTIMATED_HOURS_LABEL,
+                  minutesLabel: ESTIMATED_MINUTES_LABEL,
+                  hoursField: "estHours",
+                  minutesField: "estMinutes",
+                  errorId: "edit-task-estimate-error",
+                  invalid: !!estimateError,
+                })}
                 {estimateError && (
                   <p
                     id="edit-task-estimate-error"
@@ -901,16 +915,16 @@ export function EditTaskDialog({
                     {OPTIONAL_FIELD_LABEL}
                   </span>
                 </span>
-                {durationField(
-                  "edit-task-spent",
-                  SPENT_HOURS_LABEL,
-                  SPENT_MINUTES_LABEL,
-                  "spentHours",
-                  "spentMinutes",
-                  "edit-task-spent-error",
-                  !!spentError,
-                  saveScope === "series",
-                )}
+                {durationField({
+                  idPrefix: "edit-task-spent",
+                  hoursLabel: SPENT_HOURS_LABEL,
+                  minutesLabel: SPENT_MINUTES_LABEL,
+                  hoursField: "spentHours",
+                  minutesField: "spentMinutes",
+                  errorId: "edit-task-spent-error",
+                  invalid: !!spentError,
+                  disabled: saveScope === "series",
+                })}
                 {spentError && (
                   <p
                     id="edit-task-spent-error"
