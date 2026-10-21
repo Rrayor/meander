@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -15,6 +16,7 @@ import {
   MAX_DURATION_MINUTES,
   MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_TITLE_LENGTH,
+  deleteTask,
   updateTask,
 } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
@@ -30,10 +32,22 @@ import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
-import type { NewSeries, TaskSeries } from "@/api/bindings";
-import { listSeriesInstances, listTaskSeries } from "@/api/series";
+import type { NewSeries, TaskSeries, UpdateSeries } from "@/api/bindings";
+import {
+  deleteTaskSeries,
+  listSeriesCategories,
+  listSeriesInstances,
+  listTaskSeries,
+  truncateTaskSeries,
+  updateTaskSeries,
+} from "@/api/series";
 import {
   CANCEL_BUTTON_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_KEEP_LABEL,
+  DELETE_SCOPE_FUTURE_LABEL,
+  DELETE_TASK_HEADING,
+  DELETE_UNDO_WARNING,
   CARRY_OVER_FIELD_LABEL,
   CATEGORIES_FIELD_LABEL,
   CARRY_OVER_OPTIONS,
@@ -149,6 +163,8 @@ interface TaskDetailsViewProps {
   seriesInstances: Task[] | undefined;
   onPick: (picked: Task | null, iso: string) => void;
   onClose: () => void;
+  onDelete: () => void;
+  deletePrompt?: ReactNode;
 }
 
 function TaskDetailsView({
@@ -159,6 +175,8 @@ function TaskDetailsView({
   seriesInstances,
   onPick,
   onClose,
+  onDelete,
+  deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
   return (
     <div className="flex flex-col gap-4">
@@ -269,20 +287,30 @@ function TaskDetailsView({
       )}
       {viewed.series_id !== null && <NotesTabs />}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-text-muted">
-          {auditTimestampsLabel(
-            formatDate(viewed.created_at),
-            formatDate(viewed.updated_at),
-          )}
-        </p>
         <button
           type="button"
-          onClick={onClose}
-          className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+          onClick={onDelete}
+          className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
         >
-          {CLOSE_LABEL}
+          {DELETE_BUTTON_LABEL}
         </button>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-text-muted">
+            {auditTimestampsLabel(
+              formatDate(viewed.created_at),
+              formatDate(viewed.updated_at),
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+          >
+            {CLOSE_LABEL}
+          </button>
+        </div>
       </div>
+      {deletePrompt}
     </div>
   );
 }
@@ -362,26 +390,47 @@ export function EditTaskDialog({
     enabled: task.series_id !== null,
   });
   const seriesRow = taskSeries?.find((s) => s.id === task.series_id);
+  // Save scope: instance edits today's task; series writes the shared
+  // fields + schedule + categories onto the series and every instance.
+  const [saveScope, setSaveScope] = useState<"instance" | "series">("instance");
+  const { data: seriesCats } = useQuery({
+    queryKey: QUERY_KEYS.seriesCategories(task.series_id!),
+    queryFn: () => listSeriesCategories(task.series_id!),
+    enabled: task.series_id !== null && saveScope === "series",
+  });
+  // The series-scope schedule draft: null = untouched (use the stored
+  // schedule), cleared = the user collapsed the section (a series needs a
+  // schedule — saving is disabled until one exists again).
+  const [seriesDraft, setSeriesDraft] = useState<NewSeries | null>(null);
+  const [seriesCleared, setSeriesCleared] = useState(false);
+  const [seriesDraftError, setSeriesDraftError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<
+    "instance" | "series" | "future"
+  >("instance");
   // The selection is derived state: stored associations minus the chips the
   // user removed plus the ones they added. Deriving it (rather than seeding
   // state once) keeps picks intact when the query resolves late *and* lets
   // a refetch update what chips show — e.g. after a category is recolored.
-  // Local category overrides belong to the viewed instance — keying the
-  // draft by its id means switching instances never carries a previous
-  // selection across.
+  // Local category overrides belong to the viewed scope — keying the draft
+  // by scope+id means switching instances or scopes never carries a
+  // previous selection across.
+  const categoryKey =
+    saveScope === "series" ? `series-${task.series_id}` : `task-${viewed.id}`;
   const [categoryDraft, setCategoryDraft] = useState<{
-    taskId: number;
+    key: string;
     removedIds: ReadonlySet<number>;
     picked: Category[];
-  }>({ taskId: viewed.id, removedIds: new Set(), picked: [] });
+  }>({ key: categoryKey, removedIds: new Set(), picked: [] });
   const removedIds =
-    categoryDraft.taskId === viewed.id
+    categoryDraft.key === categoryKey
       ? categoryDraft.removedIds
       : new Set<number>();
-  const picked = categoryDraft.taskId === viewed.id ? categoryDraft.picked : [];
+  const picked = categoryDraft.key === categoryKey ? categoryDraft.picked : [];
   const [series, setSeries] = useState<NewSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
-  const stored = initialCategories ?? [];
+  const stored =
+    saveScope === "series" ? (seriesCats ?? []) : (initialCategories ?? []);
   const storedIds = new Set(stored.map((c) => c.id));
   const categories = [
     ...stored.filter((c) => !removedIds.has(c.id)),
@@ -390,7 +439,7 @@ export function EditTaskDialog({
   const onCategoriesChange = (next: Category[]) => {
     const nextIds = new Set(next.map((c) => c.id));
     setCategoryDraft({
-      taskId: viewed.id,
+      key: categoryKey,
       removedIds: new Set(
         stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id),
       ),
@@ -423,18 +472,73 @@ export function EditTaskDialog({
     },
   });
 
+  const invalidateSeriesScope = () => {
+    for (const key of [
+      QUERY_KEYS.tasks,
+      QUERY_KEYS.taskSeries,
+      QUERY_KEYS.seriesInstances(task.series_id!),
+      QUERY_KEYS.seriesCategories(task.series_id!),
+      QUERY_KEYS.allTaskCategories,
+    ]) {
+      void queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
+
+  const updateSeries = useMutation({
+    mutationFn: (input: UpdateSeries) =>
+      updateTaskSeries(task.series_id!, input),
+    onSuccess: onClose,
+    onSettled: invalidateSeriesScope,
+  });
+
+  // Delete runs against the *viewed* instance — picking another persisted
+  // date in the calendar moves the target with it.
+  const remove = useMutation({
+    mutationFn: async () => {
+      const seriesId = task.series_id;
+      if (seriesId === null || deleteScope === "instance") {
+        return deleteTask(viewed.id);
+      }
+      if (deleteScope === "series") {
+        return deleteTaskSeries(seriesId);
+      }
+      const fromIso = pendingIso ?? viewed.scheduled_date;
+      return truncateTaskSeries(seriesId, fromIso!);
+    },
+    onSuccess: onClose,
+    onSettled: invalidateSeriesScope,
+  });
+
   const toMinutes = (hours: string, minutes: string) =>
     hours.trim() === "" && minutes.trim() === ""
       ? null
       : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
 
   const onSubmit = (values: FormValues) => {
-    update.mutate({
+    const shared = {
       title: values.title,
       description: unicodeTrim(values.description) || null,
       estimated_minutes: toMinutes(values.estHours, values.estMinutes),
-      spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       carry_over_rule: values.carryOver === "" ? null : values.carryOver,
+    };
+    if (saveScope === "series") {
+      const schedule = seriesDraft ?? {
+        recurrence: seriesRow!.recurrence,
+        start_date: seriesRow!.start_date,
+        end_date: seriesRow!.end_date,
+      };
+      updateSeries.mutate({
+        ...shared,
+        recurrence: schedule.recurrence,
+        start_date: schedule.start_date,
+        end_date: schedule.end_date,
+        category_ids: categories.map((c) => c.id),
+      });
+      return;
+    }
+    update.mutate({
+      ...shared,
+      spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
       status: values.status,
       series,
     });
@@ -442,7 +546,12 @@ export function EditTaskDialog({
 
   const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
   const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
-  const serverError = serverErrorMessage(update.error);
+  const serverError = serverErrorMessage(update.error ?? updateSeries.error);
+  // A series save needs a schedule: the stored one (untouched draft) or a
+  // valid edited one — collapsing the section disables saving.
+  const seriesSaveBlocked =
+    saveScope === "series" &&
+    (seriesRow === undefined || seriesCleared || seriesDraftError !== null);
 
   const durationField = (
     idPrefix: string,
@@ -452,8 +561,9 @@ export function EditTaskDialog({
     minutesField: "estMinutes" | "spentMinutes",
     errorId: string,
     invalid: boolean,
+    disabled = false,
   ) => (
-    <div className="flex items-center gap-4">
+    <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
       <div className="flex items-center gap-2">
         <input
           id={`${idPrefix}-hours`}
@@ -462,6 +572,7 @@ export function EditTaskDialog({
           aria-describedby={invalid ? errorId : undefined}
           type="number"
           placeholder="0"
+          disabled={disabled}
           className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
           {...register(hoursField)}
         />
@@ -480,6 +591,7 @@ export function EditTaskDialog({
           aria-describedby={invalid ? errorId : undefined}
           type="number"
           placeholder="0"
+          disabled={disabled}
           className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
           {...register(minutesField)}
         />
@@ -563,6 +675,91 @@ export function EditTaskDialog({
               }
             }}
             onClose={onClose}
+            onDelete={() => {
+              setDeleteScope("instance");
+              setConfirmingDelete(true);
+            }}
+            deletePrompt={
+              confirmingDelete ? (
+                <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-surface-raised/60 p-4">
+                  <h3 className="text-sm font-semibold text-danger">
+                    {DELETE_TASK_HEADING}
+                  </h3>
+                  {task.series_id !== null && (
+                    <fieldset className="flex flex-col gap-2">
+                      {[
+                        {
+                          value: "instance",
+                          label: TASK_SCOPE_INSTANCE_LABEL,
+                          shown: pendingIso === null,
+                        },
+                        {
+                          value: "series",
+                          label: TASK_SCOPE_SERIES_LABEL,
+                          shown: true,
+                        },
+                        {
+                          value: "future",
+                          label: DELETE_SCOPE_FUTURE_LABEL,
+                          shown: (pendingIso ?? viewed.scheduled_date) !== null,
+                        },
+                      ]
+                        .filter(({ shown }) => shown)
+                        .map(({ value, label }) => (
+                          <label
+                            key={value}
+                            className="flex items-center gap-2 text-sm text-text"
+                          >
+                            <input
+                              type="radio"
+                              name="task-delete-scope"
+                              value={value}
+                              checked={deleteScope === value}
+                              onChange={() =>
+                                setDeleteScope(
+                                  value as "instance" | "series" | "future",
+                                )
+                              }
+                              className="accent-danger"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                    </fieldset>
+                  )}
+                  <p className="text-xs text-text-muted">
+                    {DELETE_UNDO_WARNING}
+                  </p>
+                  {serverErrorMessage(remove.error) && (
+                    <p role="alert" className="text-sm text-danger">
+                      {serverErrorMessage(remove.error)}
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      className="rounded-md border border-border px-4 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+                    >
+                      {DELETE_KEEP_LABEL}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        remove.isPending ||
+                        (task.series_id !== null &&
+                          deleteScope === "instance" &&
+                          pendingIso !== null)
+                      }
+                      onClick={() => remove.mutate()}
+                      className="rounded-md bg-danger px-4 py-1.5 text-sm font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50"
+                    >
+                      {DELETE_BUTTON_LABEL}
+                    </button>
+                  </div>
+                </div>
+              ) : null
+            }
           />
         ) : (
           <form
@@ -677,6 +874,7 @@ export function EditTaskDialog({
                   "spentMinutes",
                   "edit-task-spent-error",
                   !!spentError,
+                  saveScope === "series",
                 )}
                 {spentError && (
                   <p
@@ -700,10 +898,15 @@ export function EditTaskDialog({
                 name="status"
                 control={control}
                 render={({ field: { value, onChange } }) => (
+                  // Status and spent time stay per-instance — the series
+                  // row doesn't carry them, so a series save can't apply
+                  // them and the controls are disabled.
                   <div
                     role="radiogroup"
                     aria-labelledby="edit-task-status-label"
-                    className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
+                    className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
+                      saveScope === "series" ? "opacity-50" : ""
+                    }`}
                   >
                     {(["todo", "in_progress", "done"] as const).map(
                       (option) => (
@@ -712,6 +915,7 @@ export function EditTaskDialog({
                           type="button"
                           role="radio"
                           aria-checked={value === option}
+                          disabled={saveScope === "series"}
                           onClick={() => onChange(option)}
                           className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
                             value === option
@@ -776,21 +980,23 @@ export function EditTaskDialog({
                   <div key={value} className="flex items-center gap-2">
                     <label
                       className={`flex items-center gap-2 text-sm ${
-                        value === "instance" ? "text-text" : "text-text-muted"
+                        value === "future" ? "text-text-muted" : "text-text"
                       }`}
                     >
                       <input
                         type="radio"
                         name="task-save-scope"
                         value={value}
-                        checked={value === "instance"}
-                        disabled={value !== "instance"}
-                        readOnly
+                        checked={saveScope === value}
+                        disabled={value === "future"}
+                        onChange={() =>
+                          setSaveScope(value as "instance" | "series")
+                        }
                         className="accent-primary"
                       />
                       {label}
                     </label>
-                    {value !== "instance" && (
+                    {value === "future" && (
                       <span className="text-xs text-text-muted italic">
                         {TASK_SCOPE_COMING_SOON_HINT}
                       </span>
@@ -808,6 +1014,23 @@ export function EditTaskDialog({
                 }}
               />
             )}
+            {task.series_id !== null &&
+              saveScope === "series" &&
+              seriesRow !== undefined && (
+                <RepeatScheduleFields
+                  idPrefix="edit-series"
+                  initial={{
+                    recurrence: seriesRow.recurrence,
+                    start_date: seriesRow.start_date,
+                    end_date: seriesRow.end_date,
+                  }}
+                  onChange={(next, error) => {
+                    setSeriesDraft(next);
+                    setSeriesCleared(next === null);
+                    setSeriesDraftError(error);
+                  }}
+                />
+              )}
             {serverError && (
               <p role="alert" className="text-sm text-danger">
                 {serverError}
@@ -830,7 +1053,12 @@ export function EditTaskDialog({
                 </button>
                 <button
                   type="submit"
-                  disabled={update.isPending || seriesError !== null}
+                  disabled={
+                    update.isPending ||
+                    updateSeries.isPending ||
+                    seriesError !== null ||
+                    seriesSaveBlocked
+                  }
                   className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
                 >
                   {SAVE_BUTTON_LABEL}

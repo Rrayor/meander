@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — Backlog</title>
+<!-- Inter Font -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "inverse-primary": "#006b5f",
+            "tertiary-fixed": "#ffdcc0",
+            "on-error-container": "#ffdad6",
+            "border": "#2E3338",
+            "primary-fixed": "#62fae3",
+            "on-tertiary": "#4b2800",
+            "surface-dim": "#0e1513",
+            "on-primary-fixed-variant": "#005047",
+            "on-background": "#dde4e1",
+            "secondary-container": "#46494e",
+            "on-secondary-container": "#b6b8be",
+            "on-secondary": "#2e3135",
+            "on-surface": "#dde4e1",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "surface": "#1A1D21",
+            "on-primary-container": "#00574d",
+            "outline-variant": "#3c4a46",
+            "tertiary": "#ffd1aa",
+            "primary-container": "#2dd4bf",
+            "threshold-violet": "#A78BFA",
+            "surface-container": "#1a211f",
+            "threshold-orange": "#FB923C",
+            "on-primary": "#0B1B19",
+            "text": "#E8EAED",
+            "surface-variant": "#2f3634",
+            "on-surface-variant": "#bacac5",
+            "surface-container-lowest": "#09100e",
+            "inverse-surface": "#dde4e1",
+            "surface-container-low": "#161d1b",
+            "text-muted": "#9AA0A6",
+            "error": "#ffb4ab",
+            "surface-raised": "#22262B",
+            "primary": "#57f1db",
+            "on-tertiary-container": "#744000",
+            "on-primary-fixed": "#00201c",
+            "surface-container-highest": "#2f3634",
+            "surface-tint": "#3cddc7",
+            "threshold-blue": "#60A5FA",
+            "primary-fixed-dim": "#3cddc7",
+            "background": "#121417",
+            "secondary": "#c5c6cc",
+            "surface-bright": "#333b39",
+            "secondary-fixed-dim": "#c5c6cc",
+            "on-tertiary-fixed": "#2d1600",
+            "tertiary-fixed-dim": "#ffb875",
+            "tertiary-container": "#ffac5a",
+            "inverse-on-surface": "#2b3230",
+            "error-container": "#93000a",
+            "threshold-green": "#4ADE80",
+            "on-secondary-fixed-variant": "#44474b",
+            "surface-container-high": "#242b2a",
+            "outline": "#859490",
+            "on-secondary-fixed": "#191c20",
+            "secondary-fixed": "#e1e2e8",
+            "threshold-red": "#F87171",
+            "on-error": "#690005"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-lg": "16px",
+            "space-md": "12px",
+            "margin": "24px",
+            "space-sm": "8px",
+            "space-xs": "4px",
+            "space-xl": "24px",
+            "gutter": "16px"
+          },
+          "fontFamily": {
+            "display": ["Inter"],
+            "title": ["Inter"],
+            "label": ["Inter"],
+            "body": ["Inter"]
+          },
+          "fontSize": {
+            "display": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+            "title": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+            "label": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "body": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #121417;
+      color: #E8EAED;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 20px;
+      line-height: 1;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body class="bg-background text-text selection:bg-surface-raised selection:text-primary">
+<div class="flex h-screen w-screen overflow-hidden">
+<!-- Left Rail Sidebar (Shared Component SideNavBar) -->
+<aside class="w-56 h-screen flex flex-col justify-between p-space-lg bg-surface border-r border-border shrink-0 select-none">
+<!-- Top Rail: Logo, Status & Primary Destinations -->
+<div class="flex flex-col gap-space-xl">
+<!-- Brand Header -->
+<div class="flex items-center justify-between px-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="font-title text-title font-semibold text-text tracking-tight">Meander</span>
+<span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-raised border border-border text-text-muted font-label text-label">
+<span class="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
+              Offline
+            </span>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex flex-col gap-1">
+<!-- Board Tab (Inactive) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined text-text-muted" data-icon="calendar_view_week">calendar_view_week</span>
+<span>Board</span>
+</a>
+<!-- Backlog Tab (ACTIVE) -->
+<a aria-current="page" class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg bg-surface-raised text-primary font-body text-body focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined text-primary" data-icon="inventory_2">inventory_2</span>
+<span class="font-medium text-text">Backlog</span>
+</a>
+<!-- Settings Tab (Inactive) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined text-text-muted" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer Rail: Profile Selector -->
+<div class="pt-space-md border-t border-border">
+<button class="w-full flex items-center justify-between px-space-md py-space-sm rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-text-muted text-[18px]" data-icon="folder_open">folder_open</span>
+<span class="font-body text-body text-text font-medium">Default</span>
+</div>
+<span class="material-symbols-outlined text-text-muted text-[16px]" data-icon="unfold_more">unfold_more</span>
+</button>
+</div>
+</aside>
+<!-- Canvas Area -->
+<div class="flex-1 flex flex-col h-screen min-w-0 bg-background overflow-hidden">
+<!-- TopNavBar Component (Shared TopNavBar Anchor) -->
+<header class="flex justify-between items-center w-full px-margin py-space-md bg-background border-b border-border shrink-0 select-none">
+<!-- Page Title & Subtitle Info -->
+<div class="flex items-baseline gap-space-md">
+<h1 class="font-display text-display text-text">Backlog</h1>
+<span class="font-body text-body text-text-muted">Tasks waiting to be planned</span>
+</div>
+<!-- Trailing Actions Cluster -->
+<div class="flex items-center gap-space-sm">
+<!-- View Options / Filters -->
+<button aria-label="Tune" class="p-2 rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined" data-icon="tune">tune</span>
+</button>
+<button aria-label="More options" class="p-2 rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+<div class="h-4 w-px bg-border mx-1"></div>
+<!-- Add Task Primary Button -->
+<button class="flex items-center gap-1.5 px-space-md py-1.5 rounded-lg bg-primary text-on-primary font-body text-body font-medium hover:bg-surface-tint active:bg-primary-fixed-dim transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span>Add Task</span>
+</button>
+</div>
+</header>
+<!-- Main Scrollable Work Canvas -->
+<main class="flex-1 overflow-y-auto px-margin py-space-xl">
+<div class="max-w-4xl mx-auto flex flex-col gap-space-xl">
+<!-- Metrics Overview Strip (Quiet, calm capacity preview) -->
+<div class="grid grid-cols-3 gap-space-md">
+<div class="bg-surface rounded-lg p-space-md border border-border flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Total Backlog</span>
+<span class="font-title text-title text-text font-medium">5 tasks</span>
+</div>
+<div class="bg-surface rounded-lg p-space-md border border-border flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Estimated Effort</span>
+<span class="font-title text-title text-text font-medium">7h 45m</span>
+</div>
+<div class="bg-surface rounded-lg p-space-md border border-border flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Unscheduled</span>
+<span class="font-title text-title text-text font-medium">4 tasks</span>
+</div>
+</div>
+<!-- Backlog Tasks Section Card -->
+<div class="bg-surface rounded-lg border border-border overflow-hidden">
+<!-- Card Header / Filter Bar -->
+<div class="px-space-lg py-space-md border-b border-border flex items-center justify-between text-text-muted">
+<div class="flex items-center gap-space-sm">
+<span class="font-label text-label uppercase tracking-wider text-text-muted">Tasks (5)</span>
+</div>
+<div class="flex items-center gap-space-xl text-right">
+<span class="font-label text-label uppercase tracking-wider text-text-muted">Duration</span>
+<span class="font-label text-label uppercase tracking-wider text-text-muted w-24 text-left">Status</span>
+</div>
+</div>
+<!-- Task List Rows -->
+<div class="divide-y divide-border">
+<!-- Row 1: Refactor SQLite connection pooling -->
+<div class="group px-space-lg py-space-md flex items-center justify-between hover:bg-surface-raised transition-colors duration-150 cursor-pointer">
+<div class="flex items-center gap-space-md min-w-0 pr-4">
+<div class="w-4 h-4 rounded border border-border flex items-center justify-center group-hover:border-text-muted transition-colors"></div>
+<span class="font-body text-body text-text font-medium truncate">Refactor SQLite connection pooling</span>
+</div>
+<div class="flex items-center gap-space-xl shrink-0">
+<span class="font-label text-label text-text-muted">2h</span>
+<div class="w-24 flex justify-start">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-label font-label bg-threshold-orange/15 text-threshold-orange">
+                      In progress
+                    </span>
+</div>
+</div>
+</div>
+<!-- Row 2: Draft weekly reflection notes -->
+<div class="group px-space-lg py-space-md flex items-center justify-between hover:bg-surface-raised transition-colors duration-150 cursor-pointer">
+<div class="flex items-center gap-space-md min-w-0 pr-4">
+<div class="w-4 h-4 rounded border border-border flex items-center justify-center group-hover:border-text-muted transition-colors"></div>
+<span class="font-body text-body text-text font-medium truncate">Draft weekly reflection notes</span>
+</div>
+<div class="flex items-center gap-space-xl shrink-0">
+<span class="font-label text-label text-text-muted">45m</span>
+<div class="w-24 flex justify-start">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-label font-label bg-surface-raised text-text-muted border border-border">
+                      Todo
+                    </span>
+</div>
+</div>
+</div>
+<!-- Row 3: Set up automated daily database backup snapshot -->
+<div class="group px-space-lg py-space-md flex items-center justify-between hover:bg-surface-raised transition-colors duration-150 cursor-pointer">
+<div class="flex items-center gap-space-md min-w-0 pr-4">
+<div class="w-4 h-4 rounded border border-border flex items-center justify-center group-hover:border-text-muted transition-colors"></div>
+<span class="font-body text-body text-text font-medium truncate">Set up automated daily database backup snapshot</span>
+</div>
+<div class="flex items-center gap-space-xl shrink-0">
+<span class="font-label text-label text-text-muted">1h 30m</span>
+<div class="w-24 flex justify-start">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-label font-label bg-surface-raised text-text-muted border border-border">
+                      Todo
+                    </span>
+</div>
+</div>
+</div>
+<!-- Row 4: Audit storage directory permissions -->
+<div class="group px-space-lg py-space-md flex items-center justify-between hover:bg-surface-raised transition-colors duration-150 cursor-pointer">
+<div class="flex items-center gap-space-md min-w-0 pr-4">
+<div class="w-4 h-4 rounded bg-primary/20 border border-primary flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[12px] leading-none" data-icon="check">check</span>
+</div>
+<span class="font-body text-body text-text-muted line-through truncate">Audit storage directory permissions</span>
+</div>
+<div class="flex items-center gap-space-xl shrink-0">
+<span class="font-label text-label text-text-muted">30m</span>
+<div class="w-24 flex justify-start">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-label font-label bg-primary/15 text-primary">
+                      Done
+                    </span>
+</div>
+</div>
+</div>
+<!-- Row 5: Review quarterly milestone planning -->
+<div class="group px-space-lg py-space-md flex items-center justify-between hover:bg-surface-raised transition-colors duration-150 cursor-pointer">
+<div class="flex items-center gap-space-md min-w-0 pr-4">
+<div class="w-4 h-4 rounded border border-border flex items-center justify-center group-hover:border-text-muted transition-colors"></div>
+<span class="font-body text-body text-text font-medium truncate">Review quarterly milestone planning</span>
+</div>
+<div class="flex items-center gap-space-xl shrink-0">
+<span class="font-label text-label text-text-muted">3h</span>
+<div class="w-24 flex justify-start">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-label font-label bg-surface-raised text-text-muted border border-border">
+                      Todo
+                    </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Empty State Demo Section Container -->
+<div class="flex flex-col gap-space-sm pt-space-md">
+<div class="flex items-center gap-space-md text-text-muted px-space-xs">
+<span class="font-label text-label uppercase tracking-wider">Empty State Template</span>
+<div class="h-px bg-border flex-1"></div>
+</div>
+<div class="border border-dashed border-border rounded-lg p-space-xl bg-surface/50 flex flex-col items-center justify-center text-center">
+<div class="w-8 h-8 rounded-full bg-surface-raised flex items-center justify-center text-text-muted mb-space-sm">
+<span class="material-symbols-outlined text-[18px]" data-icon="inbox">inbox</span>
+</div>
+<p class="font-body text-body text-text-muted">
+                No tasks yet — created tasks will appear here.
+              </p>
+<span class="font-label text-label text-text-muted/60 mt-1">Press <kbd class="px-1.5 py-0.5 rounded bg-surface-raised border border-border text-[10px]">C</kbd> anywhere or click Add Task</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+<div aria-labelledby="modal-task-title" aria-modal="true" class="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-50 flex items-center justify-center p-4 overflow-y-auto" role="dialog"><div class="bg-surface border border-border rounded-xl shadow-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto text-text font-body p-6 flex flex-col gap-6 my-auto"><div class="flex items-start justify-between gap-4 border-b border-border pb-4"><div class="flex flex-col gap-1 min-w-0"><div class="flex items-center gap-2 flex-wrap"><h2 class="font-title text-[20px] font-semibold text-text tracking-tight leading-snug" id="modal-task-title">Review quarterly milestone planning</h2><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-label font-label bg-primary/15 text-primary border border-primary/25"><span class="material-symbols-outlined text-[13px]" data-icon="repeat">repeat</span>Repeats weekly</span></div><p class="font-label text-label text-text-muted">Edit repeating task · Series created Oct 11, 2026</p></div><div class="flex items-center gap-2 shrink-0"><button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/15 text-primary border border-primary/30 font-body text-body font-medium transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button"><span class="material-symbols-outlined text-[16px] text-primary" data-icon="edit">edit</span><span>Editing</span></button><button aria-label="Close modal" class="p-1.5 text-text-muted hover:text-text hover:bg-surface-raised rounded-lg transition-colors flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-primary" type="button"><span class="material-symbols-outlined text-[20px]" data-icon="close">close</span></button></div></div><div class="flex flex-col gap-5"><div class="flex flex-col gap-1.5"><label class="font-label text-label font-medium text-text-muted" for="task-title-input">Title <span class="text-primary">*</span></label><input class="bg-surface-raised border border-border text-text px-3.5 py-2.5 rounded-lg w-full font-body text-body focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors" id="task-title-input" type="text" value="Review quarterly milestone planning"/></div><div class="flex flex-col gap-1.5"><label class="font-label text-label font-medium text-text-muted" for="task-desc-input">Description (optional)</label><textarea class="bg-surface-raised border border-border text-text px-3.5 py-2.5 rounded-lg w-full font-body text-body h-24 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors leading-relaxed resize-none" id="task-desc-input" rows="3">Evaluate progress against Q3 objectives, identify pending blockers across core modules, and finalize priority backlog sequencing for Q4 rollout.</textarea></div><div class="flex flex-col gap-1.5"><span class="font-label text-label font-medium text-text-muted">Categories (optional)</span><div class="bg-surface-raised border border-border rounded-lg p-2 flex items-center gap-2 flex-wrap min-h-[44px]"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label font-medium bg-primary/15 text-primary border border-primary/25"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span><span>Engineering</span><button aria-label="Remove Engineering category" class="ml-0.5 hover:opacity-75 focus:outline-none flex items-center"><span class="material-symbols-outlined text-[14px]">close</span></button></span><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-label font-medium bg-threshold-orange/15 text-threshold-orange border border-threshold-orange/25"><span class="w-1.5 h-1.5 rounded-full bg-threshold-orange"></span><span>Product &amp; Design</span><button aria-label="Remove Product &amp; Design category" class="ml-0.5 hover:opacity-75 focus:outline-none flex items-center"><span class="material-symbols-outlined text-[14px]">close</span></button></span><div class="flex-1 min-w-[120px] flex items-center"><span class="text-text-muted/60 text-label font-label px-1.5 select-none">Add category...</span></div></div></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div class="flex flex-col gap-1.5"><span class="font-label text-label font-medium text-text-muted">Estimated time (optional)</span><div class="grid grid-cols-2 gap-2"><div class="flex items-center bg-surface-raised border border-border rounded-lg px-3 py-1.5"><input class="w-full bg-transparent text-text font-body text-body focus:outline-none" min="0" type="number" value="3"/><span class="text-text-muted text-label font-label select-none">h</span></div><div class="flex items-center bg-surface-raised border border-border rounded-lg px-3 py-1.5"><input class="w-full bg-transparent text-text font-body text-body focus:outline-none" max="59" min="0" type="number" value="0"/><span class="text-text-muted text-label font-label select-none">min</span></div></div></div><div class="flex flex-col gap-1.5"><span class="font-label text-label font-medium text-text-muted">Time spent (optional)</span><div class="grid grid-cols-2 gap-2"><div class="flex items-center bg-surface-raised border border-border rounded-lg px-3 py-1.5"><input class="w-full bg-transparent text-text font-body text-body focus:outline-none" min="0" type="number" value="1"/><span class="text-text-muted text-label font-label select-none">h</span></div><div class="flex items-center bg-surface-raised border border-border rounded-lg px-3 py-1.5"><input class="w-full bg-transparent text-text font-body text-body focus:outline-none" max="59" min="0" type="number" value="15"/><span class="text-text-muted text-label font-label select-none">min</span></div></div></div></div><div class="flex flex-col gap-1.5"><span class="font-label text-label font-medium text-text-muted">Carry-over rule (optional)</span><div class="grid grid-cols-3 bg-surface-raised border border-border rounded-lg p-1 gap-1 text-center font-label text-label"><button class="py-1.5 rounded text-text-muted hover:text-text transition-colors focus:outline-none" type="button">Ask</button><button class="py-1.5 rounded bg-primary text-on-primary font-medium shadow-sm transition-colors focus:outline-none" type="button">Carry over</button><button class="py-1.5 rounded text-text-muted hover:text-text transition-colors focus:outline-none" type="button">Return to backlog</button></div></div></div><div class="border-t border-border pt-4 flex flex-col gap-2.5"><span class="font-label text-[11px] font-semibold uppercase tracking-wider text-text-muted">Save changes for</span><div class="flex flex-col gap-2"><label class="flex items-center gap-3 p-3 rounded-lg border border-border bg-surface-raised/20 hover:bg-surface-raised/40 transition-colors cursor-pointer select-none"><input class="w-4 h-4 text-primary bg-surface-raised border-border focus:ring-primary" name="save_scope" type="radio"/><div class="flex flex-col"><span class="font-body text-body text-text font-medium">This instance</span><span class="font-label text-label text-text-muted">Modifications apply only to Mon, Oct 19, 2026</span></div></label><label class="flex items-center gap-3 p-3 rounded-lg border border-primary/40 bg-primary/10 transition-colors cursor-pointer select-none"><input checked="" class="w-4 h-4 text-primary bg-surface-raised border-border focus:ring-primary" name="save_scope" type="radio"/><div class="flex flex-col"><div class="flex items-center gap-2"><span class="font-body text-body text-text font-semibold">Entire series</span><span class="px-1.5 py-0.5 rounded text-[10px] font-label font-medium bg-primary/20 text-primary uppercase">Selected</span></div><span class="font-label text-label text-text-muted">Update schedule, duration, and properties across all series instances</span></div></label><label class="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-surface-raised/10 opacity-50 cursor-not-allowed select-none"><input class="w-4 h-4 text-text-muted bg-surface-raised/40 border-border cursor-not-allowed" disabled="" name="save_scope" type="radio"/><div class="flex items-center gap-2"><span class="font-body text-body text-text-muted">This and future instances</span><span class="px-1.5 py-0.5 rounded text-[10px] font-label bg-surface-raised border border-border text-text-muted/70 italic">coming soon</span></div></label></div></div><div class="bg-surface-container-low border border-border rounded-lg p-4 flex flex-col gap-4"><div class="flex items-center justify-between"><span class="font-title text-body font-semibold text-text flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[18px]" data-icon="event_repeat">event_repeat</span>Series schedule</span><span class="font-label text-label text-text-muted">Weekly cadence</span></div><div class="flex items-center gap-3 flex-wrap"><span class="font-label text-label font-medium text-text-muted">Every</span><input class="w-16 bg-surface-raised border border-border text-text px-2.5 py-1 rounded font-body text-body text-center focus:border-primary focus:outline-none" min="1" type="number" value="1"/><div class="inline-flex bg-surface-raised border border-border rounded-lg p-0.5 text-label font-label"><button class="px-2.5 py-1 rounded text-text-muted hover:text-text focus:outline-none" type="button">days</button><button class="px-2.5 py-1 rounded bg-primary text-on-primary font-medium shadow-sm focus:outline-none" type="button">weeks</button><button class="px-2.5 py-1 rounded text-text-muted hover:text-text focus:outline-none" type="button">months</button></div></div><div class="flex flex-col gap-1.5"><span class="font-label text-label font-medium text-text-muted">On</span><div class="grid grid-cols-7 gap-1.5 text-center font-label text-label"><button class="py-1.5 rounded bg-primary text-on-primary font-semibold focus:outline-none shadow-sm" type="button">Mon</button><button class="py-1.5 rounded bg-surface-raised border border-border text-text-muted hover:text-text focus:outline-none transition-colors" type="button">Tue</button><button class="py-1.5 rounded bg-surface-raised border border-border text-text-muted hover:text-text focus:outline-none transition-colors" type="button">Wed</button><button class="py-1.5 rounded bg-surface-raised border border-border text-text-muted hover:text-text focus:outline-none transition-colors" type="button">Thu</button><button class="py-1.5 rounded bg-surface-raised border border-border text-text-muted hover:text-text focus:outline-none transition-colors" type="button">Fri</button><button class="py-1.5 rounded bg-surface-raised border border-border text-text-muted hover:text-text focus:outline-none transition-colors" type="button">Sat</button><button class="py-1.5 rounded bg-surface-raised border border-border text-text-muted hover:text-text focus:outline-none transition-colors" type="button">Sun</button></div></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><div class="flex flex-col gap-1"><span class="font-label text-label font-medium text-text-muted">Starts</span><input class="bg-surface-raised border border-border text-text px-3 py-1.5 rounded font-body text-body focus:border-primary focus:outline-none" type="text" value="Oct 11, 2026"/></div><div class="flex flex-col gap-1"><span class="font-label text-label font-medium text-text-muted">Ends</span><input class="bg-surface-raised border border-border text-text-muted px-3 py-1.5 rounded font-body text-body focus:border-primary focus:outline-none placeholder:text-text-muted/50" placeholder="No end date" type="text"/></div></div><div class="flex items-center gap-1.5 text-text-muted font-label text-label"><span class="material-symbols-outlined text-[16px] text-primary" data-icon="info">info</span><span>Repeats every week on Monday</span></div></div><div class="flex items-center justify-between border-t border-border pt-4 mt-1"><button class="flex items-center gap-1.5 text-threshold-red hover:bg-threshold-red/10 px-3 py-2 rounded-lg font-body text-body font-medium transition-colors focus:outline-none" type="button"><span class="material-symbols-outlined text-[18px]">delete</span><span>Delete</span></button><div class="flex items-center gap-2.5"><button class="px-4 py-2 font-body text-body text-text-muted hover:text-text hover:bg-surface-raised rounded-lg transition-colors focus:outline-none" type="button">Cancel</button><button class="px-5 py-2 font-body text-body font-medium bg-primary text-on-primary hover:bg-surface-tint rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Save</button></div></div><div class="bg-surface-raised/80 border border-threshold-red/30 rounded-lg p-4 flex flex-col gap-3.5"><div class="flex items-center justify-between"><div class="flex items-center gap-2 text-threshold-red"><span class="material-symbols-outlined text-[20px]" data-icon="warning">warning</span><span class="font-title text-title font-semibold text-text">Delete task</span></div><span class="font-label text-label text-text-muted">Confirm scope</span></div><div class="flex flex-col gap-2 font-body text-body text-text"><label class="flex items-center gap-2.5 cursor-pointer select-none"><input class="w-4 h-4 text-threshold-red bg-surface-raised border-border focus:ring-threshold-red" name="delete_scope" type="radio"/><span>This instance only</span></label><label class="flex items-center gap-2.5 cursor-pointer select-none"><input checked="" class="w-4 h-4 text-threshold-red bg-surface-raised border-border focus:ring-threshold-red" name="delete_scope" type="radio"/><span class="font-medium text-text">Entire series</span></label><label class="flex items-center gap-2.5 cursor-pointer select-none"><input class="w-4 h-4 text-threshold-red bg-surface-raised border-border focus:ring-threshold-red" name="delete_scope" type="radio"/><span>This and all future instances</span></label></div><div class="flex items-center gap-1.5 text-text-muted font-label text-label"><span class="material-symbols-outlined text-[15px] text-threshold-red" data-icon="error">error</span><span class="text-text-muted">This cannot be undone.</span></div><div class="flex items-center justify-end gap-2.5 pt-1"><button class="px-4 py-1.5 font-body text-body bg-transparent border border-border text-text hover:bg-surface-raised rounded-lg transition-colors focus:outline-none" type="button">Keep task</button><button class="px-4 py-1.5 font-body text-body font-medium bg-threshold-red hover:bg-threshold-red/90 text-on-primary rounded-lg transition-colors focus:outline-none" type="button">Delete</button></div></div></div></div></body></html>

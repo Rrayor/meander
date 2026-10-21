@@ -151,6 +151,53 @@ const defaultDraft = (): RepeatDraft => ({
   endDate: "",
 });
 
+// Inverse of toNewSeries — seeds the editor from an existing schedule.
+// workday_after can't be stored (the backend rejects it), so the union's
+// last variant is unreachable here.
+const draftFromSeries = (series: NewSeries): RepeatDraft => {
+  const base = {
+    monthMode: "day" as const,
+    ...monthlyDefaults(series.start_date),
+    weekdays: [] as Weekday[],
+    startDate: series.start_date,
+    endDate: series.end_date ?? "",
+  };
+  switch (series.recurrence.kind) {
+    case "daily":
+      return {
+        ...base,
+        interval: series.recurrence.interval_days,
+        unit: "day",
+      };
+    case "weekly":
+      return {
+        ...base,
+        interval: series.recurrence.interval_weeks,
+        unit: "week",
+        weekdays: series.recurrence.weekdays,
+      };
+    case "monthly_day":
+      return {
+        ...base,
+        interval: series.recurrence.interval_months,
+        unit: "month",
+        monthMode: "day",
+        day: series.recurrence.day,
+      };
+    case "monthly_nth_weekday":
+      return {
+        ...base,
+        interval: series.recurrence.interval_months,
+        unit: "month",
+        monthMode: "weekday",
+        nth: series.recurrence.nth,
+        weekday: series.recurrence.weekday,
+      };
+    case "workday_after":
+      throw new Error("workday_after schedules are not yet supported");
+  }
+};
+
 const toRecurrence = (draft: RepeatDraft): Recurrence => {
   switch (draft.unit) {
     case "day":
@@ -231,6 +278,10 @@ const chipClasses = (selected: boolean) =>
 
 interface RepeatScheduleFieldsProps {
   idPrefix: string;
+  // Seed from an existing schedule (series editing): the section starts
+  // expanded with the stored recurrence and both selections count as
+  // user-made, so a start-date edit doesn't silently overwrite them.
+  initial?: NewSeries;
   // `error` is the first validation message while a schedule is configured;
   // parents disable submission until it clears.
   onChange: (series: NewSeries | null, error: string | null) => void;
@@ -241,15 +292,19 @@ interface RepeatScheduleFieldsProps {
 // the user's last choices.
 export function RepeatScheduleFields({
   idPrefix,
+  initial,
   onChange,
 }: Readonly<RepeatScheduleFieldsProps>) {
-  const [expanded, setExpanded] = useState(false);
-  const [draft, setDraft] = useState<RepeatDraft>(defaultDraft);
+  const [expanded, setExpanded] = useState(initial !== undefined);
+  const [draft, setDraft] = useState<RepeatDraft>(() =>
+    initial === undefined ? defaultDraft() : draftFromSeries(initial),
+  );
   // The weekday selection tracks the start date until the user picks days
   // manually — the common case is "repeat on the same weekday it starts".
-  const [weekdaysTouched, setWeekdaysTouched] = useState(false);
+  // A seeded schedule already carries explicit picks.
+  const [weekdaysTouched, setWeekdaysTouched] = useState(initial !== undefined);
   // The monthly selections track the start date the same way.
-  const [monthlyTouched, setMonthlyTouched] = useState(false);
+  const [monthlyTouched, setMonthlyTouched] = useState(initial !== undefined);
 
   const errors = expanded ? validateDraft(draft) : {};
   const errorFor = (field: keyof DraftErrors) =>

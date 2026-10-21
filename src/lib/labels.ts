@@ -191,6 +191,12 @@ export const TASK_SCOPE_FUTURE_LABEL = "This and future instances";
 export const TASK_SCOPE_COMING_SOON_HINT =
   "available when series editing lands";
 
+export const DELETE_BUTTON_LABEL = "Delete";
+export const DELETE_TASK_HEADING = "Delete task";
+export const DELETE_SCOPE_FUTURE_LABEL = "This and all future instances";
+export const DELETE_UNDO_WARNING = "This cannot be undone.";
+export const DELETE_KEEP_LABEL = "Keep task";
+
 export const CALENDAR_PREVIOUS_LABEL = "Previous month";
 export const CALENDAR_NEXT_LABEL = "Next month";
 export const NOTES_TAB_INSTANCE_LABEL = "Current instance";

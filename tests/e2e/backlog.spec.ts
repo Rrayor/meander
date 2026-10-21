@@ -15,6 +15,10 @@ import {
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
   SAVE_BUTTON_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_SCOPE_FUTURE_LABEL,
+  DELETE_TASK_HEADING,
+  TASK_SCOPE_SERIES_LABEL,
   deleteTaskLabel,
   editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
@@ -764,4 +768,114 @@ test("picking a scheduled date without an instance shows the pending state", asy
   await expect(
     dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
   ).toBeVisible();
+});
+
+test("a series-scope save sends update_task_series with the schedule", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.updateTaskSeries]: seriesFixture,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const call = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.updateTaskSeries,
+  );
+  expect(call?.args.seriesId).toBe(seriesFixture.id);
+  expect(call?.args.input).toMatchObject({
+    title: TITLE_DRAFT_NOTES,
+    recurrence: seriesFixture.recurrence,
+    start_date: seriesFixture.start_date,
+    end_date: null,
+    category_ids: [],
+  });
+  expect(
+    (await getInvocations(page)).some((c) => c.cmd === COMMANDS.updateTask),
+  ).toBe(false);
+});
+
+test("the details view deletes the whole series after scope confirmation", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.deleteTaskSeries]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .first()
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: DELETE_TASK_HEADING }),
+  ).toBeVisible();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .last()
+    .click();
+
+  const call = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.deleteTaskSeries,
+  );
+  expect(call?.args.seriesId).toBe(seriesFixture.id);
+});
+
+test("the details view ends the series at the viewed date", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.truncateTaskSeries]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .first()
+    .click();
+  await dialog.getByRole("radio", { name: DELETE_SCOPE_FUTURE_LABEL }).click();
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .last()
+    .click();
+
+  const call = (await getInvocations(page)).find(
+    (c) => c.cmd === COMMANDS.truncateTaskSeries,
+  );
+  expect(call?.args).toMatchObject({
+    seriesId: seriesFixture.id,
+    fromDate: seriesInstance.scheduled_date,
+  });
 });

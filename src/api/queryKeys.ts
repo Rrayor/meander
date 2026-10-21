@@ -12,4 +12,5 @@ export const QUERY_KEYS = {
   taskCategories: (taskId: number) => ["task-categories", taskId],
   taskSeries: ["task-series"],
   seriesInstances: (seriesId: number) => ["series-instances", seriesId],
+  seriesCategories: (seriesId: number) => ["series-categories", seriesId],
 } as const;

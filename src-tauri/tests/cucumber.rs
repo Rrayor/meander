@@ -1733,3 +1733,166 @@ fn no_repeating_tasks(world: &mut MeanderWorld) {
         .expect("series list failed");
     assert!(series.is_empty());
 }
+
+const LATER_INSTANCE_DATE: &str = "2026-10-26";
+
+/// A second persisted instance of `title`'s series on the Monday after the
+/// first — stands in for a future instance the board would create.
+fn add_later_instance(world: &mut MeanderWorld, title: &str, instance_title: &str) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .expect("task missing");
+    let series_id = task.series_id.expect("the task does not repeat");
+    world
+        .rt()
+        .block_on(
+            sqlx::query(
+                "INSERT INTO tasks (profile_id, title, description, carry_over_rule, \
+                 estimated_minutes, series_id, scheduled_date, sort_order) \
+                 VALUES (?, ?, NULL, 'return', NULL, ?, ?, 0)",
+            )
+            .bind(active)
+            .bind(instance_title)
+            .bind(series_id)
+            .bind(LATER_INSTANCE_DATE)
+            .execute(&pool),
+        )
+        .expect("later instance insert failed");
+}
+
+#[when(expr = "a later instance of {word} is titled {string}")]
+fn later_instance_titled(world: &mut MeanderWorld, title: String, instance_title: String) {
+    add_later_instance(world, &title, &instance_title);
+}
+
+#[when(expr = "a later instance of {word} exists")]
+fn later_instance_exists(world: &mut MeanderWorld, title: String) {
+    let instance_title = format!("{title} again");
+    add_later_instance(world, &title, &instance_title);
+}
+
+fn series_of(world: &mut MeanderWorld, title: &str) -> meander_lib::series::TaskSeries {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .expect("task missing");
+    let series_id = task.series_id.expect("the task does not repeat");
+    world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, active))
+        .expect("series list failed")
+        .into_iter()
+        .find(|s| s.id == series_id)
+        .expect("series missing")
+}
+
+#[when(expr = "I retitle {word}'s series to {string}")]
+fn retitle_series(world: &mut MeanderWorld, title: String, new_title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::update(
+        &pool,
+        active,
+        series.id,
+        &meander_lib::series::UpdateSeries {
+            title: new_title,
+            description: series.description.clone(),
+            carry_over_rule: Some(series.carry_over_rule),
+            estimated_minutes: series.estimated_minutes,
+            recurrence: serde_json::to_value(&series.recurrence).unwrap(),
+            start_date: series.start_date.clone(),
+            end_date: series.end_date.clone(),
+            category_ids: vec![],
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "every instance of {word}'s repeat is titled {string}")]
+fn instances_retitled(world: &mut MeanderWorld, title: String, expected: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &expected);
+    let instances = world
+        .rt()
+        .block_on(meander_lib::tasks::list_instances(&pool, active, series.id))
+        .expect("instance list failed");
+    assert!(instances.len() >= 2, "expected the added later instance");
+    assert!(instances.iter().all(|t| t.title == expected));
+    let _ = title;
+}
+
+#[when(expr = "I end {word}'s repeat at the later instance")]
+fn end_repeat(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::truncate(
+        &pool,
+        active,
+        series.id,
+        LATER_INSTANCE_DATE,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the earlier instance of {word} remains")]
+fn earlier_instance_remains(world: &mut MeanderWorld, title: String) {
+    let series = series_of(world, &title);
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let dates: Vec<String> = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar(
+                "SELECT scheduled_date FROM tasks WHERE series_id = ? ORDER BY scheduled_date",
+            )
+            .bind(series.id)
+            .fetch_all(&pool)
+            .await
+        })
+        .expect("instance dates query failed");
+    assert_eq!(dates, vec!["2026-10-19".to_string()]);
+}
+
+#[then(expr = "no instance of {word} remains on or after the later instance")]
+fn no_later_instances(world: &mut MeanderWorld, title: String) {
+    let series = series_of(world, &title);
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let count: i64 = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar(
+                "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= ?",
+            )
+            .bind(series.id)
+            .bind(LATER_INSTANCE_DATE)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("instance count failed");
+    assert_eq!(count, 0);
+    // The series itself is ended before the later instance's date.
+    let series = series_of(world, &title);
+    assert_eq!(series.end_date.as_deref(), Some("2026-10-25"));
+}

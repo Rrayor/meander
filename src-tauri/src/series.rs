@@ -318,6 +318,23 @@ pub struct NewSeries {
     pub end_date: Option<String>,
 }
 
+/// Full-row update payload for whole-series editing (spec §146). Every
+/// editable property crosses in one write; `category_ids` replaces both
+/// the series' own set and every instance's — a series save overwrites
+/// instance-level customizations.
+#[derive(Debug, Deserialize, specta::Type)]
+pub struct UpdateSeries {
+    pub title: String,
+    pub description: Option<String>,
+    pub carry_over_rule: Option<CarryOverRule>,
+    pub estimated_minutes: Option<i64>,
+    #[specta(type = Recurrence)]
+    pub recurrence: serde_json::Value,
+    pub start_date: String,
+    pub end_date: Option<String>,
+    pub category_ids: Vec<i64>,
+}
+
 /// What `insert` persists: the task's own fields plus the schedule.
 pub struct SeriesFields<'a> {
     pub title: &'a str,
@@ -388,19 +405,31 @@ fn series_not_found() -> DbError {
     }
 }
 
-/// Validates then inserts a series inside an existing transaction —
-/// callers linking a task need both writes to commit or roll back together.
-pub(crate) async fn insert(
-    tx: &mut SqliteConnection,
-    profile_id: i64,
-    fields: &SeriesFields<'_>,
-) -> Result<TaskSeries> {
-    let recurrence: Recurrence = serde_json::from_value(fields.series.recurrence.clone())
+/// Everything insert and update share after validation: the decoded
+/// schedule plus the normalized persisted fields.
+struct PreparedSeries {
+    recurrence_json: String,
+    title: String,
+    description: Option<String>,
+    start: String,
+    end: Option<String>,
+}
+
+/// The shared validation boundary for every series write — malformed
+/// schedules, bad dates, unreachable end dates, and over-long text are
+/// typed rejections before any row is touched.
+fn prepare(
+    recurrence_value: &serde_json::Value,
+    title_raw: &str,
+    description_raw: Option<&str>,
+    start_raw: &str,
+    end_raw: Option<&str>,
+) -> Result<PreparedSeries> {
+    let recurrence: Recurrence = serde_json::from_value(recurrence_value.clone())
         .map_err(|e| invalid(format!("recurrence is not a known schedule: {e}")))?;
     recurrence.validate()?;
-    let title = TaskTitle::parse(fields.title)?.into_inner();
-    let description = fields
-        .description
+    let title = TaskTitle::parse(title_raw)?.into_inner();
+    let description = description_raw
         .map(str::trim)
         .filter(|d| !d.is_empty())
         .map(|d| {
@@ -414,14 +443,9 @@ pub(crate) async fn insert(
         })
         .transpose()?
         .map(TaskDescription::into_inner);
-    let start = fields.series.start_date.trim();
+    let start = start_raw.trim();
     iso_date(start, ErrorCode::StartDateInvalid, "start date")?;
-    let end = fields
-        .series
-        .end_date
-        .as_deref()
-        .map(str::trim)
-        .filter(|d| !d.is_empty());
+    let end = end_raw.map(str::trim).filter(|d| !d.is_empty());
     if let Some(end) = end {
         iso_date(end, ErrorCode::EndDateInvalid, "end date")?;
         if end < start {
@@ -443,6 +467,29 @@ pub(crate) async fn insert(
         code: ErrorCode::Internal,
         message: format!("recurrence could not be serialized: {e}"),
     })?;
+    Ok(PreparedSeries {
+        recurrence_json,
+        title,
+        description,
+        start: start.to_string(),
+        end: end.map(str::to_string),
+    })
+}
+
+/// Validates then inserts a series inside an existing transaction —
+/// callers linking a task need both writes to commit or roll back together.
+pub(crate) async fn insert(
+    tx: &mut SqliteConnection,
+    profile_id: i64,
+    fields: &SeriesFields<'_>,
+) -> Result<TaskSeries> {
+    let prepared = prepare(
+        &fields.series.recurrence,
+        fields.title,
+        fields.description,
+        &fields.series.start_date,
+        fields.series.end_date.as_deref(),
+    )?;
     // Spec §95: carry-over defaults to return-to-backlog for series.
     let carry_over = fields.carry_over_rule.unwrap_or(CarryOverRule::Return);
     let row: SeriesRow = sqlx::query_as(&format!(
@@ -452,13 +499,13 @@ pub(crate) async fn insert(
          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING {SERIES_COLUMNS}"
     ))
     .bind(profile_id)
-    .bind(title)
-    .bind(description)
+    .bind(&prepared.title)
+    .bind(&prepared.description)
     .bind(carry_over)
     .bind(fields.estimated_minutes)
-    .bind(recurrence_json)
-    .bind(start)
-    .bind(end)
+    .bind(&prepared.recurrence_json)
+    .bind(&prepared.start)
+    .bind(&prepared.end)
     .fetch_one(&mut *tx)
     .await?;
     into_series(row)
@@ -499,6 +546,173 @@ pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
         return Err(series_not_found());
     }
     Ok(())
+}
+
+/// Fetches the owning series row — every path scopes to `profile_id` so
+/// a foreign id is a not-found, not a leak.
+async fn owned_row(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<SeriesRow> {
+    let row: Option<SeriesRow> = sqlx::query_as(&format!(
+        "SELECT {SERIES_COLUMNS} FROM task_series WHERE id = ? AND profile_id = ?"
+    ))
+    .bind(id)
+    .bind(profile_id)
+    .fetch_optional(pool)
+    .await?;
+    row.ok_or_else(series_not_found)
+}
+
+/// Writes the series' category set and propagates it to every instance
+/// (spec §146). Category ids must belong to the profile — a foreign or
+/// unknown id rejects the whole update.
+async fn sync_categories(
+    tx: &mut SqliteConnection,
+    pool: &SqlitePool,
+    profile_id: i64,
+    series_id: i64,
+    category_ids: &[i64],
+) -> Result<()> {
+    for category_id in category_ids {
+        crate::categories::ensure_exists(pool, profile_id, *category_id).await?;
+    }
+    sqlx::query("DELETE FROM series_categories WHERE series_id = ?")
+        .bind(series_id)
+        .execute(&mut *tx)
+        .await?;
+    for category_id in category_ids {
+        sqlx::query("INSERT INTO series_categories (series_id, category_id) VALUES (?, ?)")
+            .bind(series_id)
+            .bind(category_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query(
+        "DELETE FROM task_categories WHERE task_id IN \
+         (SELECT id FROM tasks WHERE series_id = ?)",
+    )
+    .bind(series_id)
+    .execute(&mut *tx)
+    .await?;
+    for category_id in category_ids {
+        sqlx::query(
+            "INSERT INTO task_categories (task_id, category_id) \
+             SELECT id, ? FROM tasks WHERE series_id = ?",
+        )
+        .bind(category_id)
+        .bind(series_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    Ok(())
+}
+
+/// Whole-series update (spec §146): the shared fields land on the series
+/// row and propagate to every persisted instance — past and future —
+/// overwriting instance-level customizations. `status`, `spent_minutes`,
+/// `scheduled_date`, and `placement` stay per-instance; the series row
+/// doesn't carry them. All writes share one transaction so a failed
+/// category or schedule leaves the series untouched.
+pub async fn update(
+    pool: &SqlitePool,
+    profile_id: i64,
+    id: i64,
+    input: &UpdateSeries,
+) -> Result<TaskSeries> {
+    let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
+    owned_row(pool, profile_id, id).await?;
+    let prepared = prepare(
+        &input.recurrence,
+        &input.title,
+        input.description.as_deref(),
+        &input.start_date,
+        input.end_date.as_deref(),
+    )?;
+    // Spec §95: carry-over defaults to return-to-backlog for series.
+    let carry_over = input.carry_over_rule.unwrap_or(CarryOverRule::Return);
+    let result = sqlx::query(
+        "UPDATE task_series SET title = ?, description = ?, carry_over_rule = ?, \
+         estimated_minutes = ?, recurrence = ?, start_date = ?, end_date = ?, \
+         updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(&prepared.title)
+    .bind(&prepared.description)
+    .bind(carry_over)
+    .bind(input.estimated_minutes)
+    .bind(&prepared.recurrence_json)
+    .bind(&prepared.start)
+    .bind(&prepared.end)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(series_not_found());
+    }
+    sqlx::query(
+        "UPDATE tasks SET title = ?, description = ?, carry_over_rule = ?, \
+         estimated_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE series_id = ?",
+    )
+    .bind(&prepared.title)
+    .bind(&prepared.description)
+    .bind(carry_over)
+    .bind(input.estimated_minutes)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    sync_categories(&mut tx, pool, profile_id, id, &input.category_ids).await?;
+    tx.commit().await?;
+    into_series(owned_row(pool, profile_id, id).await?)
+}
+
+/// "Current and future" deletion (spec §152/§236): ends the series at the
+/// viewed date — persisted instances on or after `from_date` are removed
+/// and `end_date` moves to the day before, so the schedule can no longer
+/// produce them. A `from_date` at or before the start is the same as
+/// deleting the whole series. Past instances keep `series_id` and stay
+/// viewable.
+pub async fn truncate(pool: &SqlitePool, profile_id: i64, id: i64, from_date: &str) -> Result<()> {
+    iso_date(from_date, ErrorCode::StartDateInvalid, "from date")?;
+    let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
+    let row = owned_row(pool, profile_id, id).await?;
+    if from_date <= row.start_date.as_str() {
+        sqlx::query("DELETE FROM task_series WHERE id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        return Ok(());
+    }
+    sqlx::query("DELETE FROM tasks WHERE series_id = ? AND scheduled_date >= ?")
+        .bind(id)
+        .bind(from_date)
+        .execute(&mut *tx)
+        .await?;
+    let (y, m, d) = parse_iso(from_date);
+    let new_end = to_iso(civil_from_days(days_from_civil(y, m, d) - 1));
+    sqlx::query("UPDATE task_series SET end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(new_end)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Categories attached to a series, ordered like the task-scoped listing.
+pub async fn list_categories(
+    pool: &SqlitePool,
+    profile_id: i64,
+    series_id: i64,
+) -> Result<Vec<crate::categories::Category>> {
+    owned_row(pool, profile_id, series_id).await?;
+    Ok(sqlx::query_as::<_, crate::categories::Category>(
+        "SELECT c.* FROM categories c
+         JOIN series_categories sc ON sc.category_id = c.id
+         WHERE sc.series_id = ? AND c.profile_id = ?
+         ORDER BY c.title, c.id",
+    )
+    .bind(series_id)
+    .bind(profile_id)
+    .fetch_all(pool)
+    .await?)
 }
 
 #[cfg(test)]
@@ -896,6 +1110,268 @@ mod tests {
                 None,
             ),
             None
+        );
+    }
+
+    const NEW_TITLE: &str = "Mow the lawn";
+    const SECOND_INSTANCE_DATE: &str = "2026-10-26";
+    const THIRD_INSTANCE_DATE: &str = "2026-11-02";
+
+    fn update_input(recurrence: Recurrence) -> UpdateSeries {
+        UpdateSeries {
+            title: NEW_TITLE.to_string(),
+            description: Some("weekly chore".to_string()),
+            carry_over_rule: Some(CarryOverRule::Carry),
+            estimated_minutes: Some(45),
+            recurrence: serde_json::to_value(recurrence).unwrap(),
+            start_date: START.to_string(),
+            end_date: None,
+            category_ids: vec![],
+        }
+    }
+
+    /// A persisted instance of `series_id` on `iso` with fields the update
+    /// must overwrite — stands in for a later instance's custom edits.
+    async fn add_instance(pool: &SqlitePool, profile_id: i64, series_id: i64, iso: &str) -> i64 {
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, description, carry_over_rule, \
+             estimated_minutes, series_id, scheduled_date, sort_order) \
+             VALUES (?, 'custom title', 'custom notes', 'carry', 5, ?, ?, 0)",
+        )
+        .bind(profile_id)
+        .bind(series_id)
+        .bind(iso)
+        .execute(pool)
+        .await
+        .unwrap()
+        .last_insert_rowid()
+    }
+
+    async fn instance(pool: &SqlitePool, id: i64) -> crate::tasks::Task {
+        sqlx::query_as("SELECT * FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn update_writes_shared_fields_to_the_series_and_every_instance() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        let other = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let updated = update(&pool, pid, saved.id, &update_input(weekly()))
+            .await
+            .unwrap();
+        assert_eq!(updated.title, NEW_TITLE);
+        assert_eq!(updated.description.as_deref(), Some("weekly chore"));
+        assert_eq!(updated.carry_over_rule, CarryOverRule::Carry);
+        assert_eq!(updated.estimated_minutes, Some(45));
+
+        // The customized instance is overwritten with the shared values —
+        // status and spent stay per-instance (the series doesn't carry them).
+        let instance = instance(&pool, other).await;
+        assert_eq!(instance.title, NEW_TITLE);
+        assert_eq!(instance.description.as_deref(), Some("weekly chore"));
+        assert_eq!(instance.carry_over_rule, Some(CarryOverRule::Carry));
+        assert_eq!(instance.estimated_minutes, Some(45));
+    }
+
+    #[tokio::test]
+    async fn update_syncs_the_category_set_to_series_and_instances() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        let task_id = add_instance(&pool, pid, saved.id, START).await;
+        let cat = crate::categories::create(
+            &pool,
+            pid,
+            &crate::categories::NewCategory {
+                title: "Home".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut input = update_input(weekly());
+        input.category_ids = vec![cat.id];
+        update(&pool, pid, saved.id, &input).await.unwrap();
+
+        assert_eq!(
+            list_categories(&pool, pid, saved.id).await.unwrap().len(),
+            1
+        );
+        assert_eq!(
+            crate::categories::for_task(&pool, pid, task_id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        // Saving a different set removes the old one everywhere.
+        input.category_ids = vec![];
+        update(&pool, pid, saved.id, &input).await.unwrap();
+        assert!(
+            list_categories(&pool, pid, saved.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            crate::categories::for_task(&pool, pid, task_id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn update_rejects_an_unknown_or_foreign_series() {
+        let (pool, pid) = seeded_pool().await;
+        assert_code(
+            &update(&pool, pid, 9999, &update_input(weekly()))
+                .await
+                .unwrap_err(),
+            ErrorCode::SeriesNotFound,
+        );
+        // A second profile's series is invisible to the first.
+        let other_profile = crate::profiles::create(&pool, "Second").await.unwrap().id;
+        let input = series(weekly());
+        let saved = create(&pool, other_profile, &fields_for(&input))
+            .await
+            .unwrap();
+        assert_code(
+            &update(&pool, pid, saved.id, &update_input(weekly()))
+                .await
+                .unwrap_err(),
+            ErrorCode::SeriesNotFound,
+        );
+    }
+
+    #[tokio::test]
+    async fn update_rejects_a_schedule_with_no_occurrence_and_leaves_rows_untouched() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        let mut input = update_input(weekly());
+        input.end_date = Some("2026-10-19".to_string());
+        input.recurrence = serde_json::to_value(Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![Weekday::Wednesday],
+        })
+        .unwrap();
+        assert_code(
+            &update(&pool, pid, saved.id, &input).await.unwrap_err(),
+            ErrorCode::RecurrenceInvalid,
+        );
+        // Atomic: the series row still holds the original schedule.
+        assert_eq!(list(&pool, pid).await.unwrap()[0].recurrence, weekly());
+    }
+
+    #[tokio::test]
+    async fn update_rejects_a_foreign_category_and_leaves_rows_untouched() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        let other_profile = crate::profiles::create(&pool, "Second").await.unwrap().id;
+        let foreign = crate::categories::create(
+            &pool,
+            other_profile,
+            &crate::categories::NewCategory {
+                title: "Foreign".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut input = update_input(weekly());
+        input.category_ids = vec![foreign.id];
+        let err = update(&pool, pid, saved.id, &input).await.unwrap_err();
+        assert_code(&err, ErrorCode::CategoryNotFound);
+        assert!(
+            list_categories(&pool, pid, saved.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn truncate_removes_future_instances_and_ends_the_series() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        // First instance (START is the Monday anchor) plus two later ones.
+        add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        add_instance(&pool, pid, saved.id, THIRD_INSTANCE_DATE).await;
+
+        truncate(&pool, pid, saved.id, SECOND_INSTANCE_DATE)
+            .await
+            .unwrap();
+
+        let remaining: Vec<String> = sqlx::query_scalar(
+            "SELECT scheduled_date FROM tasks WHERE series_id = ? ORDER BY scheduled_date",
+        )
+        .bind(saved.id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(remaining, vec![START.to_string()]);
+        let series = list(&pool, pid).await.unwrap();
+        assert_eq!(series[0].end_date.as_deref(), Some("2026-10-25"));
+        // The removed instance is gone entirely.
+        assert!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tasks WHERE id = ?")
+                .bind(second)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                == 0
+        );
+    }
+
+    #[tokio::test]
+    async fn truncate_at_or_before_the_start_deletes_the_whole_series() {
+        let (pool, pid) = seeded_pool().await;
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        truncate(&pool, pid, saved.id, START).await.unwrap();
+
+        assert!(list(&pool, pid).await.unwrap().is_empty());
+        assert!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tasks WHERE series_id = ?")
+                .bind(saved.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                == 0
+        );
+    }
+
+    #[tokio::test]
+    async fn truncate_rejects_an_unknown_series_and_a_bad_date() {
+        let (pool, pid) = seeded_pool().await;
+        assert_code(
+            &truncate(&pool, pid, 9999, SECOND_INSTANCE_DATE)
+                .await
+                .unwrap_err(),
+            ErrorCode::SeriesNotFound,
+        );
+        let input = series(weekly());
+        let saved = create(&pool, pid, &fields_for(&input)).await.unwrap();
+        assert_code(
+            &truncate(&pool, pid, saved.id, "not-a-date")
+                .await
+                .unwrap_err(),
+            ErrorCode::StartDateInvalid,
         );
     }
 }

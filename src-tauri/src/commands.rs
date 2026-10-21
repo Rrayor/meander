@@ -184,6 +184,43 @@ pub async fn delete_task_series(
 }
 
 #[tauri::command]
+pub async fn update_task_series(
+    series_id: i64,
+    input: crate::series::UpdateSeries,
+    state: State<'_, AppState>,
+) -> Result<crate::series::TaskSeries, ApiError> {
+    crate::series::update(&state.pool(), state.active_profile_id(), series_id, &input)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn truncate_task_series(
+    series_id: i64,
+    from_date: String,
+    state: State<'_, AppState>,
+) -> Result<(), ApiError> {
+    crate::series::truncate(
+        &state.pool(),
+        state.active_profile_id(),
+        series_id,
+        &from_date,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn list_series_categories(
+    series_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::categories::Category>, ApiError> {
+    crate::series::list_categories(&state.pool(), state.active_profile_id(), series_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::create(&state.pool(), &name)
         .await

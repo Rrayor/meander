@@ -16,7 +16,7 @@ import {
   listTaskCategories,
   removeTaskCategory,
 } from "@/api/categories";
-import { MAX_TASK_TITLE_LENGTH, updateTask } from "@/api/tasks";
+import { MAX_TASK_TITLE_LENGTH, deleteTask, updateTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
@@ -28,6 +28,10 @@ import {
   CALENDAR_PREVIOUS_LABEL,
   CANCEL_BUTTON_LABEL,
   CLOSE_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_KEEP_LABEL,
+  DELETE_SCOPE_FUTURE_LABEL,
+  DELETE_TASK_HEADING,
   EDIT_BUTTON_LABEL,
   EDIT_TASK_HEADING,
   ESTIMATED_HOURS_LABEL,
@@ -35,6 +39,7 @@ import {
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
   REPEAT_SECTION_LABEL,
+  REPEAT_STARTS_LABEL,
   REPEAT_UNIT_OPTIONS,
   NOTES_TAB_INSTANCE_LABEL,
   NOTES_TAB_SERIES_LABEL,
@@ -59,8 +64,12 @@ import {
   removeTaskCategoryLabel,
 } from "@/lib/labels";
 import {
+  deleteTaskSeries,
+  listSeriesCategories,
   listSeriesInstances,
   listTaskSeries,
+  truncateTaskSeries,
+  updateTaskSeries,
   type TaskSeries,
 } from "@/api/series";
 import { formatDate, formatIsoDay } from "@/lib/utils";
@@ -71,6 +80,7 @@ import { MULTI_UNIT_EMOJI } from "@/test/unicode";
 vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
   updateTask: vi.fn(),
+  deleteTask: vi.fn(),
 }));
 
 vi.mock("@/api/categories", async (importOriginal) => ({
@@ -85,10 +95,19 @@ vi.mock("@/api/categories", async (importOriginal) => ({
 vi.mock("@/api/series", () => ({
   listTaskSeries: vi.fn(),
   listSeriesInstances: vi.fn(),
+  listSeriesCategories: vi.fn(),
+  updateTaskSeries: vi.fn(),
+  deleteTaskSeries: vi.fn(),
+  truncateTaskSeries: vi.fn(),
 }));
 
 const mockedListTaskSeries = vi.mocked(listTaskSeries);
 const mockedListSeriesInstances = vi.mocked(listSeriesInstances);
+const mockedListSeriesCategories = vi.mocked(listSeriesCategories);
+const mockedUpdateSeries = vi.mocked(updateTaskSeries);
+const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
+const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
+const mockedDeleteTask = vi.mocked(deleteTask);
 const mockedUpdate = vi.mocked(updateTask);
 const mockedListCategories = vi.mocked(listCategories);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
@@ -171,6 +190,11 @@ describe("EditTaskDialog", () => {
     mockedRemoveTaskCategory.mockReset().mockResolvedValue(undefined);
     mockedListTaskSeries.mockReset().mockResolvedValue([baseSeries]);
     mockedListSeriesInstances.mockReset().mockResolvedValue([]);
+    mockedListSeriesCategories.mockReset().mockResolvedValue([WORK]);
+    mockedUpdateSeries.mockReset().mockResolvedValue(baseSeries);
+    mockedDeleteSeries.mockReset().mockResolvedValue(undefined);
+    mockedTruncateSeries.mockReset().mockResolvedValue(undefined);
+    mockedDeleteTask.mockReset().mockResolvedValue(undefined);
   });
 
   it("pre-fills every editable field from the task", () => {
@@ -736,7 +760,7 @@ describe("EditTaskDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the save-scope group in edit mode with series options disabled", async () => {
+  it("shows the save-scope group in edit mode with future scope disabled", async () => {
     renderDialog({ ...baseTask, series_id: baseSeries.id });
 
     const group = await screen.findByRole("group", {
@@ -753,9 +777,10 @@ describe("EditTaskDialog", () => {
     });
     expect(group).toContainElement(instance);
     expect(instance).toBeChecked();
-    expect(series).toBeDisabled();
+    // Series scope is live (#28); the future scope is #30's.
+    expect(series).toBeEnabled();
     expect(future).toBeDisabled();
-    expect(screen.getAllByText(TASK_SCOPE_COMING_SOON_HINT)).toHaveLength(2);
+    expect(screen.getAllByText(TASK_SCOPE_COMING_SOON_HINT)).toHaveLength(1);
   });
 
   it("hides the save-scope group for a task not in a series", () => {
@@ -958,5 +983,158 @@ describe("EditTaskDialog", () => {
         expect.objectContaining({ title: TITLE_EDITED, series: null }),
       ),
     );
+  });
+
+  it("applies a series-scope save to the whole series", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+
+    // The stored schedule seeds the series edit; status and spent stay
+    // per-instance so their controls are disabled.
+    expect(await screen.findByLabelText(REPEAT_STARTS_LABEL)).toHaveValue(
+      baseSeries.start_date,
+    );
+    expect(
+      screen.getByRole("radio", { name: STATUS_LABELS.todo }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText(SPENT_HOURS_LABEL)).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: TITLE_EDITED },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    // Series categories (WORK) replace the instance's (ERRANDS) on save.
+    await waitFor(() =>
+      expect(mockedUpdateSeries).toHaveBeenCalledWith(baseSeries.id, {
+        title: TITLE_EDITED,
+        description: baseTask.description,
+        carry_over_rule: baseTask.carry_over_rule,
+        estimated_minutes: baseTask.estimated_minutes,
+        recurrence: baseSeries.recurrence,
+        start_date: baseSeries.start_date,
+        end_date: baseSeries.end_date,
+        category_ids: [WORK.id],
+      }),
+    );
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("sends an edited schedule with the series-scope save", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    fireEvent.change(await screen.findByLabelText(REPEAT_ENDS_LABEL), {
+      target: { value: REPEAT_END_DATE },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    await waitFor(() =>
+      expect(mockedUpdateSeries).toHaveBeenCalledWith(
+        baseSeries.id,
+        expect.objectContaining({ end_date: REPEAT_END_DATE }),
+      ),
+    );
+  });
+
+  it("deletes the viewed instance after confirmation", async () => {
+    const onClose = vi.fn();
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={onClose} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: DELETE_BUTTON_LABEL }));
+    expect(
+      screen.getByRole("heading", { name: DELETE_TASK_HEADING }),
+    ).toBeInTheDocument();
+    // A non-series task has no scope prompt — just the warning.
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getAllByRole("button", {
+        name: DELETE_BUTTON_LABEL,
+      })[1],
+    );
+    await waitFor(() =>
+      expect(mockedDeleteTask).toHaveBeenCalledWith(baseTask.id),
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("deletes the whole series when that scope is chosen", async () => {
+    const onClose = vi.fn();
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{ ...baseTask, series_id: baseSeries.id }}
+          onClose={onClose}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: DELETE_BUTTON_LABEL }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getAllByRole("button", {
+        name: DELETE_BUTTON_LABEL,
+      })[1],
+    );
+    await waitFor(() =>
+      expect(mockedDeleteSeries).toHaveBeenCalledWith(baseSeries.id),
+    );
+    expect(mockedDeleteTask).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("ends the series at the viewed date for the future scope", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: DELETE_BUTTON_LABEL }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: DELETE_SCOPE_FUTURE_LABEL }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getAllByRole("button", {
+        name: DELETE_BUTTON_LABEL,
+      })[1],
+    );
+    await waitFor(() =>
+      expect(mockedTruncateSeries).toHaveBeenCalledWith(
+        baseSeries.id,
+        OPENED_INSTANCE_DATE,
+      ),
+    );
+    expect(mockedDeleteSeries).not.toHaveBeenCalled();
+  });
+
+  it("keeps the task when the delete prompt is dismissed", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: DELETE_BUTTON_LABEL }));
+    fireEvent.click(screen.getByRole("button", { name: DELETE_KEEP_LABEL }));
+    expect(
+      screen.queryByRole("heading", { name: DELETE_TASK_HEADING }),
+    ).not.toBeInTheDocument();
+    expect(mockedDeleteTask).not.toHaveBeenCalled();
   });
 });
