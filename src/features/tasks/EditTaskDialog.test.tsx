@@ -702,8 +702,35 @@ describe("EditTaskDialog", () => {
       await screen.findByText(
         seriesAuditLabel(
           describeRecurrence(baseSeries.recurrence),
+          formatDate(baseSeries.start_date),
+          null,
           formatDate(baseSeries.created_at),
           formatDate(baseSeries.updated_at),
+        ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the end date in the audit line when the series has one", async () => {
+    const endedSeries = { ...baseSeries, end_date: REPEAT_END_DATE };
+    mockedListTaskSeries.mockResolvedValue([endedSeries]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{ ...baseTask, series_id: endedSeries.id }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        seriesAuditLabel(
+          describeRecurrence(endedSeries.recurrence),
+          formatDate(endedSeries.start_date),
+          formatDate(endedSeries.end_date!),
+          formatDate(endedSeries.created_at),
+          formatDate(endedSeries.updated_at),
         ),
       ),
     ).toBeInTheDocument();

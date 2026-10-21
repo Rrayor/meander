@@ -135,10 +135,12 @@ export const REPEAT_NTH_OPTIONS = [
 
 export const seriesAuditLabel = (
   description: string,
+  start: string,
+  end: string | null,
   created: string,
   updated: string,
 ) =>
-  `Repeats ${description} — series created ${created} · last updated ${updated}`;
+  `Repeats ${description} from ${start}${end ? ` until ${end}` : " with no end date"} — series created ${created} · last updated ${updated}`;
 
 export const workdayAfterLabel = (day: number) =>
   `the first workday after day ${day}`;

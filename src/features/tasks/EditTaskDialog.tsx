@@ -245,6 +245,8 @@ function TaskDetailsView({
         <p className="border-t border-border pt-4 text-sm text-text-muted">
           {seriesAuditLabel(
             describeRecurrence(seriesRow.recurrence),
+            formatDate(seriesRow.start_date),
+            seriesRow.end_date === null ? null : formatDate(seriesRow.end_date),
             formatDate(seriesRow.created_at),
             formatDate(seriesRow.updated_at),
           )}
