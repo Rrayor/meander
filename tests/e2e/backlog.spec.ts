@@ -724,6 +724,15 @@ test("a series task shows audit info, calendar, and notes tabs", async ({
 
   await expect(dialog.getByText(/Repeats .* series created/)).toBeVisible();
   await expect(dialog.getByText(SERIES_MONTH)).toBeVisible();
+  // Scheduled days carry the occurrence marker; unscheduled days don't.
+  await expect(
+    dialog
+      .getByRole("button", { name: seriesInstance.scheduled_date! })
+      .locator("[aria-hidden='true']"),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("20", { exact: true }).locator("[aria-hidden='true']"),
+  ).toHaveCount(0);
   await expect(
     dialog.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
   ).toHaveAttribute("aria-selected", "true");

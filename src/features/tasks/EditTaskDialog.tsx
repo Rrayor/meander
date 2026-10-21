@@ -68,7 +68,12 @@ import {
   formatMinutes,
   seriesAuditLabel,
 } from "@/lib/labels";
-import { codePointsWithin, formatDate, unicodeTrim } from "@/lib/utils";
+import {
+  codePointsWithin,
+  formatDate,
+  formatIsoDay,
+  unicodeTrim,
+} from "@/lib/utils";
 
 const optionalDurationPart = (unit: string) =>
   z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
@@ -245,6 +250,10 @@ function TaskDetailsView({
         <p className="border-t border-border pt-4 text-sm text-text-muted">
           {seriesAuditLabel(
             describeRecurrence(seriesRow.recurrence),
+            formatIsoDay(seriesRow.start_date),
+            seriesRow.end_date === null
+              ? null
+              : formatIsoDay(seriesRow.end_date),
             formatDate(seriesRow.created_at),
             formatDate(seriesRow.updated_at),
           )}

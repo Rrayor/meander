@@ -1,6 +1,7 @@
 import {
   codePointsWithin,
   formatDate,
+  formatIsoDay,
   todayLocalIso,
   unicodeTrim,
   weekdayOfIso,
@@ -144,5 +145,13 @@ describe("formatDate", () => {
   it("renders the backend UTC timestamp under a pinned locale", () => {
     // en-US gives a deterministic contract: month short, day, full year.
     expect(formatDate("2026-10-11 10:00:00", "en-US")).toBe("Oct 11, 2026");
+  });
+});
+
+describe("formatIsoDay", () => {
+  it("renders a plain calendar date under a pinned locale", () => {
+    // "YYYY-MM-DD" carries no time — formatDate's datetime assumption used
+    // to produce "Invalid Date" for series start/end.
+    expect(formatIsoDay("2026-10-05", "en-US")).toBe("Oct 5, 2026");
   });
 });

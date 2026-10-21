@@ -63,7 +63,7 @@ import {
   listTaskSeries,
   type TaskSeries,
 } from "@/api/series";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatIsoDay } from "@/lib/utils";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -702,8 +702,35 @@ describe("EditTaskDialog", () => {
       await screen.findByText(
         seriesAuditLabel(
           describeRecurrence(baseSeries.recurrence),
+          formatIsoDay(baseSeries.start_date),
+          null,
           formatDate(baseSeries.created_at),
           formatDate(baseSeries.updated_at),
+        ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the end date in the audit line when the series has one", async () => {
+    const endedSeries = { ...baseSeries, end_date: REPEAT_END_DATE };
+    mockedListTaskSeries.mockResolvedValue([endedSeries]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{ ...baseTask, series_id: endedSeries.id }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        seriesAuditLabel(
+          describeRecurrence(endedSeries.recurrence),
+          formatIsoDay(endedSeries.start_date),
+          formatIsoDay(endedSeries.end_date!),
+          formatDate(endedSeries.created_at),
+          formatDate(endedSeries.updated_at),
         ),
       ),
     ).toBeInTheDocument();

@@ -134,13 +134,21 @@ export function InstanceCalendar({
               aria-label={iso}
               aria-current={selected ? "date" : undefined}
               onClick={() => pick(iso)}
-              className={`rounded-md py-1 text-center text-xs transition-colors ${
+              className={`flex flex-col items-center rounded-md py-1 text-center text-xs transition-colors ${
                 selected
                   ? "bg-primary font-medium text-on-primary"
                   : "text-text hover:bg-surface"
               } ${inMonth ? "" : "opacity-50"}`}
             >
               {day}
+              {/* Stitch design: a primary dot marks a day the series is
+                  scheduled on (or already has an instance on). */}
+              <span
+                aria-hidden="true"
+                className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
+                  selected ? "bg-on-primary" : "bg-primary"
+                }`}
+              />
             </button>
           );
         })}

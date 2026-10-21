@@ -26,6 +26,14 @@ const series: TaskSeries = {
   updated_at: "2026-10-11 10:00:00",
 };
 
+// A Monday in the series' week schedule — also the calendar's fixed "today".
+const TODAY_ISO = "2026-10-19";
+const TODAY_TIME = `${TODAY_ISO}T12:00:00`;
+// Wednesdays fall off the Monday-only schedule; 26th is a scheduled Monday.
+const OFF_SCHEDULE_ISO = "2026-10-21";
+const UNSAVED_SCHEDULED_ISO = "2026-10-26";
+const SELECTED_ISO = "2026-10-12";
+
 const instance = (iso: string): Task => ({
   id: 11,
   profile_id: 1,
@@ -50,7 +58,7 @@ const renderCalendar = (
 ) => {
   // Fixed today so the calendar's initial month is deterministic.
   vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-19T12:00:00"));
+  vi.setSystemTime(new Date(TODAY_TIME));
   render(
     <InstanceCalendar
       series={series}
@@ -67,7 +75,7 @@ describe("InstanceCalendar", () => {
 
   it("renders weekday headers Monday-first, matching the day cells", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-19T12:00:00"));
+    vi.setSystemTime(new Date(TODAY_TIME));
     const { container } = render(
       <InstanceCalendar
         series={series}
@@ -97,11 +105,9 @@ describe("InstanceCalendar", () => {
     renderCalendar();
     // Mondays in Oct 2026: 5, 12, 19, 26 — selectable buttons.
     expect(
-      screen.getByRole("button", { name: "2026-10-05" }),
+      screen.getByRole("button", { name: series.start_date }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "2026-10-19" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: TODAY_ISO })).toBeInTheDocument();
     // A Tuesday is rendered but not selectable.
     expect(
       screen.queryByRole("button", { name: "2026-10-20" }),
@@ -110,29 +116,48 @@ describe("InstanceCalendar", () => {
   });
 
   it("picking a persisted date returns its task", () => {
-    const persisted = instance("2026-10-19");
+    const persisted = instance(TODAY_ISO);
     const onPick = renderCalendar([persisted]);
-    fireEvent.click(screen.getByRole("button", { name: "2026-10-19" }));
-    expect(onPick).toHaveBeenCalledWith(persisted, "2026-10-19");
+    fireEvent.click(screen.getByRole("button", { name: TODAY_ISO }));
+    expect(onPick).toHaveBeenCalledWith(persisted, TODAY_ISO);
   });
 
   it("keeps a persisted instance selectable off the schedule", () => {
     // A Wednesday — not a scheduled date for a Monday series.
-    const offSchedule = instance("2026-10-21");
+    const offSchedule = instance(OFF_SCHEDULE_ISO);
     const onPick = renderCalendar([offSchedule]);
-    fireEvent.click(screen.getByRole("button", { name: "2026-10-21" }));
-    expect(onPick).toHaveBeenCalledWith(offSchedule, "2026-10-21");
+    fireEvent.click(screen.getByRole("button", { name: OFF_SCHEDULE_ISO }));
+    expect(onPick).toHaveBeenCalledWith(offSchedule, OFF_SCHEDULE_ISO);
   });
 
   it("picking a scheduled but unpersisted date returns null", () => {
     const onPick = renderCalendar([]);
-    fireEvent.click(screen.getByRole("button", { name: "2026-10-26" }));
-    expect(onPick).toHaveBeenCalledWith(null, "2026-10-26");
+    fireEvent.click(
+      screen.getByRole("button", { name: UNSAVED_SCHEDULED_ISO }),
+    );
+    expect(onPick).toHaveBeenCalledWith(null, UNSAVED_SCHEDULED_ISO);
+  });
+
+  it("marks scheduled days with a dot and unscheduled days without one", () => {
+    renderCalendar();
+    const scheduled = screen.getByRole("button", { name: TODAY_ISO });
+    // Stitch design: a primary dot under the day number marks an occurrence.
+    expect(scheduled.querySelector("[aria-hidden='true']")).toBeInTheDocument();
+    // An unscheduled day renders plain text — nothing to mark.
+    const plain = screen.getByText("20").closest("span")!;
+    expect(plain.querySelector("[aria-hidden='true']")).toBeNull();
+  });
+
+  it("keeps the marker visible on the selected day in the on-primary color", () => {
+    renderCalendar([], vi.fn(), TODAY_ISO);
+    const selected = screen.getByRole("button", { name: TODAY_ISO });
+    const dot = selected.querySelector("[aria-hidden='true']")!;
+    expect(dot).toHaveClass("bg-on-primary");
   });
 
   it("marks the selected date", () => {
-    renderCalendar([], vi.fn(), "2026-10-12");
-    expect(screen.getByRole("button", { name: "2026-10-12" })).toHaveAttribute(
+    renderCalendar([], vi.fn(), SELECTED_ISO);
+    expect(screen.getByRole("button", { name: SELECTED_ISO })).toHaveAttribute(
       "aria-current",
       "date",
     );
