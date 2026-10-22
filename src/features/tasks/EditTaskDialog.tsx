@@ -126,8 +126,8 @@ const schema = z
     estMinutes: optionalDurationPart("Minutes"),
     spentHours: optionalDurationPart("Hours"),
     spentMinutes: optionalDurationPart("Minutes"),
-    status: z.nativeEnum(TaskStatus),
-    carryOver: z.nativeEnum(CarryOverRule),
+    status: z.enum(TaskStatus),
+    carryOver: z.enum(CarryOverRule),
   })
   .superRefine(({ estHours, estMinutes, spentHours, spentMinutes }, ctx) => {
     // The schema CHECK allows 1–1440 minutes for both duration fields.

@@ -72,7 +72,7 @@ const schema = z
       }),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
-    carryOver: z.nativeEnum(CarryOverRule),
+    carryOver: z.enum(CarryOverRule),
   })
   .superRefine(({ estHours, estMinutes }, ctx) => {
     if (estHours.trim() === "" && estMinutes.trim() === "") {

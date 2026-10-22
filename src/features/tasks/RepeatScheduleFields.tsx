@@ -77,12 +77,12 @@ const isRealIsoDate = (iso: string) => {
 const draftSchema = z
   .object({
     interval: z.number().int().min(1),
-    unit: z.nativeEnum(RepeatUnit),
-    weekdays: z.array(z.nativeEnum(Weekday)),
-    monthMode: z.nativeEnum(MonthMode),
+    unit: z.enum(RepeatUnit),
+    weekdays: z.array(z.enum(Weekday)),
+    monthMode: z.enum(MonthMode),
     day: z.number().int().min(1).max(31),
     nth: z.number().int(),
-    weekday: z.nativeEnum(Weekday),
+    weekday: z.enum(Weekday),
     startDate: z
       .string()
       .min(1, REPEAT_STARTS_REQUIRED_MESSAGE)

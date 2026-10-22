@@ -93,9 +93,8 @@ describe("RepeatScheduleFields", () => {
     });
     fireEvent.click(only);
     expect(
-      (lastSeries(onChange)?.recurrence as { weekdays: Weekday[] }).weekdays
-        .length,
-    ).toBe(1);
+      (lastSeries(onChange)?.recurrence as { weekdays: Weekday[] }).weekdays,
+    ).toHaveLength(1);
   });
 
   it("syncs the weekly weekday to the start date until touched", () => {
