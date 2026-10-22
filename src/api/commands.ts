@@ -22,6 +22,10 @@ export const COMMANDS = {
   updateTask: "update_task",
   listTaskSeries: "list_task_series",
   listSeriesInstances: "list_series_instances",
+  deleteTaskSeries: "delete_task_series",
+  updateTaskSeries: "update_task_series",
+  truncateTaskSeries: "truncate_task_series",
+  listSeriesCategories: "list_series_categories",
   // tauri-plugin-dialog's invoke channel (plugin protocol, not ours)
   dialogOpen: "plugin:dialog|open",
 } as const;

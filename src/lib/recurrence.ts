@@ -1,4 +1,5 @@
 import type { Recurrence, Weekday } from "@/api/bindings";
+import { RecurrenceKind, RepeatNth } from "@/lib/enums";
 import { WEEKDAY_OPTIONS } from "@/lib/labels";
 import { weekdayOfIso } from "@/lib/utils";
 
@@ -41,7 +42,7 @@ const matchesDaily = (interval: number, start: number, day: number) =>
   interval > 0 && (day - start) % (interval * DAY_MS) === 0;
 
 const matchesWeekly = (
-  recurrence: Extract<Recurrence, { kind: "weekly" }>,
+  recurrence: Extract<Recurrence, { kind: `${RecurrenceKind.Weekly}` }>,
   start: number,
   day: number,
   iso: string,
@@ -56,7 +57,7 @@ const matchesWeekly = (
 };
 
 const matchesMonthlyDay = (
-  recurrence: Extract<Recurrence, { kind: "monthly_day" }>,
+  recurrence: Extract<Recurrence, { kind: `${RecurrenceKind.MonthlyDay}` }>,
   startDate: Date,
   isoDate: Date,
 ) => {
@@ -72,7 +73,10 @@ const matchesMonthlyDay = (
 };
 
 const matchesMonthlyNthWeekday = (
-  recurrence: Extract<Recurrence, { kind: "monthly_nth_weekday" }>,
+  recurrence: Extract<
+    Recurrence,
+    { kind: `${RecurrenceKind.MonthlyNthWeekday}` }
+  >,
   startDate: Date,
   isoDate: Date,
   iso: string,
@@ -84,7 +88,7 @@ const matchesMonthlyNthWeekday = (
   const months = monthsBetween(startDate, isoDate);
   if (months < 0 || months % interval !== 0) return false;
   const dom = isoDate.getUTCDate();
-  if (recurrence.nth === -1) {
+  if (recurrence.nth === RepeatNth.Last) {
     return (
       dom + 7 > daysInMonth(isoDate.getUTCFullYear(), isoDate.getUTCMonth() + 1)
     );
@@ -113,6 +117,8 @@ export const isScheduledOn = (
   const startDate = new Date(start);
   const isoDate = new Date(day);
 
+  // The discriminant is the specta wire union — matching its literal
+  // members is the only way to narrow the recurrence variants.
   switch (recurrence.kind) {
     case "daily":
       return matchesDaily(recurrence.interval_days, start, day);
@@ -169,7 +175,7 @@ const toIsoDay = (year: number, month: number, day: number) => {
 };
 
 const firstWeekly = (
-  recurrence: Extract<Recurrence, { kind: "weekly" }>,
+  recurrence: Extract<Recurrence, { kind: `${RecurrenceKind.Weekly}` }>,
   start: number,
   startWeekday: number,
 ): string | null => {
@@ -194,7 +200,7 @@ const firstWeekly = (
 };
 
 const firstMonthlyDay = (
-  recurrence: Extract<Recurrence, { kind: "monthly_day" }>,
+  recurrence: Extract<Recurrence, { kind: `${RecurrenceKind.MonthlyDay}` }>,
   year: number,
   month: number,
   day: number,
@@ -209,13 +215,18 @@ const firstMonthlyDay = (
 };
 
 const firstMonthlyNthWeekday = (
-  recurrence: Extract<Recurrence, { kind: "monthly_nth_weekday" }>,
+  recurrence: Extract<
+    Recurrence,
+    { kind: `${RecurrenceKind.MonthlyNthWeekday}` }
+  >,
   year: number,
   month: number,
   day: number,
 ): string | null => {
   const { interval_months: interval, nth, weekday } = recurrence;
-  const valid = nth === -1 || (nth >= 1 && nth <= 4);
+  const valid =
+    nth === RepeatNth.Last ||
+    (nth >= RepeatNth.First && nth <= RepeatNth.Fourth);
   if (interval <= 0 || !valid || weekdayIndex(weekday) < 0) return null;
   const dom = nthWeekdayDay(year, month, nth, weekday);
   const [y, m] =

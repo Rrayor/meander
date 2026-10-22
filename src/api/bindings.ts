@@ -19,6 +19,13 @@ export type TaskSeries = { id: number; profile_id: number; title: string; descri
  */
 export type NewSeries = { recurrence: Recurrence; start_date: string; end_date: string | null }
 /**
+ * Full-row update payload for whole-series editing (spec §146). Every
+ * editable property crosses in one write; `category_ids` replaces both
+ * the series' own set and every instance's — a series save overwrites
+ * instance-level customizations.
+ */
+export type UpdateSeries = { title: string; description: string | null; carry_over_rule: CarryOverRule | null; estimated_minutes: number | null; recurrence: Recurrence; start_date: string; end_date: string | null; category_ids: number[] }
+/**
  * Spec §111-121: the supported recurrence shapes are a closed set —
  * daily/weekly/monthly and the named positional variants. Stored as
  * serde JSON in `task_series.recurrence`; the wire type and the stored

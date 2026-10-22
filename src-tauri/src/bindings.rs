@@ -18,6 +18,7 @@ pub fn typescript() -> String {
         specta::ts::export::<UpdateTask>(&conf).expect("export UpdateTask"),
         specta::ts::export::<crate::series::TaskSeries>(&conf).expect("export TaskSeries"),
         specta::ts::export::<crate::series::NewSeries>(&conf).expect("export NewSeries"),
+        specta::ts::export::<crate::series::UpdateSeries>(&conf).expect("export UpdateSeries"),
         specta::ts::export::<crate::series::Recurrence>(&conf).expect("export Recurrence"),
         specta::ts::export::<crate::series::Weekday>(&conf).expect("export Weekday"),
         specta::ts::export::<TaskStatus>(&conf).expect("export TaskStatus"),

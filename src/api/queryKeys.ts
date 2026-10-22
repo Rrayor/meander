@@ -12,4 +12,8 @@ export const QUERY_KEYS = {
   taskCategories: (taskId: number) => ["task-categories", taskId],
   taskSeries: ["task-series"],
   seriesInstances: (seriesId: number) => ["series-instances", seriesId],
+  seriesCategories: (seriesId: number) => ["series-categories", seriesId],
+  // Prefix key covering every per-series category query — invalidate this
+  // when a category itself is renamed/deleted so series chips refetch.
+  allSeriesCategories: ["series-categories"],
 } as const;

@@ -1,3 +1,4 @@
+import { TaskPlacement, TaskStatus } from "@/lib/enums";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -49,11 +50,11 @@ const task = (over: Partial<Task>): Task => ({
   profile_id: 1,
   title: "Task",
   description: null,
-  status: "todo",
+  status: TaskStatus.Todo,
   carry_over_rule: null,
   estimated_minutes: null,
   spent_minutes: null,
-  placement: "backlog",
+  placement: TaskPlacement.Backlog,
   scheduled_date: null,
   series_id: null,
   sort_order: 0,
@@ -100,9 +101,14 @@ describe("BacklogPage", () => {
         id: 2,
         title: "Hour",
         estimated_minutes: 60,
-        status: "in_progress",
+        status: TaskStatus.InProgress,
       }),
-      task({ id: 3, title: TITLE_LONG, estimated_minutes: 90, status: "done" }),
+      task({
+        id: 3,
+        title: TITLE_LONG,
+        estimated_minutes: 90,
+        status: TaskStatus.Done,
+      }),
       task({ id: 4, title: "No estimate" }),
     ]);
     renderPage();

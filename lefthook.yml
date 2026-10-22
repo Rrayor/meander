@@ -20,7 +20,10 @@ pre-commit:
       run: bash scripts/check-bindings.sh && cargo test --manifest-path src-tauri/Cargo.toml
     vitest:
       run: npx vitest run
+    # playwright's vite dev server starves and dies mid-suite while the
+    # heavier linters run — serialize it after the parallel batch.
     playwright:
+      priority: 1
       run: npx playwright test
 
 commit-msg:

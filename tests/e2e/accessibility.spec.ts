@@ -1,3 +1,10 @@
+import {
+  CarryOverRule,
+  RecurrenceKind,
+  TaskPlacement,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
 import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
@@ -44,11 +51,11 @@ const task = {
   profile_id: 1,
   title: "Draft weekly reflection notes",
   description: null,
-  status: "todo",
+  status: TaskStatus.Todo,
   carry_over_rule: null,
   estimated_minutes: 45,
   spent_minutes: null,
-  placement: "backlog",
+  placement: TaskPlacement.Backlog,
   scheduled_date: null,
   series_id: null,
   sort_order: 1,
@@ -160,12 +167,12 @@ const seriesFixture = {
   profile_id: 1,
   title: task.title,
   description: null,
-  carry_over_rule: "return",
+  carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   recurrence: {
-    kind: "weekly",
+    kind: RecurrenceKind.Weekly,
     interval_weeks: 1,
-    weekdays: ["monday"],
+    weekdays: [Weekday.Monday],
   },
   start_date: "2026-10-05",
   end_date: null,

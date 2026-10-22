@@ -29,6 +29,14 @@ For any UI task, create the design with Stitch before implementing:
 - If a string value is used more than once, create a variable or constant for
   it — including in tests. A test must not set a value to `"Work"` and then
   assert that the value is `"Work"` with two inline literals.
+- Closed option sets are `enum` declarations in `src/lib/enums.ts`, never
+  scattered string literals — form state, radio values, draft fields, and
+  comparisons all use members. Members carry the specta wire values so they
+  serialize to generated types for free; wire→enum reads cast once at the
+  boundary. Exception: switches on generated union discriminants
+  (`Recurrence["kind"]`) match literal members — the union is the wire enum
+  and literals are the only way to narrow variants; `Extract` filters use
+  template-literal types of `RecurrenceKind` members instead.
 - When a test asserts a value produced by production code (error messages,
   labels, formatted output), the expected value must come from the same
   production constant or formatter — never a duplicated literal. Example:

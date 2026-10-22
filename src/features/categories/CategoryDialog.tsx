@@ -116,6 +116,9 @@ export function CategoryDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.allTaskCategories,
       });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.allSeriesCategories,
+      });
       onClose();
     },
   });

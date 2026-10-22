@@ -44,6 +44,9 @@ export function CategoriesPage() {
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.allTaskCategories,
       });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.allSeriesCategories,
+      });
     },
   });
   const { data: profile } = useQuery({

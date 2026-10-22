@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
+import type { UseFormReset } from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -15,6 +17,7 @@ import {
   MAX_DURATION_MINUTES,
   MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_TITLE_LENGTH,
+  deleteTask,
   updateTask,
 } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
@@ -30,10 +33,30 @@ import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
-import type { NewSeries, TaskSeries } from "@/api/bindings";
-import { listSeriesInstances, listTaskSeries } from "@/api/series";
+import type { NewSeries, TaskSeries, UpdateSeries } from "@/api/bindings";
+import {
+  CarryOverRule,
+  DialogMode,
+  TaskScope,
+  TaskStatus,
+  carryOverToWire,
+} from "@/lib/enums";
+import type { SaveScope } from "@/lib/enums";
+import {
+  deleteTaskSeries,
+  listSeriesCategories,
+  listSeriesInstances,
+  listTaskSeries,
+  truncateTaskSeries,
+  updateTaskSeries,
+} from "@/api/series";
 import {
   CANCEL_BUTTON_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_KEEP_LABEL,
+  DELETE_SCOPE_FUTURE_LABEL,
+  DELETE_TASK_HEADING,
+  DELETE_UNDO_WARNING,
   CARRY_OVER_FIELD_LABEL,
   CATEGORIES_FIELD_LABEL,
   CARRY_OVER_OPTIONS,
@@ -103,8 +126,8 @@ const schema = z
     estMinutes: optionalDurationPart("Minutes"),
     spentHours: optionalDurationPart("Hours"),
     spentMinutes: optionalDurationPart("Minutes"),
-    status: z.enum(["todo", "in_progress", "done"]),
-    carryOver: z.enum(["", "carry", "return"]),
+    status: z.enum(TaskStatus),
+    carryOver: z.enum(CarryOverRule),
   })
   .superRefine(({ estHours, estMinutes, spentHours, spentMinutes }, ctx) => {
     // The schema CHECK allows 1–1440 minutes for both duration fields.
@@ -149,6 +172,8 @@ interface TaskDetailsViewProps {
   seriesInstances: Task[] | undefined;
   onPick: (picked: Task | null, iso: string) => void;
   onClose: () => void;
+  onDelete: () => void;
+  deletePrompt?: ReactNode;
 }
 
 function TaskDetailsView({
@@ -159,6 +184,8 @@ function TaskDetailsView({
   seriesInstances,
   onPick,
   onClose,
+  onDelete,
+  deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
   return (
     <div className="flex flex-col gap-4">
@@ -181,7 +208,9 @@ function TaskDetailsView({
               <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
                 {TASK_STATUS_FIELD_LABEL}
               </span>
-              <span className="text-sm">{STATUS_LABELS[viewed.status]}</span>
+              <span className="text-sm">
+                {STATUS_LABELS[viewed.status as TaskStatus]}
+              </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
@@ -209,7 +238,8 @@ function TaskDetailsView({
               </span>
               <span className="text-sm">
                 {CARRY_OVER_OPTIONS.find(
-                  (o) => o.value === (viewed.carry_over_rule ?? ""),
+                  (o) =>
+                    o.value === (viewed.carry_over_rule ?? CarryOverRule.Ask),
                 )?.label ?? EMPTY_VALUE_LABEL}
               </span>
             </div>
@@ -269,20 +299,30 @@ function TaskDetailsView({
       )}
       {viewed.series_id !== null && <NotesTabs />}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-text-muted">
-          {auditTimestampsLabel(
-            formatDate(viewed.created_at),
-            formatDate(viewed.updated_at),
-          )}
-        </p>
         <button
           type="button"
-          onClick={onClose}
-          className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+          onClick={onDelete}
+          className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
         >
-          {CLOSE_LABEL}
+          {DELETE_BUTTON_LABEL}
         </button>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-text-muted">
+            {auditTimestampsLabel(
+              formatDate(viewed.created_at),
+              formatDate(viewed.updated_at),
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+          >
+            {CLOSE_LABEL}
+          </button>
+        </div>
       </div>
+      {deletePrompt}
     </div>
   );
 }
@@ -292,12 +332,108 @@ interface EditTaskDialogProps {
   onClose: () => void;
 }
 
+// Entering series scope reseeds the shared fields from the series — the
+// form defaults hold the opened instance's values, which may be custom
+// edits (spec §146: series scope edits the shared fields, not one
+// instance's overrides). Leaving restores the instance's own values so a
+// scope round-trip can't overwrite them. The ref guards against reseeding
+// on a later refetch, which would clobber typed edits — and the shared
+// controls stay disabled until the row arrives (seriesFieldsPending in
+// the component) so nothing is typed before the seed lands.
+function useSeriesScopeSeed({
+  saveScope,
+  seriesRow,
+  reset,
+  instanceDefaults,
+}: {
+  saveScope: SaveScope;
+  seriesRow: TaskSeries | undefined;
+  reset: UseFormReset<FormValues>;
+  instanceDefaults: FormValues;
+}) {
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (saveScope !== TaskScope.Series) {
+      if (!seeded.current) return;
+      seeded.current = false;
+      reset(instanceDefaults);
+      return;
+    }
+    if (seeded.current || seriesRow === undefined) return;
+    seeded.current = true;
+    const seriesEstimate = minutesToParts(seriesRow.estimated_minutes);
+    reset({
+      ...instanceDefaults,
+      title: seriesRow.title,
+      description: seriesRow.description ?? "",
+      estHours: seriesEstimate.hours,
+      estMinutes: seriesEstimate.minutes,
+      carryOver: (seriesRow.carry_over_rule ??
+        CarryOverRule.Ask) as CarryOverRule,
+    });
+  }, [saveScope, seriesRow, reset, instanceDefaults]);
+}
+
+// The selection is derived state: stored associations minus the chips the
+// user removed plus the ones they added. Deriving it (rather than seeding
+// state once) keeps picks intact when the query resolves late *and* lets
+// a refetch update what chips show — e.g. after a category is recolored.
+// Local category overrides belong to the viewed scope — keying the draft
+// by scope+id means switching instances or scopes never carries a
+// previous selection across.
+function useScopedCategories({
+  saveScope,
+  seriesId,
+  viewedId,
+  seriesCats,
+  initialCategories,
+}: {
+  saveScope: SaveScope;
+  seriesId: number | null;
+  viewedId: number;
+  seriesCats: Category[] | undefined;
+  initialCategories: Category[] | undefined;
+}) {
+  const categoryKey =
+    saveScope === TaskScope.Series ? `series-${seriesId}` : `task-${viewedId}`;
+  const [categoryDraft, setCategoryDraft] = useState<{
+    key: string;
+    removedIds: ReadonlySet<number>;
+    picked: Category[];
+  }>({ key: categoryKey, removedIds: new Set(), picked: [] });
+  const removedIds =
+    categoryDraft.key === categoryKey
+      ? categoryDraft.removedIds
+      : new Set<number>();
+  const picked = categoryDraft.key === categoryKey ? categoryDraft.picked : [];
+  const stored =
+    saveScope === TaskScope.Series
+      ? (seriesCats ?? [])
+      : (initialCategories ?? []);
+  const storedIds = new Set(stored.map((c) => c.id));
+  const categories = [
+    ...stored.filter((c) => !removedIds.has(c.id)),
+    ...picked.filter((c) => !storedIds.has(c.id)),
+  ];
+  const onCategoriesChange = (next: Category[]) => {
+    const nextIds = new Set(next.map((c) => c.id));
+    setCategoryDraft({
+      key: categoryKey,
+      removedIds: new Set(
+        stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id),
+      ),
+      picked: next.filter((c) => !storedIds.has(c.id)),
+    });
+  };
+  return { categories, stored, onCategoriesChange };
+}
+
 export function EditTaskDialog({
   task,
   onClose,
 }: Readonly<EditTaskDialogProps>) {
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [mode, setMode] = useState<DialogMode>(DialogMode.View);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -307,32 +443,36 @@ export function EditTaskDialog({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const estimate = minutesToParts(task.estimated_minutes);
-  const spent = minutesToParts(task.spent_minutes);
+  const instanceDefaults = useMemo<FormValues>(() => {
+    const est = minutesToParts(task.estimated_minutes);
+    const spt = minutesToParts(task.spent_minutes);
+    return {
+      title: task.title,
+      description: task.description ?? "",
+      estHours: est.hours,
+      estMinutes: est.minutes,
+      spentHours: spt.hours,
+      spentMinutes: spt.minutes,
+      status: task.status as TaskStatus,
+      carryOver: (task.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
+    };
+  }, [task]);
   const {
     register,
     control,
     handleSubmit,
     setFocus,
+    reset,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    defaultValues: {
-      title: task.title,
-      description: task.description ?? "",
-      estHours: estimate.hours,
-      estMinutes: estimate.minutes,
-      spentHours: spent.hours,
-      spentMinutes: spent.minutes,
-      status: task.status,
-      carryOver: task.carry_over_rule ?? "",
-    },
+    defaultValues: instanceDefaults,
   });
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    if (mode === "edit") {
+    if (mode === DialogMode.Edit) {
       setFocus("title");
     } else {
       // Read-only mode has no field to focus — move focus onto the dialog
@@ -362,41 +502,32 @@ export function EditTaskDialog({
     enabled: task.series_id !== null,
   });
   const seriesRow = taskSeries?.find((s) => s.id === task.series_id);
-  // The selection is derived state: stored associations minus the chips the
-  // user removed plus the ones they added. Deriving it (rather than seeding
-  // state once) keeps picks intact when the query resolves late *and* lets
-  // a refetch update what chips show — e.g. after a category is recolored.
-  // Local category overrides belong to the viewed instance — keying the
-  // draft by its id means switching instances never carries a previous
-  // selection across.
-  const [categoryDraft, setCategoryDraft] = useState<{
-    taskId: number;
-    removedIds: ReadonlySet<number>;
-    picked: Category[];
-  }>({ taskId: viewed.id, removedIds: new Set(), picked: [] });
-  const removedIds =
-    categoryDraft.taskId === viewed.id
-      ? categoryDraft.removedIds
-      : new Set<number>();
-  const picked = categoryDraft.taskId === viewed.id ? categoryDraft.picked : [];
+  // Save scope: instance edits today's task; series writes the shared
+  // fields + schedule + categories onto the series and every instance.
+  const [saveScope, setSaveScope] = useState<SaveScope>(TaskScope.Instance);
+  const { data: seriesCats, error: seriesCatsError } = useQuery({
+    queryKey: QUERY_KEYS.seriesCategories(task.series_id!),
+    queryFn: () => listSeriesCategories(task.series_id!),
+    enabled: task.series_id !== null && saveScope === TaskScope.Series,
+  });
+  // The series-scope schedule draft: null = untouched (use the stored
+  // schedule), cleared = the user collapsed the section (a series needs a
+  // schedule — saving is disabled until one exists again).
+  const [seriesDraft, setSeriesDraft] = useState<NewSeries | null>(null);
+  const [seriesCleared, setSeriesCleared] = useState(false);
+  const [seriesDraftError, setSeriesDraftError] = useState<string | null>(null);
+  useSeriesScopeSeed({ saveScope, seriesRow, reset, instanceDefaults });
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<TaskScope>(TaskScope.Instance);
   const [series, setSeries] = useState<NewSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
-  const stored = initialCategories ?? [];
-  const storedIds = new Set(stored.map((c) => c.id));
-  const categories = [
-    ...stored.filter((c) => !removedIds.has(c.id)),
-    ...picked.filter((c) => !storedIds.has(c.id)),
-  ];
-  const onCategoriesChange = (next: Category[]) => {
-    const nextIds = new Set(next.map((c) => c.id));
-    setCategoryDraft({
-      taskId: viewed.id,
-      removedIds: new Set(
-        stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id),
-      ),
-      picked: next.filter((c) => !storedIds.has(c.id)),
-    });
-  };
+  const { categories, stored, onCategoriesChange } = useScopedCategories({
+    saveScope,
+    seriesId: task.series_id,
+    viewedId: viewed.id,
+    seriesCats,
+    initialCategories,
+  });
 
   const update = useMutation({
     mutationFn: async (input: Parameters<typeof updateTask>[1]) => {
@@ -423,18 +554,73 @@ export function EditTaskDialog({
     },
   });
 
+  const invalidateSeriesScope = () => {
+    for (const key of [
+      QUERY_KEYS.tasks,
+      QUERY_KEYS.taskSeries,
+      QUERY_KEYS.seriesInstances(task.series_id!),
+      QUERY_KEYS.seriesCategories(task.series_id!),
+      QUERY_KEYS.allTaskCategories,
+    ]) {
+      void queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
+
+  const updateSeries = useMutation({
+    mutationFn: (input: UpdateSeries) =>
+      updateTaskSeries(task.series_id!, input),
+    onSuccess: onClose,
+    onSettled: invalidateSeriesScope,
+  });
+
+  // Delete runs against the *viewed* instance — picking another persisted
+  // date in the calendar moves the target with it.
+  const remove = useMutation({
+    mutationFn: async () => {
+      const seriesId = task.series_id;
+      if (seriesId === null || deleteScope === TaskScope.Instance) {
+        return deleteTask(viewed.id);
+      }
+      if (deleteScope === TaskScope.Series) {
+        return deleteTaskSeries(seriesId);
+      }
+      const fromIso = pendingIso ?? viewed.scheduled_date;
+      return truncateTaskSeries(seriesId, fromIso!);
+    },
+    onSuccess: onClose,
+    onSettled: invalidateSeriesScope,
+  });
+
   const toMinutes = (hours: string, minutes: string) =>
     hours.trim() === "" && minutes.trim() === ""
       ? null
       : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
 
   const onSubmit = (values: FormValues) => {
-    update.mutate({
+    const shared = {
       title: values.title,
       description: unicodeTrim(values.description) || null,
       estimated_minutes: toMinutes(values.estHours, values.estMinutes),
+      carry_over_rule: carryOverToWire(values.carryOver),
+    };
+    if (saveScope === TaskScope.Series) {
+      const schedule = seriesDraft ?? {
+        recurrence: seriesRow!.recurrence,
+        start_date: seriesRow!.start_date,
+        end_date: seriesRow!.end_date,
+      };
+      updateSeries.mutate({
+        ...shared,
+        recurrence: schedule.recurrence,
+        start_date: schedule.start_date,
+        end_date: schedule.end_date,
+        category_ids: categories.map((c) => c.id),
+      });
+      return;
+    }
+    update.mutate({
+      ...shared,
       spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
-      carry_over_rule: values.carryOver === "" ? null : values.carryOver,
       status: values.status,
       series,
     });
@@ -442,56 +628,95 @@ export function EditTaskDialog({
 
   const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
   const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
-  const serverError = serverErrorMessage(update.error);
-
-  const durationField = (
-    idPrefix: string,
-    hoursLabel: string,
-    minutesLabel: string,
-    hoursField: "estHours" | "spentHours",
-    minutesField: "estMinutes" | "spentMinutes",
-    errorId: string,
-    invalid: boolean,
-  ) => (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-hours`}
-          aria-label={hoursLabel}
-          aria-invalid={invalid}
-          aria-describedby={invalid ? errorId : undefined}
-          type="number"
-          placeholder="0"
-          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-          {...register(hoursField)}
-        />
-        <label
-          htmlFor={`${idPrefix}-hours`}
-          className="text-xs text-text-muted"
-        >
-          {HOURS_UNIT_LABEL}
-        </label>
-      </div>
-      <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-minutes`}
-          aria-label={minutesLabel}
-          aria-invalid={invalid}
-          aria-describedby={invalid ? errorId : undefined}
-          type="number"
-          placeholder="0"
-          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-          {...register(minutesField)}
-        />
-        <label
-          htmlFor={`${idPrefix}-minutes`}
-          className="text-xs text-text-muted"
-        >
-          {MINUTES_UNIT_LABEL}
-        </label>
-      </div>
-    </div>
+  // The category error only belongs to series scope — a failed load
+  // shouldn't linger on the instance form after switching back.
+  const serverError = serverErrorMessage(
+    update.error ??
+      updateSeries.error ??
+      (saveScope === TaskScope.Series ? seriesCatsError : null),
   );
+  // While the series row is loading, the shared fields still hold the
+  // opened instance's values — editing them before the seed lands would
+  // lose the input to the reset. They stay disabled until it arrives.
+  const seriesFieldsPending =
+    saveScope === TaskScope.Series && seriesRow === undefined;
+  // A series save needs a schedule: the stored one (untouched draft) or a
+  // valid edited one — collapsing the section disables saving. It also
+  // waits for the series category query: submitting before it resolves
+  // would send an empty set and erase every instance's associations, and
+  // a failed load is surfaced instead of treated as "no categories".
+  const seriesSaveBlocked =
+    saveScope === TaskScope.Series &&
+    (seriesRow === undefined ||
+      seriesCats === undefined ||
+      seriesCleared ||
+      seriesDraftError !== null);
+
+  const durationField = (options: {
+    idPrefix: string;
+    hoursLabel: string;
+    minutesLabel: string;
+    hoursField: "estHours" | "spentHours";
+    minutesField: "estMinutes" | "spentMinutes";
+    errorId: string;
+    invalid: boolean;
+    disabled?: boolean;
+  }) => {
+    const {
+      idPrefix,
+      hoursLabel,
+      minutesLabel,
+      hoursField,
+      minutesField,
+      errorId,
+      invalid,
+      disabled = false,
+    } = options;
+    return (
+      <div
+        className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}
+      >
+        <div className="flex items-center gap-2">
+          <input
+            id={`${idPrefix}-hours`}
+            aria-label={hoursLabel}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? errorId : undefined}
+            type="number"
+            placeholder="0"
+            disabled={disabled}
+            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+            {...register(hoursField)}
+          />
+          <label
+            htmlFor={`${idPrefix}-hours`}
+            className="text-xs text-text-muted"
+          >
+            {HOURS_UNIT_LABEL}
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id={`${idPrefix}-minutes`}
+            aria-label={minutesLabel}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? errorId : undefined}
+            type="number"
+            placeholder="0"
+            disabled={disabled}
+            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+            {...register(minutesField)}
+          />
+          <label
+            htmlFor={`${idPrefix}-minutes`}
+            className="text-xs text-text-muted"
+          >
+            {MINUTES_UNIT_LABEL}
+          </label>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -514,15 +739,15 @@ export function EditTaskDialog({
             id="edit-task-title"
             className="font-title text-lg font-semibold text-text"
           >
-            {mode === "view" ? viewed.title : EDIT_TASK_HEADING}
+            {mode === DialogMode.View ? viewed.title : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
-            {mode === "view" &&
+            {mode === DialogMode.View &&
               viewed.id === task.id &&
               pendingIso === null && (
                 <button
                   type="button"
-                  onClick={() => setMode("edit")}
+                  onClick={() => setMode(DialogMode.Edit)}
                   className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
                 >
                   {EDIT_BUTTON_LABEL}
@@ -547,7 +772,7 @@ export function EditTaskDialog({
             </button>
           </div>
         </div>
-        {mode === "view" ? (
+        {mode === DialogMode.View ? (
           <TaskDetailsView
             viewed={viewed}
             pendingIso={pendingIso}
@@ -563,6 +788,87 @@ export function EditTaskDialog({
               }
             }}
             onClose={onClose}
+            onDelete={() => {
+              setDeleteScope(TaskScope.Instance);
+              setConfirmingDelete(true);
+            }}
+            deletePrompt={
+              confirmingDelete ? (
+                <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-surface-raised/60 p-4">
+                  <h3 className="text-sm font-semibold text-danger">
+                    {DELETE_TASK_HEADING}
+                  </h3>
+                  {task.series_id !== null && (
+                    <fieldset className="flex flex-col gap-2">
+                      {[
+                        {
+                          value: TaskScope.Instance,
+                          label: TASK_SCOPE_INSTANCE_LABEL,
+                          shown: pendingIso === null,
+                        },
+                        {
+                          value: TaskScope.Series,
+                          label: TASK_SCOPE_SERIES_LABEL,
+                          shown: true,
+                        },
+                        {
+                          value: TaskScope.Future,
+                          label: DELETE_SCOPE_FUTURE_LABEL,
+                          shown: (pendingIso ?? viewed.scheduled_date) !== null,
+                        },
+                      ]
+                        .filter(({ shown }) => shown)
+                        .map(({ value, label }) => (
+                          <label
+                            key={value}
+                            className="flex items-center gap-2 text-sm text-text"
+                          >
+                            <input
+                              type="radio"
+                              name="task-delete-scope"
+                              value={value}
+                              checked={deleteScope === value}
+                              onChange={() => setDeleteScope(value)}
+                              className="accent-danger"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                    </fieldset>
+                  )}
+                  <p className="text-xs text-text-muted">
+                    {DELETE_UNDO_WARNING}
+                  </p>
+                  {serverErrorMessage(remove.error) && (
+                    <p role="alert" className="text-sm text-danger">
+                      {serverErrorMessage(remove.error)}
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      className="rounded-md border border-border px-4 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+                    >
+                      {DELETE_KEEP_LABEL}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        remove.isPending ||
+                        (task.series_id !== null &&
+                          deleteScope === TaskScope.Instance &&
+                          pendingIso !== null)
+                      }
+                      onClick={() => remove.mutate()}
+                      className="rounded-md bg-danger px-4 py-1.5 text-sm font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50"
+                    >
+                      {DELETE_BUTTON_LABEL}
+                    </button>
+                  </div>
+                </div>
+              ) : null
+            }
           />
         ) : (
           <form
@@ -579,6 +885,7 @@ export function EditTaskDialog({
               <input
                 id="edit-task-title-input"
                 type="text"
+                disabled={seriesFieldsPending}
                 aria-invalid={!!errors.title}
                 aria-describedby={
                   errors.title ? "edit-task-title-error" : undefined
@@ -607,6 +914,7 @@ export function EditTaskDialog({
               <textarea
                 id="edit-task-description"
                 rows={3}
+                disabled={seriesFieldsPending}
                 aria-invalid={!!errors.description}
                 aria-describedby={
                   errors.description ? "edit-task-description-error" : undefined
@@ -633,6 +941,7 @@ export function EditTaskDialog({
                 idPrefix="edit-task"
                 selected={categories}
                 onChange={onCategoriesChange}
+                disabled={seriesFieldsPending}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -643,15 +952,16 @@ export function EditTaskDialog({
                     {OPTIONAL_FIELD_LABEL}
                   </span>
                 </span>
-                {durationField(
-                  "edit-task-est",
-                  ESTIMATED_HOURS_LABEL,
-                  ESTIMATED_MINUTES_LABEL,
-                  "estHours",
-                  "estMinutes",
-                  "edit-task-estimate-error",
-                  !!estimateError,
-                )}
+                {durationField({
+                  idPrefix: "edit-task-est",
+                  hoursLabel: ESTIMATED_HOURS_LABEL,
+                  minutesLabel: ESTIMATED_MINUTES_LABEL,
+                  hoursField: "estHours",
+                  minutesField: "estMinutes",
+                  errorId: "edit-task-estimate-error",
+                  invalid: !!estimateError,
+                  disabled: seriesFieldsPending,
+                })}
                 {estimateError && (
                   <p
                     id="edit-task-estimate-error"
@@ -669,15 +979,16 @@ export function EditTaskDialog({
                     {OPTIONAL_FIELD_LABEL}
                   </span>
                 </span>
-                {durationField(
-                  "edit-task-spent",
-                  SPENT_HOURS_LABEL,
-                  SPENT_MINUTES_LABEL,
-                  "spentHours",
-                  "spentMinutes",
-                  "edit-task-spent-error",
-                  !!spentError,
-                )}
+                {durationField({
+                  idPrefix: "edit-task-spent",
+                  hoursLabel: SPENT_HOURS_LABEL,
+                  minutesLabel: SPENT_MINUTES_LABEL,
+                  hoursField: "spentHours",
+                  minutesField: "spentMinutes",
+                  errorId: "edit-task-spent-error",
+                  invalid: !!spentError,
+                  disabled: saveScope === TaskScope.Series,
+                })}
                 {spentError && (
                   <p
                     id="edit-task-spent-error"
@@ -700,29 +1011,33 @@ export function EditTaskDialog({
                 name="status"
                 control={control}
                 render={({ field: { value, onChange } }) => (
+                  // Status and spent time stay per-instance — the series
+                  // row doesn't carry them, so a series save can't apply
+                  // them and the controls are disabled.
                   <div
                     role="radiogroup"
                     aria-labelledby="edit-task-status-label"
-                    className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
+                    className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
+                      saveScope === TaskScope.Series ? "opacity-50" : ""
+                    }`}
                   >
-                    {(["todo", "in_progress", "done"] as const).map(
-                      (option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          role="radio"
-                          aria-checked={value === option}
-                          onClick={() => onChange(option)}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
-                            value === option
-                              ? "bg-primary text-on-primary"
-                              : "text-text-muted hover:text-text"
-                          }`}
-                        >
-                          {STATUS_LABELS[option]}
-                        </button>
-                      ),
-                    )}
+                    {Object.values(TaskStatus).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={value === option}
+                        disabled={saveScope === TaskScope.Series}
+                        onClick={() => onChange(option)}
+                        className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                          value === option
+                            ? "bg-primary text-on-primary"
+                            : "text-text-muted hover:text-text"
+                        }`}
+                      >
+                        {STATUS_LABELS[option]}
+                      </button>
+                    ))}
                   </div>
                 )}
               />
@@ -749,6 +1064,7 @@ export function EditTaskDialog({
                         type="button"
                         role="radio"
                         aria-checked={value === option}
+                        disabled={seriesFieldsPending}
                         onClick={() => onChange(option)}
                         className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
                           value === option
@@ -769,28 +1085,33 @@ export function EditTaskDialog({
                   {TASK_SCOPE_GROUP_LABEL}
                 </legend>
                 {[
-                  { value: "instance", label: TASK_SCOPE_INSTANCE_LABEL },
-                  { value: "series", label: TASK_SCOPE_SERIES_LABEL },
-                  { value: "future", label: TASK_SCOPE_FUTURE_LABEL },
+                  {
+                    value: TaskScope.Instance,
+                    label: TASK_SCOPE_INSTANCE_LABEL,
+                  },
+                  { value: TaskScope.Series, label: TASK_SCOPE_SERIES_LABEL },
+                  { value: TaskScope.Future, label: TASK_SCOPE_FUTURE_LABEL },
                 ].map(({ value, label }) => (
                   <div key={value} className="flex items-center gap-2">
                     <label
                       className={`flex items-center gap-2 text-sm ${
-                        value === "instance" ? "text-text" : "text-text-muted"
+                        value === TaskScope.Future
+                          ? "text-text-muted"
+                          : "text-text"
                       }`}
                     >
                       <input
                         type="radio"
                         name="task-save-scope"
                         value={value}
-                        checked={value === "instance"}
-                        disabled={value !== "instance"}
-                        readOnly
+                        checked={saveScope === value}
+                        disabled={value === TaskScope.Future}
+                        onChange={() => setSaveScope(value as SaveScope)}
                         className="accent-primary"
                       />
                       {label}
                     </label>
-                    {value !== "instance" && (
+                    {value === TaskScope.Future && (
                       <span className="text-xs text-text-muted italic">
                         {TASK_SCOPE_COMING_SOON_HINT}
                       </span>
@@ -808,6 +1129,23 @@ export function EditTaskDialog({
                 }}
               />
             )}
+            {task.series_id !== null &&
+              saveScope === TaskScope.Series &&
+              seriesRow !== undefined && (
+                <RepeatScheduleFields
+                  idPrefix="edit-series"
+                  initial={{
+                    recurrence: seriesRow.recurrence,
+                    start_date: seriesRow.start_date,
+                    end_date: seriesRow.end_date,
+                  }}
+                  onChange={(next, error) => {
+                    setSeriesDraft(next);
+                    setSeriesCleared(next === null);
+                    setSeriesDraftError(error);
+                  }}
+                />
+              )}
             {serverError && (
               <p role="alert" className="text-sm text-danger">
                 {serverError}
@@ -830,7 +1168,12 @@ export function EditTaskDialog({
                 </button>
                 <button
                   type="submit"
-                  disabled={update.isPending || seriesError !== null}
+                  disabled={
+                    update.isPending ||
+                    updateSeries.isPending ||
+                    seriesError !== null ||
+                    seriesSaveBlocked
+                  }
                   className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
                 >
                   {SAVE_BUTTON_LABEL}

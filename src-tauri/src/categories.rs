@@ -211,7 +211,11 @@ pub async fn update(
     )
 }
 
-async fn ensure_exists(pool: &SqlitePool, profile_id: i64, category_id: i64) -> Result<()> {
+pub(crate) async fn ensure_exists(
+    pool: &SqlitePool,
+    profile_id: i64,
+    category_id: i64,
+) -> Result<()> {
     let row: Option<(i64,)> =
         sqlx::query_as("SELECT id FROM categories WHERE id = ? AND profile_id = ?")
             .bind(category_id)

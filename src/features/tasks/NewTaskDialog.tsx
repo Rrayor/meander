@@ -24,6 +24,7 @@ import {
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import type { NewSeries } from "@/api/bindings";
+import { CarryOverRule, TaskStatus, carryOverToWire } from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
   CARRY_OVER_FIELD_LABEL,
@@ -71,7 +72,7 @@ const schema = z
       }),
     estHours: optionalDurationPart("Hours"),
     estMinutes: optionalDurationPart("Minutes"),
-    carryOver: z.enum(["", "carry", "return"]),
+    carryOver: z.enum(CarryOverRule),
   })
   .superRefine(({ estHours, estMinutes }, ctx) => {
     if (estHours.trim() === "" && estMinutes.trim() === "") {
@@ -122,7 +123,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    defaultValues: { carryOver: "" },
+    defaultValues: { carryOver: CarryOverRule.Ask },
   });
 
   // Focus lands on the first field when the dialog opens — standard modal
@@ -155,7 +156,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
           ...input,
           series: createdHasSeries.current ? null : input.series,
           spent_minutes: null,
-          status: "todo",
+          status: TaskStatus.Todo,
         });
       }
       if (task.series_id != null) {
@@ -211,7 +212,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       title,
       description: unicodeTrim(description) || null,
       estimated_minutes: hasEstimate ? total : null,
-      carry_over_rule: carryOver === "" ? null : carryOver,
+      carry_over_rule: carryOverToWire(carryOver),
       series,
     });
   };

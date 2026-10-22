@@ -1,3 +1,9 @@
+import {
+  CarryOverRule,
+  RecurrenceKind,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
@@ -13,12 +19,12 @@ const series: TaskSeries = {
   profile_id: 1,
   title: "Standup",
   description: null,
-  carry_over_rule: "return",
+  carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   recurrence: {
-    kind: "weekly",
+    kind: RecurrenceKind.Weekly,
     interval_weeks: 1,
-    weekdays: ["monday"],
+    weekdays: [Weekday.Monday],
   },
   start_date: "2026-10-05",
   end_date: null,
@@ -39,8 +45,8 @@ const instance = (iso: string): Task => ({
   profile_id: 1,
   title: "Standup",
   description: null,
-  status: "todo",
-  carry_over_rule: "return",
+  status: TaskStatus.Todo,
+  carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   spent_minutes: null,
   placement: "scheduled",

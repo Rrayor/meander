@@ -1,4 +1,19 @@
 import { COMMANDS } from "@/api/commands";
+import type {
+  NewTask,
+  Recurrence,
+  UpdateSeries,
+  UpdateTask,
+} from "@/api/bindings";
+import {
+  CarryOverRule,
+  RecurrenceKind,
+  RepeatNth,
+  RepeatUnit,
+  TaskPlacement,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
 import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
@@ -15,6 +30,10 @@ import {
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
   SAVE_BUTTON_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_SCOPE_FUTURE_LABEL,
+  DELETE_TASK_HEADING,
+  TASK_SCOPE_SERIES_LABEL,
   deleteTaskLabel,
   editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
@@ -27,6 +46,8 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
+import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
+
 import { expect, test } from "./fixtures";
 import {
   getInvocations,
@@ -36,20 +57,15 @@ import {
 } from "./stubs";
 
 const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
-const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
-const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "month")!;
-const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!;
-const NTH_SECOND = REPEAT_NTH_OPTIONS.find((o) => o.value === "2")!;
+const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === RepeatUnit.Week)!;
+const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find(
+  (o) => o.value === RepeatUnit.Month,
+)!;
+const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === Weekday.Friday)!;
+const NTH_SECOND = REPEAT_NTH_OPTIONS.find(
+  (o) => o.value === RepeatNth.Second,
+)!;
 const REJECTION_MESSAGE = "schedule could not be understood";
-const WEEKDAY_BY_JS_DAY = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
 const TITLE_MILESTONE = "Review quarterly milestone planning";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
@@ -67,11 +83,11 @@ const tasks = [
     profile_id: 1,
     title: TITLE_DRAFT_NOTES,
     description: null,
-    status: "todo",
+    status: TaskStatus.Todo,
     carry_over_rule: null,
     estimated_minutes: 45,
     spent_minutes: null,
-    placement: "backlog",
+    placement: TaskPlacement.Backlog,
     scheduled_date: null,
     series_id: null,
     created_at: "2026-10-10 09:00:00",
@@ -82,11 +98,11 @@ const tasks = [
     profile_id: 1,
     title: TITLE_MILESTONE,
     description: "Flag risks early",
-    status: "in_progress",
-    carry_over_rule: "carry",
+    status: TaskStatus.InProgress,
+    carry_over_rule: CarryOverRule.Carry,
     estimated_minutes: 180,
     spent_minutes: 30,
-    placement: "backlog",
+    placement: TaskPlacement.Backlog,
     scheduled_date: null,
     series_id: null,
     created_at: "2026-10-11 10:00:00",
@@ -308,7 +324,7 @@ test("the estimate pair sends combined minutes on the wire", async ({
   await dialog.getByRole("radio", { name: "Carry over" }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
   expect(createCall?.args).toEqual({
@@ -316,7 +332,7 @@ test("the estimate pair sends combined minutes on the wire", async ({
       title: "Timed task",
       description: null,
       estimated_minutes: 90,
-      carry_over_rule: "carry",
+      carry_over_rule: CarryOverRule.Carry,
       series: null,
     },
   });
@@ -397,7 +413,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
   const updated = {
     ...tasks[0],
     title: TITLE_MILESTONE + " follow-up",
-    status: "in_progress",
+    status: TaskStatus.InProgress,
   };
   await stubTauriCommands(page, {
     [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
@@ -421,7 +437,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
 
   await expect(page.getByText(`${TITLE_MILESTONE} follow-up`)).toBeVisible();
 
-  const updateCall = (await getInvocations(page)).find(
+  const updateCall = (await getInvocations<{ input: UpdateTask }>(page)).find(
     (c) => c.cmd === COMMANDS.updateTask,
   );
   expect(updateCall?.args).toEqual({
@@ -432,7 +448,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
       estimated_minutes: 45,
       spent_minutes: null,
       carry_over_rule: null,
-      status: "in_progress",
+      status: TaskStatus.InProgress,
       series: null,
     },
   });
@@ -459,19 +475,23 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  const { recurrence, end_date } = createCall!.args.input.series;
-  expect(recurrence.kind).toBe("weekly");
-  expect(recurrence.interval_weeks).toBe(1);
+  const { recurrence, end_date } = createCall!.args.input.series!;
+  const weekly = recurrence as Extract<
+    Recurrence,
+    { kind: `${RecurrenceKind.Weekly}` }
+  >;
+  expect(weekly.kind).toBe(RecurrenceKind.Weekly);
+  expect(weekly.interval_weeks).toBe(1);
   // The weekday set is today's weekday (auto-synced to the start date)
   // plus the Friday the user picked.
-  expect(new Set(recurrence.weekdays)).toEqual(
-    new Set([WEEKDAY_BY_JS_DAY[new Date().getDay()], "friday"]),
+  expect(new Set(weekly.weekdays)).toEqual(
+    new Set([WEEKDAYS_BY_JS_DAY[new Date().getDay()], Weekday.Friday]),
   );
   expect(end_date).toBe("2027-01-01");
-  expect(createCall?.args.input.series.start_date).toMatch(
+  expect(createCall?.args.input.series?.start_date).toMatch(
     /^\d{4}-\d{2}-\d{2}$/,
   );
 });
@@ -527,14 +547,14 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
   await dialog.getByRole("button", { name: FRIDAY.label }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  expect(createCall?.args.input.series.recurrence).toEqual({
-    kind: "monthly_nth_weekday",
+  expect(createCall?.args.input.series?.recurrence).toEqual({
+    kind: RecurrenceKind.MonthlyNthWeekday,
     interval_months: 1,
     nth: 2,
-    weekday: "friday",
+    weekday: Weekday.Friday,
   });
 });
 
@@ -561,11 +581,11 @@ test("a monthly day repeat sends the picked day and interval", async ({
   await dialog.getByLabel(REPEAT_DAY_OF_MONTH_LABEL).fill("15");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  expect(createCall?.args.input.series.recurrence).toEqual({
-    kind: "monthly_day",
+  expect(createCall?.args.input.series?.recurrence).toEqual({
+    kind: RecurrenceKind.MonthlyDay,
     interval_months: 3,
     day: 15,
   });
@@ -618,11 +638,11 @@ test("attaching a schedule while editing sends the series payload", async ({
     .click();
   await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
-  const updateCall = (await getInvocations(page)).find(
+  const updateCall = (await getInvocations<{ input: UpdateTask }>(page)).find(
     (c) => c.cmd === COMMANDS.updateTask,
   );
   expect(updateCall?.args.input.series).toMatchObject({
-    recurrence: { kind: "daily", interval_days: 1 },
+    recurrence: { kind: RecurrenceKind.Daily, interval_days: 1 },
     end_date: null,
   });
 });
@@ -653,12 +673,12 @@ const seriesFixture = {
   profile_id: 1,
   title: TITLE_DRAFT_NOTES,
   description: null,
-  carry_over_rule: "return",
+  carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   recurrence: {
-    kind: "weekly",
+    kind: RecurrenceKind.Weekly,
     interval_weeks: 1,
-    weekdays: ["monday"],
+    weekdays: [Weekday.Monday],
   },
   start_date: "2026-10-05",
   end_date: null,
@@ -764,4 +784,146 @@ test("picking a scheduled date without an instance shows the pending state", asy
   await expect(
     dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
   ).toBeVisible();
+});
+
+test("a series-scope save sends update_task_series with the schedule", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.updateTaskSeries]: seriesFixture,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const call = (
+    await getInvocations<{ seriesId: number; input: UpdateSeries }>(page)
+  ).find((c) => c.cmd === COMMANDS.updateTaskSeries);
+  expect(call?.args.seriesId).toBe(seriesFixture.id);
+  expect(call?.args.input).toMatchObject({
+    title: TITLE_DRAFT_NOTES,
+    recurrence: seriesFixture.recurrence,
+    start_date: seriesFixture.start_date,
+    end_date: null,
+    category_ids: [],
+  });
+  expect(
+    (await getInvocations(page)).some((c) => c.cmd === COMMANDS.updateTask),
+  ).toBe(false);
+});
+
+test("a rejected series-scope save surfaces the typed error", async ({
+  page,
+}) => {
+  const SERIES_REJECT_MESSAGE = "the schedule is not a known rule";
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.updateTaskSeries]: stubApiError(
+      "recurrence_invalid",
+      "validation",
+      SERIES_REJECT_MESSAGE,
+    ),
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  // The typed rejection reaches the dialog and keeps it open.
+  await expect(dialog.getByRole("alert")).toHaveText(SERIES_REJECT_MESSAGE);
+  await expect(dialog).toBeVisible();
+});
+
+test("the details view deletes the whole series after scope confirmation", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.deleteTaskSeries]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .first()
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: DELETE_TASK_HEADING }),
+  ).toBeVisible();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .last()
+    .click();
+
+  const call = (await getInvocations<{ seriesId: number }>(page)).find(
+    (c) => c.cmd === COMMANDS.deleteTaskSeries,
+  );
+  expect(call?.args.seriesId).toBe(seriesFixture.id);
+});
+
+test("the details view ends the series at the viewed date", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.truncateTaskSeries]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .first()
+    .click();
+  await dialog.getByRole("radio", { name: DELETE_SCOPE_FUTURE_LABEL }).click();
+  await dialog
+    .getByRole("button", { name: DELETE_BUTTON_LABEL })
+    .last()
+    .click();
+
+  const call = (
+    await getInvocations<{ seriesId: number; fromDate: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.truncateTaskSeries);
+  expect(call?.args).toMatchObject({
+    seriesId: seriesFixture.id,
+    fromDate: seriesInstance.scheduled_date,
+  });
 });

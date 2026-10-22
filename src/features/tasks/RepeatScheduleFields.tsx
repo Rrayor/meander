@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { z } from "zod";
 
-import type { NewSeries, Recurrence, Weekday } from "@/api/bindings";
+import type { NewSeries, Recurrence } from "@/api/bindings";
+import { MonthMode, RecurrenceKind, RepeatUnit, Weekday } from "@/lib/enums";
 import {
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_INVALID_MESSAGE,
@@ -25,12 +26,9 @@ import {
 import { firstOccurrence } from "@/lib/recurrence";
 import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 
-type Unit = (typeof REPEAT_UNIT_OPTIONS)[number]["value"];
-type MonthMode = "day" | "weekday";
-
 interface RepeatDraft {
   interval: number;
-  unit: Unit;
+  unit: RepeatUnit;
   weekdays: Weekday[];
   monthMode: MonthMode;
   day: number;
@@ -79,12 +77,12 @@ const isRealIsoDate = (iso: string) => {
 const draftSchema = z
   .object({
     interval: z.number().int().min(1),
-    unit: z.enum(REPEAT_UNIT_OPTIONS.map((o) => o.value) as [Unit, ...Unit[]]),
-    weekdays: z.array(z.string()),
-    monthMode: z.enum(["day", "weekday"]),
+    unit: z.enum(RepeatUnit),
+    weekdays: z.array(z.enum(Weekday)),
+    monthMode: z.enum(MonthMode),
     day: z.number().int().min(1).max(31),
     nth: z.number().int(),
-    weekday: z.string(),
+    weekday: z.enum(Weekday),
     startDate: z
       .string()
       .min(1, REPEAT_STARTS_REQUIRED_MESSAGE)
@@ -143,33 +141,82 @@ const firstError = (errors: DraftErrors) =>
 
 const defaultDraft = (): RepeatDraft => ({
   interval: 1,
-  unit: "day",
+  unit: RepeatUnit.Day,
   weekdays: [weekdayOfIso(todayLocalIso())],
-  monthMode: "day",
+  monthMode: MonthMode.Day,
   ...monthlyDefaults(todayLocalIso()),
   startDate: todayLocalIso(),
   endDate: "",
 });
 
+// Inverse of toNewSeries — seeds the editor from an existing schedule.
+// workday_after can't be stored (the backend rejects it), so the union's
+// last variant is unreachable here.
+const draftFromSeries = (series: NewSeries): RepeatDraft => {
+  const base = {
+    monthMode: MonthMode.Day,
+    ...monthlyDefaults(series.start_date),
+    weekdays: [] as Weekday[],
+    startDate: series.start_date,
+    endDate: series.end_date ?? "",
+  };
+  // The discriminant is the specta wire union — matching its literal
+  // members is the only way to narrow the recurrence variants.
+  switch (series.recurrence.kind) {
+    case "daily":
+      return {
+        ...base,
+        interval: series.recurrence.interval_days,
+        unit: RepeatUnit.Day,
+      };
+    case "weekly":
+      return {
+        ...base,
+        interval: series.recurrence.interval_weeks,
+        unit: RepeatUnit.Week,
+        weekdays: series.recurrence.weekdays as Weekday[],
+      };
+    case "monthly_day":
+      return {
+        ...base,
+        interval: series.recurrence.interval_months,
+        unit: RepeatUnit.Month,
+        monthMode: MonthMode.Day,
+        day: series.recurrence.day,
+      };
+    case "monthly_nth_weekday":
+      return {
+        ...base,
+        interval: series.recurrence.interval_months,
+        unit: RepeatUnit.Month,
+        monthMode: MonthMode.Weekday,
+        nth: series.recurrence.nth,
+        weekday: series.recurrence.weekday as Weekday,
+      };
+    case "workday_after":
+      throw new Error("workday_after schedules are not yet supported");
+  }
+};
+
 const toRecurrence = (draft: RepeatDraft): Recurrence => {
   switch (draft.unit) {
-    case "day":
-      return { kind: "daily", interval_days: draft.interval };
-    case "week":
+    case RepeatUnit.Day:
+      return { kind: RecurrenceKind.Daily, interval_days: draft.interval };
+    case RepeatUnit.Week:
       return {
-        kind: "weekly",
+        kind: RecurrenceKind.Weekly,
         interval_weeks: draft.interval,
         weekdays: draft.weekdays,
       };
-    case "month":
-      return draft.monthMode === "day"
+    case RepeatUnit.Month:
+      return draft.monthMode === MonthMode.Day
         ? {
-            kind: "monthly_day",
+            kind: RecurrenceKind.MonthlyDay,
             interval_months: draft.interval,
             day: draft.day,
           }
         : {
-            kind: "monthly_nth_weekday",
+            kind: RecurrenceKind.MonthlyNthWeekday,
             interval_months: draft.interval,
             nth: draft.nth,
             weekday: draft.weekday,
@@ -188,9 +235,9 @@ const pluralize = (interval: number, singular: string) =>
 
 const summarize = (draft: RepeatDraft): string => {
   switch (draft.unit) {
-    case "day":
+    case RepeatUnit.Day:
       return pluralize(draft.interval, "day");
-    case "week": {
+    case RepeatUnit.Week: {
       const days = WEEKDAY_OPTIONS.filter((w) =>
         draft.weekdays.includes(w.value),
       )
@@ -198,12 +245,11 @@ const summarize = (draft: RepeatDraft): string => {
         .join(", ");
       return `${pluralize(draft.interval, "week")} on ${days}`;
     }
-    case "month": {
+    case RepeatUnit.Month: {
       const span = pluralize(draft.interval, "month");
-      if (draft.monthMode === "day") return `${span} on day ${draft.day}`;
-      const nth = REPEAT_NTH_OPTIONS.find(
-        (o) => o.value === String(draft.nth),
-      )?.aria;
+      if (draft.monthMode === MonthMode.Day)
+        return `${span} on day ${draft.day}`;
+      const nth = REPEAT_NTH_OPTIONS.find((o) => o.value === draft.nth)?.aria;
       const weekday = WEEKDAY_OPTIONS.find(
         (w) => w.value === draft.weekday,
       )?.label;
@@ -231,6 +277,10 @@ const chipClasses = (selected: boolean) =>
 
 interface RepeatScheduleFieldsProps {
   idPrefix: string;
+  // Seed from an existing schedule (series editing): the section starts
+  // expanded with the stored recurrence and both selections count as
+  // user-made, so a start-date edit doesn't silently overwrite them.
+  initial?: NewSeries;
   // `error` is the first validation message while a schedule is configured;
   // parents disable submission until it clears.
   onChange: (series: NewSeries | null, error: string | null) => void;
@@ -241,15 +291,19 @@ interface RepeatScheduleFieldsProps {
 // the user's last choices.
 export function RepeatScheduleFields({
   idPrefix,
+  initial,
   onChange,
 }: Readonly<RepeatScheduleFieldsProps>) {
-  const [expanded, setExpanded] = useState(false);
-  const [draft, setDraft] = useState<RepeatDraft>(defaultDraft);
+  const [expanded, setExpanded] = useState(initial !== undefined);
+  const [draft, setDraft] = useState<RepeatDraft>(() =>
+    initial === undefined ? defaultDraft() : draftFromSeries(initial),
+  );
   // The weekday selection tracks the start date until the user picks days
   // manually — the common case is "repeat on the same weekday it starts".
-  const [weekdaysTouched, setWeekdaysTouched] = useState(false);
+  // A seeded schedule already carries explicit picks.
+  const [weekdaysTouched, setWeekdaysTouched] = useState(initial !== undefined);
   // The monthly selections track the start date the same way.
-  const [monthlyTouched, setMonthlyTouched] = useState(false);
+  const [monthlyTouched, setMonthlyTouched] = useState(initial !== undefined);
 
   const errors = expanded ? validateDraft(draft) : {};
   const errorFor = (field: keyof DraftErrors) =>
@@ -386,7 +440,7 @@ export function RepeatScheduleFields({
               </fieldset>
             </div>
           </div>
-          {draft.unit === "week" && (
+          {draft.unit === RepeatUnit.Week && (
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-text-muted">
                 {REPEAT_ON_LABEL}
@@ -394,15 +448,15 @@ export function RepeatScheduleFields({
               {weekdayChips(draft.weekdays, toggleWeekday)}
             </div>
           )}
-          {draft.unit === "month" && (
+          {draft.unit === RepeatUnit.Month && (
             <div className="flex flex-col gap-2 pt-1">
               <div className="flex items-center gap-2">
                 <input
                   id={`${idPrefix}-repeat-month-day`}
                   name={`${idPrefix}-repeat-month-mode`}
                   type="radio"
-                  checked={draft.monthMode === "day"}
-                  onChange={() => patch({ monthMode: "day" })}
+                  checked={draft.monthMode === MonthMode.Day}
+                  onChange={() => patch({ monthMode: MonthMode.Day })}
                   className="text-primary focus:ring-0"
                 />
                 <label
@@ -419,7 +473,7 @@ export function RepeatScheduleFields({
                   value={draft.day}
                   onChange={(e) =>
                     patchMonthly({
-                      monthMode: "day",
+                      monthMode: MonthMode.Day,
                       day: Math.min(
                         31,
                         Math.max(1, Number(e.target.value) || 1),
@@ -429,7 +483,7 @@ export function RepeatScheduleFields({
                   className="w-12 rounded border border-border bg-surface-raised px-2 py-1 text-center text-sm text-text outline-none focus:border-primary"
                 />
               </div>
-              {draft.monthMode === "day" && draft.day > 28 && (
+              {draft.monthMode === MonthMode.Day && draft.day > 28 && (
                 <p className="text-xs text-text-muted/80 italic">
                   {REPEAT_MONTHLY_CLAMP_HINT}
                 </p>
@@ -439,8 +493,8 @@ export function RepeatScheduleFields({
                   id={`${idPrefix}-repeat-month-weekday`}
                   name={`${idPrefix}-repeat-month-mode`}
                   type="radio"
-                  checked={draft.monthMode === "weekday"}
-                  onChange={() => patch({ monthMode: "weekday" })}
+                  checked={draft.monthMode === MonthMode.Weekday}
+                  onChange={() => patch({ monthMode: MonthMode.Weekday })}
                   className="text-primary focus:ring-0"
                 />
                 <label
@@ -458,15 +512,15 @@ export function RepeatScheduleFields({
                       key={value}
                       type="button"
                       aria-label={aria}
-                      aria-pressed={draft.nth === Number(value)}
+                      aria-pressed={draft.nth === value}
                       onClick={() =>
                         patchMonthly({
-                          monthMode: "weekday",
-                          nth: Number(value),
+                          monthMode: MonthMode.Weekday,
+                          nth: value,
                         })
                       }
                       className={`rounded px-1.5 py-0.5 text-[11px] transition-colors focus:outline-none focus:ring-1 focus:ring-primary ${
-                        draft.nth === Number(value)
+                        draft.nth === value
                           ? "bg-surface-raised text-primary"
                           : "text-text-muted hover:text-text"
                       }`}
@@ -476,7 +530,7 @@ export function RepeatScheduleFields({
                   ))}
                 </fieldset>
               </div>
-              {draft.monthMode === "weekday" &&
+              {draft.monthMode === MonthMode.Weekday &&
                 weekdayChips([draft.weekday], (w) =>
                   patchMonthly({ weekday: w }),
                 )}
