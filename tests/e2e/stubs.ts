@@ -20,13 +20,14 @@ export const stubApiError = (code: string, kind: string, message: string) => ({
 export const stubSequence = (values: unknown[]) => ({ __sequence: values });
 
 // Reads every invoke call recorded by the stub — for asserting the exact
-// payload the frontend put on the wire.
-export const getInvocations = (page: Page) =>
+// payload the frontend put on the wire. The default arg shape is opaque;
+// specs asserting into a payload pass the command's arg type.
+export const getInvocations = <TArgs = Record<string, unknown>>(page: Page) =>
   page.evaluate(
     () =>
       (
         window as unknown as {
-          __invocations: { cmd: string; args: unknown }[];
+          __invocations: { cmd: string; args: TArgs }[];
         }
       ).__invocations,
   );

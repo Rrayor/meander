@@ -1,4 +1,10 @@
 import { COMMANDS } from "@/api/commands";
+import type {
+  NewTask,
+  Recurrence,
+  UpdateSeries,
+  UpdateTask,
+} from "@/api/bindings";
 import {
   CarryOverRule,
   RecurrenceKind,
@@ -318,7 +324,7 @@ test("the estimate pair sends combined minutes on the wire", async ({
   await dialog.getByRole("radio", { name: "Carry over" }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
   expect(createCall?.args).toEqual({
@@ -431,7 +437,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
 
   await expect(page.getByText(`${TITLE_MILESTONE} follow-up`)).toBeVisible();
 
-  const updateCall = (await getInvocations(page)).find(
+  const updateCall = (await getInvocations<{ input: UpdateTask }>(page)).find(
     (c) => c.cmd === COMMANDS.updateTask,
   );
   expect(updateCall?.args).toEqual({
@@ -469,19 +475,23 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  const { recurrence, end_date } = createCall!.args.input.series;
-  expect(recurrence.kind).toBe(RecurrenceKind.Weekly);
-  expect(recurrence.interval_weeks).toBe(1);
+  const { recurrence, end_date } = createCall!.args.input.series!;
+  const weekly = recurrence as Extract<
+    Recurrence,
+    { kind: `${RecurrenceKind.Weekly}` }
+  >;
+  expect(weekly.kind).toBe(RecurrenceKind.Weekly);
+  expect(weekly.interval_weeks).toBe(1);
   // The weekday set is today's weekday (auto-synced to the start date)
   // plus the Friday the user picked.
-  expect(new Set(recurrence.weekdays)).toEqual(
+  expect(new Set(weekly.weekdays)).toEqual(
     new Set([WEEKDAYS_BY_JS_DAY[new Date().getDay()], Weekday.Friday]),
   );
   expect(end_date).toBe("2027-01-01");
-  expect(createCall?.args.input.series.start_date).toMatch(
+  expect(createCall?.args.input.series?.start_date).toMatch(
     /^\d{4}-\d{2}-\d{2}$/,
   );
 });
@@ -537,10 +547,10 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
   await dialog.getByRole("button", { name: FRIDAY.label }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  expect(createCall?.args.input.series.recurrence).toEqual({
+  expect(createCall?.args.input.series?.recurrence).toEqual({
     kind: RecurrenceKind.MonthlyNthWeekday,
     interval_months: 1,
     nth: 2,
@@ -571,10 +581,10 @@ test("a monthly day repeat sends the picked day and interval", async ({
   await dialog.getByLabel(REPEAT_DAY_OF_MONTH_LABEL).fill("15");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
-  const createCall = (await getInvocations(page)).find(
+  const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
     (c) => c.cmd === COMMANDS.createTask,
   );
-  expect(createCall?.args.input.series.recurrence).toEqual({
+  expect(createCall?.args.input.series?.recurrence).toEqual({
     kind: RecurrenceKind.MonthlyDay,
     interval_months: 3,
     day: 15,
@@ -628,7 +638,7 @@ test("attaching a schedule while editing sends the series payload", async ({
     .click();
   await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
-  const updateCall = (await getInvocations(page)).find(
+  const updateCall = (await getInvocations<{ input: UpdateTask }>(page)).find(
     (c) => c.cmd === COMMANDS.updateTask,
   );
   expect(updateCall?.args.input.series).toMatchObject({
@@ -798,9 +808,9 @@ test("a series-scope save sends update_task_series with the schedule", async ({
   await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
   await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
-  const call = (await getInvocations(page)).find(
-    (c) => c.cmd === COMMANDS.updateTaskSeries,
-  );
+  const call = (
+    await getInvocations<{ seriesId: number; input: UpdateSeries }>(page)
+  ).find((c) => c.cmd === COMMANDS.updateTaskSeries);
   expect(call?.args.seriesId).toBe(seriesFixture.id);
   expect(call?.args.input).toMatchObject({
     title: TITLE_DRAFT_NOTES,
@@ -844,7 +854,7 @@ test("the details view deletes the whole series after scope confirmation", async
     .last()
     .click();
 
-  const call = (await getInvocations(page)).find(
+  const call = (await getInvocations<{ seriesId: number }>(page)).find(
     (c) => c.cmd === COMMANDS.deleteTaskSeries,
   );
   expect(call?.args.seriesId).toBe(seriesFixture.id);
@@ -877,9 +887,9 @@ test("the details view ends the series at the viewed date", async ({
     .last()
     .click();
 
-  const call = (await getInvocations(page)).find(
-    (c) => c.cmd === COMMANDS.truncateTaskSeries,
-  );
+  const call = (
+    await getInvocations<{ seriesId: number; fromDate: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.truncateTaskSeries);
   expect(call?.args).toMatchObject({
     seriesId: seriesFixture.id,
     fromDate: seriesInstance.scheduled_date,
