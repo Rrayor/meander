@@ -1,3 +1,4 @@
+import { Weekday } from "@/lib/enums";
 import {
   codePointsWithin,
   formatDate,
@@ -105,20 +106,20 @@ describe("weekdayOfIso", () => {
   const SUNDAY_ISO = "2026-10-25";
 
   it("maps a local ISO date to its weekday", () => {
-    expect(weekdayOfIso(WEDNESDAY_ISO)).toBe("wednesday"); // a Wednesday
-    expect(weekdayOfIso(SUNDAY_ISO)).toBe("sunday");
+    expect(weekdayOfIso(WEDNESDAY_ISO)).toBe(Weekday.Wednesday); // a Wednesday
+    expect(weekdayOfIso(SUNDAY_ISO)).toBe(Weekday.Sunday);
   });
 
   it("covers every weekday", () => {
     // 2026-10-19 is a Monday — the week below spans all seven values.
     const week = [
-      ["2026-10-19", "monday"],
-      ["2026-10-20", "tuesday"],
-      [WEDNESDAY_ISO, "wednesday"],
-      ["2026-10-22", "thursday"],
-      ["2026-10-23", "friday"],
-      ["2026-10-24", "saturday"],
-      [SUNDAY_ISO, "sunday"],
+      ["2026-10-19", Weekday.Monday],
+      ["2026-10-20", Weekday.Tuesday],
+      [WEDNESDAY_ISO, Weekday.Wednesday],
+      ["2026-10-22", Weekday.Thursday],
+      ["2026-10-23", Weekday.Friday],
+      ["2026-10-24", Weekday.Saturday],
+      [SUNDAY_ISO, Weekday.Sunday],
     ] as const;
     for (const [iso, weekday] of week) {
       expect(weekdayOfIso(iso), iso).toBe(weekday);
@@ -126,13 +127,13 @@ describe("weekdayOfIso", () => {
   });
 
   it("maps a leap day correctly", () => {
-    expect(weekdayOfIso("2024-02-29")).toBe("thursday");
+    expect(weekdayOfIso("2024-02-29")).toBe(Weekday.Thursday);
   });
 
   it("is correct on a DST transition date", () => {
     // CET→CEST switch 2026-03-29 (a Sunday): the noon anchor keeps the
     // lookup clear of the 02:00 clock jump.
-    expect(weekdayOfIso("2026-03-29")).toBe("sunday");
+    expect(weekdayOfIso("2026-03-29")).toBe(Weekday.Sunday);
   });
 
   it("returns undefined for unparseable input rather than a wrong weekday", () => {

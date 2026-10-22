@@ -1,6 +1,7 @@
+import { RecurrenceKind, Weekday } from "@/lib/enums";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import type { NewSeries, Weekday } from "@/api/bindings";
+import type { NewSeries } from "@/api/bindings";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
@@ -50,7 +51,7 @@ describe("RepeatScheduleFields", () => {
     expand();
     const series = lastSeries(onChange);
     expect(series).toMatchObject({
-      recurrence: { kind: "daily", interval_days: 1 },
+      recurrence: { kind: RecurrenceKind.Daily, interval_days: 1 },
       end_date: null,
     });
     expect(series?.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -72,13 +73,15 @@ describe("RepeatScheduleFields", () => {
     fireEvent.click(screen.getByRole("button", { name: "Friday" }));
     const series = lastSeries(onChange);
     expect(series?.recurrence).toMatchObject({
-      kind: "weekly",
+      kind: RecurrenceKind.Weekly,
       interval_weeks: 1,
     });
     const { weekdays } = series?.recurrence as {
       weekdays: Weekday[];
     };
-    expect(new Set(weekdays)).toEqual(new Set([todayWeekday(), "friday"]));
+    expect(new Set(weekdays)).toEqual(
+      new Set([todayWeekday(), Weekday.Friday]),
+    );
   });
 
   it("does not allow deselecting the last weekly weekday", () => {
@@ -103,9 +106,9 @@ describe("RepeatScheduleFields", () => {
       target: { value: WEDNESDAY_ISO },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "weekly",
+      kind: RecurrenceKind.Weekly,
       interval_weeks: 1,
-      weekdays: ["wednesday"],
+      weekdays: [Weekday.Wednesday],
     });
     // Once the user picks a day manually, start-date changes leave it alone.
     fireEvent.click(screen.getByRole("button", { name: "Monday" }));
@@ -113,9 +116,9 @@ describe("RepeatScheduleFields", () => {
       target: { value: FRIDAY_ISO },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "weekly",
+      kind: RecurrenceKind.Weekly,
       interval_weeks: 1,
-      weekdays: ["wednesday", "monday"],
+      weekdays: [Weekday.Wednesday, Weekday.Monday],
     });
   });
 
@@ -127,7 +130,7 @@ describe("RepeatScheduleFields", () => {
       target: { value: "31" },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "monthly_day",
+      kind: RecurrenceKind.MonthlyDay,
       interval_months: 1,
       day: 31,
     });
@@ -143,17 +146,17 @@ describe("RepeatScheduleFields", () => {
       target: { value: "2026-10-19" },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "monthly_day",
+      kind: RecurrenceKind.MonthlyDay,
       interval_months: 1,
       day: 19,
     });
     // Switching to "On the" keeps the synced 3rd Monday.
     fireEvent.click(screen.getByRole("radio", { name: REPEAT_ON_THE_LABEL }));
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "monthly_nth_weekday",
+      kind: RecurrenceKind.MonthlyNthWeekday,
       interval_months: 1,
       nth: 3,
-      weekday: "monday",
+      weekday: Weekday.Monday,
     });
     // A mode switch alone is not a manual edit — the selection keeps
     // tracking the start date (3rd Wednesday for 2026-10-21).
@@ -161,10 +164,10 @@ describe("RepeatScheduleFields", () => {
       target: { value: WEDNESDAY_ISO },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "monthly_nth_weekday",
+      kind: RecurrenceKind.MonthlyNthWeekday,
       interval_months: 1,
       nth: 3,
-      weekday: "wednesday",
+      weekday: Weekday.Wednesday,
     });
     // A manual change stops the tracking — later start changes keep the
     // user's selection.
@@ -173,10 +176,10 @@ describe("RepeatScheduleFields", () => {
       target: { value: FRIDAY_ISO },
     });
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "monthly_nth_weekday",
+      kind: RecurrenceKind.MonthlyNthWeekday,
       interval_months: 1,
       nth: 1,
-      weekday: "wednesday",
+      weekday: Weekday.Wednesday,
     });
   });
 
@@ -244,10 +247,10 @@ describe("RepeatScheduleFields", () => {
     fireEvent.click(screen.getByRole("button", { name: "Last" }));
     fireEvent.click(screen.getByRole("button", { name: "Friday" }));
     expect(lastSeries(onChange)?.recurrence).toEqual({
-      kind: "monthly_nth_weekday",
+      kind: RecurrenceKind.MonthlyNthWeekday,
       interval_months: 1,
       nth: -1,
-      weekday: "friday",
+      weekday: Weekday.Friday,
     });
   });
 

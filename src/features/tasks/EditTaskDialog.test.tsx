@@ -1,3 +1,11 @@
+import {
+  CarryOverRule,
+  RecurrenceKind,
+  RepeatUnit,
+  TaskPlacement,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -124,20 +132,24 @@ const REPEAT_END_DATE = "2026-12-31";
 // one the calendar tests pick.
 const OPENED_INSTANCE_DATE = "2026-10-19";
 const OTHER_INSTANCE_DATE = "2026-10-26";
-const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
-const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === "wednesday")!;
-const RETURN_OPTION = CARRY_OVER_OPTIONS.find((o) => o.value === "return")!;
+const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find(
+  (o) => o.value === RepeatUnit.Week,
+)!;
+const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === Weekday.Wednesday)!;
+const RETURN_OPTION = CARRY_OVER_OPTIONS.find(
+  (o) => o.value === CarryOverRule.Return,
+)!;
 
 const baseTask: Task = {
   id: 7,
   profile_id: 1,
   title: TITLE_ORIGINAL,
   description: "old description",
-  status: "todo",
-  carry_over_rule: "carry",
+  status: TaskStatus.Todo,
+  carry_over_rule: CarryOverRule.Carry,
   estimated_minutes: 90,
   spent_minutes: 30,
-  placement: "backlog",
+  placement: TaskPlacement.Backlog,
   scheduled_date: null,
   series_id: null,
   sort_order: 1,
@@ -150,12 +162,12 @@ const baseSeries: TaskSeries = {
   profile_id: 1,
   title: TITLE_ORIGINAL,
   description: null,
-  carry_over_rule: "return",
+  carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   recurrence: {
-    kind: "weekly",
+    kind: RecurrenceKind.Weekly,
     interval_weeks: 1,
-    weekdays: ["monday"],
+    weekdays: [Weekday.Monday],
   },
   start_date: "2026-10-05",
   end_date: null,
@@ -257,8 +269,8 @@ describe("EditTaskDialog", () => {
         description: DESCRIPTION_EDITED,
         estimated_minutes: 90,
         spent_minutes: 150,
-        carry_over_rule: "return",
-        status: "done",
+        carry_over_rule: CarryOverRule.Return,
+        status: TaskStatus.Done,
         series: null,
       }),
     );
@@ -287,8 +299,8 @@ describe("EditTaskDialog", () => {
         description: null,
         estimated_minutes: null,
         spent_minutes: 30,
-        carry_over_rule: "carry",
-        status: "todo",
+        carry_over_rule: CarryOverRule.Carry,
+        status: TaskStatus.Todo,
         series: null,
       }),
     );
@@ -616,7 +628,7 @@ describe("EditTaskDialog", () => {
     );
     await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
     expect(mockedUpdate.mock.calls[0][1].series).toMatchObject({
-      recurrence: { kind: "daily", interval_days: 1 },
+      recurrence: { kind: RecurrenceKind.Daily, interval_days: 1 },
       end_date: null,
     });
   });
@@ -637,7 +649,7 @@ describe("EditTaskDialog", () => {
     await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
     expect(mockedUpdate.mock.calls[0][1].series).toMatchObject({
       recurrence: {
-        kind: "weekly",
+        kind: RecurrenceKind.Weekly,
         interval_weeks: 1,
         weekdays: expect.arrayContaining([WEDNESDAY.value]),
       },
@@ -1059,7 +1071,7 @@ describe("EditTaskDialog", () => {
         title: TITLE_EDITED,
         description: SERIES_DESCRIPTION,
         estimated_minutes: 45,
-        carry_over_rule: "return" as const,
+        carry_over_rule: CarryOverRule.Return as const,
       },
     ]);
     renderDialog({ ...baseTask, series_id: baseSeries.id });

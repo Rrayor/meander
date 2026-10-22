@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { NotesTab } from "@/lib/enums";
 import {
   NOTES_EMPTY_MESSAGE,
   NOTES_TAB_INSTANCE_LABEL,
@@ -7,11 +8,9 @@ import {
 } from "@/lib/labels";
 
 const TABS = [
-  { id: "instance", label: NOTES_TAB_INSTANCE_LABEL },
-  { id: "series", label: NOTES_TAB_SERIES_LABEL },
+  { id: NotesTab.Instance, label: NOTES_TAB_INSTANCE_LABEL },
+  { id: NotesTab.Series, label: NOTES_TAB_SERIES_LABEL },
 ] as const;
-
-type TabId = (typeof TABS)[number]["id"];
 
 const ARROW_DELTAS: Record<string, number> = {
   ArrowRight: 1,
@@ -19,8 +18,8 @@ const ARROW_DELTAS: Record<string, number> = {
 };
 
 export function NotesTabs() {
-  const [active, setActive] = useState<TabId>("instance");
-  const refs = useRef(new Map<TabId, HTMLButtonElement>());
+  const [active, setActive] = useState<NotesTab>(NotesTab.Instance);
+  const refs = useRef(new Map<NotesTab, HTMLButtonElement>());
 
   // APG tabs: arrow keys move focus and activate the focused tab.
   const onKeyDown = (e: React.KeyboardEvent, index: number) => {

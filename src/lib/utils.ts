@@ -1,3 +1,5 @@
+import { Weekday } from "@/lib/enums";
+
 export { cn } from "cn";
 
 export const errorMessage = (e: unknown) =>
@@ -73,13 +75,13 @@ export const todayLocalIso = () => {
 };
 
 export const WEEKDAYS_BY_JS_DAY = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
+  Weekday.Sunday,
+  Weekday.Monday,
+  Weekday.Tuesday,
+  Weekday.Wednesday,
+  Weekday.Thursday,
+  Weekday.Friday,
+  Weekday.Saturday,
 ] as const;
 
 // Weekday of a "YYYY-MM-DD" date, read at noon to stay clear of DST edges.

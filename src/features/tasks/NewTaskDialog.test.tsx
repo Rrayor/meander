@@ -1,3 +1,4 @@
+import { CarryOverRule, RecurrenceKind } from "@/lib/enums";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -120,7 +121,7 @@ describe("NewTaskDialog", () => {
       title: VALID_TITLE,
       description: null,
       estimated_minutes: 90,
-      carry_over_rule: "carry",
+      carry_over_rule: CarryOverRule.Carry,
       series: null,
     });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -255,7 +256,7 @@ describe("NewTaskDialog", () => {
         expect.objectContaining({
           series: expect.objectContaining({
             recurrence: expect.objectContaining({
-              kind: "weekly",
+              kind: RecurrenceKind.Weekly,
               interval_weeks: 1,
             }),
           }),
@@ -488,7 +489,7 @@ describe("NewTaskDialog", () => {
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
     expect(mockedCreate.mock.calls[0][0].series).toMatchObject({
       recurrence: {
-        kind: "weekly",
+        kind: RecurrenceKind.Weekly,
         interval_weeks: 1,
         weekdays: [todayWeekday()],
       },

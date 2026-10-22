@@ -1,10 +1,18 @@
 import type { Recurrence } from "@/api/bindings";
 
-export const STATUS_LABELS = {
-  todo: "Todo",
-  in_progress: "In progress",
-  done: "Done",
-} as const;
+import {
+  CarryOverRule,
+  RepeatNth,
+  RepeatUnit,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
+
+export const STATUS_LABELS: Record<TaskStatus, string> = {
+  [TaskStatus.Todo]: "Todo",
+  [TaskStatus.InProgress]: "In progress",
+  [TaskStatus.Done]: "Done",
+};
 
 export const reorderLabel = (title: string) => `Reorder ${title}`;
 export const deleteTaskLabel = (title: string) => `Delete ${title}`;
@@ -38,9 +46,9 @@ export const SPENT_HOURS_LABEL = "Spent hours";
 export const SPENT_MINUTES_LABEL = "Spent minutes";
 
 export const CARRY_OVER_OPTIONS = [
-  { value: "", label: "Ask" },
-  { value: "carry", label: "Carry over" },
-  { value: "return", label: "Return to backlog" },
+  { value: CarryOverRule.Ask, label: "Ask" },
+  { value: CarryOverRule.Carry, label: "Carry over" },
+  { value: CarryOverRule.Return, label: "Return to backlog" },
 ] as const;
 
 export const auditTimestampsLabel = (created: string, updated: string) =>
@@ -108,29 +116,29 @@ export const REPEAT_ENDS_BEFORE_START_MESSAGE =
 export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
   "The schedule never occurs on or before this date.";
 export const REPEAT_UNIT_OPTIONS = [
-  { value: "day", label: "days" },
-  { value: "week", label: "weeks" },
-  { value: "month", label: "months" },
+  { value: RepeatUnit.Day, label: "days" },
+  { value: RepeatUnit.Week, label: "weeks" },
+  { value: RepeatUnit.Month, label: "months" },
 ] as const;
 // Canonical weekday order — Monday first, matching the backend `Weekday`
 // enum. Recurrence math (recurrence.ts) indexes weekdays by this order, so
 // it must never be rotated for display: the week-start setting rotates a
 // derived copy at render time instead.
 export const WEEKDAY_OPTIONS = [
-  { value: "monday", label: "Monday", short: "Mo" },
-  { value: "tuesday", label: "Tuesday", short: "Tu" },
-  { value: "wednesday", label: "Wednesday", short: "We" },
-  { value: "thursday", label: "Thursday", short: "Th" },
-  { value: "friday", label: "Friday", short: "Fr" },
-  { value: "saturday", label: "Saturday", short: "Sa" },
-  { value: "sunday", label: "Sunday", short: "Su" },
+  { value: Weekday.Monday, label: "Monday", short: "Mo" },
+  { value: Weekday.Tuesday, label: "Tuesday", short: "Tu" },
+  { value: Weekday.Wednesday, label: "Wednesday", short: "We" },
+  { value: Weekday.Thursday, label: "Thursday", short: "Th" },
+  { value: Weekday.Friday, label: "Friday", short: "Fr" },
+  { value: Weekday.Saturday, label: "Saturday", short: "Sa" },
+  { value: Weekday.Sunday, label: "Sunday", short: "Su" },
 ] as const;
 export const REPEAT_NTH_OPTIONS = [
-  { value: "1", label: "1st", aria: "First" },
-  { value: "2", label: "2nd", aria: "Second" },
-  { value: "3", label: "3rd", aria: "Third" },
-  { value: "4", label: "4th", aria: "Fourth" },
-  { value: "-1", label: "Last", aria: "Last" },
+  { value: RepeatNth.First, label: "1st", aria: "First" },
+  { value: RepeatNth.Second, label: "2nd", aria: "Second" },
+  { value: RepeatNth.Third, label: "3rd", aria: "Third" },
+  { value: RepeatNth.Fourth, label: "4th", aria: "Fourth" },
+  { value: RepeatNth.Last, label: "Last", aria: "Last" },
 ] as const;
 
 export const seriesAuditLabel = (
@@ -152,7 +160,7 @@ const weekdayLabel = (value: string) =>
 
 const UNIT_LABELS = Object.fromEntries(
   REPEAT_UNIT_OPTIONS.map((o) => [o.value, o.label]),
-) as Record<string, string>;
+) as Record<RepeatUnit, string>;
 
 const andJoin = (items: string[]) =>
   items.length <= 2
@@ -164,20 +172,22 @@ const andJoin = (items: string[]) =>
 export const describeRecurrence = (recurrence: Recurrence): string => {
   const cadence = (interval: number, unit: string) =>
     interval === 1 ? `every ${unit.slice(0, -1)}` : `every ${interval} ${unit}`;
+  // The discriminant is the specta wire union — matching its literal
+  // members is the only way to narrow the recurrence variants.
   switch (recurrence.kind) {
     case "daily":
-      return cadence(recurrence.interval_days, UNIT_LABELS.day);
+      return cadence(recurrence.interval_days, UNIT_LABELS[RepeatUnit.Day]);
     case "weekly": {
       const days = andJoin(recurrence.weekdays.map(weekdayLabel));
-      return `${cadence(recurrence.interval_weeks, UNIT_LABELS.week)} on ${days}`;
+      return `${cadence(recurrence.interval_weeks, UNIT_LABELS[RepeatUnit.Week])} on ${days}`;
     }
     case "monthly_day":
-      return `${cadence(recurrence.interval_months, UNIT_LABELS.month)} on day ${recurrence.day}`;
+      return `${cadence(recurrence.interval_months, UNIT_LABELS[RepeatUnit.Month])} on day ${recurrence.day}`;
     case "monthly_nth_weekday": {
       const nth = REPEAT_NTH_OPTIONS.find(
-        (o) => o.value === String(recurrence.nth),
+        (o) => o.value === recurrence.nth,
       )?.aria;
-      return `${cadence(recurrence.interval_months, UNIT_LABELS.month)} on the ${nth} ${weekdayLabel(recurrence.weekday)}`;
+      return `${cadence(recurrence.interval_months, UNIT_LABELS[RepeatUnit.Month])} on the ${nth} ${weekdayLabel(recurrence.weekday)}`;
     }
     case "workday_after":
       return workdayAfterLabel(recurrence.day);

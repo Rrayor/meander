@@ -1,5 +1,14 @@
 import { COMMANDS } from "@/api/commands";
 import {
+  CarryOverRule,
+  RecurrenceKind,
+  RepeatNth,
+  RepeatUnit,
+  TaskPlacement,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
+import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
   EDIT_BUTTON_LABEL,
@@ -31,6 +40,8 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
+import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
+
 import { expect, test } from "./fixtures";
 import {
   getInvocations,
@@ -40,20 +51,15 @@ import {
 } from "./stubs";
 
 const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
-const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "week")!;
-const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === "month")!;
-const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === "friday")!;
-const NTH_SECOND = REPEAT_NTH_OPTIONS.find((o) => o.value === "2")!;
+const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === RepeatUnit.Week)!;
+const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find(
+  (o) => o.value === RepeatUnit.Month,
+)!;
+const FRIDAY = WEEKDAY_OPTIONS.find((w) => w.value === Weekday.Friday)!;
+const NTH_SECOND = REPEAT_NTH_OPTIONS.find(
+  (o) => o.value === RepeatNth.Second,
+)!;
 const REJECTION_MESSAGE = "schedule could not be understood";
-const WEEKDAY_BY_JS_DAY = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
 const TITLE_MILESTONE = "Review quarterly milestone planning";
 
 const backlogPath = ROUTES.find((r) => r.label === "Backlog")!.path;
@@ -71,11 +77,11 @@ const tasks = [
     profile_id: 1,
     title: TITLE_DRAFT_NOTES,
     description: null,
-    status: "todo",
+    status: TaskStatus.Todo,
     carry_over_rule: null,
     estimated_minutes: 45,
     spent_minutes: null,
-    placement: "backlog",
+    placement: TaskPlacement.Backlog,
     scheduled_date: null,
     series_id: null,
     created_at: "2026-10-10 09:00:00",
@@ -86,11 +92,11 @@ const tasks = [
     profile_id: 1,
     title: TITLE_MILESTONE,
     description: "Flag risks early",
-    status: "in_progress",
-    carry_over_rule: "carry",
+    status: TaskStatus.InProgress,
+    carry_over_rule: CarryOverRule.Carry,
     estimated_minutes: 180,
     spent_minutes: 30,
-    placement: "backlog",
+    placement: TaskPlacement.Backlog,
     scheduled_date: null,
     series_id: null,
     created_at: "2026-10-11 10:00:00",
@@ -320,7 +326,7 @@ test("the estimate pair sends combined minutes on the wire", async ({
       title: "Timed task",
       description: null,
       estimated_minutes: 90,
-      carry_over_rule: "carry",
+      carry_over_rule: CarryOverRule.Carry,
       series: null,
     },
   });
@@ -401,7 +407,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
   const updated = {
     ...tasks[0],
     title: TITLE_MILESTONE + " follow-up",
-    status: "in_progress",
+    status: TaskStatus.InProgress,
   };
   await stubTauriCommands(page, {
     [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
@@ -436,7 +442,7 @@ test("editing a task updates the backlog row", async ({ page }) => {
       estimated_minutes: 45,
       spent_minutes: null,
       carry_over_rule: null,
-      status: "in_progress",
+      status: TaskStatus.InProgress,
       series: null,
     },
   });
@@ -467,12 +473,12 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
     (c) => c.cmd === COMMANDS.createTask,
   );
   const { recurrence, end_date } = createCall!.args.input.series;
-  expect(recurrence.kind).toBe("weekly");
+  expect(recurrence.kind).toBe(RecurrenceKind.Weekly);
   expect(recurrence.interval_weeks).toBe(1);
   // The weekday set is today's weekday (auto-synced to the start date)
   // plus the Friday the user picked.
   expect(new Set(recurrence.weekdays)).toEqual(
-    new Set([WEEKDAY_BY_JS_DAY[new Date().getDay()], "friday"]),
+    new Set([WEEKDAYS_BY_JS_DAY[new Date().getDay()], Weekday.Friday]),
   );
   expect(end_date).toBe("2027-01-01");
   expect(createCall?.args.input.series.start_date).toMatch(
@@ -535,10 +541,10 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
     (c) => c.cmd === COMMANDS.createTask,
   );
   expect(createCall?.args.input.series.recurrence).toEqual({
-    kind: "monthly_nth_weekday",
+    kind: RecurrenceKind.MonthlyNthWeekday,
     interval_months: 1,
     nth: 2,
-    weekday: "friday",
+    weekday: Weekday.Friday,
   });
 });
 
@@ -569,7 +575,7 @@ test("a monthly day repeat sends the picked day and interval", async ({
     (c) => c.cmd === COMMANDS.createTask,
   );
   expect(createCall?.args.input.series.recurrence).toEqual({
-    kind: "monthly_day",
+    kind: RecurrenceKind.MonthlyDay,
     interval_months: 3,
     day: 15,
   });
@@ -626,7 +632,7 @@ test("attaching a schedule while editing sends the series payload", async ({
     (c) => c.cmd === COMMANDS.updateTask,
   );
   expect(updateCall?.args.input.series).toMatchObject({
-    recurrence: { kind: "daily", interval_days: 1 },
+    recurrence: { kind: RecurrenceKind.Daily, interval_days: 1 },
     end_date: null,
   });
 });
@@ -657,12 +663,12 @@ const seriesFixture = {
   profile_id: 1,
   title: TITLE_DRAFT_NOTES,
   description: null,
-  carry_over_rule: "return",
+  carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   recurrence: {
-    kind: "weekly",
+    kind: RecurrenceKind.Weekly,
     interval_weeks: 1,
-    weekdays: ["monday"],
+    weekdays: [Weekday.Monday],
   },
   start_date: "2026-10-05",
   end_date: null,
