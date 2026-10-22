@@ -281,7 +281,7 @@ fn work_profile_exists(world: &mut MeanderWorld) {
         .block_on(meander_lib::profiles::list(&pool))
         .expect("profile list failed");
     assert!(
-        profiles.iter().any(|p| p.name == "Work"),
+        profiles.iter().any(|p| p.name == SECOND_PROFILE_NAME),
         "no profile named Work in {profiles:?}"
     );
 }
@@ -297,12 +297,14 @@ fn only_default(world: &mut MeanderWorld) {
     assert_eq!(profiles[0].name, "Default");
 }
 
+const SECOND_PROFILE_NAME: &str = "Work";
+
 #[given("a second profile exists")]
 fn second_profile(world: &mut MeanderWorld) {
     let pool = world.state.as_ref().expect("no app state in world").pool();
     let profile = world
         .rt()
-        .block_on(meander_lib::profiles::create(&pool, "Work"))
+        .block_on(meander_lib::profiles::create(&pool, SECOND_PROFILE_NAME))
         .expect("create profile failed");
     world.profile_id = Some(profile.id);
 }
@@ -430,7 +432,7 @@ fn task_on_second_profile(world: &mut MeanderWorld) {
     let pool = world.state.as_ref().expect("no app state in world").pool();
     let other = world
         .rt()
-        .block_on(meander_lib::profiles::create(&pool, "Work"))
+        .block_on(meander_lib::profiles::create(&pool, SECOND_PROFILE_NAME))
         .expect("create profile failed");
     world.profile_id = Some(other.id);
     world
@@ -468,7 +470,6 @@ fn category_on_active_profile(world: &mut MeanderWorld, title: String) {
 
 #[given(expr = "a category named {word} exists on a second profile")]
 fn category_on_second_profile(world: &mut MeanderWorld, title: String) {
-    const SECOND_PROFILE_NAME: &str = "Work";
     let pool = world.state.as_ref().expect("no app state in world").pool();
     let other = world
         .rt()
@@ -1999,13 +2000,12 @@ fn later_instance_done(world: &mut MeanderWorld, title: String) {
     world
         .rt()
         .block_on(async {
-            sqlx::query(
-                "UPDATE tasks SET status = 'done' WHERE series_id = ? AND scheduled_date = ?",
-            )
-            .bind(series.id)
-            .bind(LATER_INSTANCE_DATE)
-            .execute(&pool)
-            .await
+            sqlx::query("UPDATE tasks SET status = ? WHERE series_id = ? AND scheduled_date = ?")
+                .bind(meander_lib::tasks::TaskStatus::Done)
+                .bind(series.id)
+                .bind(LATER_INSTANCE_DATE)
+                .execute(&pool)
+                .await
         })
         .expect("marking the later instance done failed");
 }
@@ -2025,7 +2025,7 @@ fn later_instance_still_done(world: &mut MeanderWorld, title: String) {
         .next()
         .expect("series missing");
     let pool = world.state.as_ref().expect("no app state in world").pool();
-    let status: String = world
+    let status: meander_lib::tasks::TaskStatus = world
         .rt()
         .block_on(async {
             sqlx::query_scalar(
@@ -2037,7 +2037,7 @@ fn later_instance_still_done(world: &mut MeanderWorld, title: String) {
             .await
         })
         .expect("instance status query failed");
-    assert_eq!(status, "done");
+    assert_eq!(status, meander_lib::tasks::TaskStatus::Done);
 }
 
 #[when(expr = "I add the category {word} to {word}'s series")]
@@ -2114,7 +2114,7 @@ fn foreign_repeating_task(world: &mut MeanderWorld, title: String) {
     let pool = world.state.as_ref().expect("no app state in world").pool();
     let other = world
         .rt()
-        .block_on(meander_lib::profiles::create(&pool, "Work"))
+        .block_on(meander_lib::profiles::create(&pool, SECOND_PROFILE_NAME))
         .expect("create profile failed");
     world.profile_id = Some(other.id);
     world
