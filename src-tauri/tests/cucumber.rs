@@ -2199,3 +2199,164 @@ fn reschedule_series_unreadable(world: &mut MeanderWorld, title: String) {
         world.error = Some(e.to_string());
     }
 }
+
+fn task_by_title(world: &mut MeanderWorld, title: &str) -> meander_lib::tasks::Task {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .unwrap_or_else(|| panic!("task missing: {title}"))
+}
+
+#[when(expr = "I add a note {string} to {word}")]
+fn add_task_note(world: &mut MeanderWorld, body: String, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = task_by_title(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::notes::create_for_task(
+        &pool, active, task.id, &body,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I try to add a blank note to {word}")]
+fn add_blank_note(world: &mut MeanderWorld, title: String) {
+    add_task_note(world, "   ".to_string(), title);
+}
+
+fn note_bodies_on_task(world: &mut MeanderWorld, title: &str) -> Vec<String> {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = task_by_title(world, title);
+    world
+        .rt()
+        .block_on(meander_lib::notes::list_for_task(&pool, active, task.id))
+        .expect("note list failed")
+        .into_iter()
+        .map(|n| n.body)
+        .collect()
+}
+
+#[then(expr = "{word} has the note {string}")]
+fn task_has_note(world: &mut MeanderWorld, title: String, body: String) {
+    assert!(note_bodies_on_task(world, &title).contains(&body));
+}
+
+#[then(expr = "{word} has no note {string}")]
+fn task_lacks_note(world: &mut MeanderWorld, title: String, body: String) {
+    assert!(!note_bodies_on_task(world, &title).contains(&body));
+}
+
+#[then(expr = "{word} has no notes")]
+fn task_has_no_notes(world: &mut MeanderWorld, title: String) {
+    assert!(note_bodies_on_task(world, &title).is_empty());
+}
+
+#[when(expr = "I edit {word}'s note {string} to {string}")]
+fn edit_note(world: &mut MeanderWorld, title: String, old: String, new: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = task_by_title(world, &title);
+    let note_id = world
+        .rt()
+        .block_on(meander_lib::notes::list_for_task(&pool, active, task.id))
+        .expect("note list failed")
+        .into_iter()
+        .find(|n| n.body == old)
+        .expect("note missing")
+        .id;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::notes::update(&pool, active, note_id, &new))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I delete {word}'s note {string}")]
+fn delete_task_note(world: &mut MeanderWorld, title: String, body: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = task_by_title(world, &title);
+    let note_id = world
+        .rt()
+        .block_on(meander_lib::notes::list_for_task(&pool, active, task.id))
+        .expect("note list failed")
+        .into_iter()
+        .find(|n| n.body == body)
+        .expect("note missing")
+        .id;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::notes::delete(&pool, active, note_id))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+fn note_bodies_on_series(world: &mut MeanderWorld, title: &str) -> Vec<String> {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, title);
+    world
+        .rt()
+        .block_on(meander_lib::notes::list_for_series(
+            &pool, active, series.id,
+        ))
+        .expect("series note list failed")
+        .into_iter()
+        .map(|n| n.body)
+        .collect()
+}
+
+#[when(expr = "I add a series note {string} to {word}'s repeat")]
+fn add_series_note(world: &mut MeanderWorld, body: String, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::notes::create_for_series(
+        &pool, active, series.id, &body,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "{word}'s repeat has the note {string}")]
+fn series_has_note(world: &mut MeanderWorld, title: String, body: String) {
+    assert!(note_bodies_on_series(world, &title).contains(&body));
+}
+
+#[then(expr = "{word}'s repeat has no notes")]
+fn series_has_no_notes(world: &mut MeanderWorld, title: String) {
+    assert!(note_bodies_on_series(world, &title).is_empty());
+}
+
+#[when(expr = "I try to note {string} on the foreign task")]
+fn note_foreign_task(world: &mut MeanderWorld, body: String) {
+    let foreign = world.profile_id.expect("no second profile");
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, foreign))
+        .expect("foreign task list failed")[0]
+        .id;
+    if let Err(e) = world.rt().block_on(meander_lib::notes::create_for_task(
+        &pool, active, task_id, &body,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}

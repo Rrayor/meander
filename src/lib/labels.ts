@@ -211,6 +211,16 @@ export const CALENDAR_PREVIOUS_LABEL = "Previous month";
 export const CALENDAR_NEXT_LABEL = "Next month";
 export const NOTES_TAB_INSTANCE_LABEL = "Current instance";
 export const NOTES_TAB_SERIES_LABEL = "Series";
+export const NOTES_SECTION_LABEL = "Notes";
 export const NOTES_EMPTY_MESSAGE = "No notes yet.";
+export const NOTE_COMPOSER_PLACEHOLDER = "Add a note…";
+export const NOTE_ADD_LABEL = "Add note";
+export const NOTE_EDITED_PREFIX = "edited";
+// Icon-button affordances identify the note by its opening words.
+export const noteEditLabel = (opening: string) => `Edit note “${opening}”`;
+export const noteDeleteLabel = (opening: string) => `Delete note “${opening}”`;
+export const NOTE_SAVE_LABEL = "Save note";
+export const NOTE_EDIT_LABEL = "Edit";
+export const NOTE_DELETE_LABEL = "Delete";
 export const SCHEDULED_INSTANCE_PENDING_MESSAGE =
   "Scheduled — this instance will be created when the board is generated.";

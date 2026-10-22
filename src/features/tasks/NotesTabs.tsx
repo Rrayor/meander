@@ -1,11 +1,8 @@
 import { useRef, useState } from "react";
 
+import { NoteList } from "@/features/tasks/NoteList";
 import { NotesTab } from "@/lib/enums";
-import {
-  NOTES_EMPTY_MESSAGE,
-  NOTES_TAB_INSTANCE_LABEL,
-  NOTES_TAB_SERIES_LABEL,
-} from "@/lib/labels";
+import { NOTES_TAB_INSTANCE_LABEL, NOTES_TAB_SERIES_LABEL } from "@/lib/labels";
 
 const TABS = [
   { id: NotesTab.Instance, label: NOTES_TAB_INSTANCE_LABEL },
@@ -17,7 +14,13 @@ const ARROW_DELTAS: Record<string, number> = {
   ArrowLeft: -1,
 };
 
-export function NotesTabs() {
+export function NotesTabs({
+  taskId,
+  seriesId,
+}: {
+  taskId: number;
+  seriesId: number;
+}) {
   const [active, setActive] = useState<NotesTab>(NotesTab.Instance);
   const refs = useRef(new Map<NotesTab, HTMLButtonElement>());
 
@@ -67,9 +70,9 @@ export function NotesTabs() {
           hidden={active !== tab.id}
           className="py-3"
         >
-          <p className="text-sm text-text-muted italic">
-            {NOTES_EMPTY_MESSAGE}
-          </p>
+          <NoteList
+            target={tab.id === NotesTab.Instance ? { taskId } : { seriesId }}
+          />
         </div>
       ))}
     </div>

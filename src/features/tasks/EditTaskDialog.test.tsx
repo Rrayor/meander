@@ -26,6 +26,7 @@ import {
 } from "@/api/categories";
 import { MAX_TASK_TITLE_LENGTH, deleteTask, updateTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
+import { listSeriesNotes, listTaskNotes } from "@/api/notes";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import {
@@ -101,6 +102,16 @@ vi.mock("@/api/categories", async (importOriginal) => ({
   createCategory: vi.fn(),
 }));
 
+vi.mock("@/api/notes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/notes")>()),
+  listTaskNotes: vi.fn(),
+  listSeriesNotes: vi.fn(),
+  createTaskNote: vi.fn(),
+  createSeriesNote: vi.fn(),
+  updateNote: vi.fn(),
+  deleteNote: vi.fn(),
+}));
+
 vi.mock("@/api/series", () => ({
   listTaskSeries: vi.fn(),
   listSeriesInstances: vi.fn(),
@@ -123,6 +134,8 @@ const mockedListTaskCategories = vi.mocked(listTaskCategories);
 const mockedAddTaskCategory = vi.mocked(addTaskCategory);
 const mockedRemoveTaskCategory = vi.mocked(removeTaskCategory);
 const mockedCreateCategory = vi.mocked(createCategory);
+const mockedListTaskNotes = vi.mocked(listTaskNotes);
+const mockedListSeriesNotes = vi.mocked(listSeriesNotes);
 
 const TITLE_ORIGINAL = "Draft weekly reflection notes";
 const TITLE_EDITED = "Review quarterly milestone planning";
@@ -209,6 +222,8 @@ describe("EditTaskDialog", () => {
     mockedDeleteSeries.mockReset().mockResolvedValue(undefined);
     mockedTruncateSeries.mockReset().mockResolvedValue(undefined);
     mockedDeleteTask.mockReset().mockResolvedValue(undefined);
+    mockedListTaskNotes.mockReset().mockResolvedValue([]);
+    mockedListSeriesNotes.mockReset().mockResolvedValue([]);
   });
 
   it("pre-fills every editable field from the task", () => {
@@ -446,9 +461,10 @@ describe("EditTaskDialog", () => {
     expect(
       screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
     ).toBeInTheDocument();
-    // No form at all: a stray submit cannot save anything.
+    // No task form at all: a stray submit cannot save anything. The notes
+    // composer is a textbox too, but notes are handled outside the form.
     expect(dialog.querySelector("form")).toBeNull();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Title/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: SAVE_BUTTON_LABEL }),
     ).not.toBeInTheDocument();
@@ -824,7 +840,9 @@ describe("EditTaskDialog", () => {
       screen.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      within(screen.getByRole("tabpanel")).getByText(NOTES_EMPTY_MESSAGE),
+      await within(screen.getByRole("tabpanel")).findByText(
+        NOTES_EMPTY_MESSAGE,
+      ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }));
     expect(

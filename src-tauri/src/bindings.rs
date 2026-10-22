@@ -24,6 +24,7 @@ pub fn typescript() -> String {
         specta::ts::export::<TaskStatus>(&conf).expect("export TaskStatus"),
         specta::ts::export::<CarryOverRule>(&conf).expect("export CarryOverRule"),
         specta::ts::export::<TaskPlacement>(&conf).expect("export TaskPlacement"),
+        specta::ts::export::<crate::notes::Note>(&conf).expect("export Note"),
         specta::ts::export::<ApiError>(&conf).expect("export ApiError"),
         specta::ts::export::<ErrorCode>(&conf).expect("export ErrorCode"),
         specta::ts::export::<ErrorKind>(&conf).expect("export ErrorKind"),

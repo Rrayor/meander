@@ -1,11 +1,30 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { listSeriesNotes, listTaskNotes } from "@/api/notes";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import {
   NOTES_EMPTY_MESSAGE,
   NOTES_TAB_INSTANCE_LABEL,
   NOTES_TAB_SERIES_LABEL,
 } from "@/lib/labels";
+import { testQueryClient } from "@/test/queryClient";
+
+vi.mock("@/api/notes");
+
+const TASK_ID = 7;
+const SERIES_ID = 3;
+const renderTabs = () =>
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <NotesTabs taskId={TASK_ID} seriesId={SERIES_ID} />
+    </QueryClientProvider>,
+  );
+
+beforeEach(() => {
+  vi.mocked(listTaskNotes).mockReset().mockResolvedValue([]);
+  vi.mocked(listSeriesNotes).mockReset().mockResolvedValue([]);
+});
 
 const instanceTab = () =>
   screen.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL });
@@ -21,17 +40,19 @@ const seriesPanel = () =>
   ) as HTMLElement;
 
 describe("NotesTabs", () => {
-  it("starts on the instance tab with both panels rendered", () => {
-    render(<NotesTabs />);
+  it("starts on the instance tab with both panels rendered", async () => {
+    renderTabs();
     expect(instanceTab()).toHaveAttribute("aria-selected", "true");
     expect(seriesTab()).toHaveAttribute("aria-selected", "false");
     expect(instancePanel()).not.toHaveAttribute("hidden");
     expect(seriesPanel()).toHaveAttribute("hidden");
-    expect(screen.getAllByText(NOTES_EMPTY_MESSAGE)).toHaveLength(2);
+    await waitFor(() =>
+      expect(screen.getAllByText(NOTES_EMPTY_MESSAGE)).toHaveLength(2),
+    );
   });
 
   it("switches panels on click", () => {
-    render(<NotesTabs />);
+    renderTabs();
     fireEvent.click(seriesTab());
     expect(seriesTab()).toHaveAttribute("aria-selected", "true");
     expect(instancePanel()).toHaveAttribute("hidden");
@@ -39,7 +60,7 @@ describe("NotesTabs", () => {
   });
 
   it("gives only the active tab a tab stop (roving tabindex)", () => {
-    render(<NotesTabs />);
+    renderTabs();
     expect(instanceTab()).toHaveAttribute("tabindex", "0");
     expect(seriesTab()).toHaveAttribute("tabindex", "-1");
     fireEvent.click(seriesTab());
@@ -48,7 +69,7 @@ describe("NotesTabs", () => {
   });
 
   it("arrow keys move focus and activate the adjacent tab", () => {
-    render(<NotesTabs />);
+    renderTabs();
     instanceTab().focus();
     fireEvent.keyDown(instanceTab(), { key: "ArrowRight" });
     expect(seriesTab()).toHaveFocus();
@@ -59,7 +80,7 @@ describe("NotesTabs", () => {
   });
 
   it("arrow keys wrap around the ends of the tab list", () => {
-    render(<NotesTabs />);
+    renderTabs();
     fireEvent.keyDown(instanceTab(), { key: "ArrowLeft" });
     expect(seriesTab()).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(seriesTab(), { key: "ArrowRight" });
@@ -67,7 +88,7 @@ describe("NotesTabs", () => {
   });
 
   it("ignores keys that are not arrow keys", () => {
-    render(<NotesTabs />);
+    renderTabs();
     fireEvent.keyDown(instanceTab(), { key: "Enter" });
     fireEvent.keyDown(instanceTab(), { key: "ArrowDown" });
     expect(instanceTab()).toHaveAttribute("aria-selected", "true");

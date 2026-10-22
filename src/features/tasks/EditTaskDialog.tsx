@@ -31,6 +31,7 @@ import {
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
+import { NoteList } from "@/features/tasks/NoteList";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import type { NewSeries, TaskSeries, UpdateSeries } from "@/api/bindings";
@@ -51,6 +52,7 @@ import {
   updateTaskSeries,
 } from "@/api/series";
 import {
+  NOTES_SECTION_LABEL,
   CANCEL_BUTTON_LABEL,
   DELETE_BUTTON_LABEL,
   DELETE_KEEP_LABEL,
@@ -297,7 +299,17 @@ function TaskDetailsView({
           onPick={onPick}
         />
       )}
-      {viewed.series_id !== null && <NotesTabs />}
+      {pendingIso === null &&
+        (viewed.series_id !== null && seriesRow ? (
+          <NotesTabs taskId={viewed.id} seriesId={seriesRow.id} />
+        ) : viewed.series_id === null ? (
+          <section aria-label={NOTES_SECTION_LABEL}>
+            <h3 className="mb-2 text-sm font-medium text-text">
+              {NOTES_SECTION_LABEL}
+            </h3>
+            <NoteList target={{ taskId: viewed.id }} />
+          </section>
+        ) : null)}
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
