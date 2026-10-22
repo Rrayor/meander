@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
+import type { UseFormReset } from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -320,6 +321,101 @@ interface EditTaskDialogProps {
   onClose: () => void;
 }
 
+type SaveScope = "instance" | "series";
+
+// Entering series scope reseeds the shared fields from the series — the
+// form defaults hold the opened instance's values, which may be custom
+// edits (spec §146: series scope edits the shared fields, not one
+// instance's overrides). Leaving restores the instance's own values so a
+// scope round-trip can't overwrite them. The ref guards against reseeding
+// on a later refetch, which would clobber typed edits — and the shared
+// controls stay disabled until the row arrives (seriesFieldsPending in
+// the component) so nothing is typed before the seed lands.
+function useSeriesScopeSeed({
+  saveScope,
+  seriesRow,
+  reset,
+  instanceDefaults,
+}: {
+  saveScope: SaveScope;
+  seriesRow: TaskSeries | undefined;
+  reset: UseFormReset<FormValues>;
+  instanceDefaults: FormValues;
+}) {
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (saveScope !== "series") {
+      if (!seeded.current) return;
+      seeded.current = false;
+      reset(instanceDefaults);
+      return;
+    }
+    if (seeded.current || seriesRow === undefined) return;
+    seeded.current = true;
+    const seriesEstimate = minutesToParts(seriesRow.estimated_minutes);
+    reset({
+      ...instanceDefaults,
+      title: seriesRow.title,
+      description: seriesRow.description ?? "",
+      estHours: seriesEstimate.hours,
+      estMinutes: seriesEstimate.minutes,
+      carryOver: seriesRow.carry_over_rule,
+    });
+  }, [saveScope, seriesRow, reset, instanceDefaults]);
+}
+
+// The selection is derived state: stored associations minus the chips the
+// user removed plus the ones they added. Deriving it (rather than seeding
+// state once) keeps picks intact when the query resolves late *and* lets
+// a refetch update what chips show — e.g. after a category is recolored.
+// Local category overrides belong to the viewed scope — keying the draft
+// by scope+id means switching instances or scopes never carries a
+// previous selection across.
+function useScopedCategories({
+  saveScope,
+  seriesId,
+  viewedId,
+  seriesCats,
+  initialCategories,
+}: {
+  saveScope: SaveScope;
+  seriesId: number | null;
+  viewedId: number;
+  seriesCats: Category[] | undefined;
+  initialCategories: Category[] | undefined;
+}) {
+  const categoryKey =
+    saveScope === "series" ? `series-${seriesId}` : `task-${viewedId}`;
+  const [categoryDraft, setCategoryDraft] = useState<{
+    key: string;
+    removedIds: ReadonlySet<number>;
+    picked: Category[];
+  }>({ key: categoryKey, removedIds: new Set(), picked: [] });
+  const removedIds =
+    categoryDraft.key === categoryKey
+      ? categoryDraft.removedIds
+      : new Set<number>();
+  const picked = categoryDraft.key === categoryKey ? categoryDraft.picked : [];
+  const stored =
+    saveScope === "series" ? (seriesCats ?? []) : (initialCategories ?? []);
+  const storedIds = new Set(stored.map((c) => c.id));
+  const categories = [
+    ...stored.filter((c) => !removedIds.has(c.id)),
+    ...picked.filter((c) => !storedIds.has(c.id)),
+  ];
+  const onCategoriesChange = (next: Category[]) => {
+    const nextIds = new Set(next.map((c) => c.id));
+    setCategoryDraft({
+      key: categoryKey,
+      removedIds: new Set(
+        stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id),
+      ),
+      picked: next.filter((c) => !storedIds.has(c.id)),
+    });
+  };
+  return { categories, stored, onCategoriesChange };
+}
+
 export function EditTaskDialog({
   task,
   onClose,
@@ -408,76 +504,20 @@ export function EditTaskDialog({
   const [seriesDraft, setSeriesDraft] = useState<NewSeries | null>(null);
   const [seriesCleared, setSeriesCleared] = useState(false);
   const [seriesDraftError, setSeriesDraftError] = useState<string | null>(null);
-  // Entering series scope reseeds the shared fields from the series — the
-  // form defaults hold the opened instance's values, which may be custom
-  // edits (spec §146: series scope edits the shared fields, not one
-  // instance's overrides). Leaving restores the instance's own values so a
-  // scope round-trip can't overwrite them. The ref guards against
-  // reseeding on a later refetch, which would clobber typed edits — and
-  // the shared controls stay disabled until the row arrives (see
-  // seriesFieldsPending) so nothing is typed before the seed lands.
-  const seriesScopeSeeded = useRef(false);
-  useEffect(() => {
-    if (saveScope !== "series") {
-      if (!seriesScopeSeeded.current) return;
-      seriesScopeSeeded.current = false;
-      reset(instanceDefaults);
-      return;
-    }
-    if (seriesScopeSeeded.current || seriesRow === undefined) return;
-    seriesScopeSeeded.current = true;
-    const seriesEstimate = minutesToParts(seriesRow.estimated_minutes);
-    reset({
-      ...instanceDefaults,
-      title: seriesRow.title,
-      description: seriesRow.description ?? "",
-      estHours: seriesEstimate.hours,
-      estMinutes: seriesEstimate.minutes,
-      carryOver: seriesRow.carry_over_rule,
-    });
-  }, [saveScope, seriesRow, reset, instanceDefaults]);
+  useSeriesScopeSeed({ saveScope, seriesRow, reset, instanceDefaults });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteScope, setDeleteScope] = useState<
     "instance" | "series" | "future"
   >("instance");
-  // The selection is derived state: stored associations minus the chips the
-  // user removed plus the ones they added. Deriving it (rather than seeding
-  // state once) keeps picks intact when the query resolves late *and* lets
-  // a refetch update what chips show — e.g. after a category is recolored.
-  // Local category overrides belong to the viewed scope — keying the draft
-  // by scope+id means switching instances or scopes never carries a
-  // previous selection across.
-  const categoryKey =
-    saveScope === "series" ? `series-${task.series_id}` : `task-${viewed.id}`;
-  const [categoryDraft, setCategoryDraft] = useState<{
-    key: string;
-    removedIds: ReadonlySet<number>;
-    picked: Category[];
-  }>({ key: categoryKey, removedIds: new Set(), picked: [] });
-  const removedIds =
-    categoryDraft.key === categoryKey
-      ? categoryDraft.removedIds
-      : new Set<number>();
-  const picked = categoryDraft.key === categoryKey ? categoryDraft.picked : [];
   const [series, setSeries] = useState<NewSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
-  const stored =
-    saveScope === "series" ? (seriesCats ?? []) : (initialCategories ?? []);
-  const storedIds = new Set(stored.map((c) => c.id));
-  const categories = [
-    ...stored.filter((c) => !removedIds.has(c.id)),
-    ...picked.filter((c) => !storedIds.has(c.id)),
-  ];
-  const onCategoriesChange = (next: Category[]) => {
-    const nextIds = new Set(next.map((c) => c.id));
-    setCategoryDraft({
-      key: categoryKey,
-      removedIds: new Set(
-        stored.filter((c) => !nextIds.has(c.id)).map((c) => c.id),
-      ),
-      picked: next.filter((c) => !storedIds.has(c.id)),
-    });
-  };
+  const { categories, stored, onCategoriesChange } = useScopedCategories({
+    saveScope,
+    seriesId: task.series_id,
+    viewedId: viewed.id,
+    seriesCats,
+    initialCategories,
+  });
 
   const update = useMutation({
     mutationFn: async (input: Parameters<typeof updateTask>[1]) => {
