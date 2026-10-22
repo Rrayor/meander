@@ -8,7 +8,9 @@ CREATE TABLE task_notes (
     series_id INTEGER REFERENCES task_series (id) ON DELETE CASCADE,
     body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 10000),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+-- updated_at stays NULL until the first edit, so the audit label
+    -- distinguishes "created" from "edited" even within the same second.
+    updated_at TEXT,
     CHECK ((task_id IS NULL) <> (series_id IS NULL))
 );
 CREATE INDEX idx_task_notes_task ON task_notes (task_id);

@@ -70,7 +70,11 @@ export function NotesTabs({
           hidden={active !== tab.id}
           className="py-3"
         >
+          // Keyed by the target id: switching to another instance remounts //
+          the list, so a draft or inline edit can never be saved against // the
+          newly selected instance.
           <NoteList
+            key={tab.id === NotesTab.Instance ? taskId : seriesId}
             target={tab.id === NotesTab.Instance ? { taskId } : { seriesId }}
           />
         </div>

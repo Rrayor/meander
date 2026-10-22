@@ -219,7 +219,10 @@ export const NOTE_EDITED_PREFIX = "edited";
 // Icon-button affordances identify the note by its opening words.
 export const noteEditLabel = (opening: string) => `Edit note “${opening}”`;
 export const noteDeleteLabel = (opening: string) => `Delete note “${opening}”`;
+export const noteConfirmDeleteLabel = (opening: string) =>
+  `Confirm deleting note “${opening}”`;
 export const NOTE_SAVE_LABEL = "Save note";
+export const NOTE_DELETE_CONFIRM_MESSAGE = "Delete this note?";
 export const NOTE_EDIT_LABEL = "Edit";
 export const NOTE_DELETE_LABEL = "Delete";
 export const SCHEDULED_INSTANCE_PENDING_MESSAGE =

@@ -1,9 +1,16 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { listSeriesNotes, listTaskNotes } from "@/api/notes";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import {
+  NOTE_COMPOSER_PLACEHOLDER,
   NOTES_EMPTY_MESSAGE,
   NOTES_TAB_INSTANCE_LABEL,
   NOTES_TAB_SERIES_LABEL,
@@ -14,10 +21,14 @@ vi.mock("@/api/notes");
 
 const TASK_ID = 7;
 const SERIES_ID = 3;
-const renderTabs = () =>
+const renderTabs = (
+  taskId = TASK_ID,
+  seriesId = SERIES_ID,
+  client = testQueryClient(),
+) =>
   render(
-    <QueryClientProvider client={testQueryClient()}>
-      <NotesTabs taskId={TASK_ID} seriesId={SERIES_ID} />
+    <QueryClientProvider client={client}>
+      <NotesTabs taskId={taskId} seriesId={seriesId} />
     </QueryClientProvider>,
   );
 
@@ -85,6 +96,44 @@ describe("NotesTabs", () => {
     expect(seriesTab()).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(seriesTab(), { key: "ArrowRight" });
     expect(instanceTab()).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("drops an instance draft when the viewed instance changes", async () => {
+    const client = testQueryClient();
+    const { rerender } = renderTabs(TASK_ID, SERIES_ID, client);
+    const composer = await within(instancePanel()).findByLabelText(
+      NOTE_COMPOSER_PLACEHOLDER,
+    );
+    fireEvent.change(composer, { target: { value: "draft for monday" } });
+    expect(composer).toHaveValue("draft for monday");
+    // Picking another instance in the calendar rerenders NotesTabs with a
+    // new taskId — the keyed NoteList remounts and the draft is gone.
+    rerender(
+      <QueryClientProvider client={client}>
+        <NotesTabs taskId={TASK_ID + 1} seriesId={SERIES_ID} />
+      </QueryClientProvider>,
+    );
+    expect(
+      await within(instancePanel()).findByLabelText(NOTE_COMPOSER_PLACEHOLDER),
+    ).toHaveValue("");
+  });
+
+  it("keeps a series draft when the viewed instance changes", async () => {
+    const client = testQueryClient();
+    const { rerender } = renderTabs(TASK_ID, SERIES_ID, client);
+    fireEvent.click(seriesTab());
+    const composer = await within(seriesPanel()).findByLabelText(
+      NOTE_COMPOSER_PLACEHOLDER,
+    );
+    fireEvent.change(composer, { target: { value: "series-wide note" } });
+    rerender(
+      <QueryClientProvider client={client}>
+        <NotesTabs taskId={TASK_ID + 1} seriesId={SERIES_ID} />
+      </QueryClientProvider>,
+    );
+    expect(
+      await within(seriesPanel()).findByLabelText(NOTE_COMPOSER_PLACEHOLDER),
+    ).toHaveValue("series-wide note");
   });
 
   it("ignores keys that are not arrow keys", () => {

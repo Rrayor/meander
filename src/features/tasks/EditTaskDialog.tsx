@@ -307,7 +307,7 @@ function TaskDetailsView({
             <h3 className="mb-2 text-sm font-medium text-text">
               {NOTES_SECTION_LABEL}
             </h3>
-            <NoteList target={{ taskId: viewed.id }} />
+            <NoteList key={viewed.id} target={{ taskId: viewed.id }} />
           </section>
         ) : null)}
       <div className="flex items-center justify-between gap-2">

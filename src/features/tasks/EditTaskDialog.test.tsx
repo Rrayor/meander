@@ -461,9 +461,14 @@ describe("EditTaskDialog", () => {
     expect(
       screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
     ).toBeInTheDocument();
-    // No task form at all: a stray submit cannot save anything. The notes
-    // composer is a textbox too, but notes are handled outside the form.
-    expect(dialog.querySelector("form")).toBeNull();
+    // No task form at all: a stray submit cannot save anything. The only
+    // forms allowed in the view are the notes composer/editor — notes are
+    // handled outside the task form per spec.
+    for (const form of Array.from(dialog.querySelectorAll("form"))) {
+      expect(
+        form.querySelector("textarea")?.getAttribute("aria-label"),
+      ).toMatch(/note/i);
+    }
     expect(screen.queryByLabelText(/Title/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: SAVE_BUTTON_LABEL }),

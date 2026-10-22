@@ -24,6 +24,7 @@ import {
   NOTE_COMPOSER_PLACEHOLDER,
   NOTE_SAVE_LABEL,
   NOTES_EMPTY_MESSAGE,
+  noteConfirmDeleteLabel,
   noteDeleteLabel,
   noteEditLabel,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
@@ -50,6 +51,7 @@ import {
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
+import { NOTE_BODY_TOO_LONG_MESSAGE } from "@/lib/errors";
 import { ROUTES } from "@/lib/routes";
 
 import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
@@ -1002,7 +1004,7 @@ const noteFixture = {
   series_id: null,
   body: NOTE_BODY,
   created_at: "2026-10-11 10:00:00",
-  updated_at: "2026-10-11 10:00:00",
+  updated_at: null,
 };
 
 test("adding a note to a task sends it on the wire and lists it", async ({
@@ -1079,6 +1081,15 @@ test("editing and deleting a note goes through update_note and delete_note", asy
   await dialog
     .getByRole("button", { name: noteDeleteLabel(NOTE_BODY_EDITED) })
     .click();
+  // Deletion asks before it acts.
+  expect(
+    (await getInvocations(page)).some((c) => c.cmd === COMMANDS.deleteNote),
+  ).toBe(false);
+  await dialog
+    .getByRole("button", {
+      name: noteConfirmDeleteLabel(NOTE_BODY_EDITED),
+    })
+    .click();
   const del = (await getInvocations<{ noteId: number }>(page)).find(
     (c) => c.cmd === COMMANDS.deleteNote,
   );
@@ -1133,7 +1144,6 @@ test("the series tab writes series notes, not instance notes", async ({
 });
 
 test("a rejected note surfaces the typed error", async ({ page }) => {
-  const NOTE_REJECT_MESSAGE = "note body must be 10000 characters or fewer";
   await stubTauriCommands(page, {
     [COMMANDS.listTaskNotes]: [],
     [COMMANDS.listSeriesNotes]: [],
@@ -1143,7 +1153,7 @@ test("a rejected note surfaces the typed error", async ({ page }) => {
     [COMMANDS.createTaskNote]: stubApiError(
       "note_body_too_long",
       "validation",
-      NOTE_REJECT_MESSAGE,
+      "backend message differing from the mapped ui copy",
     ),
   });
   await page.goto(`/#${backlogPath}`);
@@ -1154,5 +1164,7 @@ test("a rejected note surfaces the typed error", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(NOTE_COMPOSER_PLACEHOLDER).fill(NOTE_BODY);
   await dialog.getByRole("button", { name: NOTE_ADD_LABEL }).click();
-  await expect(dialog.getByRole("alert")).toHaveText(NOTE_REJECT_MESSAGE);
+  await expect(dialog.getByRole("alert")).toHaveText(
+    NOTE_BODY_TOO_LONG_MESSAGE,
+  );
 });

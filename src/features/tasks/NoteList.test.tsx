@@ -8,23 +8,38 @@ import {
   listSeriesNotes,
   listTaskNotes,
   updateNote,
+  NOTE_BODY_MAX_LEN,
   type Note,
 } from "@/api/notes";
 import { NoteList } from "@/features/tasks/NoteList";
 import {
+  NOTE_BODY_REQUIRED_MESSAGE,
+  NOTE_BODY_TOO_LONG_MESSAGE,
+} from "@/lib/errors";
+import {
   CANCEL_BUTTON_LABEL,
   NOTE_ADD_LABEL,
   NOTE_COMPOSER_PLACEHOLDER,
+  NOTE_DELETE_CONFIRM_MESSAGE,
   NOTE_EDITED_PREFIX,
   NOTE_SAVE_LABEL,
   NOTES_EMPTY_MESSAGE,
+  noteConfirmDeleteLabel,
   noteDeleteLabel,
   noteEditLabel,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { testQueryClient } from "@/test/queryClient";
 
-vi.mock("@/api/notes");
+vi.mock("@/api/notes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/notes")>()),
+  createSeriesNote: vi.fn(),
+  createTaskNote: vi.fn(),
+  deleteNote: vi.fn(),
+  listSeriesNotes: vi.fn(),
+  listTaskNotes: vi.fn(),
+  updateNote: vi.fn(),
+}));
 
 const TASK_ID = 7;
 const SERIES_ID = 3;
@@ -32,7 +47,7 @@ const NOTE_CREATED = "2026-10-21 09:30:00";
 const NOTE_BODY = "call the venue";
 const NOTE_BODY_EDITED = "call the venue and confirm chairs";
 const LOAD_ERROR = "could not load notes";
-const SAVE_ERROR = "could not save the note";
+const SAVE_ERROR = "backend fallback message differing from ui copy";
 
 const note: Note = {
   id: 5,
@@ -40,7 +55,7 @@ const note: Note = {
   series_id: null,
   body: NOTE_BODY,
   created_at: NOTE_CREATED,
-  updated_at: NOTE_CREATED,
+  updated_at: null,
 };
 
 const renderList = (target: { taskId: number } | { seriesId: number }) =>
@@ -100,15 +115,32 @@ describe("NoteList", () => {
     await waitFor(() => expect(listTaskNotes).toHaveBeenCalledTimes(2));
   });
 
-  it("keeps the add button disabled on a blank draft", async () => {
+  it("rejects a blank draft inline without calling the backend", async () => {
     vi.mocked(listTaskNotes).mockResolvedValue([]);
     renderList({ taskId: TASK_ID });
-    const add = screen.getByRole("button", { name: NOTE_ADD_LABEL });
-    expect(add).toBeDisabled();
     fireEvent.change(await screen.findByLabelText(NOTE_COMPOSER_PLACEHOLDER), {
       target: { value: "   " },
     });
-    expect(add).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: NOTE_ADD_LABEL }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      NOTE_BODY_REQUIRED_MESSAGE,
+    );
+    expect(createTaskNote).not.toHaveBeenCalled();
+  });
+
+  it("rejects an over-long draft inline by code points, not UTF-16 units", async () => {
+    vi.mocked(listTaskNotes).mockResolvedValue([]);
+    renderList({ taskId: TASK_ID });
+    // Over the 10k bound in code points — multi-unit emoji must not let
+    // an early maxLength cut hide the real limit.
+    const longBody = "🎉".repeat(NOTE_BODY_MAX_LEN + 1);
+    fireEvent.change(await screen.findByLabelText(NOTE_COMPOSER_PLACEHOLDER), {
+      target: { value: longBody },
+    });
+    fireEvent.click(screen.getByRole("button", { name: NOTE_ADD_LABEL }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      NOTE_BODY_TOO_LONG_MESSAGE,
+    );
     expect(createTaskNote).not.toHaveBeenCalled();
   });
 
@@ -141,15 +173,37 @@ describe("NoteList", () => {
     expect(updateNote).not.toHaveBeenCalled();
   });
 
-  it("deletes a note", async () => {
+  it("asks before deleting a note, then deletes on confirm", async () => {
     renderList({ taskId: TASK_ID });
     fireEvent.click(
       await screen.findByRole("button", {
         name: noteDeleteLabel(NOTE_BODY),
       }),
     );
+    expect(screen.getByText(NOTE_DELETE_CONFIRM_MESSAGE)).toBeInTheDocument();
+    expect(deleteNote).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: noteConfirmDeleteLabel(NOTE_BODY),
+      }),
+    );
     await waitFor(() => expect(deleteNote).toHaveBeenCalledWith(note.id));
     await waitFor(() => expect(listTaskNotes).toHaveBeenCalledTimes(2));
+  });
+
+  it("cancelling the delete confirmation keeps the note", async () => {
+    renderList({ taskId: TASK_ID });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: noteDeleteLabel(NOTE_BODY),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: CANCEL_BUTTON_LABEL }));
+    expect(
+      screen.queryByText(NOTE_DELETE_CONFIRM_MESSAGE),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(NOTE_BODY)).toBeInTheDocument();
+    expect(deleteNote).not.toHaveBeenCalled();
   });
 
   it("surfaces a failed load", async () => {
@@ -168,6 +222,10 @@ describe("NoteList", () => {
       target: { value: NOTE_BODY },
     });
     fireEvent.click(screen.getByRole("button", { name: NOTE_ADD_LABEL }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(SAVE_ERROR);
+    void SAVE_ERROR;
+    // The typed code maps to shared UI copy, not the backend's message.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      NOTE_BODY_TOO_LONG_MESSAGE,
+    );
   });
 });

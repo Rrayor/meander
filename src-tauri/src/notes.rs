@@ -42,7 +42,9 @@ pub struct Note {
     pub series_id: Option<i64>,
     pub body: String,
     pub created_at: String,
-    pub updated_at: String,
+    /// NULL until the first edit — set on update, never on create, so a
+    /// same-second edit is still distinguishable from an untouched note.
+    pub updated_at: Option<String>,
 }
 
 fn not_found() -> DbError {
@@ -333,7 +335,23 @@ mod tests {
             .await
             .expect("update failed");
         assert_eq!(updated.body, "v2");
-        assert!(updated.updated_at >= note.updated_at);
+        assert_eq!(note.updated_at, None, "created note is not marked edited");
+        assert!(updated.updated_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_same_second_edit_is_still_marked_edited() {
+        let (pool, profile) = fixture().await;
+        let task = task_on(&pool, profile).await;
+        let note = create_for_task(&pool, profile, task.id, "typo")
+            .await
+            .expect("create failed");
+        // Editing immediately — well inside one stored second — must still
+        // flip the audit marker to "edited".
+        let updated = update(&pool, profile, note.id, "fixed")
+            .await
+            .expect("update failed");
+        assert!(updated.updated_at.is_some());
     }
 
     #[tokio::test]
