@@ -824,6 +824,38 @@ test("a series-scope save sends update_task_series with the schedule", async ({
   ).toBe(false);
 });
 
+test("a rejected series-scope save surfaces the typed error", async ({
+  page,
+}) => {
+  const SERIES_REJECT_MESSAGE = "the schedule is not a known rule";
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.updateTaskSeries]: stubApiError(
+      "recurrence_invalid",
+      "validation",
+      SERIES_REJECT_MESSAGE,
+    ),
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  // The typed rejection reaches the dialog and keeps it open.
+  await expect(dialog.getByRole("alert")).toHaveText(SERIES_REJECT_MESSAGE);
+  await expect(dialog).toBeVisible();
+});
+
 test("the details view deletes the whole series after scope confirmation", async ({
   page,
 }) => {

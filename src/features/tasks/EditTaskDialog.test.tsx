@@ -1060,6 +1060,97 @@ describe("EditTaskDialog", () => {
     );
   });
 
+  it("blocks the series save while the edited schedule is invalid", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    const ends = await screen.findByLabelText(REPEAT_ENDS_LABEL);
+    fireEvent.change(ends, { target: { value: "2020-01-01" } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      REPEAT_ENDS_BEFORE_START_MESSAGE,
+    );
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+    expect(mockedUpdateSeries).not.toHaveBeenCalled();
+  });
+
+  it("blocks the series save when the repeat section is collapsed", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+    // Collapsing the section clears the schedule draft — a series without a
+    // schedule cannot be saved.
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
+    );
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+    expect(mockedUpdateSeries).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed series save", async () => {
+    const { ApiError } = await import("@/api/transport");
+    const SERIES_ERROR_MESSAGE = "the series is gone";
+    mockedUpdateSeries.mockRejectedValue(
+      new ApiError("series_not_found", "validation", SERIES_ERROR_MESSAGE),
+    );
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      SERIES_ERROR_MESSAGE,
+    );
+  });
+
+  it("ends the series at a scheduled-but-unpersisted date", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    // Pick the scheduled-but-unpersisted Monday; its delete prompt can only
+    // truncate — there is no instance to delete.
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: DELETE_BUTTON_LABEL }));
+    expect(
+      screen.queryByRole("radio", { name: TASK_SCOPE_INSTANCE_LABEL }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("radio", { name: DELETE_SCOPE_FUTURE_LABEL }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getAllByRole("button", {
+        name: DELETE_BUTTON_LABEL,
+      })[1],
+    );
+    await waitFor(() =>
+      expect(mockedTruncateSeries).toHaveBeenCalledWith(
+        baseSeries.id,
+        OTHER_INSTANCE_DATE,
+      ),
+    );
+  });
+
   const SERIES_DESCRIPTION = "the shared series description";
 
   it("reseeds the shared fields from the series when series scope is picked", async () => {

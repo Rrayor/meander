@@ -1501,7 +1501,7 @@ fn weekly_monday() -> meander_lib::series::NewSeries {
             weekdays: vec![meander_lib::series::Weekday::Monday],
         })
         .unwrap(),
-        start_date: "2026-10-19".to_string(),
+        start_date: FIRST_INSTANCE_DATE.to_string(),
         end_date: None,
     }
 }
@@ -1734,6 +1734,7 @@ fn no_repeating_tasks(world: &mut MeanderWorld) {
     assert!(series.is_empty());
 }
 
+const FIRST_INSTANCE_DATE: &str = "2026-10-19";
 const LATER_INSTANCE_DATE: &str = "2026-10-26";
 
 /// A second persisted instance of `title`'s series on the Monday after the
@@ -1871,7 +1872,7 @@ fn earlier_instance_remains(world: &mut MeanderWorld, title: String) {
             .await
         })
         .expect("instance dates query failed");
-    assert_eq!(dates, vec!["2026-10-19".to_string()]);
+    assert_eq!(dates, vec![FIRST_INSTANCE_DATE.to_string()]);
 }
 
 #[then(expr = "no instance of {word} remains on or after the later instance")]
@@ -1895,4 +1896,306 @@ fn no_later_instances(world: &mut MeanderWorld, title: String) {
     // The series itself is ended before the later instance's date.
     let series = series_of(world, &title);
     assert_eq!(series.end_date.as_deref(), Some("2026-10-25"));
+}
+
+/// Rewrites `title`'s series under `title` unchanged except the recurrence —
+/// stands in for picking a different schedule at series scope.
+fn update_series_recurrence(
+    world: &mut MeanderWorld,
+    title: &str,
+    recurrence: meander_lib::series::Recurrence,
+) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::update(
+        &pool,
+        active,
+        series.id,
+        &meander_lib::series::UpdateSeries {
+            title: series.title.clone(),
+            description: series.description.clone(),
+            carry_over_rule: Some(series.carry_over_rule),
+            estimated_minutes: series.estimated_minutes,
+            recurrence: serde_json::to_value(&recurrence).unwrap(),
+            start_date: series.start_date.clone(),
+            end_date: series.end_date.clone(),
+            category_ids: vec![],
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I change {word}'s repeat to daily")]
+fn change_repeat_to_daily(world: &mut MeanderWorld, title: String) {
+    update_series_recurrence(
+        world,
+        &title,
+        meander_lib::series::Recurrence::Daily { interval_days: 1 },
+    );
+}
+
+#[then(expr = "{word} repeats daily")]
+fn task_repeats_daily(world: &mut MeanderWorld, title: String) {
+    let series = series_of(world, &title);
+    assert_eq!(
+        series.recurrence,
+        meander_lib::series::Recurrence::Daily { interval_days: 1 }
+    );
+}
+
+fn series_instance_dates(world: &mut MeanderWorld, series_id: i64) -> Vec<String> {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar(
+                "SELECT scheduled_date FROM tasks WHERE series_id = ? ORDER BY scheduled_date",
+            )
+            .bind(series_id)
+            .fetch_all(&pool)
+            .await
+        })
+        .expect("instance dates query failed")
+}
+
+#[then(expr = "both instances of {word}'s repeat remain")]
+fn both_instances_remain(world: &mut MeanderWorld, title: String) {
+    let series = series_of(world, &title);
+    assert_eq!(
+        series_instance_dates(world, series.id),
+        vec![
+            FIRST_INSTANCE_DATE.to_string(),
+            LATER_INSTANCE_DATE.to_string()
+        ]
+    );
+}
+
+#[when(expr = "I end {word}'s repeat at its first instance")]
+fn end_repeat_at_start(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::truncate(
+        &pool,
+        active,
+        series.id,
+        FIRST_INSTANCE_DATE,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "a later instance of {word} is marked done")]
+fn later_instance_done(world: &mut MeanderWorld, title: String) {
+    let instance_title = format!("{title} again");
+    add_later_instance(world, &title, &instance_title);
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let series = series_of(world, &title);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET status = 'done' WHERE series_id = ? AND scheduled_date = ?",
+            )
+            .bind(series.id)
+            .bind(LATER_INSTANCE_DATE)
+            .execute(&pool)
+            .await
+        })
+        .expect("marking the later instance done failed");
+}
+
+#[then(expr = "the later instance of {word} is still done")]
+fn later_instance_still_done(world: &mut MeanderWorld, title: String) {
+    // `title` is the pre-update title; the series row is the only one here.
+    let _ = title;
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, active))
+        .expect("series list failed")
+        .into_iter()
+        .next()
+        .expect("series missing");
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let status: String = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar(
+                "SELECT status FROM tasks WHERE series_id = ? AND scheduled_date = ?",
+            )
+            .bind(series.id)
+            .bind(LATER_INSTANCE_DATE)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("instance status query failed");
+    assert_eq!(status, "done");
+}
+
+#[when(expr = "I add the category {word} to {word}'s series")]
+fn categorize_series(world: &mut MeanderWorld, category: String, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let category_id = world
+        .rt()
+        .block_on(meander_lib::categories::list(&pool, active))
+        .expect("category list failed")
+        .into_iter()
+        .find(|c| c.title == category)
+        .expect("category missing")
+        .id;
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::update(
+        &pool,
+        active,
+        series.id,
+        &meander_lib::series::UpdateSeries {
+            title: series.title.clone(),
+            description: series.description.clone(),
+            carry_over_rule: Some(series.carry_over_rule),
+            estimated_minutes: series.estimated_minutes,
+            recurrence: serde_json::to_value(&series.recurrence).unwrap(),
+            start_date: series.start_date.clone(),
+            end_date: series.end_date.clone(),
+            category_ids: vec![category_id],
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "every instance of {word}'s repeat is categorized {word}")]
+fn instances_categorized(world: &mut MeanderWorld, title: String, category: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let category_id = world
+        .rt()
+        .block_on(meander_lib::categories::list(&pool, active))
+        .expect("category list failed")
+        .into_iter()
+        .find(|c| c.title == category)
+        .expect("category missing")
+        .id;
+    let series = series_of(world, &title);
+    let instances = world
+        .rt()
+        .block_on(meander_lib::tasks::list_instances(&pool, active, series.id))
+        .expect("instance list failed");
+    assert!(instances.len() >= 2, "expected the added later instance");
+    for instance in &instances {
+        let linked: i64 = world
+            .rt()
+            .block_on(async {
+                sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM task_categories WHERE task_id = ? AND category_id = ?",
+                )
+                .bind(instance.id)
+                .bind(category_id)
+                .fetch_one(&pool)
+                .await
+            })
+            .expect("task_categories query failed");
+        assert_eq!(linked, 1, "instance {} missing the category", instance.id);
+    }
+}
+
+#[given(expr = "a repeating task titled {string} exists on a second profile")]
+fn foreign_repeating_task(world: &mut MeanderWorld, title: String) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let other = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, "Work"))
+        .expect("create profile failed");
+    world.profile_id = Some(other.id);
+    world
+        .rt()
+        .block_on(meander_lib::tasks::create(
+            &pool,
+            other.id,
+            &meander_lib::tasks::NewTask {
+                title,
+                series: Some(weekly_monday()),
+                ..Default::default()
+            },
+        ))
+        .expect("foreign repeating task failed");
+}
+
+#[when(expr = "I try to retitle the foreign series to {string}")]
+fn retitle_foreign_series(world: &mut MeanderWorld, new_title: String) {
+    let foreign = world.profile_id.expect("no second profile");
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, foreign))
+        .expect("foreign series list failed")
+        .into_iter()
+        .next()
+        .expect("foreign series missing");
+    if let Err(e) = world.rt().block_on(meander_lib::series::update(
+        &pool,
+        active,
+        series.id,
+        &meander_lib::series::UpdateSeries {
+            title: new_title,
+            description: series.description.clone(),
+            carry_over_rule: Some(series.carry_over_rule),
+            estimated_minutes: series.estimated_minutes,
+            recurrence: serde_json::to_value(&series.recurrence).unwrap(),
+            start_date: series.start_date.clone(),
+            end_date: series.end_date.clone(),
+            category_ids: vec![],
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the foreign series keeps its title {string}")]
+fn foreign_series_keeps_title(world: &mut MeanderWorld, expected: String) {
+    let foreign = world.profile_id.expect("no second profile");
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, foreign))
+        .expect("foreign series list failed");
+    assert_eq!(series.len(), 1);
+    assert_eq!(series[0].title, expected);
+}
+
+#[when(expr = "I try to change {word}'s repeat to an unreadable schedule")]
+fn reschedule_series_unreadable(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::update(
+        &pool,
+        active,
+        series.id,
+        &meander_lib::series::UpdateSeries {
+            title: series.title.clone(),
+            description: series.description.clone(),
+            carry_over_rule: Some(series.carry_over_rule),
+            estimated_minutes: series.estimated_minutes,
+            recurrence: serde_json::json!({ "kind": "fortnightly" }),
+            start_date: series.start_date.clone(),
+            end_date: series.end_date.clone(),
+            category_ids: vec![],
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
 }
