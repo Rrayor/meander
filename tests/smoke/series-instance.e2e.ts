@@ -5,7 +5,6 @@ import {
   CREATE_TASK_LABEL,
   DELETE_BUTTON_LABEL,
   EDIT_BUTTON_LABEL,
-  REPEAT_SECTION_LABEL,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
   TASK_SCOPE_SERIES_LABEL,
   editTaskLabel,
@@ -27,7 +26,9 @@ describe("Series instance smoke", () => {
     await (await $("#new-task-title-input")).setValue(taskTitle);
     // Expanding the repeat section emits a daily schedule by default, so
     // tomorrow is a scheduled-but-unpersisted occurrence.
-    await (await $(`button*=${REPEAT_SECTION_LABEL}`)).click();
+    await (
+      await $("dialog[open] button[aria-controls$='-repeat-panel']")
+    ).click();
     await (await $(`aria/${CREATE_TASK_LABEL}`)).click();
     await browser.waitUntil(async () =>
       (await $(`aria/${editTaskLabel(taskTitle)}`)).isExisting(),
@@ -54,7 +55,7 @@ describe("Series instance smoke", () => {
     );
     await browser.waitUntil(async () => !(await pendingPanel.isExisting()));
     const dialogEl = await $(dialog);
-    const editButton = await dialogEl.$(`button*=${EDIT_BUTTON_LABEL}`);
+    const editButton = await dialogEl.$(`aria/${EDIT_BUTTON_LABEL}`);
     await expect(editButton).toExist();
     await editButton.click();
     await expect(await dialogEl.$("#edit-task-title-input")).toExist();
@@ -62,12 +63,15 @@ describe("Series instance smoke", () => {
     // Cleanup: delete the whole series through the real backend. The
     // delete affordance lives in the read-only view, so reopen the dialog.
     await browser.keys("Escape");
-    await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
+    // The materialized instance also lists in the backlog with the same
+    // title — either row opens a series-instance dialog for the cleanup.
+    const rows = await $$(`aria/${editTaskLabel(taskTitle)}`);
+    await rows[0].click();
     const reopened = await $(dialog);
-    const deleteButtons = await reopened.$$(`button*=${DELETE_BUTTON_LABEL}`);
+    const deleteButtons = await reopened.$$(`aria/${DELETE_BUTTON_LABEL}`);
     await deleteButtons[0].click();
     await (await $(`aria/${TASK_SCOPE_SERIES_LABEL}`)).click();
-    const confirmButtons = await reopened.$$(`button*=${DELETE_BUTTON_LABEL}`);
+    const confirmButtons = await reopened.$$(`aria/${DELETE_BUTTON_LABEL}`);
     await confirmButtons[confirmButtons.length - 1].click();
     await browser.waitUntil(
       async () => !(await $(`aria/${editTaskLabel(taskTitle)}`).isExisting()),
