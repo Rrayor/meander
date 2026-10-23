@@ -1,6 +1,7 @@
 import {
   ADD_TASK_LABEL,
   CALENDAR_NEXT_LABEL,
+  NAV_LABEL,
   CREATE_TASK_LABEL,
   DELETE_BUTTON_LABEL,
   EDIT_BUTTON_LABEL,
@@ -9,6 +10,7 @@ import {
   TASK_SCOPE_SERIES_LABEL,
   editTaskLabel,
 } from "@/lib/labels";
+import { ROUTES } from "@/lib/routes";
 
 // Real end-to-end path: picking a scheduled-but-unpersisted date goes
 // through get_or_create_instance IPC and SQLite, so the materialized
@@ -16,6 +18,10 @@ import {
 describe("Series instance smoke", () => {
   it("materializes a scheduled-only date into an editable instance", async () => {
     const taskTitle = `Smoke series ${Date.now()}`;
+
+    const nav = await $(`aria/${NAV_LABEL}`);
+    const backlogRoute = ROUTES.find(({ label }) => label === "Backlog")!;
+    await nav.$(`=${backlogRoute.label}`).click();
 
     await (await $(`aria/${ADD_TASK_LABEL}`)).click();
     await (await $("#new-task-title-input")).setValue(taskTitle);
