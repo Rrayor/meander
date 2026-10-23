@@ -49,12 +49,10 @@ describe("Series instance smoke", () => {
 
     // The materialized instance replaces the pending placeholder and is
     // editable because it is a future occurrence.
-    await browser.waitUntil(
-      async () =>
-        !(await $(
-          `${dialog} *=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`,
-        ).isExisting()),
+    const pendingPanel = await $(dialog).$(
+      `*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`,
     );
+    await browser.waitUntil(async () => !(await pendingPanel.isExisting()));
     await expect(await $(`${dialog} button*=${EDIT_BUTTON_LABEL}`)).toExist();
     await (await $(`${dialog} button*=${EDIT_BUTTON_LABEL}`)).click();
     await expect(await $(`${dialog} #edit-task-title-input`)).toExist();
