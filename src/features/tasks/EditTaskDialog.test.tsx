@@ -1204,11 +1204,11 @@ describe("EditTaskDialog", () => {
       screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
     );
 
-    // Same series treatment as the whole-series scope: the stored
-    // schedule seeds the edit and per-instance controls are disabled.
-    expect(await screen.findByLabelText(REPEAT_STARTS_LABEL)).toHaveValue(
-      baseSeries.start_date,
-    );
+    // Same series treatment as the whole-series scope — except Starts,
+    // which is locked to the viewed date the split anchors on.
+    const starts = await screen.findByLabelText(REPEAT_STARTS_LABEL);
+    expect(starts).toHaveValue(FUTURE_INSTANCE_DATE);
+    expect(starts).toBeDisabled();
     expect(
       screen.getByRole("radio", { name: STATUS_LABELS.todo }),
     ).toBeDisabled();
@@ -1230,6 +1230,29 @@ describe("EditTaskDialog", () => {
     );
     expect(mockedUpdateSeries).not.toHaveBeenCalled();
     expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("blocks the future save while a split is in flight", async () => {
+    mockedUpdateSeriesFrom.mockReturnValue(new Promise(() => {}));
+    renderDialog({
+      ...baseTask,
+      series_id: baseSeries.id,
+      scheduled_date: FUTURE_INSTANCE_DATE,
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    await waitFor(() => expect(mockedUpdateSeriesFrom).toHaveBeenCalled());
+    // A retried submit would re-split against the already-moved id —
+    // the pending mutation keeps Save disabled.
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
   });
 
   it("disables the future scope when the viewed instance has no date", async () => {

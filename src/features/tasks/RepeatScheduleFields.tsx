@@ -284,6 +284,10 @@ interface RepeatScheduleFieldsProps {
   // `error` is the first validation message while a schedule is configured;
   // parents disable submission until it clears.
   onChange: (series: NewSeries | null, error: string | null) => void;
+  // Fixes the start at the given date — the field stays visible but
+  // read-only. A "this and future" split anchors on the viewed instance's
+  // date, so the only honest Starts value is that cutoff.
+  lockedStartDate?: string;
 }
 
 // Collapsed ⇔ no schedule: expanding the section emits a default series and
@@ -293,11 +297,16 @@ export function RepeatScheduleFields({
   idPrefix,
   initial,
   onChange,
+  lockedStartDate,
 }: Readonly<RepeatScheduleFieldsProps>) {
   const [expanded, setExpanded] = useState(initial !== undefined);
-  const [draft, setDraft] = useState<RepeatDraft>(() =>
-    initial === undefined ? defaultDraft() : draftFromSeries(initial),
-  );
+  const [draft, setDraft] = useState<RepeatDraft>(() => {
+    const seeded =
+      initial === undefined ? defaultDraft() : draftFromSeries(initial);
+    return lockedStartDate === undefined
+      ? seeded
+      : { ...seeded, startDate: lockedStartDate };
+  });
   // The weekday selection tracks the start date until the user picks days
   // manually — the common case is "repeat on the same weekday it starts".
   // A seeded schedule already carries explicit picks.
@@ -549,6 +558,7 @@ export function RepeatScheduleFields({
                 type="date"
                 required
                 value={draft.startDate}
+                disabled={lockedStartDate !== undefined}
                 onChange={(e) => onStartChange(e.target.value)}
                 aria-invalid={!!errors.startDate}
                 aria-describedby={errorFor("startDate")}

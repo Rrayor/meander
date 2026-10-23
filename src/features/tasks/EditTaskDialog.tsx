@@ -1221,12 +1221,21 @@ export function EditTaskDialog({
               saveScope !== TaskScope.Instance &&
               seriesRow !== undefined && (
                 <RepeatScheduleFields
+                  // Remount per scope and anchor so switching scopes
+                  // reseeds and a different viewed date re-locks the
+                  // start at its cutoff.
+                  key={`${saveScope}-${viewed.scheduled_date}`}
                   idPrefix="edit-series"
                   initial={{
                     recurrence: seriesRow.recurrence,
                     start_date: seriesRow.start_date,
                     end_date: seriesRow.end_date,
                   }}
+                  lockedStartDate={
+                    saveScope === TaskScope.Future
+                      ? (viewed.scheduled_date ?? undefined)
+                      : undefined
+                  }
                   onChange={(next, error) => {
                     setSeriesDraft(next);
                     setSeriesCleared(next === null);
@@ -1259,6 +1268,7 @@ export function EditTaskDialog({
                   disabled={
                     update.isPending ||
                     updateSeries.isPending ||
+                    updateSeriesFrom.isPending ||
                     seriesError !== null ||
                     seriesSaveBlocked
                   }

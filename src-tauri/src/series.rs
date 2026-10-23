@@ -805,8 +805,34 @@ pub async fn update_from(
 ) -> Result<TaskSeries> {
     iso_date(from_date, ErrorCode::InstanceDateInvalid, "from date")?;
     let row = owned_row(pool, profile_id, id).await?;
-    if from_date <= row.start_date.as_str() {
+    let earlier: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date < ?")
+            .bind(id)
+            .bind(from_date)
+            .fetch_one(pool)
+            .await?;
+    // A cutoff at or before the series start only degenerates to a full
+    // update when nothing earlier persisted — a start moved forward can
+    // leave off-schedule rows behind that must not be overwritten.
+    if earlier == 0 && from_date <= row.start_date.as_str() {
         return update(pool, profile_id, id, input).await;
+    }
+    let later: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= ?",
+    )
+    .bind(id)
+    .bind(from_date)
+    .fetch_one(pool)
+    .await?;
+    // A real split always moves at least the anchored instance. Zero rows
+    // means the split already ran (a retried submit against the old id)
+    // or the anchor never belonged to the series — reject rather than
+    // create a duplicate series.
+    if later == 0 {
+        return Err(crate::db::DbError::Validation {
+            code: ErrorCode::InstanceDateNotScheduled,
+            message: "no instance of this series exists on or after that date".into(),
+        });
     }
     let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
     let (y, m, d) = parse_iso(from_date);
@@ -1861,5 +1887,68 @@ mod tests {
                 .unwrap_err(),
             ErrorCode::InstanceDateInvalid,
         );
+    }
+
+    #[tokio::test]
+    async fn update_from_before_the_start_still_splits_when_earlier_rows_exist() {
+        const MOVED_START: &str = "2026-11-02";
+
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        // An off-schedule persisted row before a start the user moved
+        // forward — a full update must not overwrite it.
+        let early = add_instance(&pool, pid, saved.id, START).await;
+        sqlx::query("UPDATE task_series SET start_date = ? WHERE id = ?")
+            .bind(MOVED_START)
+            .bind(saved.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let later = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let new_series = update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+
+        let past = instance(&pool, early).await;
+        assert_eq!(past.series_id, Some(saved.id));
+        assert_eq!(past.title, "custom title");
+        let moved = instance(&pool, later).await;
+        assert_eq!(moved.series_id, Some(new_series.id));
+        assert_eq!(moved.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_a_retried_split_rejects_instead_of_duplicating() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        add_instance(&pool, pid, saved.id, START).await;
+        add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let input = update_input(weekly());
+        update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        // The same call against the old id again — the rows already
+        // moved, so nothing is left to split.
+        assert_code(
+            &update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+                .await
+                .unwrap_err(),
+            ErrorCode::InstanceDateNotScheduled,
+        );
+        // No second series was created.
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 2);
     }
 }

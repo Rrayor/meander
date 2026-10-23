@@ -20,7 +20,8 @@ on a single series row, so the save splits it:
    "this and future" (§236).
 2. A new series is created with the edited fields, recurrence, end date,
    and categories. Its `start_date` is the viewed date (`from_date`) — the
-   input's own start is ignored so every moved instance stays in bounds.
+   editor shows Starts read-only at that cutoff so the displayed value is
+   the persisted one and Ends validates against it.
 3. Persisted instances with `scheduled_date >= from_date` move to the new
    series (`series_id` updated, ids preserved → instance notes stay
    attached) and their shared fields (title, description, carry-over,
@@ -30,8 +31,13 @@ on a single series row, so the save splits it:
 4. Series notes do not carry over to the new series (notes are
    deliberately scoped per §150/§266; instance notes live on rows and are
    unaffected).
-5. `from_date <= start_date` degenerates to a whole-series update —
-   handled by delegating to the existing `update` path.
+5. `from_date <= start_date` degenerates to a whole-series update only
+   when no persisted instance precedes the cutoff — a start moved forward
+   can leave off-schedule rows behind that must be preserved. A split
+   with nothing at or after the cutoff is rejected
+   (`InstanceDateNotScheduled`): a legitimate call always moves at least
+   the anchored instance, so zero rows means a retried submit and the
+   guard prevents duplicate series.
 
 Off-schedule persisted instances follow the same rule as series-scope
 edits: they are kept and viewable even if the new recurrence wouldn't
