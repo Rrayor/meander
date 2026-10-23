@@ -17,10 +17,10 @@ const ARROW_DELTAS: Record<string, number> = {
 export function NotesTabs({
   taskId,
   seriesId,
-}: {
+}: Readonly<{
   taskId: number;
   seriesId: number;
-}) {
+}>) {
   const [active, setActive] = useState<NotesTab>(NotesTab.Instance);
   const refs = useRef(new Map<NotesTab, HTMLButtonElement>());
 
@@ -70,9 +70,9 @@ export function NotesTabs({
           hidden={active !== tab.id}
           className="py-3"
         >
-          // Keyed by the target id: switching to another instance remounts //
-          the list, so a draft or inline edit can never be saved against // the
-          newly selected instance.
+          {/* Keyed by the target id: switching to another instance remounts
+              the list, so a draft or inline edit can never be saved against
+              the newly selected instance. */}
           <NoteList
             key={tab.id === NotesTab.Instance ? taskId : seriesId}
             target={tab.id === NotesTab.Instance ? { taskId } : { seriesId }}

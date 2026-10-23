@@ -1,8 +1,10 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -64,12 +66,138 @@ const noteAuditLabel = (note: Note) =>
     ? formatDate(note.created_at)
     : `${NOTE_EDITED_PREFIX} ${formatDate(note.updated_at)}`;
 
+interface NoteRowProps {
+  note: Note;
+  editing: boolean;
+  confirmingDelete: boolean;
+  onEdit: (note: Note) => void;
+  onCancelEdit: () => void;
+  onSave: (body: string) => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
+  onDelete: () => void;
+  mutating: boolean;
+  editForm: UseFormReturn<FormValues>;
+}
+
+function NoteRow({
+  note,
+  editing,
+  confirmingDelete,
+  onEdit,
+  onCancelEdit,
+  onSave,
+  onConfirmDelete,
+  onCancelDelete,
+  onDelete,
+  mutating,
+  editForm,
+}: Readonly<NoteRowProps>) {
+  const liClass = "rounded-lg border border-border bg-surface-raised/40 p-3";
+
+  if (editing) {
+    return (
+      <li className={liClass}>
+        <form onSubmit={editForm.handleSubmit(({ body }) => onSave(body))}>
+          <textarea
+            {...editForm.register("body")}
+            aria-label={NOTE_SAVE_LABEL}
+            aria-invalid={editForm.formState.errors.body !== undefined}
+            aria-describedby={
+              editForm.formState.errors.body
+                ? `note-edit-error-${note.id}`
+                : undefined
+            }
+            className="w-full rounded-md border border-border bg-surface-raised p-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {editForm.formState.errors.body ? (
+            <p
+              role="alert"
+              id={`note-edit-error-${note.id}`}
+              className="mt-1 text-sm text-danger"
+            >
+              {editForm.formState.errors.body.message}
+            </p>
+          ) : null}
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="rounded-md px-3 py-1 text-xs text-text-muted hover:text-text"
+            >
+              {CANCEL_BUTTON_LABEL}
+            </button>
+            <button
+              type="submit"
+              disabled={mutating}
+              className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-on-primary disabled:opacity-50"
+            >
+              {NOTE_SAVE_LABEL}
+            </button>
+          </div>
+        </form>
+      </li>
+    );
+  }
+
+  return (
+    <li className={liClass}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="whitespace-pre-wrap text-sm text-text">{note.body}</p>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            aria-label={noteEditLabel(noteOpening(note.body))}
+            onClick={() => onEdit(note)}
+            className="rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+          >
+            {NOTE_EDIT_LABEL}
+          </button>
+          <button
+            type="button"
+            aria-label={noteDeleteLabel(noteOpening(note.body))}
+            disabled={mutating}
+            onClick={onConfirmDelete}
+            className="rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-danger disabled:opacity-50"
+          >
+            {NOTE_DELETE_LABEL}
+          </button>
+        </div>
+      </div>
+      {confirmingDelete ? (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-danger/40 bg-danger/10 p-2">
+          <p className="text-xs text-danger">{NOTE_DELETE_CONFIRM_MESSAGE}</p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={onCancelDelete}
+              className="rounded-md px-3 py-1 text-xs text-text-muted hover:text-text"
+            >
+              {CANCEL_BUTTON_LABEL}
+            </button>
+            <button
+              type="button"
+              aria-label={noteConfirmDeleteLabel(noteOpening(note.body))}
+              disabled={mutating}
+              onClick={onDelete}
+              className="rounded-md bg-danger px-3 py-1 text-xs font-medium text-on-primary disabled:opacity-50"
+            >
+              {DELETE_BUTTON_LABEL}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <p className="mt-1 text-xs text-text-muted">{noteAuditLabel(note)}</p>
+    </li>
+  );
+}
+
 /// A note's whole editor/list for one target — a task (which may be a
 /// series instance) or the series itself. Notes are handled outside the
 /// task form per spec: this lives in the read-only details view.
 /// Rendered under a `key` of the target id so an instance switch can never
 /// carry a draft into another instance's notes.
-export function NoteList({ target }: { target: NotesTarget }) {
+export function NoteList({ target }: Readonly<{ target: NotesTarget }>) {
   const queryClient = useQueryClient();
   const taskId = "taskId" in target ? target.taskId : null;
   const seriesId = "taskId" in target ? null : target.seriesId;
@@ -141,133 +269,49 @@ export function NoteList({ target }: { target: NotesTarget }) {
       ? `note-draft-error-task-${taskId}`
       : `note-draft-error-series-${seriesId}`;
 
+  let listBody: ReactNode = null;
+  if (error !== null) {
+    listBody = (
+      <p role="alert" className="text-sm text-danger">
+        {serverErrorMessage(error)}
+      </p>
+    );
+  } else if (!isPending) {
+    if (notes!.length === 0) {
+      listBody = (
+        <p className="text-sm text-text-muted italic">{NOTES_EMPTY_MESSAGE}</p>
+      );
+    } else {
+      listBody = (
+        <ul className="flex flex-col gap-2">
+          {notes!.map((note) => (
+            <NoteRow
+              key={note.id}
+              note={note}
+              editing={editingId === note.id}
+              confirmingDelete={confirmingDeleteId === note.id}
+              mutating={update.isPending || remove.isPending}
+              editForm={editForm}
+              onEdit={(n) => {
+                setConfirmingDeleteId(null);
+                setEditingId(n.id);
+                editForm.reset({ body: n.body });
+              }}
+              onCancelEdit={() => setEditingId(null)}
+              onSave={(body) => update.mutate({ id: note.id, body })}
+              onConfirmDelete={() => setConfirmingDeleteId(note.id)}
+              onCancelDelete={() => setConfirmingDeleteId(null)}
+              onDelete={() => remove.mutate(note.id)}
+            />
+          ))}
+        </ul>
+      );
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      {error !== null ? (
-        <p role="alert" className="text-sm text-danger">
-          {serverErrorMessage(error)}
-        </p>
-      ) : isPending ? null : notes!.length === 0 ? (
-        <p className="text-sm text-text-muted italic">{NOTES_EMPTY_MESSAGE}</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {notes!.map((note) =>
-            editingId === note.id ? (
-              <li
-                key={note.id}
-                className="rounded-lg border border-border bg-surface-raised/40 p-3"
-              >
-                <form
-                  onSubmit={editForm.handleSubmit(({ body }) =>
-                    update.mutate({ id: note.id, body }),
-                  )}
-                >
-                  <textarea
-                    {...editForm.register("body")}
-                    aria-label={NOTE_SAVE_LABEL}
-                    aria-invalid={editForm.formState.errors.body !== undefined}
-                    aria-describedby={
-                      editForm.formState.errors.body
-                        ? `note-edit-error-${note.id}`
-                        : undefined
-                    }
-                    className="w-full rounded-md border border-border bg-surface-raised p-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  {editForm.formState.errors.body ? (
-                    <p
-                      role="alert"
-                      id={`note-edit-error-${note.id}`}
-                      className="mt-1 text-sm text-danger"
-                    >
-                      {editForm.formState.errors.body.message}
-                    </p>
-                  ) : null}
-                  <div className="mt-2 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
-                      className="rounded-md px-3 py-1 text-xs text-text-muted hover:text-text"
-                    >
-                      {CANCEL_BUTTON_LABEL}
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={update.isPending}
-                      className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-on-primary disabled:opacity-50"
-                    >
-                      {NOTE_SAVE_LABEL}
-                    </button>
-                  </div>
-                </form>
-              </li>
-            ) : (
-              <li
-                key={note.id}
-                className="rounded-lg border border-border bg-surface-raised/40 p-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="whitespace-pre-wrap text-sm text-text">
-                    {note.body}
-                  </p>
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      aria-label={noteEditLabel(noteOpening(note.body))}
-                      onClick={() => {
-                        setConfirmingDeleteId(null);
-                        setEditingId(note.id);
-                        editForm.reset({ body: note.body });
-                      }}
-                      className="rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
-                    >
-                      {NOTE_EDIT_LABEL}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={noteDeleteLabel(noteOpening(note.body))}
-                      disabled={remove.isPending}
-                      onClick={() => setConfirmingDeleteId(note.id)}
-                      className="rounded-md px-2 py-1 text-xs text-text-muted transition-colors hover:bg-surface-raised hover:text-danger disabled:opacity-50"
-                    >
-                      {NOTE_DELETE_LABEL}
-                    </button>
-                  </div>
-                </div>
-                {confirmingDeleteId === note.id ? (
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-danger/40 bg-danger/10 p-2">
-                    <p className="text-xs text-danger">
-                      {NOTE_DELETE_CONFIRM_MESSAGE}
-                    </p>
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setConfirmingDeleteId(null)}
-                        className="rounded-md px-3 py-1 text-xs text-text-muted hover:text-text"
-                      >
-                        {CANCEL_BUTTON_LABEL}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={noteConfirmDeleteLabel(
-                          noteOpening(note.body),
-                        )}
-                        disabled={remove.isPending}
-                        onClick={() => remove.mutate(note.id)}
-                        className="rounded-md bg-danger px-3 py-1 text-xs font-medium text-on-primary disabled:opacity-50"
-                      >
-                        {DELETE_BUTTON_LABEL}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-                <p className="mt-1 text-xs text-text-muted">
-                  {noteAuditLabel(note)}
-                </p>
-              </li>
-            ),
-          )}
-        </ul>
-      )}
+      {listBody}
 
       <div className="rounded-lg border border-border bg-surface-raised/40 p-3">
         <form

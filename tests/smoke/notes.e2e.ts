@@ -37,6 +37,9 @@ describe("Task notes smoke", () => {
     await browser.waitUntil(async () =>
       (await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`)).isExisting(),
     );
+    await expect(
+      await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`),
+    ).toExist();
 
     // Reopen the task: the persisted note must render.
     await (await $(`aria/${CLOSE_LABEL}`)).click();
@@ -44,6 +47,9 @@ describe("Task notes smoke", () => {
     await browser.waitUntil(async () =>
       (await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`)).isExisting(),
     );
+    await expect(
+      await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`),
+    ).toExist();
 
     // Cleanup: delete the note (with confirmation) and the task through the
     // real backend.
@@ -57,10 +63,16 @@ describe("Task notes smoke", () => {
           `aria/${noteDeleteLabel(noteBody.slice(0, 30))}`,
         ).isExisting()),
     );
+    expect(
+      await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`).isExisting(),
+    ).toBe(false);
     await (await $(`aria/${CLOSE_LABEL}`)).click();
     await (await $(`aria/${deleteTaskLabel(taskTitle)}`)).click();
     await browser.waitUntil(
       async () => !(await $(`aria/${editTaskLabel(taskTitle)}`).isExisting()),
+    );
+    expect(await $(`aria/${editTaskLabel(taskTitle)}`).isExisting()).toBe(
+      false,
     );
   });
 });

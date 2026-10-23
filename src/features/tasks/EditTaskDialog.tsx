@@ -189,6 +189,22 @@ function TaskDetailsView({
   onDelete,
   deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
+  let notesSection: ReactNode = null;
+  if (pendingIso === null) {
+    if (viewed.series_id !== null && seriesRow) {
+      notesSection = <NotesTabs taskId={viewed.id} seriesId={seriesRow.id} />;
+    } else if (viewed.series_id === null) {
+      notesSection = (
+        <section aria-label={NOTES_SECTION_LABEL}>
+          <h3 className="mb-2 text-sm font-medium text-text">
+            {NOTES_SECTION_LABEL}
+          </h3>
+          <NoteList key={viewed.id} target={{ taskId: viewed.id }} />
+        </section>
+      );
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {pendingIso !== null ? (
@@ -299,17 +315,7 @@ function TaskDetailsView({
           onPick={onPick}
         />
       )}
-      {pendingIso === null &&
-        (viewed.series_id !== null && seriesRow ? (
-          <NotesTabs taskId={viewed.id} seriesId={seriesRow.id} />
-        ) : viewed.series_id === null ? (
-          <section aria-label={NOTES_SECTION_LABEL}>
-            <h3 className="mb-2 text-sm font-medium text-text">
-              {NOTES_SECTION_LABEL}
-            </h3>
-            <NoteList key={viewed.id} target={{ taskId: viewed.id }} />
-          </section>
-        ) : null)}
+      {notesSection}
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
