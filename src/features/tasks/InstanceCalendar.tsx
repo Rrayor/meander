@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
 import {
+  CALENDAR_LEGEND_PERSISTED,
+  CALENDAR_LEGEND_SCHEDULED,
   CALENDAR_NEXT_LABEL,
   CALENDAR_PREVIOUS_LABEL,
   WEEKDAY_OPTIONS,
@@ -102,16 +104,17 @@ export function InstanceCalendar({
           </span>
         ))}
         {cells.map(({ iso, inMonth, day }) => {
+          // A persisted instance stays reachable even if its date no
+          // longer matches the schedule (e.g. after a series edit).
+          const persisted = instances.some((t) => t.scheduled_date === iso);
           const scheduled =
+            persisted ||
             isScheduledOn(
               series.recurrence,
               series.start_date,
               series.end_date,
               iso,
-            ) ||
-            // A persisted instance stays reachable even if its date no
-            // longer matches the schedule (e.g. after a series edit).
-            instances.some((t) => t.scheduled_date === iso);
+            );
           if (!scheduled) {
             // Padding days outside the month stay blank — showing them
             // faded fails contrast and adds noise.
@@ -126,6 +129,16 @@ export function InstanceCalendar({
             );
           }
           const selected = iso === selectedIso;
+          // Stitch design: a filled dot marks a persisted instance, a
+          // hollow ring a merely-scheduled occurrence.
+          let markerClass: string;
+          if (persisted) {
+            markerClass = selected ? "bg-on-primary" : "bg-primary";
+          } else {
+            markerClass = selected
+              ? "border border-on-primary bg-transparent"
+              : "border border-primary bg-transparent";
+          }
           return (
             <button
               key={iso}
@@ -141,18 +154,30 @@ export function InstanceCalendar({
               } ${inMonth ? "" : "opacity-50"}`}
             >
               {day}
-              {/* Stitch design: a primary dot marks a day the series is
-                  scheduled on (or already has an instance on). */}
               <span
                 aria-hidden="true"
-                className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
-                  selected ? "bg-on-primary" : "bg-primary"
-                }`}
+                className={`mt-0.5 h-1.5 w-1.5 rounded-full ${markerClass}`}
               />
             </button>
           );
         })}
       </div>
+      <p className="mt-3 flex items-center gap-4 text-xs text-text-muted">
+        <span className="flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 rounded-full bg-primary"
+          />
+          {CALENDAR_LEGEND_PERSISTED}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 rounded-full border border-primary bg-transparent"
+          />
+          {CALENDAR_LEGEND_SCHEDULED}
+        </span>
+      </p>
     </div>
   );
 }

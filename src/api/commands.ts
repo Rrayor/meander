@@ -22,6 +22,7 @@ export const COMMANDS = {
   updateTask: "update_task",
   listTaskSeries: "list_task_series",
   listSeriesInstances: "list_series_instances",
+  getOrCreateInstance: "get_or_create_instance",
   deleteTaskSeries: "delete_task_series",
   updateTaskSeries: "update_task_series",
   truncateTaskSeries: "truncate_task_series",

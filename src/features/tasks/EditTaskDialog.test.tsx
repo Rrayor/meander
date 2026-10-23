@@ -30,6 +30,7 @@ import { listSeriesNotes, listTaskNotes } from "@/api/notes";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import {
+  INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
   SPENT_RANGE_MESSAGE,
   TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
 } from "@/lib/errors";
@@ -56,6 +57,7 @@ import {
   NOTES_EMPTY_MESSAGE,
   SAVE_BUTTON_LABEL,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
+  INSTANCE_MATERIALIZING_MESSAGE,
   SPENT_HOURS_LABEL,
   SPENT_MINUTES_LABEL,
   STATUS_LABELS,
@@ -75,6 +77,7 @@ import {
 } from "@/lib/labels";
 import {
   deleteTaskSeries,
+  getOrCreateInstance,
   listSeriesCategories,
   listSeriesInstances,
   listTaskSeries,
@@ -119,6 +122,7 @@ vi.mock("@/api/series", () => ({
   updateTaskSeries: vi.fn(),
   deleteTaskSeries: vi.fn(),
   truncateTaskSeries: vi.fn(),
+  getOrCreateInstance: vi.fn(),
 }));
 
 const mockedListTaskSeries = vi.mocked(listTaskSeries);
@@ -127,6 +131,7 @@ const mockedListSeriesCategories = vi.mocked(listSeriesCategories);
 const mockedUpdateSeries = vi.mocked(updateTaskSeries);
 const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
 const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
+const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
 const mockedDeleteTask = vi.mocked(deleteTask);
 const mockedUpdate = vi.mocked(updateTask);
 const mockedListCategories = vi.mocked(listCategories);
@@ -221,6 +226,9 @@ describe("EditTaskDialog", () => {
     mockedUpdateSeries.mockReset().mockResolvedValue(baseSeries);
     mockedDeleteSeries.mockReset().mockResolvedValue(undefined);
     mockedTruncateSeries.mockReset().mockResolvedValue(undefined);
+    // Default: materialization never resolves, keeping the pending panel —
+    // tests that exercise the swap override per-case.
+    mockedGetOrCreate.mockReset().mockReturnValue(new Promise<Task>(() => {}));
     mockedDeleteTask.mockReset().mockResolvedValue(undefined);
     mockedListTaskNotes.mockReset().mockResolvedValue([]);
     mockedListSeriesNotes.mockReset().mockResolvedValue([]);
@@ -869,12 +877,90 @@ describe("EditTaskDialog", () => {
       </QueryClientProvider>,
     );
 
-    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance.
+    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance,
+    // so picking it materializes in the background (the mock stays
+    // pending, keeping the loading panel visible).
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
     expect(
-      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+      await screen.findByText(INSTANCE_MATERIALIZING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(mockedGetOrCreate).toHaveBeenCalledWith(
+      baseSeries.id,
+      OTHER_INSTANCE_DATE,
+    );
+    expect(
+      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("swaps to the materialized instance once it is created", async () => {
+    const created = {
+      ...baseTask,
+      id: 42,
+      description: "fresh occurrence",
+      series_id: baseSeries.id,
+      scheduled_date: OTHER_INSTANCE_DATE,
+    };
+    mockedGetOrCreate.mockResolvedValue(created);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    expect(await screen.findByText(created.description)).toBeInTheDocument();
+    // A future instance is editable — the pending message is gone and the
+    // Edit affordance applies to the materialized row, not the opened one.
+    expect(
+      screen.queryByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the pending panel and surfaces a typed materialize error", async () => {
+    const { ApiError } = await import("@/api/transport");
+    mockedGetOrCreate.mockRejectedValue(
+      new ApiError(
+        "instance_date_not_scheduled",
+        "validation",
+        "deliberately different backend message",
+      ),
+    );
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
+    );
+    expect(
+      screen.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
@@ -907,11 +993,47 @@ describe("EditTaskDialog", () => {
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
     expect(await screen.findByText(other.description)).toBeInTheDocument();
-    // Edit only applies to the opened task — it hides while viewing another
-    // instance so it can't silently edit the wrong row.
+    // A future instance is editable — Edit now applies to the viewed row.
+    expect(
+      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a past instance read-only while notes stay available", async () => {
+    // The Monday before the opened date — always in the past.
+    const past = {
+      ...baseTask,
+      id: 41,
+      description: "last week's occurrence",
+      series_id: baseSeries.id,
+      scheduled_date: "2026-10-12",
+    };
+    mockedListSeriesInstances.mockResolvedValue([past]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: past.scheduled_date! }),
+    );
+    expect(await screen.findByText(past.description)).toBeInTheDocument();
+    // Spec §232: past instances are viewable but not editable — notes
+    // remain the exception and still render.
     expect(
       screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
+    ).toBeInTheDocument();
   });
 
   it("shows the selected instance's title in the heading", async () => {

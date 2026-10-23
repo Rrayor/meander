@@ -45,6 +45,7 @@ import {
 import type { SaveScope } from "@/lib/enums";
 import {
   deleteTaskSeries,
+  getOrCreateInstance,
   listSeriesCategories,
   listSeriesInstances,
   listTaskSeries,
@@ -71,6 +72,7 @@ import {
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
   ESTIMATED_TIME_LABEL,
+  INSTANCE_MATERIALIZING_MESSAGE,
   HOURS_UNIT_LABEL,
   MINUTES_UNIT_LABEL,
   OPTIONAL_FIELD_LABEL,
@@ -97,6 +99,7 @@ import {
   codePointsWithin,
   formatDate,
   formatIsoDay,
+  todayLocalIso,
   unicodeTrim,
 } from "@/lib/utils";
 
@@ -169,6 +172,8 @@ const minutesToParts = (total: number | null) => ({
 interface TaskDetailsViewProps {
   viewed: Task;
   pendingIso: string | null;
+  materializing: boolean;
+  materializeError?: string;
   categories: Category[];
   seriesRow: TaskSeries | undefined;
   seriesInstances: Task[] | undefined;
@@ -181,6 +186,8 @@ interface TaskDetailsViewProps {
 function TaskDetailsView({
   viewed,
   pendingIso,
+  materializing,
+  materializeError,
   categories,
   seriesRow,
   seriesInstances,
@@ -208,9 +215,18 @@ function TaskDetailsView({
   return (
     <div className="flex flex-col gap-4">
       {pendingIso !== null ? (
-        <p className="text-sm text-text-muted italic">
-          {SCHEDULED_INSTANCE_PENDING_MESSAGE}
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-text-muted italic">
+            {materializing
+              ? INSTANCE_MATERIALIZING_MESSAGE
+              : SCHEDULED_INSTANCE_PENDING_MESSAGE}
+          </p>
+          {materializeError && (
+            <p role="alert" className="text-sm text-danger">
+              {materializeError}
+            </p>
+          )}
+        </div>
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
@@ -461,20 +477,27 @@ export function EditTaskDialog({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  // Which instance the read-only view is showing — the opened task until
+  // the calendar picks a different date. `pendingIso` marks a picked
+  // scheduled date whose instance is still being materialized (or whose
+  // creation failed); while set, the fields give way to the status panel.
+  const [viewed, setViewed] = useState<Task>(task);
+  const [pendingIso, setPendingIso] = useState<string | null>(null);
+
   const instanceDefaults = useMemo<FormValues>(() => {
-    const est = minutesToParts(task.estimated_minutes);
-    const spt = minutesToParts(task.spent_minutes);
+    const est = minutesToParts(viewed.estimated_minutes);
+    const spt = minutesToParts(viewed.spent_minutes);
     return {
-      title: task.title,
-      description: task.description ?? "",
+      title: viewed.title,
+      description: viewed.description ?? "",
       estHours: est.hours,
       estMinutes: est.minutes,
       spentHours: spt.hours,
       spentMinutes: spt.minutes,
-      status: task.status as TaskStatus,
-      carryOver: (task.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
+      status: viewed.status as TaskStatus,
+      carryOver: (viewed.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
     };
-  }, [task]);
+  }, [viewed]);
   const {
     register,
     control,
@@ -498,12 +521,6 @@ export function EditTaskDialog({
       dialogRef.current?.focus();
     }
   }, [mode, setFocus]);
-
-  // Which instance the read-only view is showing — the opened task until the
-  // calendar picks a different persisted date or an unpersisted one (then
-  // `pendingIso` is set and the fields give way to the empty state).
-  const [viewed, setViewed] = useState<Task>(task);
-  const [pendingIso, setPendingIso] = useState<string | null>(null);
 
   const { data: initialCategories } = useQuery({
     queryKey: QUERY_KEYS.taskCategories(viewed.id),
@@ -549,16 +566,16 @@ export function EditTaskDialog({
 
   const update = useMutation({
     mutationFn: async (input: Parameters<typeof updateTask>[1]) => {
-      await updateTask(task.id, input);
+      await updateTask(viewed.id, input);
       const next = new Set(categories.map((c) => c.id));
       const prev = new Set(stored.map((c) => c.id));
       await Promise.all([
         ...categories
           .filter((c) => !prev.has(c.id))
-          .map((c) => addTaskCategory(task.id, c.id)),
+          .map((c) => addTaskCategory(viewed.id, c.id)),
         ...stored
           .filter((c) => !next.has(c.id))
-          .map((c) => removeTaskCategory(task.id, c.id)),
+          .map((c) => removeTaskCategory(viewed.id, c.id)),
       ]);
     },
     onSuccess: onClose,
@@ -567,7 +584,25 @@ export function EditTaskDialog({
       // association rejected, so the list must reflect what was saved.
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       void queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.taskCategories(task.id),
+        queryKey: QUERY_KEYS.taskCategories(viewed.id),
+      });
+    },
+  });
+
+  // Picking a scheduled-but-unpersisted date materializes its instance in
+  // the background (spec: the instance exists once the user wants to edit
+  // it). The pick stays pending until the row arrives, then the view swaps
+  // to it — on failure the date keeps the pending panel plus the error.
+  const materialize = useMutation({
+    mutationFn: (iso: string) => getOrCreateInstance(task.series_id!, iso),
+    onSuccess: (created) => {
+      setViewed(created);
+      setPendingIso(null);
+      invalidateSeriesScope();
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.seriesInstances(task.series_id!),
       });
     },
   });
@@ -761,11 +796,19 @@ export function EditTaskDialog({
           </h2>
           <div className="flex items-center gap-1">
             {mode === DialogMode.View &&
-              viewed.id === task.id &&
-              pendingIso === null && (
+              pendingIso === null &&
+              // Past instances stay viewable but read-only (spec §232);
+              // a task without a scheduled date is always editable.
+              (viewed.scheduled_date === null ||
+                viewed.scheduled_date >= todayLocalIso()) && (
                 <button
                   type="button"
-                  onClick={() => setMode(DialogMode.Edit)}
+                  onClick={() => {
+                    // Seed the form from the viewed instance — it may not
+                    // be the task the dialog opened on.
+                    reset(instanceDefaults);
+                    setMode(DialogMode.Edit);
+                  }}
                   className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
                 >
                   {EDIT_BUTTON_LABEL}
@@ -794,6 +837,8 @@ export function EditTaskDialog({
           <TaskDetailsView
             viewed={viewed}
             pendingIso={pendingIso}
+            materializing={materialize.isPending}
+            materializeError={serverErrorMessage(materialize.error)}
             categories={categories}
             seriesRow={seriesRow}
             seriesInstances={seriesInstances}
@@ -803,6 +848,7 @@ export function EditTaskDialog({
                 setPendingIso(null);
               } else {
                 setPendingIso(iso);
+                materialize.mutate(iso);
               }
             }}
             onClose={onClose}

@@ -2360,3 +2360,123 @@ fn note_foreign_task(world: &mut MeanderWorld, body: String) {
         world.error = Some(e.to_string());
     }
 }
+
+const UNSCHEDULED_DATE: &str = "2026-10-21"; // a Wednesday — off the Monday schedule
+
+/// Picking a scheduled occurrence materializes its instance (spec §230):
+/// the row appears in the background and becomes the viewed task.
+fn materialize_occurrence(world: &mut MeanderWorld, title: &str, date: &str) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, title);
+    world.error = None;
+    match world
+        .rt()
+        .block_on(meander_lib::tasks::get_or_create_instance(
+            &pool, active, series.id, date,
+        )) {
+        Ok(task) => world.task_id = Some(task.id),
+        Err(e) => world.error = Some(e.to_string()),
+    }
+}
+
+#[when(expr = "I open {word}'s occurrence a week later")]
+fn open_later_occurrence(world: &mut MeanderWorld, title: String) {
+    materialize_occurrence(world, &title, LATER_INSTANCE_DATE);
+}
+
+#[when(expr = "I try to open {word}'s occurrence mid-week")]
+fn open_unscheduled_occurrence(world: &mut MeanderWorld, title: String) {
+    materialize_occurrence(world, &title, UNSCHEDULED_DATE);
+}
+
+#[when(expr = "I try to open the foreign series' occurrence a week later")]
+fn open_foreign_occurrence(world: &mut MeanderWorld) {
+    let foreign = world.profile_id.expect("no second profile");
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, foreign))
+        .expect("foreign series list failed")
+        .into_iter()
+        .next()
+        .expect("foreign series missing");
+    world.error = None;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::get_or_create_instance(
+            &pool,
+            active,
+            series.id,
+            LATER_INSTANCE_DATE,
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the materialization succeeds")]
+fn materialization_succeeded(world: &mut MeanderWorld) {
+    assert!(
+        world.error.is_none(),
+        "materialization failed: {:?}",
+        world.error
+    );
+    assert!(world.task_id.is_some(), "no instance was materialized");
+}
+
+#[then("the materialization fails")]
+fn materialization_failed(world: &mut MeanderWorld) {
+    assert!(
+        world.error.is_some(),
+        "materialization unexpectedly succeeded"
+    );
+}
+
+#[then(expr = "the opened instance is titled {string}")]
+fn opened_instance_titled(world: &mut MeanderWorld, expected: String) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let id = world.task_id.expect("no opened instance");
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::get(&pool, id))
+        .expect("opened instance missing");
+    assert_eq!(task.title, expected);
+}
+
+#[then(expr = "only the first instance of {word}'s repeat remains")]
+fn only_first_instance(world: &mut MeanderWorld, title: String) {
+    let series = series_of(world, &title);
+    assert_eq!(
+        series_instance_dates(world, series.id),
+        vec![FIRST_INSTANCE_DATE.to_string()]
+    );
+}
+
+#[then(expr = "the opened instance is categorized {word}")]
+fn opened_instance_categorized(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let id = world.task_id.expect("no opened instance");
+    let categories = world
+        .rt()
+        .block_on(meander_lib::categories::for_task(&pool, active, id))
+        .expect("category list failed");
+    assert_eq!(categories.len(), 1);
+    assert_eq!(categories[0].title, title);
+}
+
+#[then(expr = "the foreign series still has one instance")]
+fn foreign_series_one_instance(world: &mut MeanderWorld) {
+    let foreign = world.profile_id.expect("no second profile");
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, foreign))
+        .expect("foreign series list failed");
+    assert_eq!(series_instance_dates(world, series[0].id).len(), 1);
+}

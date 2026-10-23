@@ -209,6 +209,8 @@ export const DELETE_KEEP_LABEL = "Keep task";
 
 export const CALENDAR_PREVIOUS_LABEL = "Previous month";
 export const CALENDAR_NEXT_LABEL = "Next month";
+export const CALENDAR_LEGEND_PERSISTED = "recorded instance";
+export const CALENDAR_LEGEND_SCHEDULED = "scheduled";
 export const NOTES_TAB_INSTANCE_LABEL = "Current instance";
 export const NOTES_TAB_SERIES_LABEL = "Series";
 export const NOTES_SECTION_LABEL = "Notes";
@@ -227,3 +229,4 @@ export const NOTE_EDIT_LABEL = "Edit";
 export const NOTE_DELETE_LABEL = "Delete";
 export const SCHEDULED_INSTANCE_PENDING_MESSAGE =
   "Scheduled — this instance will be created when the board is generated.";
+export const INSTANCE_MATERIALIZING_MESSAGE = "Opening this instance…";

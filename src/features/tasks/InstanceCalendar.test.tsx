@@ -154,11 +154,37 @@ describe("InstanceCalendar", () => {
     expect(plain.querySelector("[aria-hidden='true']")).toBeNull();
   });
 
-  it("keeps the marker visible on the selected day in the on-primary color", () => {
-    renderCalendar([], vi.fn(), TODAY_ISO);
-    const selected = screen.getByRole("button", { name: TODAY_ISO });
-    const dot = selected.querySelector("[aria-hidden='true']")!;
-    expect(dot).toHaveClass("bg-on-primary");
+  it("distinguishes persisted instances from merely scheduled dates", () => {
+    // Stitch design: filled dot = recorded instance, hollow ring =
+    // scheduled-only occurrence.
+    const persisted = instance(TODAY_ISO);
+    renderCalendar([persisted]);
+    const filled = screen
+      .getByRole("button", { name: TODAY_ISO })
+      .querySelector("[aria-hidden='true']")!;
+    expect(filled).toHaveClass("bg-primary");
+    const hollow = screen
+      .getByRole("button", { name: UNSAVED_SCHEDULED_ISO })
+      .querySelector("[aria-hidden='true']")!;
+    expect(hollow).toHaveClass("border-primary", "bg-transparent");
+    expect(hollow).not.toHaveClass("bg-primary");
+  });
+
+  it("keeps both markers visible on the selected day in the on-primary color", () => {
+    const persisted = instance(TODAY_ISO);
+    renderCalendar([persisted], vi.fn(), TODAY_ISO);
+    const filled = screen
+      .getByRole("button", { name: TODAY_ISO })
+      .querySelector("[aria-hidden='true']")!;
+    expect(filled).toHaveClass("bg-on-primary");
+  });
+
+  it("keeps the hollow ring visible on a selected scheduled-only day", () => {
+    renderCalendar([], vi.fn(), UNSAVED_SCHEDULED_ISO);
+    const hollow = screen
+      .getByRole("button", { name: UNSAVED_SCHEDULED_ISO })
+      .querySelector("[aria-hidden='true']")!;
+    expect(hollow).toHaveClass("border-on-primary", "bg-transparent");
   });
 
   it("marks the selected date", () => {

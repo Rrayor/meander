@@ -119,6 +119,17 @@
       "notes": "Series-scope edit mode: save-scope radio (instance / entire series selected / future disabled 'coming soon'), series schedule subsection (interval + unit segment, weekday chips, Starts/Ends), destructive Delete in footer, inline delete-confirmation block with scope radios (instance / entire series / current+future) + 'This cannot be undone.' + Delete/Keep task."
     },
     {
+      "id": "33fd0fa690924dbaaebf930e0d678a24",
+      "title": "Meander — Task Details Modal (Calendar Legend & Recurrence Markers)",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/task-details-calendar-markers.html",
+        "designs/task-details-calendar-markers.png"
+      ],
+      "implemented": false,
+      "notes": "Details-modal calendar with differentiated markers: persisted instances = filled primary dot, scheduled-only recurrence dates = hollow ring (border-primary, transparent fill), 'recorded instance / scheduled' legend line below the grid"
+    },
+    {
       "id": "2b11a6a0b028454b8ebe024451e582a2",
       "title": "Meander — Task Details Modal (Notes View)",
       "deviceType": "DESKTOP",

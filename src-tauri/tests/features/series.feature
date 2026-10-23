@@ -116,6 +116,45 @@ Feature: Repeating tasks
     Then the update fails
     And the foreign series keeps its title "Standup"
 
+  Scenario: opening a scheduled date materializes its instance
+    Given an application state on a temporary seeded database
+    When I create a task titled "Standup" repeating weekly on Monday
+    And I open Standup's occurrence a week later
+    Then the materialization succeeds
+    And the opened instance is titled "Standup"
+    And both instances of Standup's repeat remain
+
+  Scenario: opening the same scheduled date twice keeps one instance
+    Given an application state on a temporary seeded database
+    When I create a task titled "Standup" repeating weekly on Monday
+    And I open Standup's occurrence a week later
+    And I open Standup's occurrence a week later
+    Then the materialization succeeds
+    And both instances of Standup's repeat remain
+
+  Scenario: an unscheduled date cannot be opened
+    Given an application state on a temporary seeded database
+    When I create a task titled "Standup" repeating weekly on Monday
+    And I try to open Standup's occurrence mid-week
+    Then the materialization fails
+    And only the first instance of Standup's repeat remains
+
+  Scenario: a materialized instance carries the series' categories
+    Given an application state on a temporary seeded database
+    And a category named Errands exists on the active profile
+    When I create a task titled "Standup" repeating weekly on Monday
+    And I add the category Errands to Standup's series
+    And I open Standup's occurrence a week later
+    Then the materialization succeeds
+    And the opened instance is categorized Errands
+
+  Scenario: another profile's series cannot be materialized into
+    Given an application state on a temporary seeded database
+    And a repeating task titled "Standup" exists on a second profile
+    When I try to open the foreign series' occurrence a week later
+    Then the materialization fails
+    And the foreign series still has one instance
+
   Scenario: an unreadable change to a repeat is rejected
     Given an application state on a temporary seeded database
     When I create a task titled "Standup" repeating weekly on Monday
