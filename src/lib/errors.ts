@@ -46,6 +46,12 @@ export const NOTE_BODY_REQUIRED_MESSAGE = "Note cannot be empty";
 
 export const NOTE_NOT_FOUND_MESSAGE = "The note no longer exists";
 
+export const INSTANCE_DATE_INVALID_MESSAGE =
+  "The date must be a real calendar day (YYYY-MM-DD)";
+
+export const INSTANCE_DATE_NOT_SCHEDULED_MESSAGE =
+  "That date is not a scheduled occurrence of this series";
+
 export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   task_title_required: TITLE_REQUIRED_MESSAGE,
   task_title_too_long: TASK_TITLE_TOO_LONG_MESSAGE,
@@ -61,6 +67,8 @@ export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   note_body_required: NOTE_BODY_REQUIRED_MESSAGE,
   note_body_too_long: NOTE_BODY_TOO_LONG_MESSAGE,
   note_not_found: NOTE_NOT_FOUND_MESSAGE,
+  instance_date_invalid: INSTANCE_DATE_INVALID_MESSAGE,
+  instance_date_not_scheduled: INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
 };
 
 export const serverErrorMessage = (error: unknown): string | undefined => {

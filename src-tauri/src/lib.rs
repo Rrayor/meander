@@ -44,6 +44,7 @@ pub fn run() {
             commands::update_task,
             commands::list_task_series,
             commands::list_series_instances,
+            commands::get_or_create_instance,
             commands::delete_task_series,
             commands::update_task_series,
             commands::truncate_task_series,

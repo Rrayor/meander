@@ -174,6 +174,17 @@ pub async fn list_series_instances(
 }
 
 #[tauri::command]
+pub async fn get_or_create_instance(
+    series_id: i64,
+    date: String,
+    state: State<'_, AppState>,
+) -> Result<crate::tasks::Task, ApiError> {
+    crate::tasks::get_or_create_instance(&state.pool(), state.active_profile_id(), series_id, &date)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn delete_task_series(
     series_id: i64,
     state: State<'_, AppState>,

@@ -27,6 +27,8 @@ pub enum ErrorCode {
     EndDateBeforeStart,
     WorkdayRulesUnsupported,
     AlreadyInSeries,
+    InstanceDateInvalid,
+    InstanceDateNotScheduled,
     NoteBodyRequired,
     NoteBodyTooLong,
     NoteNotFound,

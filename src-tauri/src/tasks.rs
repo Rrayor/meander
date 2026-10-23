@@ -470,6 +470,76 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     .await?)
 }
 
+/// Materializes the instance for one scheduled occurrence (spec §230):
+/// picking a scheduled-but-unpersisted calendar date creates its task row
+/// in the background so it can be viewed, noted, and edited. Idempotent —
+/// a date that already has an instance returns it, so repeated picks,
+/// retries, and a future board creation share the same row.
+///
+/// The instance inherits the series' shared fields and category set —
+/// the same baseline a whole-series save propagates — while `status`,
+/// `spent_minutes`, and `placement` start at the defaults. A pick that
+/// isn't a scheduled occurrence is a typed rejection, not a silent task.
+pub async fn get_or_create_instance(
+    pool: &SqlitePool,
+    profile_id: i64,
+    series_id: i64,
+    date: &str,
+) -> Result<Task> {
+    crate::series::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
+    let series = crate::series::get(pool, profile_id, series_id).await?;
+    if let Some(existing) = sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? AND series_id = ? AND scheduled_date = ?",
+    )
+    .bind(profile_id)
+    .bind(series_id)
+    .bind(date)
+    .fetch_optional(pool)
+    .await?
+    {
+        return Ok(existing);
+    }
+    if !crate::series::occurs_on(
+        &series.recurrence,
+        &series.start_date,
+        series.end_date.as_deref(),
+        date,
+    ) {
+        return Err(crate::db::DbError::Validation {
+            code: ErrorCode::InstanceDateNotScheduled,
+            message: "the date is not a scheduled occurrence of this series".into(),
+        });
+    }
+    let mut tx = pool.begin().await?;
+    let result = sqlx::query(
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, \
+         carry_over_rule, series_id, scheduled_date, sort_order) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, \
+         (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+    )
+    .bind(profile_id)
+    .bind(&series.title)
+    .bind(&series.description)
+    .bind(series.estimated_minutes)
+    .bind(series.carry_over_rule)
+    .bind(series_id)
+    .bind(date)
+    .bind(profile_id)
+    .execute(&mut *tx)
+    .await?;
+    let id = result.last_insert_rowid();
+    sqlx::query(
+        "INSERT INTO task_categories (task_id, category_id) \
+         SELECT ?, category_id FROM series_categories WHERE series_id = ?",
+    )
+    .bind(id)
+    .bind(series_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    get(pool, id).await
+}
+
 /// Persisted instances of one series, oldest first — the details view's
 /// calendar reads these to tell real instances from merely-scheduled dates.
 pub async fn list_instances(
@@ -999,5 +1069,211 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    mod instance_materialization {
+        use super::*;
+
+        const SERIES_START: &str = "2026-10-19"; // a Monday
+        const SCHEDULED: &str = "2026-10-26"; // the next Monday
+        const UNSCHEDULED: &str = "2026-10-21"; // a Wednesday
+
+        fn weekly_series() -> crate::series::NewSeries {
+            crate::series::NewSeries {
+                recurrence: serde_json::json!({
+                    "kind": "weekly",
+                    "interval_weeks": 1,
+                    "weekdays": ["monday"],
+                }),
+                start_date: SERIES_START.to_string(),
+                end_date: None,
+            }
+        }
+
+        async fn repeating_task(pool: &SqlitePool, pid: i64) -> Task {
+            create(
+                pool,
+                pid,
+                &NewTask {
+                    title: TITLE_A.to_string(),
+                    estimated_minutes: Some(45),
+                    series: Some(weekly_series()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap()
+        }
+
+        fn assert_code(err: &crate::db::DbError, expected: ErrorCode) {
+            assert!(
+                matches!(err, crate::db::DbError::Validation { code, .. } if *code == expected),
+                "expected {expected:?}, got {err}"
+            );
+        }
+
+        #[tokio::test]
+        async fn materializes_a_scheduled_date_with_series_defaults() {
+            let (pool, pid) = seeded_pool().await;
+            let first = repeating_task(&pool, pid).await;
+            let series_id = first.series_id.unwrap();
+
+            let created = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+                .await
+                .unwrap();
+
+            assert_ne!(created.id, first.id);
+            assert_eq!(created.series_id, Some(series_id));
+            assert_eq!(created.scheduled_date.as_deref(), Some(SCHEDULED));
+            // The series' shared fields carry over; per-instance state
+            // starts fresh.
+            assert_eq!(created.title, TITLE_A);
+            assert_eq!(created.estimated_minutes, Some(45));
+            assert_eq!(created.carry_over_rule, Some(CarryOverRule::Return));
+            assert_eq!(created.status, TaskStatus::Todo);
+            assert!(created.spent_minutes.is_none());
+        }
+
+        #[tokio::test]
+        async fn is_idempotent_across_repeated_picks() {
+            let (pool, pid) = seeded_pool().await;
+            let first = repeating_task(&pool, pid).await;
+            let series_id = first.series_id.unwrap();
+
+            let a = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+                .await
+                .unwrap();
+            let b = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+                .await
+                .unwrap();
+
+            assert_eq!(a.id, b.id);
+            assert_eq!(
+                list_instances(&pool, pid, series_id).await.unwrap().len(),
+                2,
+            );
+        }
+
+        #[tokio::test]
+        async fn returns_the_existing_instance_for_a_persisted_date() {
+            let (pool, pid) = seeded_pool().await;
+            let first = repeating_task(&pool, pid).await;
+            let series_id = first.series_id.unwrap();
+
+            // The series' own first occurrence already has a row — the
+            // call must hand it back untouched, not duplicate it.
+            let same = get_or_create_instance(&pool, pid, series_id, SERIES_START)
+                .await
+                .unwrap();
+
+            assert_eq!(same.id, first.id);
+            assert_eq!(
+                list_instances(&pool, pid, series_id).await.unwrap().len(),
+                1,
+            );
+        }
+
+        #[tokio::test]
+        async fn rejects_a_date_that_is_not_scheduled() {
+            let (pool, pid) = seeded_pool().await;
+            let first = repeating_task(&pool, pid).await;
+
+            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), UNSCHEDULED)
+                .await
+                .unwrap_err();
+
+            assert_code(&err, ErrorCode::InstanceDateNotScheduled);
+            assert_eq!(
+                list_instances(&pool, pid, first.series_id.unwrap())
+                    .await
+                    .unwrap()
+                    .len(),
+                1,
+            );
+        }
+
+        #[tokio::test]
+        async fn rejects_a_date_past_the_series_end() {
+            let (pool, pid) = seeded_pool().await;
+            let first = create(
+                &pool,
+                pid,
+                &NewTask {
+                    title: TITLE_A.to_string(),
+                    series: Some(crate::series::NewSeries {
+                        end_date: Some(SCHEDULED.to_string()),
+                        ..weekly_series()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), "2026-11-02")
+                .await
+                .unwrap_err();
+
+            assert_code(&err, ErrorCode::InstanceDateNotScheduled);
+        }
+
+        #[tokio::test]
+        async fn rejects_a_malformed_date() {
+            let (pool, pid) = seeded_pool().await;
+            let first = repeating_task(&pool, pid).await;
+
+            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), "26-10-2026")
+                .await
+                .unwrap_err();
+
+            assert_code(&err, ErrorCode::InstanceDateInvalid);
+        }
+
+        #[tokio::test]
+        async fn rejects_a_foreign_series() {
+            let (pool, pid) = seeded_pool().await;
+            let first = repeating_task(&pool, pid).await;
+            let other = crate::profiles::create(&pool, "Work").await.unwrap();
+
+            let err = get_or_create_instance(&pool, other.id, first.series_id.unwrap(), SCHEDULED)
+                .await
+                .unwrap_err();
+
+            assert_code(&err, ErrorCode::SeriesNotFound);
+        }
+
+        #[tokio::test]
+        async fn copies_the_series_category_set() {
+            let (pool, pid) = seeded_pool().await;
+            let category = crate::categories::create(
+                &pool,
+                pid,
+                &crate::categories::NewCategory {
+                    title: "Errands".to_string(),
+                    description: None,
+                    color: None,
+                },
+            )
+            .await
+            .unwrap();
+            let first = repeating_task(&pool, pid).await;
+            let series_id = first.series_id.unwrap();
+            sqlx::query("INSERT INTO series_categories (series_id, category_id) VALUES (?, ?)")
+                .bind(series_id)
+                .bind(category.id)
+                .execute(&pool)
+                .await
+                .unwrap();
+
+            let created = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+                .await
+                .unwrap();
+
+            let cats = crate::categories::for_task(&pool, pid, created.id)
+                .await
+                .unwrap();
+            assert_eq!(cats.len(), 1);
+            assert_eq!(cats[0].id, category.id);
+        }
     }
 }

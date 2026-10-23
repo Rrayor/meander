@@ -11,6 +11,12 @@ export const listTaskSeries = () =>
 export const listSeriesInstances = (seriesId: number) =>
   transport.invoke<Task[]>(COMMANDS.listSeriesInstances, { seriesId });
 
+// Picking a scheduled-but-unpersisted date materializes its instance in
+// the background (spec: future-instance editing) — idempotent, so a date
+// that already has a row returns it.
+export const getOrCreateInstance = (seriesId: number, date: string) =>
+  transport.invoke<Task>(COMMANDS.getOrCreateInstance, { seriesId, date });
+
 export const listSeriesCategories = (seriesId: number) =>
   transport.invoke<Category[]>(COMMANDS.listSeriesCategories, { seriesId });
 

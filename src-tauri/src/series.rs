@@ -125,7 +125,7 @@ impl Recurrence {
 /// Spec §125: a start date is required, an end date optional. Both must be
 /// real Gregorian `YYYY-MM-DD` dates — a stored schedule that can never
 /// occur ("2026-02-30") would break later occurrence calculation.
-fn iso_date(raw: &str, code: ErrorCode, field: &str) -> Result<()> {
+pub(crate) fn iso_date(raw: &str, code: ErrorCode, field: &str) -> Result<()> {
     let reject = || DbError::Validation {
         code,
         message: format!("{field} must be a real ISO date (YYYY-MM-DD)"),
@@ -301,6 +301,82 @@ pub(crate) fn first_occurrence(
 fn shift_months(y: u32, m: u32, months: u32) -> (u32, u32) {
     let idx = i64::from(y) * 12 + i64::from(m - 1) + i64::from(months);
     ((idx / 12) as u32, (idx % 12 + 1) as u32)
+}
+
+/// Is `iso` a scheduled occurrence of `recurrence` anchored at `start`,
+/// bounded by `end`? Mirrors `isScheduledOn` (src/lib/recurrence.ts) —
+/// the calendar offers exactly these dates, and `get_or_create_instance`
+/// re-checks the rule server-side rather than trusting the pick.
+/// Callers feed stored (already `iso_date`-validated) dates.
+pub(crate) fn occurs_on(
+    recurrence: &Recurrence,
+    start: &str,
+    end: Option<&str>,
+    iso: &str,
+) -> bool {
+    let (sy, sm, sd) = parse_iso(start);
+    let (dy, dm, dd) = parse_iso(iso);
+    let start_z = days_from_civil(sy, sm, sd);
+    let day_z = days_from_civil(dy, dm, dd);
+    if day_z < start_z {
+        return false;
+    }
+    if let Some(end) = end {
+        let (ey, em, ed) = parse_iso(end);
+        if day_z > days_from_civil(ey, em, ed) {
+            return false;
+        }
+    }
+    let months_between = |from_y: u32, from_m: u32, to_y: u32, to_m: u32| -> i64 {
+        (i64::from(to_y) * 12 + i64::from(to_m - 1))
+            - (i64::from(from_y) * 12 + i64::from(from_m - 1))
+    };
+    match recurrence {
+        Recurrence::Daily { interval_days } => {
+            *interval_days > 0 && (day_z - start_z) % i64::from(*interval_days) == 0
+        }
+        Recurrence::Weekly {
+            interval_weeks,
+            weekdays,
+        } => {
+            let wd = weekday_index(dy, dm, dd);
+            if *interval_weeks == 0 || !weekdays.iter().any(|w| i64::from(*w as u8) == wd) {
+                return false;
+            }
+            // Same Monday anchor as first_occurrence/isScheduledOn.
+            let start_monday = start_z - weekday_index(sy, sm, sd);
+            let day_monday = day_z - wd;
+            ((day_monday - start_monday) / 7) % i64::from(*interval_weeks) == 0
+        }
+        Recurrence::MonthlyDay {
+            interval_months,
+            day,
+        } => {
+            if *interval_months == 0 {
+                return false;
+            }
+            let months = months_between(sy, sm, dy, dm);
+            months >= 0
+                && months % i64::from(*interval_months) == 0
+                && dd == u32::from(*day).min(days_in_month(dy, dm))
+        }
+        Recurrence::MonthlyNthWeekday {
+            interval_months,
+            nth,
+            weekday,
+        } => {
+            if *interval_months == 0 || weekday_index(dy, dm, dd) != i64::from(*weekday as u8) {
+                return false;
+            }
+            let months = months_between(sy, sm, dy, dm);
+            months >= 0
+                && months % i64::from(*interval_months) == 0
+                && dd == nth_weekday_day(dy, dm, *nth, *weekday)
+        }
+        // Validation rejects workday-aware schedules before insert — a
+        // stored one could never produce an occurrence here.
+        Recurrence::WorkdayAfter { .. } => false,
+    }
 }
 
 /// Input carrying the schedule — a `series` field on task create/update.
@@ -522,6 +598,12 @@ pub async fn create(
     let series = insert(&mut tx, profile_id, fields).await?;
     tx.commit().await?;
     Ok(series)
+}
+
+/// The decoded series scoped to its owning profile — same not-found
+/// semantics as every profile-scoped read.
+pub async fn get(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<TaskSeries> {
+    into_series(owned_row(pool, profile_id, id).await?)
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<TaskSeries>> {
@@ -1095,6 +1177,130 @@ mod tests {
             first_occurrence(&never, START, Some(WEDNESDAY_AFTER_START)).as_deref(),
             Some(WEDNESDAY_AFTER_START)
         );
+    }
+
+    #[test]
+    fn occurs_on_matches_every_recurrence_kind() {
+        // START is a Monday. Each case mirrors isScheduledOn's table.
+        let cases: &[(Recurrence, &str, &str, Option<&str>, bool)] = &[
+            (
+                Recurrence::Daily { interval_days: 3 },
+                START,
+                "2026-10-22",
+                None,
+                true,
+            ),
+            (
+                Recurrence::Daily { interval_days: 3 },
+                START,
+                "2026-10-21",
+                None,
+                false,
+            ),
+            (weekly(), START, "2026-11-02", None, true),
+            (weekly(), START, "2026-10-21", None, false),
+            (
+                Recurrence::Weekly {
+                    interval_weeks: 2,
+                    weekdays: vec![Weekday::Monday],
+                },
+                START,
+                "2026-10-26", // the off week — anchor skips it
+                None,
+                false,
+            ),
+            (
+                Recurrence::Weekly {
+                    interval_weeks: 2,
+                    weekdays: vec![Weekday::Monday],
+                },
+                START,
+                "2026-11-02",
+                None,
+                true,
+            ),
+            (
+                Recurrence::MonthlyDay {
+                    interval_months: 1,
+                    day: 31,
+                },
+                START,
+                "2026-10-31",
+                None,
+                true,
+            ),
+            (
+                Recurrence::MonthlyDay {
+                    interval_months: 1,
+                    day: 31,
+                },
+                START,
+                "2026-11-30", // November clamps the 31st to the 30th
+                None,
+                true,
+            ),
+            (
+                Recurrence::MonthlyDay {
+                    interval_months: 2,
+                    day: 19,
+                },
+                START,
+                "2026-11-19", // odd month gap — not an eligible month
+                None,
+                false,
+            ),
+            (
+                Recurrence::MonthlyNthWeekday {
+                    interval_months: 1,
+                    nth: 2,
+                    weekday: Weekday::Monday,
+                },
+                START,
+                "2026-11-09", // second Monday of November
+                None,
+                true,
+            ),
+            (
+                Recurrence::MonthlyNthWeekday {
+                    interval_months: 1,
+                    nth: 2,
+                    weekday: Weekday::Monday,
+                },
+                START,
+                "2026-11-16", // third Monday
+                None,
+                false,
+            ),
+            (
+                Recurrence::MonthlyNthWeekday {
+                    interval_months: 1,
+                    nth: -1,
+                    weekday: Weekday::Friday,
+                },
+                START,
+                "2026-10-30", // last Friday of October
+                None,
+                true,
+            ),
+            // Bounds: before the start and past the end never occur.
+            (weekly(), START, "2026-10-12", None, false),
+            (weekly(), START, "2026-10-26", Some("2026-10-25"), false),
+            (weekly(), START, "2026-10-26", Some("2026-10-26"), true),
+            (
+                Recurrence::WorkdayAfter { day: 11 },
+                START,
+                "2026-11-11",
+                None,
+                false,
+            ),
+        ];
+        for (recurrence, start, iso, end, expected) in cases {
+            assert_eq!(
+                occurs_on(recurrence, start, *end, iso),
+                *expected,
+                "{recurrence:?} on {iso}"
+            );
+        }
     }
 
     #[test]

@@ -28,6 +28,7 @@ import {
   noteDeleteLabel,
   noteEditLabel,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
+  CALENDAR_NEXT_LABEL,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_LABEL,
@@ -51,12 +52,16 @@ import {
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
-import { NOTE_BODY_TOO_LONG_MESSAGE } from "@/lib/errors";
+import {
+  INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
+  NOTE_BODY_TOO_LONG_MESSAGE,
+} from "@/lib/errors";
 import { ROUTES } from "@/lib/routes";
 
 import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
+import type { Locator } from "@playwright/test";
 import {
   getInvocations,
   stubApiError,
@@ -738,15 +743,49 @@ const seriesFixture = {
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-11 10:00:00",
 };
+// The opened instance must be a future occurrence — past instances are
+// view-only (spec §232), and a fixed date would eventually age into the
+// past and silently flip the dialog's editability.
+const nextMondayIso = () => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + ((8 - d.getUTCDay()) % 7 || 7));
+  return d.toISOString().slice(0, 10);
+};
+const shiftIsoDays = (iso: string, days: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+const SERIES_OPENED = nextMondayIso();
+const SERIES_PICK = shiftIsoDays(SERIES_OPENED, 7); // the following Monday
 const seriesInstance = {
   ...tasks[0],
   series_id: seriesFixture.id,
-  scheduled_date: "2026-10-19",
+  scheduled_date: SERIES_OPENED,
 };
-const SERIES_MONTH = new Date(Date.UTC(2026, 9, 1)).toLocaleDateString(
+const SERIES_MONTH = new Date(`${SERIES_OPENED}T00:00:00Z`).toLocaleDateString(
   "en-US",
   { month: "long", year: "numeric", timeZone: "UTC" },
 );
+// A guaranteed-unscheduled day in the displayed month: its first Tuesday
+// (the fixture recurs on Mondays only).
+const UNSCHEDULED_DAY = (() => {
+  const d = new Date(`${SERIES_OPENED}T00:00:00Z`);
+  d.setUTCDate(1);
+  while (d.getUTCDay() !== 2) {
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d.getUTCDate();
+})();
+
+// Clicks a calendar date, navigating one month forward when the target
+// spills into the next grid (a late-month Monday + one week).
+const pickCalendarDate = async (dialog: Locator, iso: string) => {
+  if ((await dialog.getByRole("button", { name: iso }).count()) === 0) {
+    await dialog.getByRole("button", { name: CALENDAR_NEXT_LABEL }).click();
+  }
+  await dialog.getByRole("button", { name: iso }).click();
+};
 
 test("opening a task shows a read-only details view first", async ({
   page,
@@ -810,7 +849,9 @@ test("a series task shows audit info, calendar, and notes tabs", async ({
       .locator("[aria-hidden='true']"),
   ).toBeVisible();
   await expect(
-    dialog.getByText("20", { exact: true }).locator("[aria-hidden='true']"),
+    dialog
+      .getByText(String(UNSCHEDULED_DAY), { exact: true })
+      .locator("[aria-hidden='true']"),
   ).toHaveCount(0);
   await expect(
     dialog.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
@@ -821,7 +862,53 @@ test("a series task shows audit info, calendar, and notes tabs", async ({
   ).toHaveAttribute("aria-selected", "true");
 });
 
-test("picking a scheduled date without an instance shows the pending state", async ({
+test("picking a scheduled date without an instance materializes it", async ({
+  page,
+}) => {
+  const created = {
+    ...seriesInstance,
+    id: 88,
+    description: "fresh occurrence",
+    scheduled_date: SERIES_PICK,
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.getOrCreateInstance]: created,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+
+  // The Monday after the opened one is scheduled but has no persisted
+  // instance — picking it materializes the row and swaps the view to it.
+  await pickCalendarDate(dialog, SERIES_PICK);
+  await expect(dialog.getByText("fresh occurrence")).toBeVisible();
+  await expect(
+    dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+  ).toBeVisible();
+
+  const call = (
+    await getInvocations<{ seriesId: number; date: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.getOrCreateInstance);
+  expect(call?.args).toMatchObject({
+    seriesId: seriesFixture.id,
+    date: SERIES_PICK,
+  });
+});
+
+test("a rejected materialization keeps the pending panel and surfaces the error", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
@@ -832,6 +919,11 @@ test("picking a scheduled date without an instance shows the pending state", asy
     [COMMANDS.listTaskCategories]: [],
     [COMMANDS.listTaskSeries]: [seriesFixture],
     [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.getOrCreateInstance]: stubApiError(
+      "instance_date_not_scheduled",
+      "validation",
+      "the date is not a scheduled occurrence of this series",
+    ),
   });
   await page.goto(`/#${backlogPath}`);
 
@@ -840,8 +932,10 @@ test("picking a scheduled date without an instance shows the pending state", asy
     .click();
   const dialog = page.getByRole("dialog");
 
-  // Mondays in Oct 2026: 5, 12, 19 (persisted), 26 — 26 has no instance.
-  await dialog.getByRole("button", { name: "2026-10-26" }).click();
+  await pickCalendarDate(dialog, SERIES_PICK);
+  await expect(dialog.getByRole("alert")).toHaveText(
+    INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
+  );
   await expect(
     dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
   ).toBeVisible();
