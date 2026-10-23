@@ -58,6 +58,9 @@ export const config = {
   ],
 
   logLevel: "info",
+  // A crashed worker (e.g. tauri-service's patchBrowserExecute racing the
+  // session handshake) fails the whole spec; retrying gets a fresh session.
+  specFileRetries: 2,
   framework: "mocha",
   reporters: ["spec"],
   mochaOpts: {
