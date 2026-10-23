@@ -17,6 +17,8 @@ Offline desktop weekly kanban planner. Tauri app: Rust backend, React (Vite) + T
 
 ## AI usage transparency
 
+_The Dim Software Factory_
+
 <picture>
   <source srcset="docs/ai-usage/ai-usage-avg-dark.svg" media="(prefers-color-scheme: dark)">
   <img src="docs/ai-usage/ai-usage-avg.svg" alt="Average AI usage score: 3.5 / 5" width="240">
