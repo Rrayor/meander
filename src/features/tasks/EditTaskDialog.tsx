@@ -31,6 +31,7 @@ import {
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
+import { NoteList } from "@/features/tasks/NoteList";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import type { NewSeries, TaskSeries, UpdateSeries } from "@/api/bindings";
@@ -51,6 +52,7 @@ import {
   updateTaskSeries,
 } from "@/api/series";
 import {
+  NOTES_SECTION_LABEL,
   CANCEL_BUTTON_LABEL,
   DELETE_BUTTON_LABEL,
   DELETE_KEEP_LABEL,
@@ -187,6 +189,22 @@ function TaskDetailsView({
   onDelete,
   deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
+  let notesSection: ReactNode = null;
+  if (pendingIso === null) {
+    if (viewed.series_id !== null && seriesRow) {
+      notesSection = <NotesTabs taskId={viewed.id} seriesId={seriesRow.id} />;
+    } else if (viewed.series_id === null) {
+      notesSection = (
+        <section aria-label={NOTES_SECTION_LABEL}>
+          <h3 className="mb-2 text-sm font-medium text-text">
+            {NOTES_SECTION_LABEL}
+          </h3>
+          <NoteList key={viewed.id} target={{ taskId: viewed.id }} />
+        </section>
+      );
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {pendingIso !== null ? (
@@ -297,7 +315,7 @@ function TaskDetailsView({
           onPick={onPick}
         />
       )}
-      {viewed.series_id !== null && <NotesTabs />}
+      {notesSection}
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"

@@ -3,6 +3,7 @@ import {
   MAX_CATEGORY_DESCRIPTION_LENGTH,
   MAX_CATEGORY_TITLE_LENGTH,
 } from "@/api/categories";
+import { NOTE_BODY_MAX_LEN } from "@/api/notes";
 import {
   MAX_DURATION_MINUTES,
   MAX_TASK_DESCRIPTION_LENGTH,
@@ -39,6 +40,12 @@ export const CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE =
 export const CATEGORY_COLOR_INVALID_MESSAGE =
   "Category color must be a #rrggbb hex value";
 
+export const NOTE_BODY_TOO_LONG_MESSAGE = `Note must be ${NOTE_BODY_MAX_LEN.toLocaleString()} characters or fewer`;
+
+export const NOTE_BODY_REQUIRED_MESSAGE = "Note cannot be empty";
+
+export const NOTE_NOT_FOUND_MESSAGE = "The note no longer exists";
+
 export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   task_title_required: TITLE_REQUIRED_MESSAGE,
   task_title_too_long: TASK_TITLE_TOO_LONG_MESSAGE,
@@ -51,6 +58,9 @@ export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   category_title_invalid_characters: CATEGORY_TITLE_INVALID_CHARACTERS_MESSAGE,
   category_description_too_long: CATEGORY_DESCRIPTION_TOO_LONG_MESSAGE,
   category_color_invalid: CATEGORY_COLOR_INVALID_MESSAGE,
+  note_body_required: NOTE_BODY_REQUIRED_MESSAGE,
+  note_body_too_long: NOTE_BODY_TOO_LONG_MESSAGE,
+  note_not_found: NOTE_NOT_FOUND_MESSAGE,
 };
 
 export const serverErrorMessage = (error: unknown): string | undefined => {

@@ -16,4 +16,6 @@ export const QUERY_KEYS = {
   // Prefix key covering every per-series category query — invalidate this
   // when a category itself is renamed/deleted so series chips refetch.
   allSeriesCategories: ["series-categories"],
+  taskNotes: (taskId: number) => ["task-notes", taskId],
+  seriesNotes: (seriesId: number) => ["series-notes", seriesId],
 } as const;

@@ -20,6 +20,13 @@ import {
   EDIT_BUTTON_LABEL,
   NOTES_TAB_INSTANCE_LABEL,
   NOTES_TAB_SERIES_LABEL,
+  NOTE_ADD_LABEL,
+  NOTE_COMPOSER_PLACEHOLDER,
+  NOTE_SAVE_LABEL,
+  NOTES_EMPTY_MESSAGE,
+  noteConfirmDeleteLabel,
+  noteDeleteLabel,
+  noteEditLabel,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
@@ -44,6 +51,7 @@ import {
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
+import { NOTE_BODY_TOO_LONG_MESSAGE } from "@/lib/errors";
 import { ROUTES } from "@/lib/routes";
 
 import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
@@ -112,6 +120,8 @@ const tasks = [
 
 test("backlog lists tasks with status and estimate", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: tasks,
     [COMMANDS.currentProfile]: current,
   });
@@ -126,6 +136,8 @@ test("backlog lists tasks with status and estimate", async ({ page }) => {
 
 test("an empty backlog shows the empty state", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
   });
@@ -145,6 +157,8 @@ test("creating a task via the dialog adds it to the backlog", async ({
     estimated_minutes: 90,
   };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: created,
@@ -169,6 +183,8 @@ test("creating a task with a category sends the association", async ({
   const errands = { id: 1, title: "Errands", color: "#2dd4bf" };
   const created = { ...tasks[0], id: 3 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: created,
@@ -198,6 +214,8 @@ test("a blank title shows validation without calling the backend", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     // createTask intentionally unstubbed: a call would throw.
@@ -213,6 +231,8 @@ test("a blank title shows validation without calling the backend", async ({
 
 test("a blurred title shows validation before submit", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     // createTask intentionally unstubbed: a call would throw.
@@ -230,6 +250,8 @@ test("a blurred title shows validation before submit", async ({ page }) => {
 
 test("an out-of-range estimate shows validation on blur", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     // createTask intentionally unstubbed: a call would throw.
@@ -251,6 +273,8 @@ test("the dialog closes on Escape without creating a task", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     // createTask intentionally unstubbed: a call would throw.
@@ -267,6 +291,8 @@ test("the dialog closes on Escape without creating a task", async ({
 
 test("the dialog closes on backdrop click and on Cancel", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
   });
@@ -284,6 +310,8 @@ test("the dialog closes on backdrop click and on Cancel", async ({ page }) => {
 
 test("backend validation errors surface in the dialog", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: stubApiError(
@@ -310,6 +338,8 @@ test("the estimate pair sends combined minutes on the wire", async ({
 }) => {
   const created = { ...tasks[0], id: 3, estimated_minutes: 90 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: created,
@@ -340,6 +370,8 @@ test("the estimate pair sends combined minutes on the wire", async ({
 
 test("minutes alone can exceed the 24-hour limit", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
   });
@@ -359,6 +391,8 @@ test("minutes alone can exceed the 24-hour limit", async ({ page }) => {
 test("dragging a task reorders the backlog", async ({ page }) => {
   const reordered = [tasks[1], tasks[0]];
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([tasks, reordered]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.moveTask]: null,
@@ -390,6 +424,8 @@ test("dragging a task reorders the backlog", async ({ page }) => {
 
 test("deleting a task removes it from the backlog", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([tasks, [tasks[1]]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.deleteTask]: null,
@@ -416,6 +452,8 @@ test("editing a task updates the backlog row", async ({ page }) => {
     status: TaskStatus.InProgress,
   };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.updateTask]: updated,
@@ -457,6 +495,8 @@ test("editing a task updates the backlog row", async ({ page }) => {
 test("creating a repeating task sends the series payload", async ({ page }) => {
   const created = { ...tasks[0], id: 3, series_id: 1 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: created,
@@ -471,7 +511,8 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
   await dialog.getByRole("button", { name: WEEK_UNIT.label }).click();
-  await dialog.getByRole("button", { name: FRIDAY.label }).click();
+  // exact: the expanded toggle's summary also contains the weekday name.
+  await dialog.getByRole("button", { name: FRIDAY.label, exact: true }).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
@@ -500,6 +541,8 @@ test("an invalid repeat schedule keeps the dialog open without a call", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     // createTask intentionally unstubbed: a call would throw.
@@ -528,6 +571,8 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
 }) => {
   const created = { ...tasks[0], id: 3, series_id: 1 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: created,
@@ -544,7 +589,7 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
   await dialog.getByRole("button", { name: MONTH_UNIT.label }).click();
   await dialog.getByRole("radio", { name: REPEAT_ON_THE_LABEL }).click();
   await dialog.getByRole("button", { name: NTH_SECOND.aria }).click();
-  await dialog.getByRole("button", { name: FRIDAY.label }).click();
+  await dialog.getByRole("button", { name: FRIDAY.label, exact: true }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   const createCall = (await getInvocations<{ input: NewTask }>(page)).find(
@@ -563,6 +608,8 @@ test("a monthly day repeat sends the picked day and interval", async ({
 }) => {
   const created = { ...tasks[0], id: 3, series_id: 1 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([[], [created]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: created,
@@ -593,6 +640,8 @@ test("a monthly day repeat sends the picked day and interval", async ({
 
 test("a typed schedule rejection surfaces in the dialog", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.createTask]: stubApiError(
@@ -621,6 +670,8 @@ test("attaching a schedule while editing sends the series payload", async ({
 }) => {
   const updated = { ...tasks[0], series_id: 1 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: stubSequence([tasks, [updated, tasks[1]]]),
     [COMMANDS.currentProfile]: current,
     [COMMANDS.updateTask]: updated,
@@ -652,6 +703,8 @@ test("the edit dialog hides the repeat section for a series instance", async ({
 }) => {
   const linked = { ...tasks[0], series_id: 1 };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [linked],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -699,6 +752,8 @@ test("opening a task shows a read-only details view first", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [tasks[0]],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -710,8 +765,10 @@ test("opening a task shows a read-only details view first", async ({
     .click();
   const dialog = page.getByRole("dialog");
 
-  // Read-only: no form fields at all until Edit is pressed.
-  await expect(dialog.getByRole("textbox")).toHaveCount(0);
+  // Read-only: the only textbox is the notes composer — notes are handled
+  // outside the task form, so they stay available in the view.
+  await expect(dialog.getByRole("textbox")).toHaveCount(1);
+  await expect(dialog.getByLabel(NOTE_COMPOSER_PLACEHOLDER)).toBeVisible();
   await expect(dialog.getByLabel(/Title/)).toHaveCount(0);
   await expect(
     dialog.getByRole("heading", { name: TITLE_DRAFT_NOTES }),
@@ -729,6 +786,8 @@ test("a series task shows audit info, calendar, and notes tabs", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -766,6 +825,8 @@ test("picking a scheduled date without an instance shows the pending state", asy
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -790,6 +851,8 @@ test("a series-scope save sends update_task_series with the schedule", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -829,6 +892,8 @@ test("a rejected series-scope save surfaces the typed error", async ({
 }) => {
   const SERIES_REJECT_MESSAGE = "the schedule is not a known rule";
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -860,6 +925,8 @@ test("the details view deletes the whole series after scope confirmation", async
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -896,6 +963,8 @@ test("the details view ends the series at the viewed date", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTaskCategories]: [],
@@ -926,4 +995,177 @@ test("the details view ends the series at the viewed date", async ({
     seriesId: seriesFixture.id,
     fromDate: seriesInstance.scheduled_date,
   });
+});
+
+const NOTE_BODY = "Call the venue";
+const NOTE_BODY_EDITED = "Confirm chairs with venue";
+const noteFixture = {
+  id: 9,
+  task_id: tasks[0].id,
+  series_id: null,
+  body: NOTE_BODY,
+  created_at: "2026-10-11 10:00:00",
+  updated_at: null,
+};
+
+test("adding a note to a task sends it on the wire and lists it", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: stubSequence([[], [noteFixture]]),
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [tasks[0]],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.createTaskNote]: noteFixture,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(NOTES_EMPTY_MESSAGE)).toBeVisible();
+
+  await dialog.getByLabel(NOTE_COMPOSER_PLACEHOLDER).fill(NOTE_BODY);
+  await dialog.getByRole("button", { name: NOTE_ADD_LABEL }).click();
+
+  const call = (
+    await getInvocations<{ taskId: number; body: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.createTaskNote);
+  expect(call?.args).toMatchObject({ taskId: tasks[0].id, body: NOTE_BODY });
+  await expect(dialog.getByText(NOTE_BODY)).toBeVisible();
+});
+
+test("editing and deleting a note goes through update_note and delete_note", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: stubSequence([
+      [noteFixture],
+      [
+        {
+          ...noteFixture,
+          body: NOTE_BODY_EDITED,
+          updated_at: "2026-10-11 11:00:00",
+        },
+      ],
+      [],
+    ]),
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [tasks[0]],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.updateNote]: { ...noteFixture, body: NOTE_BODY_EDITED },
+    [COMMANDS.deleteNote]: null,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(NOTE_BODY)).toBeVisible();
+
+  await dialog.getByRole("button", { name: noteEditLabel(NOTE_BODY) }).click();
+  await dialog.getByLabel(NOTE_SAVE_LABEL).fill(NOTE_BODY_EDITED);
+  await dialog.getByRole("button", { name: NOTE_SAVE_LABEL }).click();
+  const update = (
+    await getInvocations<{ noteId: number; body: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.updateNote);
+  expect(update?.args).toMatchObject({
+    noteId: noteFixture.id,
+    body: NOTE_BODY_EDITED,
+  });
+  await expect(dialog.getByText(NOTE_BODY_EDITED)).toBeVisible();
+
+  await dialog
+    .getByRole("button", { name: noteDeleteLabel(NOTE_BODY_EDITED) })
+    .click();
+  // Deletion asks before it acts.
+  expect(
+    (await getInvocations(page)).some((c) => c.cmd === COMMANDS.deleteNote),
+  ).toBe(false);
+  await dialog
+    .getByRole("button", {
+      name: noteConfirmDeleteLabel(NOTE_BODY_EDITED),
+    })
+    .click();
+  const del = (await getInvocations<{ noteId: number }>(page)).find(
+    (c) => c.cmd === COMMANDS.deleteNote,
+  );
+  expect(del?.args).toMatchObject({ noteId: noteFixture.id });
+});
+
+test("the series tab writes series notes, not instance notes", async ({
+  page,
+}) => {
+  const seriesNote = {
+    ...noteFixture,
+    task_id: null,
+    series_id: seriesFixture.id,
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: stubSequence([[], [seriesNote]]),
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.createSeriesNote]: seriesNote,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: NOTES_TAB_SERIES_LABEL }).click();
+  await expect(
+    dialog.getByRole("tabpanel").getByText(NOTES_EMPTY_MESSAGE),
+  ).toBeVisible();
+
+  const seriesPanel = dialog.getByRole("tabpanel");
+  await seriesPanel.getByLabel(NOTE_COMPOSER_PLACEHOLDER).fill(NOTE_BODY);
+  await seriesPanel.getByRole("button", { name: NOTE_ADD_LABEL }).click();
+
+  const call = (
+    await getInvocations<{ seriesId: number; body: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.createSeriesNote);
+  expect(call?.args).toMatchObject({
+    seriesId: seriesFixture.id,
+    body: NOTE_BODY,
+  });
+  expect(
+    (await getInvocations(page)).some((c) => c.cmd === COMMANDS.createTaskNote),
+  ).toBe(false);
+  await expect(dialog.getByText(NOTE_BODY)).toBeVisible();
+});
+
+test("a rejected note surfaces the typed error", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [tasks[0]],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.createTaskNote]: stubApiError(
+      "note_body_too_long",
+      "validation",
+      "backend message differing from the mapped ui copy",
+    ),
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(NOTE_COMPOSER_PLACEHOLDER).fill(NOTE_BODY);
+  await dialog.getByRole("button", { name: NOTE_ADD_LABEL }).click();
+  await expect(dialog.getByRole("alert")).toHaveText(
+    NOTE_BODY_TOO_LONG_MESSAGE,
+  );
 });

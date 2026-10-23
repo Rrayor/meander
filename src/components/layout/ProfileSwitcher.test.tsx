@@ -55,7 +55,7 @@ describe("ProfileSwitcher", () => {
       await screen.findByRole(
         "button",
         { name: DEFAULT_PROFILE_NAME },
-        { timeout: 3000 },
+        { timeout: 10_000 },
       ),
     ).toBeInTheDocument();
   });

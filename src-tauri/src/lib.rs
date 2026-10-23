@@ -6,6 +6,7 @@ pub mod commands;
 pub mod config;
 pub mod db;
 pub mod errors;
+pub mod notes;
 pub mod profiles;
 pub mod series;
 pub mod state;
@@ -47,6 +48,12 @@ pub fn run() {
             commands::update_task_series,
             commands::truncate_task_series,
             commands::list_series_categories,
+            commands::list_task_notes,
+            commands::list_series_notes,
+            commands::create_task_note,
+            commands::create_series_note,
+            commands::update_note,
+            commands::delete_note,
             commands::current_profile,
             commands::create_profile,
             commands::rename_profile,

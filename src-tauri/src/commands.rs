@@ -221,6 +221,66 @@ pub async fn list_series_categories(
 }
 
 #[tauri::command]
+pub async fn list_task_notes(
+    task_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::notes::Note>, ApiError> {
+    crate::notes::list_for_task(&state.pool(), state.active_profile_id(), task_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn list_series_notes(
+    series_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::notes::Note>, ApiError> {
+    crate::notes::list_for_series(&state.pool(), state.active_profile_id(), series_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn create_task_note(
+    task_id: i64,
+    body: String,
+    state: State<'_, AppState>,
+) -> Result<crate::notes::Note, ApiError> {
+    crate::notes::create_for_task(&state.pool(), state.active_profile_id(), task_id, &body)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn create_series_note(
+    series_id: i64,
+    body: String,
+    state: State<'_, AppState>,
+) -> Result<crate::notes::Note, ApiError> {
+    crate::notes::create_for_series(&state.pool(), state.active_profile_id(), series_id, &body)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn update_note(
+    note_id: i64,
+    body: String,
+    state: State<'_, AppState>,
+) -> Result<crate::notes::Note, ApiError> {
+    crate::notes::update(&state.pool(), state.active_profile_id(), note_id, &body)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn delete_note(note_id: i64, state: State<'_, AppState>) -> Result<(), ApiError> {
+    crate::notes::delete(&state.pool(), state.active_profile_id(), note_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn create_profile(name: String, state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::create(&state.pool(), &name)
         .await

@@ -75,6 +75,8 @@ const expectAccessible = async (page: Page) => {
 
 test("the board page has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [],
   });
@@ -85,6 +87,8 @@ test("the board page has no WCAG AA violations", async ({ page }) => {
 
 test("the backlog has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [task],
   });
@@ -96,6 +100,8 @@ test("the backlog has no WCAG AA violations", async ({ page }) => {
 
 test("the new task dialog has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [],
   });
@@ -110,6 +116,8 @@ test("the repeat schedule fields have no WCAG AA violations", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [],
   });
@@ -128,6 +136,8 @@ test("the repeat schedule fields have no WCAG AA violations", async ({
 
 test("the category picker has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [],
     [COMMANDS.listCategories]: [errands],
@@ -151,6 +161,8 @@ test("the category picker has no WCAG AA violations", async ({ page }) => {
 
 test("the edit task dialog has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [task],
     [COMMANDS.listTaskCategories]: [],
@@ -188,6 +200,8 @@ const seriesInstance = {
 
 test("the task details view has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [seriesInstance],
     [COMMANDS.listTaskCategories]: [],
@@ -206,6 +220,8 @@ test("the task details view has no WCAG AA violations", async ({ page }) => {
 test("the categories page has no WCAG AA violations", async ({ page }) => {
   const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listCategories]: [errands],
   });
@@ -216,6 +232,8 @@ test("the categories page has no WCAG AA violations", async ({ page }) => {
 test("the new category dialog has no WCAG AA violations", async ({ page }) => {
   const categoriesPath = ROUTES.find((r) => r.label === "Categories")!.path;
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listCategories]: [],
   });
@@ -236,6 +254,8 @@ test("the edit category dialog has no WCAG AA violations", async ({ page }) => {
     updated_at: AUDIT_TS,
   };
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listCategories]: [category],
   });
@@ -250,6 +270,8 @@ test("the edit category dialog has no WCAG AA violations", async ({ page }) => {
 
 test("the settings page has no WCAG AA violations", async ({ page }) => {
   await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listProfiles]: [current],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,

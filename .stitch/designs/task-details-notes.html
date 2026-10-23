@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — Task Details Modal</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-container-lowest": "#09100e",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "on-tertiary": "#4b2800",
+            "secondary-container": "#46494e",
+            "secondary": "#c5c6cc",
+            "on-surface-variant": "#bacac5",
+            "surface-container-high": "#242b2a",
+            "threshold-green": "#4ADE80",
+            "on-primary-container": "#00574d",
+            "on-background": "#dde4e1",
+            "outline-variant": "#3c4a46",
+            "on-secondary-fixed": "#191c20",
+            "text-muted": "#9AA0A6",
+            "threshold-pink": "#F472B6",
+            "on-error": "#690005",
+            "threshold-cyan": "#22D3EE",
+            "tertiary": "#ffd1aa",
+            "on-error-container": "#ffdad6",
+            "secondary-fixed-dim": "#c5c6cc",
+            "on-tertiary-fixed": "#2d1600",
+            "error": "#ffb4ab",
+            "surface-container": "#1a211f",
+            "inverse-on-surface": "#2b3230",
+            "tertiary-fixed": "#ffdcc0",
+            "on-secondary-fixed-variant": "#44474b",
+            "text": "#E8EAED",
+            "outline": "#859490",
+            "error-container": "#93000a",
+            "surface-bright": "#333b39",
+            "tertiary-container": "#ffac5a",
+            "primary": "#2DD4BF",
+            "threshold-orange": "#FB923C",
+            "surface-raised": "#22262B",
+            "on-primary": "#003731",
+            "threshold-lime": "#A3E635",
+            "threshold-indigo": "#818CF8",
+            "background": "#121417",
+            "on-surface": "#dde4e1",
+            "on-primary-fixed": "#00201c",
+            "primary-container": "#2dd4bf",
+            "threshold-violet": "#A78BFA",
+            "threshold-amber": "#FBBF24",
+            "threshold-fuchsia": "#E879F9",
+            "on-primary-fixed-variant": "#005047",
+            "threshold-emerald": "#34D399",
+            "inverse-surface": "#dde4e1",
+            "threshold-red": "#F87171",
+            "surface-variant": "#2f3634",
+            "on-secondary-container": "#b6b8be",
+            "surface": "#1A1D21",
+            "on-tertiary-container": "#744000",
+            "tertiary-fixed-dim": "#ffb875",
+            "surface-dim": "#0e1513",
+            "primary-fixed": "#62fae3",
+            "secondary-fixed": "#e1e2e8",
+            "primary-fixed-dim": "#3cddc7",
+            "surface-container-low": "#161d1b",
+            "border": "#2E3338",
+            "surface-tint": "#3cddc7",
+            "inverse-primary": "#006b5f",
+            "on-secondary": "#2e3135",
+            "surface-container-highest": "#2f3634",
+            "threshold-blue": "#60A5FA"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter": "1rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-lg": "1rem",
+            "margin": "1.5rem",
+            "space-xl": "1.5rem",
+            "space-md": "0.75rem"
+          },
+          "fontFamily": {
+            "title": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"],
+            "display": ["Inter"]
+          },
+          "fontSize": {
+            "title": [
+              "16px",
+              {
+                "lineHeight": "24px",
+                "fontWeight": "600"
+              }
+            ],
+            "body": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "fontWeight": "400"
+              }
+            ],
+            "label": [
+              "12px",
+              {
+                "lineHeight": "16px",
+                "fontWeight": "500"
+              }
+            ],
+            "display": [
+              "24px",
+              {
+                "lineHeight": "32px",
+                "fontWeight": "600"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 18px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2E3338;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body class="bg-background text-text font-body antialiased selection:bg-primary selection:text-on-primary min-h-screen overflow-hidden flex">
+<!-- Persistent SideNavBar Component from Shared Specifications -->
+<aside aria-label="Main Navigation" class="w-56 h-screen flex flex-col justify-between p-space-lg bg-surface dark:bg-surface border-r border-border dark:border-border shrink-0 select-none z-10">
+<div>
+<!-- Workspace Brand Header -->
+<div class="flex items-center gap-space-sm mb-space-xl px-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-raised flex items-center justify-center text-primary border border-border">
+<span class="material-symbols-outlined text-[18px]">calendar_view_week</span>
+</div>
+<div>
+<div class="font-title text-title font-semibold text-text dark:text-text tracking-tight">Meander</div>
+<div class="font-label text-label text-text-muted">Offline Planner</div>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<nav class="space-y-1">
+<!-- Board (Inactive) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted dark:text-text-muted font-body text-body hover:bg-surface-raised dark:hover:bg-surface-raised hover:text-text dark:hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">calendar_view_week</span>
+<span>Board</span>
+</a>
+<!-- Backlog (Active - Task Details opened from Backlog) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg bg-surface-raised dark:bg-surface-raised text-primary dark:text-primary font-body text-body" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Backlog</span>
+</a>
+<!-- Settings (Inactive) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted dark:text-text-muted font-body text-body hover:bg-surface-raised dark:hover:bg-surface-raised hover:text-text dark:hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer Vault/Space Selection -->
+<div class="border-t border-border pt-space-md">
+<div class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-label text-label hover:bg-surface-raised hover:text-text transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-[16px]">folder_open</span>
+<span class="flex-1 truncate">Default</span>
+<span class="w-2 h-2 rounded-full bg-threshold-emerald"></span>
+</div>
+</div>
+</aside>
+<!-- Canvas Area (Dimmed Backlog View) -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<!-- TopNavBar Component -->
+<header class="flex justify-between items-center w-full px-margin py-space-md bg-background dark:bg-background border-b border-border dark:border-border shrink-0 select-none">
+<div class="flex items-center gap-space-md">
+<h1 class="font-display text-display font-semibold text-text dark:text-text tracking-tight">Backlog</h1>
+<div class="flex items-center gap-space-xs px-2 py-0.5 rounded bg-surface-raised text-text-muted font-label text-label border border-border">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-emerald"></span>
+<span>Synced locally</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 border border-transparent focus:ring-1 focus:ring-primary" title="Filter &amp; View">
+<span class="material-symbols-outlined">tune</span>
+</button>
+<button class="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 border border-transparent focus:ring-1 focus:ring-primary" title="More options">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+<button class="flex items-center gap-1.5 bg-primary text-on-primary font-body text-body font-medium px-3 py-1.5 rounded-lg hover:brightness-110 active:brightness-95 transition duration-150">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>Add Task</span>
+</button>
+</div>
+</header>
+<!-- Dimmed Canvas Background / Backlog Columns Preview -->
+<div aria-hidden="true" class="flex-1 p-margin overflow-y-auto opacity-30 pointer-events-none filter blur-[0.5px] select-none">
+<div class="grid grid-cols-3 gap-6 max-w-6xl">
+<!-- Ready Column -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between text-text-muted font-label text-label pb-1 border-b border-border">
+<span>Ready for Sprint (3)</span>
+<span>2.5h</span>
+</div>
+<div class="p-3 bg-surface border border-border rounded-lg space-y-2">
+<div class="flex items-center justify-between">
+<span class="text-text font-body text-body">Weekly standup notes</span>
+<span class="material-symbols-outlined text-text-muted text-[14px]">sync</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-label text-label text-threshold-orange">In progress</span>
+<span class="font-label text-label text-text-muted">· 45m</span>
+</div>
+</div>
+<div class="p-3 bg-surface border border-border rounded-lg space-y-2">
+<span class="text-text font-body text-body">Refactor event dispatcher</span>
+<div class="flex items-center gap-2">
+<span class="font-label text-label text-text-muted">1h 15m</span>
+</div>
+</div>
+</div>
+<!-- Future Column -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between text-text-muted font-label text-label pb-1 border-b border-border">
+<span>Icebox (4)</span>
+<span>6.0h</span>
+</div>
+<div class="p-3 bg-surface border border-border rounded-lg space-y-2">
+<span class="text-text font-body text-body">Export to markdown vault</span>
+<span class="font-label text-label text-text-muted">Offline packager</span>
+</div>
+</div>
+<!-- Completed Column -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between text-text-muted font-label text-label pb-1 border-b border-border">
+<span>Archived Recent (12)</span>
+<span>8.0h</span>
+</div>
+<div class="p-3 bg-surface border border-border rounded-lg opacity-60">
+<span class="text-text line-through font-body text-body">Fix key repeat listener</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Centered Task Details Modal Overlay -->
+<div class="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+<!-- Modal Container -->
+<section aria-labelledby="task-title" aria-modal="true" class="w-full max-w-2xl bg-surface border border-border rounded-xl shadow-2xl flex flex-col max-h-[921px] overflow-hidden animate-in fade-in zoom-in-95 duration-150" role="dialog">
+<!-- Modal Header -->
+<header class="p-margin pb-4 border-b border-border/80">
+<div class="flex items-start justify-between gap-4">
+<div class="flex-1 space-y-2">
+<!-- Title & Recurring Pill -->
+<div class="flex flex-wrap items-center gap-2.5">
+<h2 class="font-title text-title text-text font-semibold tracking-tight" id="task-title">Weekly standup notes</h2>
+<!-- Repeating badge pill -->
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-raised border border-border text-primary font-label text-label">
+<span class="material-symbols-outlined text-[13px]">sync</span>
+<span class="text-text-muted">Repeats weekly on Monday</span>
+</div>
+</div>
+<!-- Task description -->
+<p class="font-body text-body text-text-muted leading-relaxed">
+                Sync on weekly sprint goals, surface blockers, and align on release milestones.
+              </p>
+</div>
+<!-- Top Right Action Cluster -->
+<div class="flex items-center gap-1.5 shrink-0">
+<button class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-surface-raised border border-border text-text font-label text-label hover:bg-border transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary">
+<span class="material-symbols-outlined text-[14px]">edit</span>
+<span>Edit</span>
+</button>
+<button aria-label="Close dialog" class="p-1 rounded text-text-muted hover:text-text hover:bg-surface-raised transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Scrollable Modal Content -->
+<div class="flex-1 overflow-y-auto px-margin py-4 space-y-5">
+<!-- Compact Read-only Task Fields (Two-column compact grid) -->
+<div class="grid grid-cols-2 gap-x-6 gap-y-3 p-3.5 bg-surface-raised/60 border border-border/60 rounded-lg">
+<!-- Status Field -->
+<div class="flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Status</span>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-threshold-orange/10 border border-threshold-orange/30 text-threshold-orange font-label text-label font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-orange"></span>
+                In progress
+              </span>
+</div>
+<!-- Estimated Time -->
+<div class="flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Estimated time</span>
+<span class="font-body text-body text-text font-medium">45m</span>
+</div>
+<!-- Time Spent -->
+<div class="flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Time spent</span>
+<span class="font-body text-body text-text font-medium">30m <span class="font-label text-label text-text-muted font-normal">(66%)</span></span>
+</div>
+<!-- Carry-over Rule -->
+<div class="flex items-center justify-between">
+<span class="font-label text-label text-text-muted">Carry-over rule</span>
+<span class="inline-flex items-center gap-1 font-body text-body text-text">
+<span class="material-symbols-outlined text-[15px] text-text-muted">turn_right</span>
+<span>Carry over</span>
+</span>
+</div>
+<!-- Categories (Full row span in compact layout) -->
+<div class="col-span-2 flex items-center justify-between pt-1 border-t border-border/40">
+<span class="font-label text-label text-text-muted">Categories</span>
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface border border-border text-text font-label text-label">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                  Engineering
+                </span>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface border border-border text-text font-label text-label">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-orange"></span>
+                  Product &amp; Design
+                </span>
+</div>
+</div>
+</div>
+<!-- Notes Section -->
+<div class="space-y-3">
+<!-- Tab Bar -->
+<div class="flex items-center justify-between border-b border-border">
+<div class="flex items-center gap-4">
+<!-- Instance Tab (Active) -->
+<button class="relative pb-2 font-body text-body font-medium text-text flex items-center gap-1.5 focus:outline-none">
+<span>Instance</span>
+<span class="px-1.5 py-0.2 rounded-full bg-primary/20 text-primary font-label text-[11px] font-semibold">2</span>
+<div class="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"></div>
+</button>
+<!-- Series Tab (Inactive) -->
+<button class="pb-2 font-body text-body text-text-muted hover:text-text transition-colors duration-150 flex items-center gap-1.5 focus:outline-none">
+<span>Series</span>
+<span class="font-label text-label text-text-muted">0</span>
+</button>
+</div>
+<span class="pb-2 font-label text-[11px] font-semibold tracking-wider text-text-muted uppercase">LOCAL VAULT</span>
+</div>
+<!-- Vertical List of Note Cards -->
+<div class="space-y-2.5">
+<!-- Note Card 1 -->
+<article class="p-3 bg-surface-raised border border-border rounded-lg group hover:border-border transition-colors duration-150">
+<div class="flex items-start justify-between gap-3">
+<p class="font-body text-body text-text leading-relaxed">
+                    Discussed SQLite database migration strategy. Team agreed to test local WAL mode snapshots before Friday.
+                  </p>
+<!-- Ghost Icon Buttons: Edit & Delete -->
+<div class="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+<button class="p-1 rounded text-text-muted hover:text-text hover:bg-surface transition-colors" title="Edit note">
+<span class="material-symbols-outlined text-[15px]">edit</span>
+</button>
+<button class="p-1 rounded text-text-muted hover:text-error hover:bg-surface transition-colors" title="Delete note">
+<span class="material-symbols-outlined text-[15px]">delete</span>
+</button>
+</div>
+</div>
+<div class="mt-2 text-text-muted font-label text-label flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px] text-text-muted">schedule</span>
+<span>edited Oct 21, 2026 · 10:15 AM</span>
+</div>
+</article>
+<!-- Note Card 2 -->
+<article class="p-3 bg-surface-raised border border-border rounded-lg group hover:border-border transition-colors duration-150">
+<div class="flex items-start justify-between gap-3">
+<p class="font-body text-body text-text leading-relaxed">
+                    Action item: QA checklist needed for the recurring task rules engine.
+                  </p>
+<div class="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+<button class="p-1 rounded text-text-muted hover:text-text hover:bg-surface transition-colors" title="Edit note">
+<span class="material-symbols-outlined text-[15px]">edit</span>
+</button>
+<button class="p-1 rounded text-text-muted hover:text-error hover:bg-surface transition-colors" title="Delete note">
+<span class="material-symbols-outlined text-[15px]">delete</span>
+</button>
+</div>
+</div>
+<div class="mt-2 text-text-muted font-label text-label flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px] text-text-muted">schedule</span>
+<span>Oct 21, 2026 · 09:30 AM</span>
+</div>
+</article>
+</div>
+<!-- Note Composer Container -->
+<div class="border border-border rounded-lg bg-surface-raised/40 overflow-hidden focus-within:border-primary/70 focus-within:ring-1 focus-within:ring-primary/70 transition-all">
+<textarea class="w-full bg-transparent px-3 py-2.5 font-body text-body text-text placeholder:text-text-muted placeholder:font-body border-0 focus:ring-0 focus:outline-none resize-none leading-relaxed" placeholder="Add a note..." rows="2"></textarea>
+<div class="flex items-center justify-between px-2.5 py-1.5 border-t border-border/40 bg-surface/50">
+<!-- Formatting / Attachments Tools -->
+<div class="flex items-center gap-1">
+<button class="p-1 rounded text-text-muted hover:text-text hover:bg-surface-raised transition-colors" title="Attach file">
+<span class="material-symbols-outlined text-[16px]">attachment</span>
+</button>
+<button class="p-1 rounded text-text-muted hover:text-text hover:bg-surface-raised transition-colors" title="Bullet list">
+<span class="material-symbols-outlined text-[16px]">format_list_bulleted</span>
+</button>
+<button class="p-1 rounded text-text-muted hover:text-text hover:bg-surface-raised transition-colors" title="Checklist">
+<span class="material-symbols-outlined text-[16px]">check_box</span>
+</button>
+</div>
+<!-- Add Note Primary Button -->
+<button class="inline-flex items-center gap-1 px-3 py-1 bg-primary text-on-primary font-body text-body font-medium rounded hover:brightness-105 active:brightness-95 transition duration-150">
+<span class="material-symbols-outlined text-[15px]">add</span>
+<span>Add note</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<footer class="px-margin py-3 bg-surface border-t border-border flex items-center justify-between select-none">
+<div class="font-label text-label text-text-muted">
+            Created Oct 11, 2026 · Updated Oct 21, 2026
+          </div>
+<button class="px-4 py-1.5 bg-transparent border border-border text-text font-body text-body rounded hover:bg-surface-raised hover:text-text active:bg-border transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary">
+            Close
+          </button>
+</footer>
+</section>
+</div>
+</main>
+</body></html>

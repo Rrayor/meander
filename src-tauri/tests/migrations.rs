@@ -73,11 +73,13 @@ async fn user_tables(pool: &SqlitePool) -> Vec<String> {
 }
 
 /// Extracts per-column CHECK limits from the table DDL: `col IN ('a','b')`
-/// literals and `col BETWEEN lo AND hi` bounds, so probes satisfy constraints.
+/// literals, `col BETWEEN lo AND hi` bounds, and exactly-one-of CHECKs
+/// `(a IS NULL) <> (b IS NULL)` — the second column of each such pair is
+/// left NULL so the probe satisfies the XOR.
 async fn check_bounds(
     pool: &SqlitePool,
     table: &str,
-) -> (Vec<(String, String)>, Vec<(String, i64)>) {
+) -> (Vec<(String, String)>, Vec<(String, i64)>, Vec<String>) {
     let ddl: String = sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name = ?")
         .bind(table)
         .fetch_one(pool)
@@ -102,7 +104,14 @@ async fn check_bounds(
         .captures_iter(&ddl)
         .map(|c| (c[1].to_string(), c[2].parse::<i64>().unwrap()))
         .collect();
-    (ins, betweens)
+    let xor_re =
+        regex::Regex::new(r"(?i)\(\s*(\w+)\s+IS NULL\s*\)\s*<>\s*\(\s*(\w+)\s+IS NULL\s*\)")
+            .unwrap();
+    let xor_nulls: Vec<String> = xor_re
+        .captures_iter(&ddl)
+        .map(|c| c[2].to_string())
+        .collect();
+    (ins, betweens, xor_nulls)
 }
 
 /// Inserts a probe row into `table`, synthesizing a value for every non-pk
@@ -114,7 +123,7 @@ async fn probe_insert(
     step: usize,
 ) -> Option<(i64, Vec<(String, ProbeVal)>)> {
     let cols = schema(pool, table).await;
-    let (ins, betweens) = check_bounds(pool, table).await;
+    let (ins, betweens, xor_nulls) = check_bounds(pool, table).await;
     // A single-column INTEGER PRIMARY KEY is the rowid alias — auto-assigned,
     // so probing it is skipped. Composite-pk members (e.g. join tables) are
     // real columns and must be supplied.
@@ -123,7 +132,7 @@ async fn probe_insert(
     let mut values: Vec<(String, ProbeVal)> = Vec::new();
     for col in &cols {
         let rowid_alias = col.is_pk && pk_count == 1 && col.ty.contains("INT");
-        if rowid_alias || (col.has_default && !col.notnull) {
+        if rowid_alias || (col.has_default && !col.notnull) || xor_nulls.contains(&col.name) {
             continue;
         }
         let value = if let Some(parent) = &col.fk_table {
