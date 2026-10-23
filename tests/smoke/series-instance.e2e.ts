@@ -53,15 +53,21 @@ describe("Series instance smoke", () => {
       `*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`,
     );
     await browser.waitUntil(async () => !(await pendingPanel.isExisting()));
-    await expect(await $(`${dialog} button*=${EDIT_BUTTON_LABEL}`)).toExist();
-    await (await $(`${dialog} button*=${EDIT_BUTTON_LABEL}`)).click();
-    await expect(await $(`${dialog} #edit-task-title-input`)).toExist();
+    const dialogEl = await $(dialog);
+    const editButton = await dialogEl.$(`button*=${EDIT_BUTTON_LABEL}`);
+    await expect(editButton).toExist();
+    await editButton.click();
+    await expect(await dialogEl.$("#edit-task-title-input")).toExist();
 
-    // Cleanup: delete the whole series through the real backend.
-    const deleteButtons = await $$(`${dialog} button*=${DELETE_BUTTON_LABEL}`);
+    // Cleanup: delete the whole series through the real backend. The
+    // delete affordance lives in the read-only view, so reopen the dialog.
+    await browser.keys("Escape");
+    await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
+    const reopened = await $(dialog);
+    const deleteButtons = await reopened.$$(`button*=${DELETE_BUTTON_LABEL}`);
     await deleteButtons[0].click();
     await (await $(`aria/${TASK_SCOPE_SERIES_LABEL}`)).click();
-    const confirmButtons = await $$(`${dialog} button*=${DELETE_BUTTON_LABEL}`);
+    const confirmButtons = await reopened.$$(`button*=${DELETE_BUTTON_LABEL}`);
     await confirmButtons[confirmButtons.length - 1].click();
     await browser.waitUntil(
       async () => !(await $(`aria/${editTaskLabel(taskTitle)}`).isExisting()),
