@@ -41,8 +41,11 @@ describe("Task notes smoke", () => {
       await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`),
     ).toExist();
 
-    // Reopen the task: the persisted note must render.
-    await (await $(`aria/${CLOSE_LABEL}`)).click();
+    // Reopen the task: the persisted note must render. The backdrop also
+    // matches aria/Close ("Close dialog"), so scope to the open dialog.
+    const closeDialog = async () =>
+      (await $("dialog[open]")).$(`aria/${CLOSE_LABEL}`).click();
+    await closeDialog();
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
     await browser.waitUntil(async () =>
       (await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`)).isExisting(),
@@ -66,7 +69,7 @@ describe("Task notes smoke", () => {
     expect(
       await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`).isExisting(),
     ).toBe(false);
-    await (await $(`aria/${CLOSE_LABEL}`)).click();
+    await closeDialog();
     await (await $(`aria/${deleteTaskLabel(taskTitle)}`)).click();
     await browser.waitUntil(
       async () => !(await $(`aria/${editTaskLabel(taskTitle)}`).isExisting()),
