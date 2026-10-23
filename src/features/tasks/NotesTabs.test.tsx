@@ -136,6 +136,24 @@ describe("NotesTabs", () => {
     ).toHaveValue("series-wide note");
   });
 
+  it("scopes each composer's aria-describedby to its own panel", async () => {
+    renderTabs();
+    for (const panel of [instancePanel(), seriesPanel()]) {
+      const composer = await within(panel).findByLabelText(
+        NOTE_COMPOSER_PLACEHOLDER,
+      );
+      fireEvent.submit(composer.closest("form")!);
+      await waitFor(() => expect(composer).toHaveAttribute("aria-invalid"));
+      const error = document.getElementById(
+        composer.getAttribute("aria-describedby")!,
+      );
+      expect(panel.contains(error)).toBe(true);
+    }
+    // Both errors rendered at once and no duplicate IDs across panels.
+    expect(instancePanel().querySelectorAll("[role='alert']")).toHaveLength(1);
+    expect(seriesPanel().querySelectorAll("[role='alert']")).toHaveLength(1);
+  });
+
   it("ignores keys that are not arrow keys", () => {
     renderTabs();
     fireEvent.keyDown(instanceTab(), { key: "Enter" });

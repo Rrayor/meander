@@ -511,7 +511,8 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
   await dialog.getByRole("button", { name: WEEK_UNIT.label }).click();
-  await dialog.getByRole("button", { name: FRIDAY.label }).click();
+  // exact: the expanded toggle's summary also contains the weekday name.
+  await dialog.getByRole("button", { name: FRIDAY.label, exact: true }).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
@@ -588,7 +589,7 @@ test("a monthly nth-weekday repeat sends the mapped recurrence", async ({
   await dialog.getByRole("button", { name: MONTH_UNIT.label }).click();
   await dialog.getByRole("radio", { name: REPEAT_ON_THE_LABEL }).click();
   await dialog.getByRole("button", { name: NTH_SECOND.aria }).click();
-  await dialog.getByRole("button", { name: FRIDAY.label }).click();
+  await dialog.getByRole("button", { name: FRIDAY.label, exact: true }).click();
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   const createCall = (await getInvocations<{ input: NewTask }>(page)).find(

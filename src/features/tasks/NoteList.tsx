@@ -133,6 +133,14 @@ export function NoteList({ target }: { target: NotesTarget }) {
 
   const failed = create.error ?? update.error ?? remove.error ?? error;
 
+  // Both tabs render a NoteList, so the composer error ID must be scoped to
+  // the target — aria-describedby must never resolve to a sibling panel's
+  // hidden error. (Edit errors already embed the globally unique note id.)
+  const draftErrorId =
+    taskId !== null
+      ? `note-draft-error-task-${taskId}`
+      : `note-draft-error-series-${seriesId}`;
+
   return (
     <div className="flex flex-col gap-3">
       {error !== null ? (
@@ -271,14 +279,14 @@ export function NoteList({ target }: { target: NotesTarget }) {
             aria-label={NOTE_COMPOSER_PLACEHOLDER}
             aria-invalid={composer.formState.errors.body !== undefined}
             aria-describedby={
-              composer.formState.errors.body ? "note-draft-error" : undefined
+              composer.formState.errors.body ? draftErrorId : undefined
             }
             className="w-full rounded-md border border-border bg-surface-raised p-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary"
           />
           {composer.formState.errors.body ? (
             <p
               role="alert"
-              id="note-draft-error"
+              id={draftErrorId}
               className="mt-1 text-sm text-danger"
             >
               {composer.formState.errors.body.message}
