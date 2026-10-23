@@ -129,6 +129,16 @@ export function InstanceCalendar({
             );
           }
           const selected = iso === selectedIso;
+          // Stitch design: a filled dot marks a persisted instance, a
+          // hollow ring a merely-scheduled occurrence.
+          let markerClass: string;
+          if (persisted) {
+            markerClass = selected ? "bg-on-primary" : "bg-primary";
+          } else {
+            markerClass = selected
+              ? "border border-on-primary bg-transparent"
+              : "border border-primary bg-transparent";
+          }
           return (
             <button
               key={iso}
@@ -144,19 +154,9 @@ export function InstanceCalendar({
               } ${inMonth ? "" : "opacity-50"}`}
             >
               {day}
-              {/* Stitch design: a filled dot marks a persisted instance,
-                  a hollow ring a merely-scheduled occurrence. */}
               <span
                 aria-hidden="true"
-                className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
-                  persisted
-                    ? selected
-                      ? "bg-on-primary"
-                      : "bg-primary"
-                    : `border bg-transparent ${
-                        selected ? "border-on-primary" : "border-primary"
-                      }`
-                }`}
+                className={`mt-0.5 h-1.5 w-1.5 rounded-full ${markerClass}`}
               />
             </button>
           );
