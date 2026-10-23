@@ -464,6 +464,55 @@ function useScopedCategories({
   return { categories, stored, onCategoriesChange };
 }
 
+const SAVE_SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
+  { value: TaskScope.Instance, label: TASK_SCOPE_INSTANCE_LABEL },
+  { value: TaskScope.Series, label: TASK_SCOPE_SERIES_LABEL },
+  { value: TaskScope.Future, label: TASK_SCOPE_FUTURE_LABEL },
+];
+
+// The "apply changes to" radios. The future scope needs a viewed date to
+// anchor the split on, so it's muted and disabled without one.
+function SaveScopeFieldset({
+  saveScope,
+  futureDisabled,
+  onChange,
+}: Readonly<{
+  saveScope: SaveScope;
+  futureDisabled: boolean;
+  onChange: (scope: SaveScope) => void;
+}>) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-xs font-medium tracking-wider text-text-muted uppercase">
+        {TASK_SCOPE_GROUP_LABEL}
+      </legend>
+      {SAVE_SCOPE_OPTIONS.map(({ value, label }) => {
+        const disabled = value === TaskScope.Future && futureDisabled;
+        return (
+          <div key={value} className="flex items-center gap-2">
+            <label
+              className={`flex items-center gap-2 text-sm ${
+                disabled ? "text-text-muted" : "text-text"
+              }`}
+            >
+              <input
+                type="radio"
+                name="task-save-scope"
+                value={value}
+                checked={saveScope === value}
+                disabled={disabled}
+                onChange={() => onChange(value)}
+                className="accent-primary"
+              />
+              {label}
+            </label>
+          </div>
+        );
+      })}
+    </fieldset>
+  );
+}
+
 export function EditTaskDialog({
   task,
   onClose,
@@ -1169,44 +1218,11 @@ export function EditTaskDialog({
               />
             </div>
             {task.series_id !== null && (
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {TASK_SCOPE_GROUP_LABEL}
-                </legend>
-                {[
-                  {
-                    value: TaskScope.Instance,
-                    label: TASK_SCOPE_INSTANCE_LABEL,
-                  },
-                  { value: TaskScope.Series, label: TASK_SCOPE_SERIES_LABEL },
-                  { value: TaskScope.Future, label: TASK_SCOPE_FUTURE_LABEL },
-                ].map(({ value, label }) => (
-                  <div key={value} className="flex items-center gap-2">
-                    <label
-                      className={`flex items-center gap-2 text-sm ${
-                        value === TaskScope.Future &&
-                        viewed.scheduled_date === null
-                          ? "text-text-muted"
-                          : "text-text"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="task-save-scope"
-                        value={value}
-                        checked={saveScope === value}
-                        disabled={
-                          value === TaskScope.Future &&
-                          viewed.scheduled_date === null
-                        }
-                        onChange={() => setSaveScope(value as SaveScope)}
-                        className="accent-primary"
-                      />
-                      {label}
-                    </label>
-                  </div>
-                ))}
-              </fieldset>
+              <SaveScopeFieldset
+                saveScope={saveScope}
+                futureDisabled={viewed.scheduled_date === null}
+                onChange={setSaveScope}
+              />
             )}
             {task.series_id === null && (
               <RepeatScheduleFields
