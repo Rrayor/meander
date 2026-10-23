@@ -464,6 +464,11 @@ function useScopedCategories({
   return { categories, stored, onCategoriesChange };
 }
 
+// Only the future scope locks the schedule start — to the viewed date
+// the split anchors on.
+const lockedStartFor = (scope: SaveScope, viewedDate: string | null) =>
+  scope === TaskScope.Future ? (viewedDate ?? undefined) : undefined;
+
 const SAVE_SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
   { value: TaskScope.Instance, label: TASK_SCOPE_INSTANCE_LABEL },
   { value: TaskScope.Series, label: TASK_SCOPE_SERIES_LABEL },
@@ -1247,11 +1252,10 @@ export function EditTaskDialog({
                     start_date: seriesRow.start_date,
                     end_date: seriesRow.end_date,
                   }}
-                  lockedStartDate={
-                    saveScope === TaskScope.Future
-                      ? (viewed.scheduled_date ?? undefined)
-                      : undefined
-                  }
+                  lockedStartDate={lockedStartFor(
+                    saveScope,
+                    viewed.scheduled_date,
+                  )}
                   onChange={(next, error) => {
                     setSeriesDraft(next);
                     setSeriesCleared(next === null);
