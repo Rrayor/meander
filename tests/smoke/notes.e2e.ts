@@ -41,10 +41,11 @@ describe("Task notes smoke", () => {
       await $(`aria/${noteDeleteLabel(noteBody.slice(0, 30))}`),
     ).toExist();
 
-    // Reopen the task: the persisted note must render. The backdrop also
-    // matches aria/Close ("Close dialog"), so scope to the open dialog.
+    // Reopen the task: the persisted note must render. aria/ matches
+    // document-wide and "Close" also hits the backdrop's "Close dialog",
+    // so match the exact aria-label inside the open dialog instead.
     const closeDialog = async () =>
-      (await $("dialog[open]")).$(`aria/${CLOSE_LABEL}`).click();
+      (await $(`dialog[open] button[aria-label='${CLOSE_LABEL}']`)).click();
     await closeDialog();
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
     await browser.waitUntil(async () =>
