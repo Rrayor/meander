@@ -29,6 +29,17 @@ export const updateTaskSeries = (seriesId: number, input: UpdateSeries) =>
 export const deleteTaskSeries = (seriesId: number) =>
   transport.invoke<void>(COMMANDS.deleteTaskSeries, { seriesId });
 
+export const updateTaskSeriesFrom = (
+  seriesId: number,
+  fromDate: string,
+  input: UpdateSeries,
+) =>
+  transport.invoke<TaskSeries>(COMMANDS.updateTaskSeriesFrom, {
+    seriesId,
+    fromDate,
+    input,
+  });
+
 export const truncateTaskSeries = (seriesId: number, fromDate: string) =>
   transport.invoke<void>(COMMANDS.truncateTaskSeries, {
     seriesId,

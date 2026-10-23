@@ -41,6 +41,7 @@ import {
   DELETE_BUTTON_LABEL,
   DELETE_SCOPE_FUTURE_LABEL,
   DELETE_TASK_HEADING,
+  TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
   deleteTaskLabel,
   editTaskLabel,
@@ -978,6 +979,55 @@ test("a series-scope save sends update_task_series with the schedule", async ({
   });
   expect(
     (await getInvocations(page)).some((c) => c.cmd === COMMANDS.updateTask),
+  ).toBe(false);
+});
+
+test("a this-and-future save splits the series at the viewed date", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.updateTaskSeriesFrom]: {
+      ...seriesFixture,
+      id: 99,
+      start_date: seriesInstance.scheduled_date,
+    },
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const call = (
+    await getInvocations<{
+      seriesId: number;
+      fromDate: string;
+      input: UpdateSeries;
+    }>(page)
+  ).find((c) => c.cmd === COMMANDS.updateTaskSeriesFrom);
+  expect(call?.args.seriesId).toBe(seriesFixture.id);
+  // The split anchors on the viewed instance's date.
+  expect(call?.args.fromDate).toBe(seriesInstance.scheduled_date);
+  expect(call?.args.input).toMatchObject({
+    title: TITLE_DRAFT_NOTES,
+    recurrence: seriesFixture.recurrence,
+  });
+  expect(
+    (await getInvocations(page)).some(
+      (c) => c.cmd === COMMANDS.updateTaskSeries,
+    ),
   ).toBe(false);
 });
 

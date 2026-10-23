@@ -48,6 +48,7 @@ pub fn run() {
             commands::delete_task_series,
             commands::update_task_series,
             commands::truncate_task_series,
+            commands::update_task_series_from,
             commands::list_series_categories,
             commands::list_task_notes,
             commands::list_series_notes,

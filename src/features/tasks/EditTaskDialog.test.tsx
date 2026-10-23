@@ -66,7 +66,6 @@ import {
   auditTimestampsLabel,
   describeRecurrence,
   seriesAuditLabel,
-  TASK_SCOPE_COMING_SOON_HINT,
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_GROUP_LABEL,
   TASK_SCOPE_INSTANCE_LABEL,
@@ -83,6 +82,7 @@ import {
   listTaskSeries,
   truncateTaskSeries,
   updateTaskSeries,
+  updateTaskSeriesFrom,
   type TaskSeries,
 } from "@/api/series";
 import { formatDate, formatIsoDay } from "@/lib/utils";
@@ -120,6 +120,7 @@ vi.mock("@/api/series", () => ({
   listSeriesInstances: vi.fn(),
   listSeriesCategories: vi.fn(),
   updateTaskSeries: vi.fn(),
+  updateTaskSeriesFrom: vi.fn(),
   deleteTaskSeries: vi.fn(),
   truncateTaskSeries: vi.fn(),
   getOrCreateInstance: vi.fn(),
@@ -129,6 +130,7 @@ const mockedListTaskSeries = vi.mocked(listTaskSeries);
 const mockedListSeriesInstances = vi.mocked(listSeriesInstances);
 const mockedListSeriesCategories = vi.mocked(listSeriesCategories);
 const mockedUpdateSeries = vi.mocked(updateTaskSeries);
+const mockedUpdateSeriesFrom = vi.mocked(updateTaskSeriesFrom);
 const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
 const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
 const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
@@ -150,6 +152,9 @@ const REPEAT_END_DATE = "2026-12-31";
 // one the calendar tests pick.
 const OPENED_INSTANCE_DATE = "2026-10-19";
 const OTHER_INSTANCE_DATE = "2026-10-26";
+// A scheduled-looking date that stays in the future — past instances are
+// view-only (#29), and a near-future constant would age into the past.
+const FUTURE_INSTANCE_DATE = "2036-01-07";
 const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find(
   (o) => o.value === RepeatUnit.Week,
 )!;
@@ -803,8 +808,12 @@ describe("EditTaskDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the save-scope group in edit mode with future scope disabled", async () => {
-    renderDialog({ ...baseTask, series_id: baseSeries.id });
+  it("shows the save-scope group in edit mode with every scope enabled", async () => {
+    renderDialog({
+      ...baseTask,
+      series_id: baseSeries.id,
+      scheduled_date: FUTURE_INSTANCE_DATE,
+    });
 
     const group = await screen.findByRole("group", {
       name: TASK_SCOPE_GROUP_LABEL,
@@ -820,10 +829,9 @@ describe("EditTaskDialog", () => {
     });
     expect(group).toContainElement(instance);
     expect(instance).toBeChecked();
-    // Series scope is live (#28); the future scope is #30's.
     expect(series).toBeEnabled();
-    expect(future).toBeDisabled();
-    expect(screen.getAllByText(TASK_SCOPE_COMING_SOON_HINT)).toHaveLength(1);
+    // Future scope needs a viewed date to anchor the split (#30).
+    expect(future).toBeEnabled();
   });
 
   it("hides the save-scope group for a task not in a series", () => {
@@ -1184,6 +1192,51 @@ describe("EditTaskDialog", () => {
       }),
     );
     expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("applies a this-and-future save by splitting at the viewed date", async () => {
+    renderDialog({
+      ...baseTask,
+      series_id: baseSeries.id,
+      scheduled_date: FUTURE_INSTANCE_DATE,
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
+    );
+
+    // Same series treatment as the whole-series scope: the stored
+    // schedule seeds the edit and per-instance controls are disabled.
+    expect(await screen.findByLabelText(REPEAT_STARTS_LABEL)).toHaveValue(
+      baseSeries.start_date,
+    );
+    expect(
+      screen.getByRole("radio", { name: STATUS_LABELS.todo }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText(SPENT_HOURS_LABEL)).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: TITLE_EDITED },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateSeriesFrom).toHaveBeenCalledWith(
+        baseSeries.id,
+        FUTURE_INSTANCE_DATE,
+        expect.objectContaining({ title: TITLE_EDITED }),
+      ),
+    );
+    expect(mockedUpdateSeries).not.toHaveBeenCalled();
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("disables the future scope when the viewed instance has no date", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    expect(
+      screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
+    ).toBeDisabled();
   });
 
   it("sends an edited schedule with the series-scope save", async () => {

@@ -51,6 +51,7 @@ import {
   listTaskSeries,
   truncateTaskSeries,
   updateTaskSeries,
+  updateTaskSeriesFrom,
 } from "@/api/series";
 import {
   NOTES_SECTION_LABEL,
@@ -84,7 +85,6 @@ import {
   STATUS_LABELS,
   TASK_STATUS_FIELD_LABEL,
   TITLE_FIELD_LABEL,
-  TASK_SCOPE_COMING_SOON_HINT,
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_GROUP_LABEL,
   TASK_SCOPE_INSTANCE_LABEL,
@@ -387,7 +387,7 @@ function useSeriesScopeSeed({
 }) {
   const seeded = useRef(false);
   useEffect(() => {
-    if (saveScope !== TaskScope.Series) {
+    if (saveScope === TaskScope.Instance) {
       if (!seeded.current) return;
       seeded.current = false;
       reset(instanceDefaults);
@@ -429,7 +429,9 @@ function useScopedCategories({
   initialCategories: Category[] | undefined;
 }) {
   const categoryKey =
-    saveScope === TaskScope.Series ? `series-${seriesId}` : `task-${viewedId}`;
+    saveScope !== TaskScope.Instance
+      ? `series-${seriesId}`
+      : `task-${viewedId}`;
   const [categoryDraft, setCategoryDraft] = useState<{
     key: string;
     removedIds: ReadonlySet<number>;
@@ -441,7 +443,7 @@ function useScopedCategories({
       : new Set<number>();
   const picked = categoryDraft.key === categoryKey ? categoryDraft.picked : [];
   const stored =
-    saveScope === TaskScope.Series
+    saveScope !== TaskScope.Instance
       ? (seriesCats ?? [])
       : (initialCategories ?? []);
   const storedIds = new Set(stored.map((c) => c.id));
@@ -543,7 +545,7 @@ export function EditTaskDialog({
   const { data: seriesCats, error: seriesCatsError } = useQuery({
     queryKey: QUERY_KEYS.seriesCategories(task.series_id!),
     queryFn: () => listSeriesCategories(task.series_id!),
-    enabled: task.series_id !== null && saveScope === TaskScope.Series,
+    enabled: task.series_id !== null && saveScope !== TaskScope.Instance,
   });
   // The series-scope schedule draft: null = untouched (use the stored
   // schedule), cleared = the user collapsed the section (a series needs a
@@ -626,6 +628,18 @@ export function EditTaskDialog({
     onSettled: invalidateSeriesScope,
   });
 
+  const updateSeriesFrom = useMutation({
+    mutationFn: ({
+      fromDate,
+      input,
+    }: {
+      fromDate: string;
+      input: UpdateSeries;
+    }) => updateTaskSeriesFrom(task.series_id!, fromDate, input),
+    onSuccess: onClose,
+    onSettled: invalidateSeriesScope,
+  });
+
   // Delete runs against the *viewed* instance — picking another persisted
   // date in the calendar moves the target with it.
   const remove = useMutation({
@@ -656,19 +670,29 @@ export function EditTaskDialog({
       estimated_minutes: toMinutes(values.estHours, values.estMinutes),
       carry_over_rule: carryOverToWire(values.carryOver),
     };
-    if (saveScope === TaskScope.Series) {
+    if (saveScope !== TaskScope.Instance) {
       const schedule = seriesDraft ?? {
         recurrence: seriesRow!.recurrence,
         start_date: seriesRow!.start_date,
         end_date: seriesRow!.end_date,
       };
-      updateSeries.mutate({
+      const payload = {
         ...shared,
         recurrence: schedule.recurrence,
         start_date: schedule.start_date,
         end_date: schedule.end_date,
         category_ids: categories.map((c) => c.id),
-      });
+      };
+      // "This and future" splits the series at the viewed date; the
+      // backend anchors the new series on fromDate (spec §146).
+      if (saveScope === TaskScope.Future) {
+        updateSeriesFrom.mutate({
+          fromDate: viewed.scheduled_date!,
+          input: payload,
+        });
+      } else {
+        updateSeries.mutate(payload);
+      }
       return;
     }
     update.mutate({
@@ -686,20 +710,21 @@ export function EditTaskDialog({
   const serverError = serverErrorMessage(
     update.error ??
       updateSeries.error ??
-      (saveScope === TaskScope.Series ? seriesCatsError : null),
+      updateSeriesFrom.error ??
+      (saveScope !== TaskScope.Instance ? seriesCatsError : null),
   );
   // While the series row is loading, the shared fields still hold the
   // opened instance's values — editing them before the seed lands would
   // lose the input to the reset. They stay disabled until it arrives.
   const seriesFieldsPending =
-    saveScope === TaskScope.Series && seriesRow === undefined;
+    saveScope !== TaskScope.Instance && seriesRow === undefined;
   // A series save needs a schedule: the stored one (untouched draft) or a
   // valid edited one — collapsing the section disables saving. It also
   // waits for the series category query: submitting before it resolves
   // would send an empty set and erase every instance's associations, and
   // a failed load is surfaced instead of treated as "no categories".
   const seriesSaveBlocked =
-    saveScope === TaskScope.Series &&
+    saveScope !== TaskScope.Instance &&
     (seriesRow === undefined ||
       seriesCats === undefined ||
       seriesCleared ||
@@ -1051,7 +1076,7 @@ export function EditTaskDialog({
                   minutesField: "spentMinutes",
                   errorId: "edit-task-spent-error",
                   invalid: !!spentError,
-                  disabled: saveScope === TaskScope.Series,
+                  disabled: saveScope !== TaskScope.Instance,
                 })}
                 {spentError && (
                   <p
@@ -1082,7 +1107,7 @@ export function EditTaskDialog({
                     role="radiogroup"
                     aria-labelledby="edit-task-status-label"
                     className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
-                      saveScope === TaskScope.Series ? "opacity-50" : ""
+                      saveScope !== TaskScope.Instance ? "opacity-50" : ""
                     }`}
                   >
                     {Object.values(TaskStatus).map((option) => (
@@ -1091,7 +1116,7 @@ export function EditTaskDialog({
                         type="button"
                         role="radio"
                         aria-checked={value === option}
-                        disabled={saveScope === TaskScope.Series}
+                        disabled={saveScope !== TaskScope.Instance}
                         onClick={() => onChange(option)}
                         className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
                           value === option
@@ -1159,7 +1184,8 @@ export function EditTaskDialog({
                   <div key={value} className="flex items-center gap-2">
                     <label
                       className={`flex items-center gap-2 text-sm ${
-                        value === TaskScope.Future
+                        value === TaskScope.Future &&
+                        viewed.scheduled_date === null
                           ? "text-text-muted"
                           : "text-text"
                       }`}
@@ -1169,17 +1195,15 @@ export function EditTaskDialog({
                         name="task-save-scope"
                         value={value}
                         checked={saveScope === value}
-                        disabled={value === TaskScope.Future}
+                        disabled={
+                          value === TaskScope.Future &&
+                          viewed.scheduled_date === null
+                        }
                         onChange={() => setSaveScope(value as SaveScope)}
                         className="accent-primary"
                       />
                       {label}
                     </label>
-                    {value === TaskScope.Future && (
-                      <span className="text-xs text-text-muted italic">
-                        {TASK_SCOPE_COMING_SOON_HINT}
-                      </span>
-                    )}
                   </div>
                 ))}
               </fieldset>
@@ -1194,7 +1218,7 @@ export function EditTaskDialog({
               />
             )}
             {task.series_id !== null &&
-              saveScope === TaskScope.Series &&
+              saveScope !== TaskScope.Instance &&
               seriesRow !== undefined && (
                 <RepeatScheduleFields
                   idPrefix="edit-series"

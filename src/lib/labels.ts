@@ -198,8 +198,6 @@ export const TASK_SCOPE_GROUP_LABEL = "Apply changes to";
 export const TASK_SCOPE_INSTANCE_LABEL = "This instance only";
 export const TASK_SCOPE_SERIES_LABEL = "Entire series";
 export const TASK_SCOPE_FUTURE_LABEL = "This and future instances";
-export const TASK_SCOPE_COMING_SOON_HINT =
-  "available when series editing lands";
 
 export const DELETE_BUTTON_LABEL = "Delete";
 export const DELETE_TASK_HEADING = "Delete task";

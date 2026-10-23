@@ -788,6 +788,85 @@ pub async fn truncate(pool: &SqlitePool, profile_id: i64, id: i64, from_date: &s
     Ok(())
 }
 
+/// "This and future" editing (spec §146/§234): splits the series at
+/// `from_date`. The old series ends the day before (same cutoff rule as
+/// `truncate`), a new series carrying the edited fields starts at
+/// `from_date`, and persisted instances on or after it move over — ids
+/// preserved so instance notes stay attached. Their shared fields are
+/// overwritten with the edited values; per-instance data (status, spent,
+/// placement) is untouched. A `from_date` at or before the start is the
+/// same as updating the whole series.
+pub async fn update_from(
+    pool: &SqlitePool,
+    profile_id: i64,
+    id: i64,
+    from_date: &str,
+    input: &UpdateSeries,
+) -> Result<TaskSeries> {
+    iso_date(from_date, ErrorCode::InstanceDateInvalid, "from date")?;
+    let row = owned_row(pool, profile_id, id).await?;
+    if from_date <= row.start_date.as_str() {
+        return update(pool, profile_id, id, input).await;
+    }
+    let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
+    let (y, m, d) = parse_iso(from_date);
+    let proposed = to_iso(civil_from_days(days_from_civil(y, m, d) - 1));
+    // As with truncate, an earlier existing end must not be pushed out.
+    let old_end = match &row.end_date {
+        Some(existing) if existing < &proposed => existing.clone(),
+        _ => proposed,
+    };
+    sqlx::query("UPDATE task_series SET end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(&old_end)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    let estimated = crate::tasks::parse_estimate(input.estimated_minutes)?;
+    let fields = SeriesFields {
+        title: &input.title,
+        description: input.description.as_deref(),
+        carry_over_rule: input.carry_over_rule,
+        estimated_minutes: estimated,
+        series: &NewSeries {
+            recurrence: input.recurrence.clone(),
+            // The new series anchors at the cutoff — the input's start is
+            // ignored so every moved instance stays in bounds.
+            start_date: from_date.to_string(),
+            end_date: input.end_date.clone(),
+        },
+    };
+    let new_series = insert(&mut tx, profile_id, &fields).await?;
+
+    // Re-derive the normalized field values the insert wrote — they are
+    // what the moved instances must carry too.
+    let carry_over = input.carry_over_rule.unwrap_or(CarryOverRule::Return);
+    sqlx::query(
+        "UPDATE tasks SET series_id = ?, title = ?, description = ?, \
+         carry_over_rule = ?, estimated_minutes = ?, updated_at = CURRENT_TIMESTAMP \
+         WHERE series_id = ? AND scheduled_date >= ?",
+    )
+    .bind(new_series.id)
+    .bind(&new_series.title)
+    .bind(&new_series.description)
+    .bind(carry_over)
+    .bind(estimated)
+    .bind(id)
+    .bind(from_date)
+    .execute(&mut *tx)
+    .await?;
+    sync_categories(
+        &mut tx,
+        pool,
+        profile_id,
+        new_series.id,
+        &input.category_ids,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(new_series)
+}
+
 /// Categories attached to a series, ordered like the task-scoped listing.
 pub async fn list_categories(
     pool: &SqlitePool,
@@ -1644,6 +1723,143 @@ mod tests {
             .await
             .unwrap()
                 == 0
+        );
+    }
+
+    #[tokio::test]
+    async fn update_from_splits_the_series_and_moves_future_instances() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let first = add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        let third = add_instance(&pool, pid, saved.id, THIRD_INSTANCE_DATE).await;
+
+        let new_series = update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+
+        // The old series ends the day before the cutoff and keeps the
+        // past instance; the new series starts at it.
+        let series = list(&pool, pid).await.unwrap();
+        let old = series.iter().find(|s| s.id == saved.id).unwrap();
+        assert_eq!(old.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(new_series.start_date, SECOND_INSTANCE_DATE);
+        assert_eq!(new_series.title, NEW_TITLE);
+
+        // Past instance stays on the old series with its custom fields.
+        let past = instance(&pool, first).await;
+        assert_eq!(past.series_id, Some(saved.id));
+        assert_eq!(past.title, "custom title");
+
+        // Future rows moved — ids preserved — with the edited shared
+        // fields written over them.
+        for id in [second, third] {
+            let moved = instance(&pool, id).await;
+            assert_eq!(moved.series_id, Some(new_series.id));
+            assert_eq!(moved.title, NEW_TITLE);
+            assert_eq!(moved.description.as_deref(), Some("weekly chore"));
+        }
+    }
+
+    #[tokio::test]
+    async fn update_from_syncs_categories_onto_the_new_series() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        let cat = crate::categories::create(
+            &pool,
+            pid,
+            &crate::categories::NewCategory {
+                title: "Home".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut input = update_input(weekly());
+        input.category_ids = vec![cat.id];
+        let new_series = update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            list_categories(&pool, pid, new_series.id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            crate::categories::for_task(&pool, pid, second)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        // The old series kept its own (empty) set.
+        assert!(
+            list_categories(&pool, pid, saved.id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn update_from_at_or_before_the_start_is_a_full_update() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let result = update_from(&pool, pid, saved.id, START, &update_input(weekly()))
+            .await
+            .unwrap();
+
+        // No split — the same row came back updated.
+        assert_eq!(result.id, saved.id);
+        assert_eq!(result.title, NEW_TITLE);
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 1);
+        assert_eq!(instance(&pool, second).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_rejects_foreign_series_and_bad_dates() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+
+        assert_code(
+            &update_from(
+                &pool,
+                other.id,
+                saved.id,
+                SECOND_INSTANCE_DATE,
+                &update_input(weekly()),
+            )
+            .await
+            .unwrap_err(),
+            ErrorCode::SeriesNotFound,
+        );
+        assert_code(
+            &update_from(&pool, pid, saved.id, "not-a-date", &update_input(weekly()))
+                .await
+                .unwrap_err(),
+            ErrorCode::InstanceDateInvalid,
         );
     }
 }

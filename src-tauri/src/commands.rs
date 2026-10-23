@@ -222,6 +222,24 @@ pub async fn truncate_task_series(
 }
 
 #[tauri::command]
+pub async fn update_task_series_from(
+    series_id: i64,
+    from_date: String,
+    input: crate::series::UpdateSeries,
+    state: State<'_, AppState>,
+) -> Result<crate::series::TaskSeries, ApiError> {
+    crate::series::update_from(
+        &state.pool(),
+        state.active_profile_id(),
+        series_id,
+        &from_date,
+        &input,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_series_categories(
     series_id: i64,
     state: State<'_, AppState>,
