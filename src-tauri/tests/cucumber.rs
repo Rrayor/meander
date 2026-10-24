@@ -1784,12 +1784,20 @@ fn series_of(world: &mut MeanderWorld, title: &str) -> meander_lib::series::Task
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
+    // Not tasks::list — that is the backlog view, which shows only the
+    // anchor per series. Any persisted instance resolves its segment.
     let task = world
         .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .find(|t| t.title == title)
+        .block_on(async {
+            sqlx::query_as::<_, meander_lib::tasks::Task>(
+                "SELECT * FROM tasks WHERE profile_id = ? AND title = ?",
+            )
+            .bind(active)
+            .bind(title)
+            .fetch_optional(&pool)
+            .await
+        })
+        .expect("task lookup failed")
         .expect("task missing");
     let series_id = task.series_id.expect("the task does not repeat");
     world
@@ -2362,6 +2370,7 @@ fn note_foreign_task(world: &mut MeanderWorld, body: String) {
 }
 
 const UNSCHEDULED_DATE: &str = "2026-10-21"; // a Wednesday — off the Monday schedule
+const RETITLED_SERIES_TITLE: &str = "Daily sync";
 
 /// Picking a scheduled occurrence materializes its instance (spec §230):
 /// the row appears in the background and becomes the viewed task.
@@ -2479,4 +2488,84 @@ fn foreign_series_one_instance(world: &mut MeanderWorld) {
         .block_on(meander_lib::series::list(&pool, foreign))
         .expect("foreign series list failed");
     assert_eq!(series_instance_dates(world, series[0].id).len(), 1);
+}
+
+#[when(expr = "I retitle {word}'s repeat from the later instance to {string}")]
+fn retitle_from_later_instance(world: &mut MeanderWorld, title: String, new_title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = series_of(world, &title);
+    if let Err(e) = world.rt().block_on(meander_lib::series::update_from(
+        &pool,
+        active,
+        series.id,
+        LATER_INSTANCE_DATE,
+        &meander_lib::series::UpdateSeries {
+            title: new_title,
+            description: series.description.clone(),
+            carry_over_rule: Some(series.carry_over_rule),
+            estimated_minutes: series.estimated_minutes,
+            recurrence: serde_json::to_value(&series.recurrence).unwrap(),
+            start_date: series.start_date.clone(),
+            end_date: series.end_date.clone(),
+            category_ids: vec![],
+        },
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "{word}'s repeat ends before the later instance")]
+fn repeat_ended_before_later(world: &mut MeanderWorld, title: String) {
+    let series = series_of(world, &title);
+    // The day before the later instance's Monday.
+    assert_eq!(series.end_date.as_deref(), Some("2026-10-25"));
+}
+
+#[then(expr = "the earlier instance of {word} is still titled {string}")]
+fn earlier_instance_unchanged(world: &mut MeanderWorld, title: String, expected: String) {
+    let series = series_of(world, &expected);
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let titles: Vec<String> = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar("SELECT title FROM tasks WHERE series_id = ? AND scheduled_date = ?")
+                .bind(series.id)
+                .bind(FIRST_INSTANCE_DATE)
+                .fetch_all(&pool)
+                .await
+        })
+        .expect("earlier instance query failed");
+    assert_eq!(titles, vec![expected]);
+    let _ = title;
+}
+
+#[then(expr = "a new series titled {string} starts at the later instance")]
+fn new_series_at_later(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let series = world
+        .rt()
+        .block_on(meander_lib::series::list(&pool, active))
+        .expect("series list failed")
+        .into_iter()
+        .find(|s| s.title == title)
+        .expect("new series missing");
+    assert_eq!(series.start_date, LATER_INSTANCE_DATE);
+}
+
+#[then(expr = "the later instance moved to the new series")]
+fn later_instance_moved(world: &mut MeanderWorld) {
+    // The split moves the past to an earlier segment: the living
+    // series — retitled, so the only one the later instance's title
+    // resolves to — keeps the cutoff instance. The earlier segment
+    // holds the earlier date instead.
+    let series = series_of(world, RETITLED_SERIES_TITLE);
+    assert_eq!(
+        series_instance_dates(world, series.id),
+        vec![LATER_INSTANCE_DATE.to_string()]
+    );
 }

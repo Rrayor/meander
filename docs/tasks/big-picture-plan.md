@@ -60,4 +60,5 @@ The following steps cover the remaining specification features that weren't item
 53. Add drag and drop to the kanban board for moving tasks between days, states and the weekly backlog (Respect the responsiveness targets in the specification)
 54. Add filtering, searching and sorting to the backlog and kanban board
 55. Add the option to display task statuses as columns and days of the week as rows on the kanban board
-56. Create user documentation with screenshots if not done yet
+56. Once kanban boards exist, hide in-progress series from the backlog entirely — a series whose start date is today or earlier is no longer a backlog item. (Already done earlier: only one backlog entry per series — the anchor row — since materialized instances are not backlog items. Until boards exist, in-progress series stay visible so they remain testable.)
+57. Create user documentation with screenshots if not done yet

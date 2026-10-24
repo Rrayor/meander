@@ -163,3 +163,14 @@ Feature: Repeating tasks
     Then the update fails
     And Standup still repeats weekly on Monday
     And both instances of Standup's repeat remain
+
+  Scenario: retitling a repeat from a later instance splits the series
+    Given an application state on a temporary seeded database
+    When I create a task titled "Standup" repeating weekly on Monday
+    And a later instance of Standup exists
+    When I retitle Standup's repeat from the later instance to "Daily sync"
+    Then the update succeeds
+    And Standup's repeat ends before the later instance
+    And the earlier instance of Standup is still titled "Standup"
+    And a new series titled "Daily sync" starts at the later instance
+    And the later instance moved to the new series

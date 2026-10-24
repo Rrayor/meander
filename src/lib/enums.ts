@@ -62,15 +62,14 @@ export enum RepeatNth {
   Last = -1,
 }
 
-// Shared by save and delete scopes; the future save scope is deferred, so
-// SaveScope below narrows it out.
+// Shared by save and delete scopes.
 export enum TaskScope {
   Instance = "instance",
   Series = "series",
   Future = "future",
 }
 
-export type SaveScope = TaskScope.Instance | TaskScope.Series;
+export type SaveScope = TaskScope;
 
 export enum DialogMode {
   View = "view",

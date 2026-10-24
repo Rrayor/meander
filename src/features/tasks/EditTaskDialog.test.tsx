@@ -48,6 +48,7 @@ import {
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_ADD_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
@@ -66,7 +67,6 @@ import {
   auditTimestampsLabel,
   describeRecurrence,
   seriesAuditLabel,
-  TASK_SCOPE_COMING_SOON_HINT,
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_GROUP_LABEL,
   TASK_SCOPE_INSTANCE_LABEL,
@@ -83,6 +83,7 @@ import {
   listTaskSeries,
   truncateTaskSeries,
   updateTaskSeries,
+  updateTaskSeriesFrom,
   type TaskSeries,
 } from "@/api/series";
 import { formatDate, formatIsoDay } from "@/lib/utils";
@@ -120,6 +121,7 @@ vi.mock("@/api/series", () => ({
   listSeriesInstances: vi.fn(),
   listSeriesCategories: vi.fn(),
   updateTaskSeries: vi.fn(),
+  updateTaskSeriesFrom: vi.fn(),
   deleteTaskSeries: vi.fn(),
   truncateTaskSeries: vi.fn(),
   getOrCreateInstance: vi.fn(),
@@ -129,6 +131,7 @@ const mockedListTaskSeries = vi.mocked(listTaskSeries);
 const mockedListSeriesInstances = vi.mocked(listSeriesInstances);
 const mockedListSeriesCategories = vi.mocked(listSeriesCategories);
 const mockedUpdateSeries = vi.mocked(updateTaskSeries);
+const mockedUpdateSeriesFrom = vi.mocked(updateTaskSeriesFrom);
 const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
 const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
 const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
@@ -150,6 +153,9 @@ const REPEAT_END_DATE = "2026-12-31";
 // one the calendar tests pick.
 const OPENED_INSTANCE_DATE = "2026-10-19";
 const OTHER_INSTANCE_DATE = "2026-10-26";
+// A scheduled-looking date that stays in the future — past instances are
+// view-only (#29), and a near-future constant would age into the past.
+const FUTURE_INSTANCE_DATE = "2036-01-07";
 const WEEKLY_UNIT = REPEAT_UNIT_OPTIONS.find(
   (o) => o.value === RepeatUnit.Week,
 )!;
@@ -189,8 +195,27 @@ const baseSeries: TaskSeries = {
   },
   start_date: "2026-10-05",
   end_date: null,
+  succeeded_by: null,
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-11 10:00:00",
+};
+
+const OLD_SERIES_TITLE = "old segment title";
+const NEW_SERIES_TITLE = "living series title";
+
+// A split series: the earlier segment owns Oct 5–25, the living one
+// Oct 26 onward. Both share the weekly-Monday schedule.
+const EARLIER_SEGMENT: TaskSeries = {
+  ...baseSeries,
+  id: 4,
+  title: OLD_SERIES_TITLE,
+  end_date: "2026-10-25",
+  succeeded_by: baseSeries.id,
+};
+const LIVING_SERIES: TaskSeries = {
+  ...baseSeries,
+  title: NEW_SERIES_TITLE,
+  start_date: "2026-10-26",
 };
 
 const renderDialog = (task: Task = baseTask, client = testQueryClient()) => {
@@ -669,6 +694,7 @@ describe("EditTaskDialog", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: WEEKLY_UNIT.label }));
     fireEvent.click(screen.getByRole("button", { name: WEDNESDAY.label }));
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: REPEAT_END_DATE },
     });
@@ -695,6 +721,7 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
     );
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     const ends = screen.getByLabelText(REPEAT_ENDS_LABEL);
     fireEvent.change(ends, { target: { value: "2020-01-01" } });
 
@@ -715,6 +742,7 @@ describe("EditTaskDialog", () => {
       name: new RegExp(REPEAT_SECTION_LABEL),
     });
     fireEvent.click(toggle);
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: REPEAT_END_DATE },
     });
@@ -803,8 +831,12 @@ describe("EditTaskDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the save-scope group in edit mode with future scope disabled", async () => {
-    renderDialog({ ...baseTask, series_id: baseSeries.id });
+  it("shows the save-scope group in edit mode with every scope enabled", async () => {
+    renderDialog({
+      ...baseTask,
+      series_id: baseSeries.id,
+      scheduled_date: FUTURE_INSTANCE_DATE,
+    });
 
     const group = await screen.findByRole("group", {
       name: TASK_SCOPE_GROUP_LABEL,
@@ -820,10 +852,9 @@ describe("EditTaskDialog", () => {
     });
     expect(group).toContainElement(instance);
     expect(instance).toBeChecked();
-    // Series scope is live (#28); the future scope is #30's.
     expect(series).toBeEnabled();
-    expect(future).toBeDisabled();
-    expect(screen.getAllByText(TASK_SCOPE_COMING_SOON_HINT)).toHaveLength(1);
+    // Future scope needs a viewed date to anchor the split (#30).
+    expect(future).toBeEnabled();
   });
 
   it("hides the save-scope group for a task not in a series", () => {
@@ -877,12 +908,18 @@ describe("EditTaskDialog", () => {
       </QueryClientProvider>,
     );
 
-    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance,
-    // so picking it materializes in the background (the mock stays
-    // pending, keeping the loading panel visible).
+    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance.
+    // Picking it shows the pending panel only — viewing alone must not
+    // write; the Edit click is what materializes the row.
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
+    expect(
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(mockedGetOrCreate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
     expect(
       await screen.findByText(INSTANCE_MATERIALIZING_MESSAGE),
     ).toBeInTheDocument();
@@ -890,9 +927,6 @@ describe("EditTaskDialog", () => {
       baseSeries.id,
       OTHER_INSTANCE_DATE,
     );
-    expect(
-      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
-    ).not.toBeInTheDocument();
   });
 
   it("swaps to the materialized instance once it is created", async () => {
@@ -920,14 +954,73 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
-    expect(await screen.findByText(created.description)).toBeInTheDocument();
-    // A future instance is editable — the pending message is gone and the
-    // Edit affordance applies to the materialized row, not the opened one.
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
+    // Edit intent on a future date materializes straight into edit mode.
+    await screen.findByRole("textbox", { name: /title/i });
+    expect(await screen.findByDisplayValue(created.title)).toBeInTheDocument();
+  });
+
+  it("shows the earlier segment's values on a pending pre-cutoff date", async () => {
+    mockedListTaskSeries.mockResolvedValue([LIVING_SERIES, EARLIER_SEGMENT]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: EARLIER_SEGMENT.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    // Oct 19 is before the Oct 26 cutoff — the earlier segment's title
+    // shows, and materializing it targets the segment, not the living row.
+    fireEvent.click(
+      await screen.findByRole("button", { name: OPENED_INSTANCE_DATE }),
+    );
     expect(
-      screen.queryByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
-    ).not.toBeInTheDocument();
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+      screen.getByRole("heading", { name: OLD_SERIES_TITLE }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
+    await screen.findByText(INSTANCE_MATERIALIZING_MESSAGE);
+    expect(mockedGetOrCreate).toHaveBeenCalledWith(
+      EARLIER_SEGMENT.id,
+      OPENED_INSTANCE_DATE,
+    );
+  });
+
+  it("shows the living series' values on a pending post-cutoff date", async () => {
+    mockedListTaskSeries.mockResolvedValue([LIVING_SERIES, EARLIER_SEGMENT]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: EARLIER_SEGMENT.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    // Oct 26 is the cutoff — the living series produces it.
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    expect(
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: NEW_SERIES_TITLE }),
     ).toBeInTheDocument();
   });
 
@@ -956,6 +1049,9 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
     );
@@ -963,8 +1059,8 @@ describe("EditTaskDialog", () => {
       screen.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).toBeInTheDocument();
   });
 
   it("loads a persisted instance when its date is picked", async () => {
@@ -1186,11 +1282,80 @@ describe("EditTaskDialog", () => {
     expect(mockedUpdate).not.toHaveBeenCalled();
   });
 
+  it("applies a this-and-future save by splitting at the viewed date", async () => {
+    renderDialog({
+      ...baseTask,
+      series_id: baseSeries.id,
+      scheduled_date: FUTURE_INSTANCE_DATE,
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
+    );
+
+    // Same series treatment as the whole-series scope — except Starts,
+    // which is locked to the viewed date the split anchors on.
+    const starts = await screen.findByLabelText(REPEAT_STARTS_LABEL);
+    expect(starts).toHaveValue(FUTURE_INSTANCE_DATE);
+    expect(starts).toHaveAttribute("readonly");
+    expect(
+      screen.getByRole("radio", { name: STATUS_LABELS.todo }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText(SPENT_HOURS_LABEL)).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: TITLE_EDITED },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateSeriesFrom).toHaveBeenCalledWith(
+        baseSeries.id,
+        FUTURE_INSTANCE_DATE,
+        expect.objectContaining({ title: TITLE_EDITED }),
+      ),
+    );
+    expect(mockedUpdateSeries).not.toHaveBeenCalled();
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("blocks the future save while a split is in flight", async () => {
+    mockedUpdateSeriesFrom.mockReturnValue(new Promise(() => {}));
+    renderDialog({
+      ...baseTask,
+      series_id: baseSeries.id,
+      scheduled_date: FUTURE_INSTANCE_DATE,
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
+    );
+    await screen.findByLabelText(REPEAT_STARTS_LABEL);
+    fireEvent.submit(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
+    );
+
+    await waitFor(() => expect(mockedUpdateSeriesFrom).toHaveBeenCalled());
+    // A retried submit would re-split against the already-moved id —
+    // the pending mutation keeps Save disabled.
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+  });
+
+  it("disables the future scope when the viewed instance has no date", async () => {
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+    expect(
+      screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
+    ).toBeDisabled();
+  });
+
   it("sends an edited schedule with the series-scope save", async () => {
     renderDialog({ ...baseTask, series_id: baseSeries.id });
     fireEvent.click(
       screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
     );
+    fireEvent.click(await screen.findByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(await screen.findByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: REPEAT_END_DATE },
     });
@@ -1210,6 +1375,7 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
     );
+    fireEvent.click(await screen.findByText(REPEAT_ENDS_ADD_LABEL));
     const ends = await screen.findByLabelText(REPEAT_ENDS_LABEL);
     fireEvent.change(ends, { target: { value: "2020-01-01" } });
 
@@ -1365,6 +1531,30 @@ describe("EditTaskDialog", () => {
       ),
     );
     expect(mockedUpdateSeries).not.toHaveBeenCalled();
+  });
+
+  it("keeps typed edits when the scope switches to the series", async () => {
+    // The series seed fills only untouched fields — a title the user
+    // typed while the instance scope was active must not be reset to the
+    // series' stored value.
+    mockedListTaskSeries.mockResolvedValue([
+      { ...baseSeries, description: SERIES_DESCRIPTION },
+    ]);
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: TITLE_EDITED },
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Description/)).toHaveValue(
+        SERIES_DESCRIPTION,
+      ),
+    );
+    expect(screen.getByLabelText(/Title/)).toHaveValue(TITLE_EDITED);
   });
 
   it("keeps the shared fields disabled until the series row loads", async () => {

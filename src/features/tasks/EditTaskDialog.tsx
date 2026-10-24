@@ -1,9 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Controller, useForm } from "react-hook-form";
-import type { UseFormReset } from "react-hook-form";
+import type {
+  FieldNamesMarkedBoolean,
+  UseFormGetValues,
+  UseFormRegister,
+  UseFormReset,
+  UseFormReturn,
+} from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -51,6 +57,7 @@ import {
   listTaskSeries,
   truncateTaskSeries,
   updateTaskSeries,
+  updateTaskSeriesFrom,
 } from "@/api/series";
 import {
   NOTES_SECTION_LABEL,
@@ -84,7 +91,6 @@ import {
   STATUS_LABELS,
   TASK_STATUS_FIELD_LABEL,
   TITLE_FIELD_LABEL,
-  TASK_SCOPE_COMING_SOON_HINT,
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_GROUP_LABEL,
   TASK_SCOPE_INSTANCE_LABEL,
@@ -95,6 +101,7 @@ import {
   formatMinutes,
   seriesAuditLabel,
 } from "@/lib/labels";
+import { isScheduledOn } from "@/lib/recurrence";
 import {
   codePointsWithin,
   formatDate,
@@ -176,11 +183,188 @@ interface TaskDetailsViewProps {
   materializeError?: string;
   categories: Category[];
   seriesRow: TaskSeries | undefined;
+  // The segment producing a pending picked date — its values, not the
+  // living series', back the unpersisted-occurrence display.
+  pendingSegment: TaskSeries | undefined;
+  seriesSegments: TaskSeries[] | undefined;
   seriesInstances: Task[] | undefined;
   onPick: (picked: Task | null, iso: string) => void;
   onClose: () => void;
   onDelete: () => void;
   deletePrompt?: ReactNode;
+}
+
+function DeleteConfirmPanel({
+  isSeries,
+  pendingIso,
+  scheduledDate,
+  deleteScope,
+  error,
+  deleting,
+  onScopeChange,
+  onCancel,
+  onConfirm,
+}: Readonly<{
+  isSeries: boolean;
+  pendingIso: string | null;
+  scheduledDate: string | null;
+  deleteScope: TaskScope;
+  error: string | null | undefined;
+  deleting: boolean;
+  onScopeChange: (scope: TaskScope) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-surface-raised/60 p-4">
+      <h3 className="text-sm font-semibold text-danger">
+        {DELETE_TASK_HEADING}
+      </h3>
+      {isSeries && (
+        <fieldset className="flex flex-col gap-2">
+          {[
+            {
+              value: TaskScope.Instance,
+              label: TASK_SCOPE_INSTANCE_LABEL,
+              shown: pendingIso === null,
+            },
+            {
+              value: TaskScope.Series,
+              label: TASK_SCOPE_SERIES_LABEL,
+              shown: true,
+            },
+            {
+              value: TaskScope.Future,
+              label: DELETE_SCOPE_FUTURE_LABEL,
+              shown: (pendingIso ?? scheduledDate) !== null,
+            },
+          ]
+            .filter(({ shown }) => shown)
+            .map(({ value, label }) => (
+              <label
+                key={value}
+                className="flex items-center gap-2 text-sm text-text"
+              >
+                <input
+                  type="radio"
+                  name="task-delete-scope"
+                  value={value}
+                  checked={deleteScope === value}
+                  onChange={() => onScopeChange(value)}
+                  className="accent-danger"
+                />
+                {label}
+              </label>
+            ))}
+        </fieldset>
+      )}
+      <p className="text-xs text-text-muted">{DELETE_UNDO_WARNING}</p>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border px-4 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+        >
+          {DELETE_KEEP_LABEL}
+        </button>
+        <button
+          type="button"
+          disabled={
+            deleting ||
+            (isSeries &&
+              deleteScope === TaskScope.Instance &&
+              pendingIso !== null)
+          }
+          onClick={onConfirm}
+          className="rounded-md bg-danger px-4 py-1.5 text-sm font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50"
+        >
+          {DELETE_BUTTON_LABEL}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PendingOccurrence({
+  segment,
+  materializing,
+  materializeError,
+}: Readonly<{
+  segment: TaskSeries | undefined;
+  materializing: boolean;
+  materializeError: string | undefined;
+}>) {
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm text-text-muted italic">
+          {materializing
+            ? INSTANCE_MATERIALIZING_MESSAGE
+            : SCHEDULED_INSTANCE_PENDING_MESSAGE}
+        </p>
+        {materializeError && (
+          <p role="alert" className="text-sm text-danger">
+            {materializeError}
+          </p>
+        )}
+      </div>
+      {segment && <PendingSharedFields segment={segment} />}
+    </>
+  );
+}
+
+function PendingSharedFields({ segment }: Readonly<{ segment: TaskSeries }>) {
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {TASK_STATUS_FIELD_LABEL}
+        </span>
+        <span className="text-sm">{STATUS_LABELS[TaskStatus.Todo]}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {SPENT_TIME_LABEL}
+        </span>
+        <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {DESCRIPTION_FIELD_LABEL}
+        </span>
+        <span className="text-sm">
+          {segment.description || EMPTY_VALUE_LABEL}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {ESTIMATED_TIME_LABEL}
+        </span>
+        <span className="text-sm">
+          {segment.estimated_minutes === null
+            ? EMPTY_VALUE_LABEL
+            : formatMinutes(segment.estimated_minutes)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {CARRY_OVER_FIELD_LABEL}
+        </span>
+        <span className="text-sm">
+          {
+            CARRY_OVER_OPTIONS.find(
+              (o) => o.value === (segment.carry_over_rule ?? CarryOverRule.Ask),
+            )!.label
+          }
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function TaskDetailsView({
@@ -190,6 +374,8 @@ function TaskDetailsView({
   materializeError,
   categories,
   seriesRow,
+  pendingSegment,
+  seriesSegments,
   seriesInstances,
   onPick,
   onClose,
@@ -215,18 +401,11 @@ function TaskDetailsView({
   return (
     <div className="flex flex-col gap-4">
       {pendingIso !== null ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-text-muted italic">
-            {materializing
-              ? INSTANCE_MATERIALIZING_MESSAGE
-              : SCHEDULED_INSTANCE_PENDING_MESSAGE}
-          </p>
-          {materializeError && (
-            <p role="alert" className="text-sm text-danger">
-              {materializeError}
-            </p>
-          )}
-        </div>
+        <PendingOccurrence
+          segment={pendingSegment ?? seriesRow}
+          materializing={materializing}
+          materializeError={materializeError}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
@@ -278,54 +457,56 @@ function TaskDetailsView({
               </span>
             </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-              {CATEGORIES_FIELD_LABEL}
-            </span>
-            {categories.length === 0 ? (
-              <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
-            ) : (
-              <ul className="flex flex-wrap gap-1.5">
-                {categories.map((category) => (
-                  <li
-                    key={category.id}
-                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-                    style={{
-                      color: category.color ?? undefined,
-                      backgroundColor: `${category.color ?? "#859490"}26`,
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 rounded-full"
-                      style={{
-                        backgroundColor: category.color ?? undefined,
-                      }}
-                    />
-                    {category.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </>
       )}
-      {seriesRow && (
+      {/* Categories are shared too: pending dates show the series' set,
+          persisted instances their own. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {CATEGORIES_FIELD_LABEL}
+        </span>
+        {categories.length === 0 ? (
+          <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
+        ) : (
+          <ul className="flex flex-wrap gap-1.5">
+            {categories.map((category) => (
+              <li
+                key={category.id}
+                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
+                style={{
+                  color: category.color ?? undefined,
+                  backgroundColor: `${category.color ?? "#859490"}26`,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: category.color ?? undefined,
+                  }}
+                />
+                {category.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {(pendingSegment ?? seriesRow) && (
         <p className="border-t border-border pt-4 text-sm text-text-muted">
           {seriesAuditLabel(
-            describeRecurrence(seriesRow.recurrence),
-            formatIsoDay(seriesRow.start_date),
-            seriesRow.end_date === null
+            describeRecurrence((pendingSegment ?? seriesRow)!.recurrence),
+            formatIsoDay((pendingSegment ?? seriesRow)!.start_date),
+            (pendingSegment ?? seriesRow)!.end_date === null
               ? null
-              : formatIsoDay(seriesRow.end_date),
-            formatDate(seriesRow.created_at),
-            formatDate(seriesRow.updated_at),
+              : formatIsoDay((pendingSegment ?? seriesRow)!.end_date!),
+            formatDate((pendingSegment ?? seriesRow)!.created_at),
+            formatDate((pendingSegment ?? seriesRow)!.updated_at),
           )}
         </p>
       )}
-      {seriesRow && seriesInstances && (
+      {seriesRow && seriesInstances && seriesSegments && (
         <InstanceCalendar
-          series={seriesRow}
+          series={seriesSegments}
           instances={seriesInstances}
           selectedIso={pendingIso ?? viewed.scheduled_date}
           onPick={onPick}
@@ -374,23 +555,193 @@ interface EditTaskDialogProps {
 // on a later refetch, which would clobber typed edits — and the shared
 // controls stay disabled until the row arrives (seriesFieldsPending in
 // the component) so nothing is typed before the seed lands.
+// Fields shared by every save scope — the only ones allowed to survive a
+// scope switch.
+const SHARED_FORM_FIELDS: (keyof FormValues)[] = [
+  "title",
+  "description",
+  "estHours",
+  "estMinutes",
+  "carryOver",
+];
+
+function defaultsFor(t: Task): FormValues {
+  const est = minutesToParts(t.estimated_minutes);
+  const spt = minutesToParts(t.spent_minutes);
+  return {
+    title: t.title,
+    description: t.description ?? "",
+    estHours: est.hours,
+    estMinutes: est.minutes,
+    spentHours: spt.hours,
+    spentMinutes: spt.minutes,
+    status: t.status as TaskStatus,
+    carryOver: (t.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
+  };
+}
+
+// The segment that produces a pending picked date — a pre-cutoff date
+// belongs to an earlier segment and shows its values, not the living
+// series' — plus that segment's categories.
+function usePendingSegment(
+  familySegments: TaskSeries[] | undefined,
+  pendingIso: string | null,
+) {
+  const pendingSegment =
+    pendingIso !== null
+      ? familySegments?.find((s) =>
+          isScheduledOn(s.recurrence, s.start_date, s.end_date, pendingIso),
+        )
+      : undefined;
+  const { data: pendingCats } = useQuery({
+    queryKey: QUERY_KEYS.seriesCategories(pendingSegment?.id ?? -1),
+    queryFn: () => listSeriesCategories(pendingSegment!.id),
+    enabled: pendingSegment !== undefined,
+  });
+  return { pendingSegment, pendingCats };
+}
+
+function seriesUpdatePayload(
+  shared: {
+    title: string;
+    description: string | null;
+    estimated_minutes: number | null;
+    carry_over_rule: UpdateSeries["carry_over_rule"];
+  },
+  seriesDraft: {
+    recurrence: UpdateSeries["recurrence"];
+    start_date: string;
+    end_date: string | null;
+  } | null,
+  seriesRow: TaskSeries,
+  categoryIds: number[],
+): UpdateSeries {
+  const schedule = seriesDraft ?? {
+    recurrence: seriesRow.recurrence,
+    start_date: seriesRow.start_date,
+    end_date: seriesRow.end_date,
+  };
+  return {
+    ...shared,
+    recurrence: schedule.recurrence,
+    start_date: schedule.start_date,
+    end_date: schedule.end_date,
+    category_ids: categoryIds,
+  };
+}
+
+function toMinutes(hours: string, minutes: string) {
+  return hours.trim() === "" && minutes.trim() === ""
+    ? null
+    : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+}
+
+// The delete scope picks the command: an instance (or a non-series task)
+// drops its row, the series scope removes the whole chain, and the
+// future scope truncates the series at the viewed date (spec §154).
+function deleteForScope({
+  deleteScope,
+  seriesId,
+  taskId,
+  scheduledDate,
+  pendingIso,
+}: {
+  deleteScope: TaskScope;
+  seriesId: number | null;
+  taskId: number;
+  scheduledDate: string | null;
+  pendingIso: string | null;
+}) {
+  if (seriesId === null || deleteScope === TaskScope.Instance) {
+    return deleteTask(taskId);
+  }
+  if (deleteScope === TaskScope.Series) {
+    return deleteTaskSeries(seriesId);
+  }
+  return truncateTaskSeries(seriesId, (pendingIso ?? scheduledDate)!);
+}
+
+function invalidateSeriesQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  viewedSeriesId: number | null,
+  livingSeriesId: number | null | undefined,
+) {
+  for (const key of [
+    QUERY_KEYS.tasks,
+    QUERY_KEYS.taskSeries,
+    QUERY_KEYS.seriesInstances(viewedSeriesId!),
+    QUERY_KEYS.seriesCategories(livingSeriesId!),
+    QUERY_KEYS.allTaskCategories,
+  ]) {
+    void queryClient.invalidateQueries({ queryKey: key });
+  }
+}
+
+function useMaterializeInstance({
+  queryClient,
+  viewedSeriesId,
+  editAfterMaterializeRef,
+  onMaterialized,
+  startEditing,
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+  viewedSeriesId: number | null;
+  editAfterMaterializeRef: RefObject<boolean>;
+  onMaterialized: (created: Task) => void;
+  startEditing: (created: Task) => void;
+}) {
+  return useMutation({
+    mutationFn: ({ iso, seriesId }: { iso: string; seriesId: number }) =>
+      getOrCreateInstance(seriesId, iso),
+    onSuccess: (created) => {
+      onMaterialized(created);
+      if (editAfterMaterializeRef.current) {
+        editAfterMaterializeRef.current = false;
+        startEditing(created);
+      }
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.seriesInstances(viewedSeriesId!),
+      });
+    },
+  });
+}
+
 function useSeriesScopeSeed({
   saveScope,
   seriesRow,
   reset,
+  getValues,
+  dirtyFields,
   instanceDefaults,
 }: {
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
   reset: UseFormReset<FormValues>;
+  getValues: UseFormGetValues<FormValues>;
+  dirtyFields: FieldNamesMarkedBoolean<FormValues>;
   instanceDefaults: FormValues;
 }) {
   const seeded = useRef(false);
   useEffect(() => {
-    if (saveScope !== TaskScope.Series) {
+    // Values the user already typed survive a scope switch in either
+    // direction — only untouched fields take the target scope's stored
+    // values (series row for Series/Future, viewed row for Instance).
+    // Per-instance fields (status, spent) are not shared and never
+    // carry over — an invalid draft there must not follow into a series
+    // save and block it.
+    const values = getValues();
+    const overlay: Partial<FormValues> = {};
+    for (const key of SHARED_FORM_FIELDS) {
+      if (dirtyFields[key] === true) {
+        Object.assign(overlay, { [key]: values[key] });
+      }
+    }
+    if (saveScope === TaskScope.Instance) {
       if (!seeded.current) return;
       seeded.current = false;
-      reset(instanceDefaults);
+      reset({ ...instanceDefaults, ...overlay });
       return;
     }
     if (seeded.current || seriesRow === undefined) return;
@@ -404,8 +755,9 @@ function useSeriesScopeSeed({
       estMinutes: seriesEstimate.minutes,
       carryOver: (seriesRow.carry_over_rule ??
         CarryOverRule.Ask) as CarryOverRule,
+      ...overlay,
     });
-  }, [saveScope, seriesRow, reset, instanceDefaults]);
+  }, [saveScope, seriesRow, reset, getValues, dirtyFields, instanceDefaults]);
 }
 
 // The selection is derived state: stored associations minus the chips the
@@ -429,7 +781,9 @@ function useScopedCategories({
   initialCategories: Category[] | undefined;
 }) {
   const categoryKey =
-    saveScope === TaskScope.Series ? `series-${seriesId}` : `task-${viewedId}`;
+    saveScope !== TaskScope.Instance
+      ? `series-${seriesId}`
+      : `task-${viewedId}`;
   const [categoryDraft, setCategoryDraft] = useState<{
     key: string;
     removedIds: ReadonlySet<number>;
@@ -441,7 +795,7 @@ function useScopedCategories({
       : new Set<number>();
   const picked = categoryDraft.key === categoryKey ? categoryDraft.picked : [];
   const stored =
-    saveScope === TaskScope.Series
+    saveScope !== TaskScope.Instance
       ? (seriesCats ?? [])
       : (initialCategories ?? []);
   const storedIds = new Set(stored.map((c) => c.id));
@@ -460,6 +814,440 @@ function useScopedCategories({
     });
   };
   return { categories, stored, onCategoriesChange };
+}
+
+// Only the future scope locks the schedule start — to the viewed date
+// the split anchors on.
+const lockedStartFor = (scope: SaveScope, viewedDate: string | null) =>
+  scope === TaskScope.Future ? (viewedDate ?? undefined) : undefined;
+
+const SAVE_SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
+  { value: TaskScope.Instance, label: TASK_SCOPE_INSTANCE_LABEL },
+  { value: TaskScope.Series, label: TASK_SCOPE_SERIES_LABEL },
+  { value: TaskScope.Future, label: TASK_SCOPE_FUTURE_LABEL },
+];
+
+// The "apply changes to" radios. The future scope needs a viewed date to
+// anchor the split on, so it's muted and disabled without one.
+function SaveScopeFieldset({
+  saveScope,
+  futureDisabled,
+  onChange,
+}: Readonly<{
+  saveScope: SaveScope;
+  futureDisabled: boolean;
+  onChange: (scope: SaveScope) => void;
+}>) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-xs font-medium tracking-wider text-text-muted uppercase">
+        {TASK_SCOPE_GROUP_LABEL}
+      </legend>
+      {SAVE_SCOPE_OPTIONS.map(({ value, label }) => {
+        const disabled = value === TaskScope.Future && futureDisabled;
+        return (
+          <div key={value} className="flex items-center gap-2">
+            <label
+              className={`flex items-center gap-2 text-sm ${
+                disabled ? "text-text-muted" : "text-text"
+              }`}
+            >
+              <input
+                type="radio"
+                name="task-save-scope"
+                value={value}
+                checked={saveScope === value}
+                disabled={disabled}
+                onChange={() => onChange(value)}
+                className="accent-primary"
+              />
+              {label}
+            </label>
+          </div>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+function EditTaskForm({
+  form,
+  task,
+  viewedDate,
+  categories,
+  saveScope,
+  seriesRow,
+  seriesError,
+  serverError,
+  seriesFieldsPending,
+  seriesSaveBlocked,
+  submitting,
+  onScopeChange,
+  onAttachSchedule,
+  onDraftSchedule,
+  onCategoriesChange,
+  onSubmit,
+  onClose,
+}: Readonly<{
+  form: UseFormReturn<FormValues>;
+  task: Task;
+  viewedDate: string | null;
+  categories: Category[];
+  saveScope: SaveScope;
+  seriesRow: TaskSeries | undefined;
+  seriesError: string | null;
+  serverError: string | null | undefined;
+  seriesFieldsPending: boolean;
+  seriesSaveBlocked: boolean;
+  submitting: boolean;
+  onScopeChange: (scope: SaveScope) => void;
+  onAttachSchedule: (next: NewSeries | null, error: string | null) => void;
+  onDraftSchedule: (next: NewSeries | null, error: string | null) => void;
+  onCategoriesChange: (next: Category[]) => void;
+  onSubmit: (values: FormValues) => void;
+  onClose: () => void;
+}>) {
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = form;
+  const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
+  const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="edit-task-title-input"
+          className="text-xs font-medium text-text-muted"
+        >
+          {TITLE_FIELD_LABEL} *
+        </label>
+        <input
+          id="edit-task-title-input"
+          type="text"
+          disabled={seriesFieldsPending}
+          aria-invalid={!!errors.title}
+          aria-describedby={errors.title ? "edit-task-title-error" : undefined}
+          className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
+          {...register("title")}
+        />
+        {errors.title && (
+          <p
+            id="edit-task-title-error"
+            role="alert"
+            className="text-sm text-danger"
+          >
+            {errors.title.message}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="edit-task-description"
+          className="text-xs font-medium text-text-muted"
+        >
+          {DESCRIPTION_FIELD_LABEL}{" "}
+          <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+        </label>
+        <textarea
+          id="edit-task-description"
+          rows={3}
+          disabled={seriesFieldsPending}
+          aria-invalid={!!errors.description}
+          aria-describedby={
+            errors.description ? "edit-task-description-error" : undefined
+          }
+          className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+          {...register("description")}
+        />
+        {errors.description && (
+          <p
+            id="edit-task-description-error"
+            role="alert"
+            className="text-sm text-danger"
+          >
+            {errors.description.message}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-text-muted">
+          {CATEGORIES_FIELD_LABEL}{" "}
+          <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+        </span>
+        <CategoryMultiSelect
+          idPrefix="edit-task"
+          selected={categories}
+          onChange={onCategoriesChange}
+          disabled={seriesFieldsPending}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-text-muted">
+            {ESTIMATED_TIME_LABEL}{" "}
+            <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+          </span>
+          <DurationField
+            register={register}
+            idPrefix="edit-task-est"
+            hoursLabel={ESTIMATED_HOURS_LABEL}
+            minutesLabel={ESTIMATED_MINUTES_LABEL}
+            hoursField="estHours"
+            minutesField="estMinutes"
+            errorId="edit-task-estimate-error"
+            invalid={!!estimateError}
+            disabled={seriesFieldsPending}
+          />
+          {estimateError && (
+            <p
+              id="edit-task-estimate-error"
+              role="alert"
+              className="text-sm text-danger"
+            >
+              {estimateError}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-text-muted">
+            {SPENT_TIME_LABEL}{" "}
+            <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+          </span>
+          <DurationField
+            register={register}
+            idPrefix="edit-task-spent"
+            hoursLabel={SPENT_HOURS_LABEL}
+            minutesLabel={SPENT_MINUTES_LABEL}
+            hoursField="spentHours"
+            minutesField="spentMinutes"
+            errorId="edit-task-spent-error"
+            invalid={!!spentError}
+            disabled={saveScope !== TaskScope.Instance}
+          />
+          {spentError && (
+            <p
+              id="edit-task-spent-error"
+              role="alert"
+              className="text-sm text-danger"
+            >
+              {spentError}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span
+          id="edit-task-status-label"
+          className="text-xs font-medium text-text-muted"
+        >
+          {TASK_STATUS_FIELD_LABEL}
+        </span>
+        <Controller
+          name="status"
+          control={control}
+          render={({ field: { value, onChange } }) => (
+            // Status and spent time stay per-instance — the series
+            // row doesn't carry them, so a series save can't apply
+            // them and the controls are disabled.
+            <div
+              role="radiogroup"
+              aria-labelledby="edit-task-status-label"
+              className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
+                saveScope !== TaskScope.Instance ? "opacity-50" : ""
+              }`}
+            >
+              {Object.values(TaskStatus).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={value === option}
+                  disabled={saveScope !== TaskScope.Instance}
+                  onClick={() => onChange(option)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                    value === option
+                      ? "bg-primary text-on-primary"
+                      : "text-text-muted hover:text-text"
+                  }`}
+                >
+                  {STATUS_LABELS[option]}
+                </button>
+              ))}
+            </div>
+          )}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span
+          id="edit-task-carry-over-label"
+          className="text-xs font-medium text-text-muted"
+        >
+          {CARRY_OVER_FIELD_LABEL}
+        </span>
+        <Controller
+          name="carryOver"
+          control={control}
+          render={({ field: { value, onChange } }) => (
+            <div
+              role="radiogroup"
+              aria-labelledby="edit-task-carry-over-label"
+              className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
+            >
+              {CARRY_OVER_OPTIONS.map(({ value: option, label }) => (
+                <button
+                  key={option || "ask"}
+                  type="button"
+                  role="radio"
+                  aria-checked={value === option}
+                  disabled={seriesFieldsPending}
+                  onClick={() => onChange(option)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                    value === option
+                      ? "bg-primary text-on-primary"
+                      : "text-text-muted hover:text-text"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        />
+      </div>
+      {task.series_id !== null && (
+        <SaveScopeFieldset
+          saveScope={saveScope}
+          futureDisabled={viewedDate === null}
+          onChange={onScopeChange}
+        />
+      )}
+      {task.series_id === null && (
+        <RepeatScheduleFields
+          idPrefix="edit-task"
+          onChange={(next, error) => {
+            onAttachSchedule(next, error);
+          }}
+        />
+      )}
+      {task.series_id !== null &&
+        saveScope !== TaskScope.Instance &&
+        seriesRow !== undefined && (
+          <RepeatScheduleFields
+            // Remount per scope and anchor so switching scopes
+            // reseeds and a different viewed date re-locks the
+            // start at its cutoff.
+            key={`${saveScope}-${viewedDate}`}
+            idPrefix="edit-series"
+            initial={{
+              recurrence: seriesRow.recurrence,
+              start_date: seriesRow.start_date,
+              end_date: seriesRow.end_date,
+            }}
+            lockedStartDate={lockedStartFor(saveScope, viewedDate)}
+            onChange={(next, error) => {
+              onDraftSchedule(next, error);
+            }}
+          />
+        )}
+      {serverError && (
+        <p role="alert" className="text-sm text-danger">
+          {serverError}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-text-muted">
+          {auditTimestampsLabel(
+            formatDate(task.created_at),
+            formatDate(task.updated_at),
+          )}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+          >
+            {CANCEL_BUTTON_LABEL}
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || seriesError !== null || seriesSaveBlocked}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+          >
+            {SAVE_BUTTON_LABEL}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function DurationField({
+  idPrefix,
+  hoursLabel,
+  minutesLabel,
+  hoursField,
+  minutesField,
+  errorId,
+  invalid,
+  disabled = false,
+  register,
+}: Readonly<{
+  idPrefix: string;
+  hoursLabel: string;
+  minutesLabel: string;
+  hoursField: "estHours" | "spentHours";
+  minutesField: "estMinutes" | "spentMinutes";
+  errorId: string;
+  invalid: boolean;
+  disabled?: boolean;
+  register: UseFormRegister<FormValues>;
+}>) {
+  return (
+    <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-2">
+        <input
+          id={`${idPrefix}-hours`}
+          aria-label={hoursLabel}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? errorId : undefined}
+          type="number"
+          placeholder="0"
+          disabled={disabled}
+          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+          {...register(hoursField)}
+        />
+        <label
+          htmlFor={`${idPrefix}-hours`}
+          className="text-xs text-text-muted"
+        >
+          {HOURS_UNIT_LABEL}
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id={`${idPrefix}-minutes`}
+          aria-label={minutesLabel}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? errorId : undefined}
+          type="number"
+          placeholder="0"
+          disabled={disabled}
+          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+          {...register(minutesField)}
+        />
+        <label
+          htmlFor={`${idPrefix}-minutes`}
+          className="text-xs text-text-muted"
+        >
+          {MINUTES_UNIT_LABEL}
+        </label>
+      </div>
+    </div>
+  );
 }
 
 export function EditTaskDialog({
@@ -483,33 +1271,22 @@ export function EditTaskDialog({
   // creation failed); while set, the fields give way to the status panel.
   const [viewed, setViewed] = useState<Task>(task);
   const [pendingIso, setPendingIso] = useState<string | null>(null);
+  // Set when the Edit click should start edit mode once the pending
+  // instance materializes.
+  const editAfterMaterialize = useRef(false);
 
-  const instanceDefaults = useMemo<FormValues>(() => {
-    const est = minutesToParts(viewed.estimated_minutes);
-    const spt = minutesToParts(viewed.spent_minutes);
-    return {
-      title: viewed.title,
-      description: viewed.description ?? "",
-      estHours: est.hours,
-      estMinutes: est.minutes,
-      spentHours: spt.hours,
-      spentMinutes: spt.minutes,
-      status: viewed.status as TaskStatus,
-      carryOver: (viewed.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
-    };
-  }, [viewed]);
-  const {
-    register,
-    control,
-    handleSubmit,
-    setFocus,
-    reset,
-    formState: { errors },
-  } = useForm<FormValues>({
+  const instanceDefaults = useMemo(() => defaultsFor(viewed), [viewed]);
+  const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
     defaultValues: instanceDefaults,
   });
+  const {
+    setFocus,
+    reset,
+    getValues,
+    formState: { dirtyFields },
+  } = form;
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -531,19 +1308,41 @@ export function EditTaskDialog({
     queryFn: listTaskSeries,
     enabled: task.series_id !== null,
   });
+  const viewedSeries = taskSeries?.find((s) => s.id === viewed.series_id);
+  // The living continuation of a segmented series: saves, seeds, and
+  // materialization always target it, never an earlier segment.
+  const livingSeriesId =
+    viewedSeries?.succeeded_by ?? viewed.series_id ?? task.series_id;
+  const seriesRow = taskSeries?.find((s) => s.id === livingSeriesId);
+  // Every segment of the conceptual series — the living row plus the
+  // earlier segments — so the calendar shows the full schedule.
+  const familySegments = taskSeries?.filter(
+    (s) =>
+      livingSeriesId !== null &&
+      (s.id === livingSeriesId || s.succeeded_by === livingSeriesId),
+  );
+  const { pendingSegment, pendingCats } = usePendingSegment(
+    familySegments,
+    pendingIso,
+  );
+  const viewTitle =
+    pendingIso !== null
+      ? ((pendingSegment ?? seriesRow)?.title ?? viewed.title)
+      : viewed.title;
   const { data: seriesInstances } = useQuery({
-    queryKey: QUERY_KEYS.seriesInstances(task.series_id!),
-    queryFn: () => listSeriesInstances(task.series_id!),
-    enabled: task.series_id !== null,
+    queryKey: QUERY_KEYS.seriesInstances(viewed.series_id!),
+    queryFn: () => listSeriesInstances(viewed.series_id!),
+    enabled: viewed.series_id !== null,
   });
-  const seriesRow = taskSeries?.find((s) => s.id === task.series_id);
   // Save scope: instance edits today's task; series writes the shared
   // fields + schedule + categories onto the series and every instance.
   const [saveScope, setSaveScope] = useState<SaveScope>(TaskScope.Instance);
   const { data: seriesCats, error: seriesCatsError } = useQuery({
-    queryKey: QUERY_KEYS.seriesCategories(task.series_id!),
-    queryFn: () => listSeriesCategories(task.series_id!),
-    enabled: task.series_id !== null && saveScope === TaskScope.Series,
+    queryKey: QUERY_KEYS.seriesCategories(livingSeriesId!),
+    queryFn: () => listSeriesCategories(livingSeriesId!),
+    // Also fetched in view mode: a pending (unpersisted) occurrence
+    // displays the living series' categories.
+    enabled: livingSeriesId !== null,
   });
   // The series-scope schedule draft: null = untouched (use the stored
   // schedule), cleared = the user collapsed the section (a series needs a
@@ -551,14 +1350,21 @@ export function EditTaskDialog({
   const [seriesDraft, setSeriesDraft] = useState<NewSeries | null>(null);
   const [seriesCleared, setSeriesCleared] = useState(false);
   const [seriesDraftError, setSeriesDraftError] = useState<string | null>(null);
-  useSeriesScopeSeed({ saveScope, seriesRow, reset, instanceDefaults });
+  useSeriesScopeSeed({
+    saveScope,
+    seriesRow,
+    reset,
+    getValues,
+    dirtyFields,
+    instanceDefaults,
+  });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteScope, setDeleteScope] = useState<TaskScope>(TaskScope.Instance);
   const [series, setSeries] = useState<NewSeries | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const { categories, stored, onCategoriesChange } = useScopedCategories({
     saveScope,
-    seriesId: task.series_id,
+    seriesId: livingSeriesId,
     viewedId: viewed.id,
     seriesCats,
     initialCategories,
@@ -589,39 +1395,43 @@ export function EditTaskDialog({
     },
   });
 
+  const invalidateSeriesScope = () =>
+    invalidateSeriesQueries(queryClient, viewed.series_id, livingSeriesId);
+
   // Picking a scheduled-but-unpersisted date materializes its instance in
   // the background (spec: the instance exists once the user wants to edit
   // it). The pick stays pending until the row arrives, then the view swaps
   // to it — on failure the date keeps the pending panel plus the error.
-  const materialize = useMutation({
-    mutationFn: (iso: string) => getOrCreateInstance(task.series_id!, iso),
-    onSuccess: (created) => {
+  const materialize = useMaterializeInstance({
+    queryClient,
+    viewedSeriesId: viewed.series_id,
+    editAfterMaterializeRef: editAfterMaterialize,
+    onMaterialized: (created) => {
       setViewed(created);
       setPendingIso(null);
       invalidateSeriesScope();
     },
-    onError: () => {
-      void queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.seriesInstances(task.series_id!),
-      });
+    startEditing: (created) => {
+      reset(defaultsFor(created));
+      setMode(DialogMode.Edit);
     },
   });
 
-  const invalidateSeriesScope = () => {
-    for (const key of [
-      QUERY_KEYS.tasks,
-      QUERY_KEYS.taskSeries,
-      QUERY_KEYS.seriesInstances(task.series_id!),
-      QUERY_KEYS.seriesCategories(task.series_id!),
-      QUERY_KEYS.allTaskCategories,
-    ]) {
-      void queryClient.invalidateQueries({ queryKey: key });
-    }
-  };
-
   const updateSeries = useMutation({
     mutationFn: (input: UpdateSeries) =>
-      updateTaskSeries(task.series_id!, input),
+      updateTaskSeries(livingSeriesId!, input),
+    onSuccess: onClose,
+    onSettled: invalidateSeriesScope,
+  });
+
+  const updateSeriesFrom = useMutation({
+    mutationFn: ({
+      fromDate,
+      input,
+    }: {
+      fromDate: string;
+      input: UpdateSeries;
+    }) => updateTaskSeriesFrom(livingSeriesId!, fromDate, input),
     onSuccess: onClose,
     onSettled: invalidateSeriesScope,
   });
@@ -629,25 +1439,17 @@ export function EditTaskDialog({
   // Delete runs against the *viewed* instance — picking another persisted
   // date in the calendar moves the target with it.
   const remove = useMutation({
-    mutationFn: async () => {
-      const seriesId = task.series_id;
-      if (seriesId === null || deleteScope === TaskScope.Instance) {
-        return deleteTask(viewed.id);
-      }
-      if (deleteScope === TaskScope.Series) {
-        return deleteTaskSeries(seriesId);
-      }
-      const fromIso = pendingIso ?? viewed.scheduled_date;
-      return truncateTaskSeries(seriesId, fromIso!);
-    },
+    mutationFn: () =>
+      deleteForScope({
+        deleteScope,
+        seriesId: livingSeriesId,
+        taskId: viewed.id,
+        scheduledDate: viewed.scheduled_date,
+        pendingIso,
+      }),
     onSuccess: onClose,
     onSettled: invalidateSeriesScope,
   });
-
-  const toMinutes = (hours: string, minutes: string) =>
-    hours.trim() === "" && minutes.trim() === ""
-      ? null
-      : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
 
   const onSubmit = (values: FormValues) => {
     const shared = {
@@ -656,19 +1458,23 @@ export function EditTaskDialog({
       estimated_minutes: toMinutes(values.estHours, values.estMinutes),
       carry_over_rule: carryOverToWire(values.carryOver),
     };
-    if (saveScope === TaskScope.Series) {
-      const schedule = seriesDraft ?? {
-        recurrence: seriesRow!.recurrence,
-        start_date: seriesRow!.start_date,
-        end_date: seriesRow!.end_date,
-      };
-      updateSeries.mutate({
-        ...shared,
-        recurrence: schedule.recurrence,
-        start_date: schedule.start_date,
-        end_date: schedule.end_date,
-        category_ids: categories.map((c) => c.id),
-      });
+    if (saveScope !== TaskScope.Instance) {
+      const payload = seriesUpdatePayload(
+        shared,
+        seriesDraft,
+        seriesRow!,
+        categories.map((c) => c.id),
+      );
+      // "This and future" splits the series at the viewed date; the
+      // backend anchors the new series on fromDate (spec §146).
+      if (saveScope === TaskScope.Future) {
+        updateSeriesFrom.mutate({
+          fromDate: viewed.scheduled_date!,
+          input: payload,
+        });
+      } else {
+        updateSeries.mutate(payload);
+      }
       return;
     }
     update.mutate({
@@ -679,97 +1485,30 @@ export function EditTaskDialog({
     });
   };
 
-  const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
-  const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
   // The category error only belongs to series scope — a failed load
   // shouldn't linger on the instance form after switching back.
   const serverError = serverErrorMessage(
     update.error ??
       updateSeries.error ??
-      (saveScope === TaskScope.Series ? seriesCatsError : null),
+      updateSeriesFrom.error ??
+      (saveScope !== TaskScope.Instance ? seriesCatsError : null),
   );
   // While the series row is loading, the shared fields still hold the
   // opened instance's values — editing them before the seed lands would
   // lose the input to the reset. They stay disabled until it arrives.
   const seriesFieldsPending =
-    saveScope === TaskScope.Series && seriesRow === undefined;
+    saveScope !== TaskScope.Instance && seriesRow === undefined;
   // A series save needs a schedule: the stored one (untouched draft) or a
   // valid edited one — collapsing the section disables saving. It also
   // waits for the series category query: submitting before it resolves
   // would send an empty set and erase every instance's associations, and
   // a failed load is surfaced instead of treated as "no categories".
   const seriesSaveBlocked =
-    saveScope === TaskScope.Series &&
+    saveScope !== TaskScope.Instance &&
     (seriesRow === undefined ||
       seriesCats === undefined ||
       seriesCleared ||
       seriesDraftError !== null);
-
-  const durationField = (options: {
-    idPrefix: string;
-    hoursLabel: string;
-    minutesLabel: string;
-    hoursField: "estHours" | "spentHours";
-    minutesField: "estMinutes" | "spentMinutes";
-    errorId: string;
-    invalid: boolean;
-    disabled?: boolean;
-  }) => {
-    const {
-      idPrefix,
-      hoursLabel,
-      minutesLabel,
-      hoursField,
-      minutesField,
-      errorId,
-      invalid,
-      disabled = false,
-    } = options;
-    return (
-      <div
-        className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}
-      >
-        <div className="flex items-center gap-2">
-          <input
-            id={`${idPrefix}-hours`}
-            aria-label={hoursLabel}
-            aria-invalid={invalid}
-            aria-describedby={invalid ? errorId : undefined}
-            type="number"
-            placeholder="0"
-            disabled={disabled}
-            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-            {...register(hoursField)}
-          />
-          <label
-            htmlFor={`${idPrefix}-hours`}
-            className="text-xs text-text-muted"
-          >
-            {HOURS_UNIT_LABEL}
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            id={`${idPrefix}-minutes`}
-            aria-label={minutesLabel}
-            aria-invalid={invalid}
-            aria-describedby={invalid ? errorId : undefined}
-            type="number"
-            placeholder="0"
-            disabled={disabled}
-            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-            {...register(minutesField)}
-          />
-          <label
-            htmlFor={`${idPrefix}-minutes`}
-            className="text-xs text-text-muted"
-          >
-            {MINUTES_UNIT_LABEL}
-          </label>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -792,9 +1531,41 @@ export function EditTaskDialog({
             id="edit-task-title"
             className="font-title text-lg font-semibold text-text"
           >
-            {mode === DialogMode.View ? viewed.title : EDIT_TASK_HEADING}
+            {mode === DialogMode.View ? viewTitle : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
+            {mode === DialogMode.View && pendingIso !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Edit intent on a scheduled-only date is what
+                  // materializes the instance (spec §231) — a past
+                  // date materializes for notes only, staying in
+                  // view mode.
+                  editAfterMaterialize.current = pendingIso >= todayLocalIso();
+                  // The producing segment owns the row — a pre-cutoff
+                  // date belongs to an earlier segment, not the living
+                  // series.
+                  materialize.mutate({
+                    iso: pendingIso,
+                    seriesId: pendingSegment?.id ?? livingSeriesId!,
+                  });
+                }}
+                aria-label={EDIT_BUTTON_LABEL}
+                className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+            )}
             {mode === DialogMode.View &&
               pendingIso === null &&
               // Past instances stay viewable but read-only (spec §232);
@@ -809,9 +1580,19 @@ export function EditTaskDialog({
                     reset(instanceDefaults);
                     setMode(DialogMode.Edit);
                   }}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+                  aria-label={EDIT_BUTTON_LABEL}
+                  className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
                 >
-                  {EDIT_BUTTON_LABEL}
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
                 </button>
               )}
             <button
@@ -839,16 +1620,19 @@ export function EditTaskDialog({
             pendingIso={pendingIso}
             materializing={materialize.isPending}
             materializeError={serverErrorMessage(materialize.error)}
-            categories={categories}
+            categories={pendingIso !== null ? (pendingCats ?? []) : categories}
             seriesRow={seriesRow}
+            pendingSegment={pendingSegment}
+            seriesSegments={familySegments}
             seriesInstances={seriesInstances}
             onPick={(picked, iso) => {
               if (picked) {
                 setViewed(picked);
                 setPendingIso(null);
               } else {
+                // Viewing alone must not write: materialize only on an
+                // explicit edit of the scheduled-only date (spec §231).
                 setPendingIso(iso);
-                materialize.mutate(iso);
               }
             }}
             onClose={onClose}
@@ -858,393 +1642,51 @@ export function EditTaskDialog({
             }}
             deletePrompt={
               confirmingDelete ? (
-                <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-surface-raised/60 p-4">
-                  <h3 className="text-sm font-semibold text-danger">
-                    {DELETE_TASK_HEADING}
-                  </h3>
-                  {task.series_id !== null && (
-                    <fieldset className="flex flex-col gap-2">
-                      {[
-                        {
-                          value: TaskScope.Instance,
-                          label: TASK_SCOPE_INSTANCE_LABEL,
-                          shown: pendingIso === null,
-                        },
-                        {
-                          value: TaskScope.Series,
-                          label: TASK_SCOPE_SERIES_LABEL,
-                          shown: true,
-                        },
-                        {
-                          value: TaskScope.Future,
-                          label: DELETE_SCOPE_FUTURE_LABEL,
-                          shown: (pendingIso ?? viewed.scheduled_date) !== null,
-                        },
-                      ]
-                        .filter(({ shown }) => shown)
-                        .map(({ value, label }) => (
-                          <label
-                            key={value}
-                            className="flex items-center gap-2 text-sm text-text"
-                          >
-                            <input
-                              type="radio"
-                              name="task-delete-scope"
-                              value={value}
-                              checked={deleteScope === value}
-                              onChange={() => setDeleteScope(value)}
-                              className="accent-danger"
-                            />
-                            {label}
-                          </label>
-                        ))}
-                    </fieldset>
-                  )}
-                  <p className="text-xs text-text-muted">
-                    {DELETE_UNDO_WARNING}
-                  </p>
-                  {serverErrorMessage(remove.error) && (
-                    <p role="alert" className="text-sm text-danger">
-                      {serverErrorMessage(remove.error)}
-                    </p>
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDelete(false)}
-                      className="rounded-md border border-border px-4 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
-                    >
-                      {DELETE_KEEP_LABEL}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        remove.isPending ||
-                        (task.series_id !== null &&
-                          deleteScope === TaskScope.Instance &&
-                          pendingIso !== null)
-                      }
-                      onClick={() => remove.mutate()}
-                      className="rounded-md bg-danger px-4 py-1.5 text-sm font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50"
-                    >
-                      {DELETE_BUTTON_LABEL}
-                    </button>
-                  </div>
-                </div>
+                <DeleteConfirmPanel
+                  isSeries={task.series_id !== null}
+                  pendingIso={pendingIso}
+                  scheduledDate={viewed.scheduled_date}
+                  deleteScope={deleteScope}
+                  error={serverErrorMessage(remove.error)}
+                  deleting={remove.isPending}
+                  onScopeChange={setDeleteScope}
+                  onCancel={() => setConfirmingDelete(false)}
+                  onConfirm={() => remove.mutate()}
+                />
               ) : null
             }
           />
         ) : (
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="edit-task-title-input"
-                className="text-xs font-medium text-text-muted"
-              >
-                {TITLE_FIELD_LABEL} *
-              </label>
-              <input
-                id="edit-task-title-input"
-                type="text"
-                disabled={seriesFieldsPending}
-                aria-invalid={!!errors.title}
-                aria-describedby={
-                  errors.title ? "edit-task-title-error" : undefined
-                }
-                className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
-                {...register("title")}
-              />
-              {errors.title && (
-                <p
-                  id="edit-task-title-error"
-                  role="alert"
-                  className="text-sm text-danger"
-                >
-                  {errors.title.message}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="edit-task-description"
-                className="text-xs font-medium text-text-muted"
-              >
-                {DESCRIPTION_FIELD_LABEL}{" "}
-                <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-              </label>
-              <textarea
-                id="edit-task-description"
-                rows={3}
-                disabled={seriesFieldsPending}
-                aria-invalid={!!errors.description}
-                aria-describedby={
-                  errors.description ? "edit-task-description-error" : undefined
-                }
-                className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-                {...register("description")}
-              />
-              {errors.description && (
-                <p
-                  id="edit-task-description-error"
-                  role="alert"
-                  className="text-sm text-danger"
-                >
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-text-muted">
-                {CATEGORIES_FIELD_LABEL}{" "}
-                <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-              </span>
-              <CategoryMultiSelect
-                idPrefix="edit-task"
-                selected={categories}
-                onChange={onCategoriesChange}
-                disabled={seriesFieldsPending}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-muted">
-                  {ESTIMATED_TIME_LABEL}{" "}
-                  <span className="text-text-muted">
-                    {OPTIONAL_FIELD_LABEL}
-                  </span>
-                </span>
-                {durationField({
-                  idPrefix: "edit-task-est",
-                  hoursLabel: ESTIMATED_HOURS_LABEL,
-                  minutesLabel: ESTIMATED_MINUTES_LABEL,
-                  hoursField: "estHours",
-                  minutesField: "estMinutes",
-                  errorId: "edit-task-estimate-error",
-                  invalid: !!estimateError,
-                  disabled: seriesFieldsPending,
-                })}
-                {estimateError && (
-                  <p
-                    id="edit-task-estimate-error"
-                    role="alert"
-                    className="text-sm text-danger"
-                  >
-                    {estimateError}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-muted">
-                  {SPENT_TIME_LABEL}{" "}
-                  <span className="text-text-muted">
-                    {OPTIONAL_FIELD_LABEL}
-                  </span>
-                </span>
-                {durationField({
-                  idPrefix: "edit-task-spent",
-                  hoursLabel: SPENT_HOURS_LABEL,
-                  minutesLabel: SPENT_MINUTES_LABEL,
-                  hoursField: "spentHours",
-                  minutesField: "spentMinutes",
-                  errorId: "edit-task-spent-error",
-                  invalid: !!spentError,
-                  disabled: saveScope === TaskScope.Series,
-                })}
-                {spentError && (
-                  <p
-                    id="edit-task-spent-error"
-                    role="alert"
-                    className="text-sm text-danger"
-                  >
-                    {spentError}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span
-                id="edit-task-status-label"
-                className="text-xs font-medium text-text-muted"
-              >
-                {TASK_STATUS_FIELD_LABEL}
-              </span>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field: { value, onChange } }) => (
-                  // Status and spent time stay per-instance — the series
-                  // row doesn't carry them, so a series save can't apply
-                  // them and the controls are disabled.
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="edit-task-status-label"
-                    className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
-                      saveScope === TaskScope.Series ? "opacity-50" : ""
-                    }`}
-                  >
-                    {Object.values(TaskStatus).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        role="radio"
-                        aria-checked={value === option}
-                        disabled={saveScope === TaskScope.Series}
-                        onClick={() => onChange(option)}
-                        className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
-                          value === option
-                            ? "bg-primary text-on-primary"
-                            : "text-text-muted hover:text-text"
-                        }`}
-                      >
-                        {STATUS_LABELS[option]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span
-                id="edit-task-carry-over-label"
-                className="text-xs font-medium text-text-muted"
-              >
-                {CARRY_OVER_FIELD_LABEL}
-              </span>
-              <Controller
-                name="carryOver"
-                control={control}
-                render={({ field: { value, onChange } }) => (
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="edit-task-carry-over-label"
-                    className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
-                  >
-                    {CARRY_OVER_OPTIONS.map(({ value: option, label }) => (
-                      <button
-                        key={option || "ask"}
-                        type="button"
-                        role="radio"
-                        aria-checked={value === option}
-                        disabled={seriesFieldsPending}
-                        onClick={() => onChange(option)}
-                        className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
-                          value === option
-                            ? "bg-primary text-on-primary"
-                            : "text-text-muted hover:text-text"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
-            {task.series_id !== null && (
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {TASK_SCOPE_GROUP_LABEL}
-                </legend>
-                {[
-                  {
-                    value: TaskScope.Instance,
-                    label: TASK_SCOPE_INSTANCE_LABEL,
-                  },
-                  { value: TaskScope.Series, label: TASK_SCOPE_SERIES_LABEL },
-                  { value: TaskScope.Future, label: TASK_SCOPE_FUTURE_LABEL },
-                ].map(({ value, label }) => (
-                  <div key={value} className="flex items-center gap-2">
-                    <label
-                      className={`flex items-center gap-2 text-sm ${
-                        value === TaskScope.Future
-                          ? "text-text-muted"
-                          : "text-text"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="task-save-scope"
-                        value={value}
-                        checked={saveScope === value}
-                        disabled={value === TaskScope.Future}
-                        onChange={() => setSaveScope(value as SaveScope)}
-                        className="accent-primary"
-                      />
-                      {label}
-                    </label>
-                    {value === TaskScope.Future && (
-                      <span className="text-xs text-text-muted italic">
-                        {TASK_SCOPE_COMING_SOON_HINT}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </fieldset>
-            )}
-            {task.series_id === null && (
-              <RepeatScheduleFields
-                idPrefix="edit-task"
-                onChange={(next, error) => {
-                  setSeries(next);
-                  setSeriesError(error);
-                }}
-              />
-            )}
-            {task.series_id !== null &&
-              saveScope === TaskScope.Series &&
-              seriesRow !== undefined && (
-                <RepeatScheduleFields
-                  idPrefix="edit-series"
-                  initial={{
-                    recurrence: seriesRow.recurrence,
-                    start_date: seriesRow.start_date,
-                    end_date: seriesRow.end_date,
-                  }}
-                  onChange={(next, error) => {
-                    setSeriesDraft(next);
-                    setSeriesCleared(next === null);
-                    setSeriesDraftError(error);
-                  }}
-                />
-              )}
-            {serverError && (
-              <p role="alert" className="text-sm text-danger">
-                {serverError}
-              </p>
-            )}
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-text-muted">
-                {auditTimestampsLabel(
-                  formatDate(task.created_at),
-                  formatDate(task.updated_at),
-                )}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-md px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
-                >
-                  {CANCEL_BUTTON_LABEL}
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    update.isPending ||
-                    updateSeries.isPending ||
-                    seriesError !== null ||
-                    seriesSaveBlocked
-                  }
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-                >
-                  {SAVE_BUTTON_LABEL}
-                </button>
-              </div>
-            </div>
-          </form>
+          <EditTaskForm
+            form={form}
+            task={task}
+            viewedDate={viewed.scheduled_date}
+            categories={categories}
+            saveScope={saveScope}
+            seriesRow={seriesRow}
+            seriesError={seriesError}
+            serverError={serverError}
+            seriesFieldsPending={seriesFieldsPending}
+            seriesSaveBlocked={seriesSaveBlocked}
+            submitting={
+              update.isPending ||
+              updateSeries.isPending ||
+              updateSeriesFrom.isPending
+            }
+            onScopeChange={setSaveScope}
+            onAttachSchedule={(next, error) => {
+              setSeries(next);
+              setSeriesError(error);
+            }}
+            onDraftSchedule={(next, error) => {
+              setSeriesDraft(next);
+              setSeriesCleared(next === null);
+              setSeriesDraftError(error);
+            }}
+            onCategoriesChange={onCategoriesChange}
+            onSubmit={onSubmit}
+            onClose={onClose}
+          />
         )}
       </dialog>
     </div>

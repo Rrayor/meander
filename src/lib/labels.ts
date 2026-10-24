@@ -105,6 +105,8 @@ export const REPEAT_DAY_OF_MONTH_LABEL = "Day of month";
 export const REPEAT_ON_THE_LABEL = "On the";
 export const REPEAT_STARTS_LABEL = "Starts";
 export const REPEAT_ENDS_LABEL = "Ends";
+export const REPEAT_ENDS_ADD_LABEL = "Add end date";
+export const REPEAT_ENDS_CLEAR_LABEL = "Remove end date";
 export const REPEAT_MONTHLY_CLAMP_HINT =
   "Days past the end of a shorter month land on its last day.";
 export const REPEAT_STARTS_REQUIRED_MESSAGE =
@@ -198,8 +200,6 @@ export const TASK_SCOPE_GROUP_LABEL = "Apply changes to";
 export const TASK_SCOPE_INSTANCE_LABEL = "This instance only";
 export const TASK_SCOPE_SERIES_LABEL = "Entire series";
 export const TASK_SCOPE_FUTURE_LABEL = "This and future instances";
-export const TASK_SCOPE_COMING_SOON_HINT =
-  "available when series editing lands";
 
 export const DELETE_BUTTON_LABEL = "Delete";
 export const DELETE_TASK_HEADING = "Delete task";

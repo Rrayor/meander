@@ -31,6 +31,7 @@ import {
   CALENDAR_NEXT_LABEL,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_ADD_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_NTH_OPTIONS,
   REPEAT_ON_THE_LABEL,
@@ -41,6 +42,7 @@ import {
   DELETE_BUTTON_LABEL,
   DELETE_SCOPE_FUTURE_LABEL,
   DELETE_TASK_HEADING,
+  TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
   deleteTaskLabel,
   editTaskLabel,
@@ -518,6 +520,7 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   await dialog.getByRole("button", { name: WEEK_UNIT.label }).click();
   // exact: the expanded toggle's summary also contains the weekday name.
   await dialog.getByRole("button", { name: FRIDAY.label, exact: true }).click();
+  await dialog.getByText(REPEAT_ENDS_ADD_LABEL).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
@@ -560,6 +563,7 @@ test("an invalid repeat schedule keeps the dialog open without a call", async ({
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
+  await dialog.getByText(REPEAT_ENDS_ADD_LABEL).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2020-01-01");
 
   await expect(
@@ -740,6 +744,7 @@ const seriesFixture = {
   },
   start_date: "2026-10-05",
   end_date: null,
+  succeeded_by: null,
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-11 10:00:00",
 };
@@ -889,16 +894,19 @@ test("picking a scheduled date without an instance materializes it", async ({
   const dialog = page.getByRole("dialog");
 
   // The Monday after the opened one is scheduled but has no persisted
-  // instance — picking it materializes the row and swaps the view to it.
+  // instance — picking it shows the pending panel without writing.
   await pickCalendarDate(dialog, SERIES_PICK);
-  await expect(dialog.getByText("fresh occurrence")).toBeVisible();
   await expect(
     dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }),
   ).toBeVisible();
+  expect(
+    (await getInvocations(page)).filter(
+      (c) => c.cmd === COMMANDS.getOrCreateInstance,
+    ),
+  ).toHaveLength(0);
 
+  // Only the explicit Edit click materializes the row.
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   const call = (
     await getInvocations<{ seriesId: number; date: string }>(page)
   ).find((c) => c.cmd === COMMANDS.getOrCreateInstance);
@@ -933,6 +941,7 @@ test("a rejected materialization keeps the pending panel and surfaces the error"
   const dialog = page.getByRole("dialog");
 
   await pickCalendarDate(dialog, SERIES_PICK);
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   await expect(dialog.getByRole("alert")).toHaveText(
     INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
   );
@@ -978,6 +987,55 @@ test("a series-scope save sends update_task_series with the schedule", async ({
   });
   expect(
     (await getInvocations(page)).some((c) => c.cmd === COMMANDS.updateTask),
+  ).toBe(false);
+});
+
+test("a this-and-future save splits the series at the viewed date", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.listSeriesCategories]: [],
+    [COMMANDS.updateTaskSeriesFrom]: {
+      ...seriesFixture,
+      id: 99,
+      start_date: seriesInstance.scheduled_date,
+    },
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }).click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const call = (
+    await getInvocations<{
+      seriesId: number;
+      fromDate: string;
+      input: UpdateSeries;
+    }>(page)
+  ).find((c) => c.cmd === COMMANDS.updateTaskSeriesFrom);
+  expect(call?.args.seriesId).toBe(seriesFixture.id);
+  // The split anchors on the viewed instance's date.
+  expect(call?.args.fromDate).toBe(seriesInstance.scheduled_date);
+  expect(call?.args.input).toMatchObject({
+    title: TITLE_DRAFT_NOTES,
+    recurrence: seriesFixture.recurrence,
+  });
+  expect(
+    (await getInvocations(page)).some(
+      (c) => c.cmd === COMMANDS.updateTaskSeries,
+    ),
   ).toBe(false);
 });
 

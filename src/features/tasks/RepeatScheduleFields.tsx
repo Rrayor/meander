@@ -8,6 +8,8 @@ import {
   REPEAT_ENDS_INVALID_MESSAGE,
   REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
   REPEAT_ENDS_LABEL,
+  REPEAT_ENDS_ADD_LABEL,
+  REPEAT_ENDS_CLEAR_LABEL,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NONE_SUMMARY,
@@ -284,6 +286,10 @@ interface RepeatScheduleFieldsProps {
   // `error` is the first validation message while a schedule is configured;
   // parents disable submission until it clears.
   onChange: (series: NewSeries | null, error: string | null) => void;
+  // Fixes the start at the given date — the field stays visible but
+  // read-only. A "this and future" split anchors on the viewed instance's
+  // date, so the only honest Starts value is that cutoff.
+  lockedStartDate?: string;
 }
 
 // Collapsed ⇔ no schedule: expanding the section emits a default series and
@@ -293,11 +299,16 @@ export function RepeatScheduleFields({
   idPrefix,
   initial,
   onChange,
+  lockedStartDate,
 }: Readonly<RepeatScheduleFieldsProps>) {
   const [expanded, setExpanded] = useState(initial !== undefined);
-  const [draft, setDraft] = useState<RepeatDraft>(() =>
-    initial === undefined ? defaultDraft() : draftFromSeries(initial),
-  );
+  const [draft, setDraft] = useState<RepeatDraft>(() => {
+    const seeded =
+      initial === undefined ? defaultDraft() : draftFromSeries(initial);
+    return lockedStartDate === undefined
+      ? seeded
+      : { ...seeded, startDate: lockedStartDate };
+  });
   // The weekday selection tracks the start date until the user picks days
   // manually — the common case is "repeat on the same weekday it starts".
   // A seeded schedule already carries explicit picks.
@@ -549,10 +560,18 @@ export function RepeatScheduleFields({
                 type="date"
                 required
                 value={draft.startDate}
-                onChange={(e) => onStartChange(e.target.value)}
+                // readOnly keeps the themed text color — WebKit renders
+                // disabled inputs in system colors regardless of our
+                // classes. The lock prevents the change below.
+                readOnly={lockedStartDate !== undefined}
+                onChange={(e) => {
+                  if (lockedStartDate === undefined) {
+                    onStartChange(e.target.value);
+                  }
+                }}
                 aria-invalid={!!errors.startDate}
                 aria-describedby={errorFor("startDate")}
-                className={FIELD_CLASSES}
+                className={`${FIELD_CLASSES} ${lockedStartDate !== undefined ? "cursor-default opacity-75" : ""}`}
               />
               {errors.startDate && (
                 <p
@@ -571,16 +590,55 @@ export function RepeatScheduleFields({
               >
                 {REPEAT_ENDS_LABEL}
               </label>
-              <input
-                id={`${idPrefix}-repeat-ends`}
-                type="date"
-                min={draft.startDate}
-                value={draft.endDate}
-                onChange={(e) => patch({ endDate: e.target.value })}
-                aria-invalid={!!errors.endDate}
-                aria-describedby={errorFor("endDate")}
-                className={FIELD_CLASSES}
-              />
+              {draft.endDate === "" ? (
+                <button
+                  type="button"
+                  onClick={() => patch({ endDate: draft.startDate })}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-md border border-primary/50 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  {REPEAT_ENDS_ADD_LABEL}
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id={`${idPrefix}-repeat-ends`}
+                    type="date"
+                    min={draft.startDate}
+                    value={draft.endDate}
+                    onChange={(e) => patch({ endDate: e.target.value })}
+                    aria-invalid={!!errors.endDate}
+                    aria-describedby={errorFor("endDate")}
+                    className={FIELD_CLASSES}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => patch({ endDate: "" })}
+                    aria-label={REPEAT_ENDS_CLEAR_LABEL}
+                    className="cursor-pointer rounded p-1 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               {errors.endDate && (
                 <p
                   id={errorFor("endDate")}
