@@ -2173,6 +2173,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn update_from_twice_keeps_a_three_segment_chain_and_its_rows() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let first = add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        let third = add_instance(&pool, pid, saved.id, THIRD_INSTANCE_DATE).await;
+
+        let input = update_input(weekly());
+        update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+        update_from(&pool, pid, saved.id, THIRD_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        // The chain: earliest (START..SECOND-1) — middle (SECOND..THIRD-1)
+        // — living (THIRD..), each linked to the living row and owning
+        // the instances inside its window.
+        let all = list(&pool, pid).await.unwrap();
+        assert_eq!(all.len(), 3);
+        let earliest = all.iter().find(|s| s.start_date == START).unwrap();
+        let middle = all
+            .iter()
+            .find(|s| s.start_date == SECOND_INSTANCE_DATE)
+            .unwrap();
+        let living = all.iter().find(|s| s.id == saved.id).unwrap();
+        assert_eq!(earliest.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(earliest.succeeded_by, Some(saved.id));
+        assert_eq!(middle.end_date.as_deref(), Some("2026-11-01"));
+        assert_eq!(middle.succeeded_by, Some(saved.id));
+        assert_eq!(living.start_date, THIRD_INSTANCE_DATE);
+        assert!(living.end_date.is_none());
+        assert_eq!(instance(&pool, first).await.series_id, Some(earliest.id));
+        assert_eq!(instance(&pool, second).await.series_id, Some(middle.id));
+        assert_eq!(instance(&pool, third).await.series_id, Some(saved.id));
+    }
+
+    #[tokio::test]
     async fn delete_removes_the_whole_segment_chain() {
         let (pool, pid) = seeded_pool().await;
         let saved = create(&pool, pid, &fields_for(&series(weekly())))

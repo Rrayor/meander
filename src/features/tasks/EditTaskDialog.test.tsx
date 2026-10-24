@@ -200,6 +200,24 @@ const baseSeries: TaskSeries = {
   updated_at: "2026-10-11 10:00:00",
 };
 
+const OLD_SERIES_TITLE = "old segment title";
+const NEW_SERIES_TITLE = "living series title";
+
+// A split series: the earlier segment owns Oct 5–25, the living one
+// Oct 26 onward. Both share the weekly-Monday schedule.
+const EARLIER_SEGMENT: TaskSeries = {
+  ...baseSeries,
+  id: 4,
+  title: OLD_SERIES_TITLE,
+  end_date: "2026-10-25",
+  succeeded_by: baseSeries.id,
+};
+const LIVING_SERIES: TaskSeries = {
+  ...baseSeries,
+  title: NEW_SERIES_TITLE,
+  start_date: "2026-10-26",
+};
+
 const renderDialog = (task: Task = baseTask, client = testQueryClient()) => {
   render(
     <QueryClientProvider client={client}>
@@ -942,6 +960,64 @@ describe("EditTaskDialog", () => {
     // Edit intent on a future date materializes straight into edit mode.
     await screen.findByRole("textbox", { name: /title/i });
     expect(await screen.findByDisplayValue(created.title)).toBeInTheDocument();
+  });
+
+  it("shows the earlier segment's values on a pending pre-cutoff date", async () => {
+    mockedListTaskSeries.mockResolvedValue([LIVING_SERIES, EARLIER_SEGMENT]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: EARLIER_SEGMENT.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    // Oct 19 is before the Oct 26 cutoff — the earlier segment's title
+    // shows, and materializing it targets the segment, not the living row.
+    fireEvent.click(await screen.findByRole("button", { name: "2026-10-19" }));
+    expect(
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: OLD_SERIES_TITLE }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
+    await screen.findByText(INSTANCE_MATERIALIZING_MESSAGE);
+    expect(mockedGetOrCreate).toHaveBeenCalledWith(
+      EARLIER_SEGMENT.id,
+      "2026-10-19",
+    );
+  });
+
+  it("shows the living series' values on a pending post-cutoff date", async () => {
+    mockedListTaskSeries.mockResolvedValue([LIVING_SERIES, EARLIER_SEGMENT]);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: EARLIER_SEGMENT.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    // Oct 26 is the cutoff — the living series produces it.
+    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
+    expect(
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: NEW_SERIES_TITLE }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the pending panel and surfaces a typed materialize error", async () => {
