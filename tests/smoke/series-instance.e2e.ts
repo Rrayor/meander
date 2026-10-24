@@ -50,9 +50,12 @@ describe("Series instance smoke", () => {
 
     // The pending placeholder shows until the Edit click materializes
     // the instance; a future date opens straight into edit mode.
+    // `*=` only matches link elements — the notice is a paragraph.
     await browser.waitUntil(async () =>
       (
-        await $(dialog).$(`*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`)
+        await $(dialog).$(
+          `.//p[contains(., "${SCHEDULED_INSTANCE_PENDING_MESSAGE}")]`,
+        )
       ).isExisting(),
     );
     const dialogEl = await $(dialog);
