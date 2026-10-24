@@ -467,6 +467,21 @@ const SHARED_FORM_FIELDS: (keyof FormValues)[] = [
   "carryOver",
 ];
 
+function defaultsFor(t: Task): FormValues {
+  const est = minutesToParts(t.estimated_minutes);
+  const spt = minutesToParts(t.spent_minutes);
+  return {
+    title: t.title,
+    description: t.description ?? "",
+    estHours: est.hours,
+    estMinutes: est.minutes,
+    spentHours: spt.hours,
+    spentMinutes: spt.minutes,
+    status: t.status as TaskStatus,
+    carryOver: (t.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
+  };
+}
+
 // The segment that produces a pending picked date — a pre-cutoff date
 // belongs to an earlier segment and shows its values, not the living
 // series' — plus that segment's categories.
@@ -675,20 +690,6 @@ export function EditTaskDialog({
   // instance materializes.
   const editAfterMaterialize = useRef(false);
 
-  const defaultsFor = (t: Task): FormValues => {
-    const est = minutesToParts(t.estimated_minutes);
-    const spt = minutesToParts(t.spent_minutes);
-    return {
-      title: t.title,
-      description: t.description ?? "",
-      estHours: est.hours,
-      estMinutes: est.minutes,
-      spentHours: spt.hours,
-      spentMinutes: spt.minutes,
-      status: t.status as TaskStatus,
-      carryOver: (t.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
-    };
-  };
   const instanceDefaults = useMemo(() => defaultsFor(viewed), [viewed]);
   const {
     register,
