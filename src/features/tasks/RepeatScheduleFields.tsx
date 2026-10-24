@@ -564,7 +564,7 @@ export function RepeatScheduleFields({
                 onChange={(e) => onStartChange(e.target.value)}
                 aria-invalid={!!errors.startDate}
                 aria-describedby={errorFor("startDate")}
-                className={`${FIELD_CLASSES} disabled:cursor-not-allowed disabled:text-text-muted`}
+                className={`${FIELD_CLASSES} disabled:cursor-not-allowed disabled:opacity-60`}
               />
               {errors.startDate && (
                 <p
@@ -587,8 +587,18 @@ export function RepeatScheduleFields({
                 <button
                   type="button"
                   onClick={() => patch({ endDate: draft.startDate })}
-                  className="cursor-pointer rounded-md border border-border bg-surface px-3 py-1.5 text-left text-sm text-text transition-colors hover:bg-surface-raised"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-md border border-primary/50 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
                 >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
                   {REPEAT_ENDS_ADD_LABEL}
                 </button>
               ) : (
