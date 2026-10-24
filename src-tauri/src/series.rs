@@ -1522,6 +1522,7 @@ mod tests {
 
     const NEW_TITLE: &str = "Mow the lawn";
     const SECOND_INSTANCE_DATE: &str = "2026-10-26";
+    const INSTANCE_FIXTURE_TITLE: &str = "custom title";
     const THIRD_INSTANCE_DATE: &str = "2026-11-02";
 
     fn update_input(recurrence: Recurrence) -> UpdateSeries {
@@ -1543,9 +1544,10 @@ mod tests {
         sqlx::query(
             "INSERT INTO tasks (profile_id, title, description, carry_over_rule, \
              estimated_minutes, series_id, scheduled_date, sort_order) \
-             VALUES (?, 'custom title', 'custom notes', 'carry', 5, ?, ?, 0)",
+             VALUES (?, ?, 'custom notes', 'carry', 5, ?, ?, 0)",
         )
         .bind(profile_id)
+        .bind(INSTANCE_FIXTURE_TITLE)
         .bind(series_id)
         .bind(iso)
         .execute(pool)
@@ -1873,7 +1875,7 @@ mod tests {
         assert_eq!(segment.start_date, START);
         let past = instance(&pool, first).await;
         assert_eq!(past.series_id, Some(segment.id));
-        assert_eq!(past.title, "custom title");
+        assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
 
         // Future rows stay on the living series — ids preserved — with
         // the edited shared fields written over them.
@@ -2061,7 +2063,7 @@ mod tests {
             .find(|s| s.id != saved.id)
             .unwrap();
         assert_eq!(past.series_id, Some(segment.id));
-        assert_eq!(past.title, "custom title");
+        assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
         let moved = instance(&pool, later).await;
         assert_eq!(moved.series_id, Some(saved.id));
         assert_eq!(moved.title, NEW_TITLE);
@@ -2167,7 +2169,7 @@ mod tests {
                 ..
             }
         ));
-        assert_eq!(instance(&pool, anchor).await.title, "custom title");
+        assert_eq!(instance(&pool, anchor).await.title, INSTANCE_FIXTURE_TITLE);
     }
 
     #[tokio::test]
