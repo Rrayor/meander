@@ -23,6 +23,9 @@ const mockedWeekStart = vi.mocked(weekStart);
 const mockedWorkDays = vi.mocked(workDays);
 const mockedSetWorkDays = vi.mocked(setWorkDays);
 
+const dayLabel = (d: Weekday) =>
+  WEEKDAY_OPTIONS.find((o) => o.value === d)!.label;
+
 const dayNames = new RegExp(
   `^(${WEEKDAY_OPTIONS.map((o) => o.label).join("|")})$`,
 );
@@ -46,15 +49,13 @@ describe("WorkDaysSection", () => {
     mockedWorkDays.mockResolvedValue([Weekday.Saturday, Weekday.Sunday]);
     renderSection();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Saturday" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
+      expect(
+        screen.getByRole("button", { name: dayLabel(Weekday.Saturday) }),
+      ).toHaveAttribute("aria-pressed", "true"),
     );
-    expect(screen.getByRole("button", { name: "Monday" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(
+      screen.getByRole("button", { name: dayLabel(Weekday.Monday) }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 
   it("orders chips from the configured week start", async () => {
@@ -69,9 +70,13 @@ describe("WorkDaysSection", () => {
 
   it("sends the toggled set in canonical order on save", async () => {
     renderSection();
-    await screen.findByRole("button", { name: "Monday" });
-    fireEvent.click(screen.getByRole("button", { name: "Saturday" }));
-    fireEvent.click(screen.getByRole("button", { name: "Friday" }));
+    await screen.findByRole("button", { name: dayLabel(Weekday.Monday) });
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Saturday) }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Friday) }),
+    );
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
       expect(mockedSetWorkDays).toHaveBeenCalledWith(
@@ -96,7 +101,9 @@ describe("WorkDaysSection", () => {
 
   it("keeps Save disabled when the toggled set matches the stored one", async () => {
     renderSection();
-    const friday = await screen.findByRole("button", { name: "Friday" });
+    const friday = await screen.findByRole("button", {
+      name: dayLabel(Weekday.Friday),
+    });
     fireEvent.click(friday);
     fireEvent.click(friday);
     expect(
@@ -107,7 +114,9 @@ describe("WorkDaysSection", () => {
   it("does not allow deselecting the last work day", async () => {
     mockedWorkDays.mockResolvedValue([Weekday.Monday]);
     renderSection();
-    const monday = await screen.findByRole("button", { name: "Monday" });
+    const monday = await screen.findByRole("button", {
+      name: dayLabel(Weekday.Monday),
+    });
     // Wait for the stored set (Monday only) to replace the Mon–Fri default.
     await waitFor(() =>
       expect(
@@ -126,7 +135,9 @@ describe("WorkDaysSection", () => {
     const message = "write failed";
     mockedSetWorkDays.mockRejectedValue(new Error(message));
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: "Saturday" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: dayLabel(Weekday.Saturday) }),
+    );
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });

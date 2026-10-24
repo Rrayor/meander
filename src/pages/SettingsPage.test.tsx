@@ -12,6 +12,7 @@ import type { Profile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { currentDatabasePath } from "@/api/settings";
 import { Weekday } from "@/lib/enums";
+import { WEEKDAY_OPTIONS } from "@/lib/labels";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -41,6 +42,9 @@ const profileB: Profile = {
   updated_at: "2026-10-05 12:00:00",
 };
 
+const dayLabel = (d: Weekday) =>
+  WEEKDAY_OPTIONS.find((o) => o.value === d)!.label;
+
 const pressedDayLabels = () =>
   screen
     .getAllByRole("button", { name: /day$/ })
@@ -66,11 +70,18 @@ describe("SettingsPage", () => {
         <SettingsPage />
       </QueryClientProvider>,
     );
-    await waitFor(() => expect(pressedDayLabels()).toEqual(["Monday"]));
+    await waitFor(() =>
+      expect(pressedDayLabels()).toEqual([dayLabel(Weekday.Monday)]),
+    );
 
     // An unsaved toggle adds Saturday to the draft.
-    fireEvent.click(screen.getByRole("button", { name: "Saturday" }));
-    expect(pressedDayLabels()).toEqual(["Monday", "Saturday"]);
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Saturday) }),
+    );
+    expect(pressedDayLabels()).toEqual([
+      dayLabel(Weekday.Monday),
+      dayLabel(Weekday.Saturday),
+    ]);
 
     // Switching profiles remounts the section: the draft is gone and the
     // new profile's stored days show instead.
@@ -80,7 +91,10 @@ describe("SettingsPage", () => {
       await client.invalidateQueries({ queryKey: QUERY_KEYS.workDays });
     });
     await waitFor(() =>
-      expect(pressedDayLabels()).toEqual(["Saturday", "Sunday"]),
+      expect(pressedDayLabels()).toEqual([
+        dayLabel(Weekday.Saturday),
+        dayLabel(Weekday.Sunday),
+      ]),
     );
   });
 });
