@@ -192,6 +192,83 @@ interface TaskDetailsViewProps {
   deletePrompt?: ReactNode;
 }
 
+function PendingOccurrence({
+  segment,
+  materializing,
+  materializeError,
+}: Readonly<{
+  segment: TaskSeries | undefined;
+  materializing: boolean;
+  materializeError: string | undefined;
+}>) {
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm text-text-muted italic">
+          {materializing
+            ? INSTANCE_MATERIALIZING_MESSAGE
+            : SCHEDULED_INSTANCE_PENDING_MESSAGE}
+        </p>
+        {materializeError && (
+          <p role="alert" className="text-sm text-danger">
+            {materializeError}
+          </p>
+        )}
+      </div>
+      {segment && <PendingSharedFields segment={segment} />}
+    </>
+  );
+}
+
+function PendingSharedFields({ segment }: Readonly<{ segment: TaskSeries }>) {
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {TASK_STATUS_FIELD_LABEL}
+        </span>
+        <span className="text-sm">{STATUS_LABELS[TaskStatus.Todo]}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {SPENT_TIME_LABEL}
+        </span>
+        <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {DESCRIPTION_FIELD_LABEL}
+        </span>
+        <span className="text-sm">
+          {segment.description || EMPTY_VALUE_LABEL}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {ESTIMATED_TIME_LABEL}
+        </span>
+        <span className="text-sm">
+          {segment.estimated_minutes === null
+            ? EMPTY_VALUE_LABEL
+            : formatMinutes(segment.estimated_minutes)}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {CARRY_OVER_FIELD_LABEL}
+        </span>
+        <span className="text-sm">
+          {
+            CARRY_OVER_OPTIONS.find(
+              (o) => o.value === (segment.carry_over_rule ?? CarryOverRule.Ask),
+            )!.label
+          }
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function TaskDetailsView({
   viewed,
   pendingIso,
@@ -226,75 +303,11 @@ function TaskDetailsView({
   return (
     <div className="flex flex-col gap-4">
       {pendingIso !== null ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-text-muted italic">
-              {materializing
-                ? INSTANCE_MATERIALIZING_MESSAGE
-                : SCHEDULED_INSTANCE_PENDING_MESSAGE}
-            </p>
-            {materializeError && (
-              <p role="alert" className="text-sm text-danger">
-                {materializeError}
-              </p>
-            )}
-          </div>
-          {/* A scheduled-only occurrence has no row yet — its shared
-              fields come from the segment that produces it (spec
-              §230), an earlier segment or the living one. */}
-          {(pendingSegment ?? seriesRow) && (
-            <div className="grid grid-cols-4 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {TASK_STATUS_FIELD_LABEL}
-                </span>
-                <span className="text-sm">
-                  {STATUS_LABELS[TaskStatus.Todo]}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {SPENT_TIME_LABEL}
-                </span>
-                <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {DESCRIPTION_FIELD_LABEL}
-                </span>
-                <p className="text-sm text-text">
-                  {(pendingSegment ?? seriesRow)!.description ||
-                    EMPTY_VALUE_LABEL}
-                </p>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {ESTIMATED_TIME_LABEL}
-                </span>
-                <span className="text-sm">
-                  {(pendingSegment ?? seriesRow)!.estimated_minutes === null
-                    ? EMPTY_VALUE_LABEL
-                    : formatMinutes(
-                        (pendingSegment ?? seriesRow)!.estimated_minutes!,
-                      )}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-                  {CARRY_OVER_FIELD_LABEL}
-                </span>
-                <span className="text-sm">
-                  {CARRY_OVER_OPTIONS.find(
-                    (o) =>
-                      o.value ===
-                      ((pendingSegment ?? seriesRow)!.carry_over_rule ??
-                        CarryOverRule.Ask),
-                  )?.label ?? EMPTY_VALUE_LABEL}
-                </span>
-              </div>
-            </div>
-          )}
-        </>
+        <PendingOccurrence
+          segment={pendingSegment ?? seriesRow}
+          materializing={materializing}
+          materializeError={materializeError}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
@@ -453,6 +466,27 @@ const SHARED_FORM_FIELDS: (keyof FormValues)[] = [
   "estMinutes",
   "carryOver",
 ];
+
+// The segment that produces a pending picked date — a pre-cutoff date
+// belongs to an earlier segment and shows its values, not the living
+// series' — plus that segment's categories.
+function usePendingSegment(
+  familySegments: TaskSeries[] | undefined,
+  pendingIso: string | null,
+) {
+  const pendingSegment =
+    pendingIso !== null
+      ? familySegments?.find((s) =>
+          isScheduledOn(s.recurrence, s.start_date, s.end_date, pendingIso),
+        )
+      : undefined;
+  const { data: pendingCats } = useQuery({
+    queryKey: QUERY_KEYS.seriesCategories(pendingSegment?.id ?? -1),
+    queryFn: () => listSeriesCategories(pendingSegment!.id),
+    enabled: pendingSegment !== undefined,
+  });
+  return { pendingSegment, pendingCats };
+}
 
 function useSeriesScopeSeed({
   saveScope,
@@ -703,20 +737,14 @@ export function EditTaskDialog({
       livingSeriesId !== null &&
       (s.id === livingSeriesId || s.succeeded_by === livingSeriesId),
   );
-  // The segment that produces a pending picked date — a pre-cutoff
-  // date belongs to an earlier segment and shows its values, not the
-  // living series'.
-  const pendingSegment =
+  const { pendingSegment, pendingCats } = usePendingSegment(
+    familySegments,
+    pendingIso,
+  );
+  const viewTitle =
     pendingIso !== null
-      ? familySegments?.find((s) =>
-          isScheduledOn(s.recurrence, s.start_date, s.end_date, pendingIso),
-        )
-      : undefined;
-  const { data: pendingCats } = useQuery({
-    queryKey: QUERY_KEYS.seriesCategories(pendingSegment?.id ?? -1),
-    queryFn: () => listSeriesCategories(pendingSegment!.id),
-    enabled: pendingSegment !== undefined,
-  });
+      ? ((pendingSegment ?? seriesRow)?.title ?? viewed.title)
+      : viewed.title;
   const { data: seriesInstances } = useQuery({
     queryKey: QUERY_KEYS.seriesInstances(viewed.series_id!),
     queryFn: () => listSeriesInstances(viewed.series_id!),
@@ -1015,11 +1043,7 @@ export function EditTaskDialog({
             id="edit-task-title"
             className="font-title text-lg font-semibold text-text"
           >
-            {mode === DialogMode.View
-              ? ((pendingIso !== null
-                  ? (pendingSegment ?? seriesRow)?.title
-                  : undefined) ?? viewed.title)
-              : EDIT_TASK_HEADING}
+            {mode === DialogMode.View ? viewTitle : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
             {mode === DialogMode.View && pendingIso !== null && (
