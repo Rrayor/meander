@@ -3,7 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
-import type { UseFormReset } from "react-hook-form";
+import type {
+  FieldNamesMarkedBoolean,
+  UseFormGetValues,
+  UseFormReset,
+} from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -374,23 +378,50 @@ interface EditTaskDialogProps {
 // on a later refetch, which would clobber typed edits — and the shared
 // controls stay disabled until the row arrives (seriesFieldsPending in
 // the component) so nothing is typed before the seed lands.
+// Fields shared by every save scope — the only ones allowed to survive a
+// scope switch.
+const SHARED_FORM_FIELDS: (keyof FormValues)[] = [
+  "title",
+  "description",
+  "estHours",
+  "estMinutes",
+  "carryOver",
+];
+
 function useSeriesScopeSeed({
   saveScope,
   seriesRow,
   reset,
+  getValues,
+  dirtyFields,
   instanceDefaults,
 }: {
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
   reset: UseFormReset<FormValues>;
+  getValues: UseFormGetValues<FormValues>;
+  dirtyFields: FieldNamesMarkedBoolean<FormValues>;
   instanceDefaults: FormValues;
 }) {
   const seeded = useRef(false);
   useEffect(() => {
+    // Values the user already typed survive a scope switch in either
+    // direction — only untouched fields take the target scope's stored
+    // values (series row for Series/Future, viewed row for Instance).
+    // Per-instance fields (status, spent) are not shared and never
+    // carry over — an invalid draft there must not follow into a series
+    // save and block it.
+    const values = getValues();
+    const overlay: Partial<FormValues> = {};
+    for (const key of SHARED_FORM_FIELDS) {
+      if (dirtyFields[key] === true) {
+        Object.assign(overlay, { [key]: values[key] });
+      }
+    }
     if (saveScope === TaskScope.Instance) {
       if (!seeded.current) return;
       seeded.current = false;
-      reset(instanceDefaults);
+      reset({ ...instanceDefaults, ...overlay });
       return;
     }
     if (seeded.current || seriesRow === undefined) return;
@@ -404,8 +435,9 @@ function useSeriesScopeSeed({
       estMinutes: seriesEstimate.minutes,
       carryOver: (seriesRow.carry_over_rule ??
         CarryOverRule.Ask) as CarryOverRule,
+      ...overlay,
     });
-  }, [saveScope, seriesRow, reset, instanceDefaults]);
+  }, [saveScope, seriesRow, reset, getValues, dirtyFields, instanceDefaults]);
 }
 
 // The selection is derived state: stored associations minus the chips the
@@ -539,28 +571,33 @@ export function EditTaskDialog({
   // creation failed); while set, the fields give way to the status panel.
   const [viewed, setViewed] = useState<Task>(task);
   const [pendingIso, setPendingIso] = useState<string | null>(null);
+  // Set when the Edit click should start edit mode once the pending
+  // instance materializes.
+  const editAfterMaterialize = useRef(false);
 
-  const instanceDefaults = useMemo<FormValues>(() => {
-    const est = minutesToParts(viewed.estimated_minutes);
-    const spt = minutesToParts(viewed.spent_minutes);
+  const defaultsFor = (t: Task): FormValues => {
+    const est = minutesToParts(t.estimated_minutes);
+    const spt = minutesToParts(t.spent_minutes);
     return {
-      title: viewed.title,
-      description: viewed.description ?? "",
+      title: t.title,
+      description: t.description ?? "",
       estHours: est.hours,
       estMinutes: est.minutes,
       spentHours: spt.hours,
       spentMinutes: spt.minutes,
-      status: viewed.status as TaskStatus,
-      carryOver: (viewed.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
+      status: t.status as TaskStatus,
+      carryOver: (t.carry_over_rule ?? CarryOverRule.Ask) as CarryOverRule,
     };
-  }, [viewed]);
+  };
+  const instanceDefaults = useMemo(() => defaultsFor(viewed), [viewed]);
   const {
     register,
     control,
     handleSubmit,
     setFocus,
     reset,
-    formState: { errors },
+    getValues,
+    formState: { errors, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
@@ -607,7 +644,14 @@ export function EditTaskDialog({
   const [seriesDraft, setSeriesDraft] = useState<NewSeries | null>(null);
   const [seriesCleared, setSeriesCleared] = useState(false);
   const [seriesDraftError, setSeriesDraftError] = useState<string | null>(null);
-  useSeriesScopeSeed({ saveScope, seriesRow, reset, instanceDefaults });
+  useSeriesScopeSeed({
+    saveScope,
+    seriesRow,
+    reset,
+    getValues,
+    dirtyFields,
+    instanceDefaults,
+  });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteScope, setDeleteScope] = useState<TaskScope>(TaskScope.Instance);
   const [series, setSeries] = useState<NewSeries | null>(null);
@@ -655,6 +699,11 @@ export function EditTaskDialog({
       setViewed(created);
       setPendingIso(null);
       invalidateSeriesScope();
+      if (editAfterMaterialize.current) {
+        editAfterMaterialize.current = false;
+        reset(defaultsFor(created));
+        setMode(DialogMode.Edit);
+      }
     },
     onError: () => {
       void queryClient.invalidateQueries({
@@ -874,6 +923,22 @@ export function EditTaskDialog({
             {mode === DialogMode.View ? viewed.title : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
+            {mode === DialogMode.View && pendingIso !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Edit intent on a scheduled-only date is what
+                  // materializes the instance (spec §231) — a past
+                  // date materializes for notes only, staying in
+                  // view mode.
+                  editAfterMaterialize.current = pendingIso >= todayLocalIso();
+                  materialize.mutate(pendingIso);
+                }}
+                className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+              >
+                {EDIT_BUTTON_LABEL}
+              </button>
+            )}
             {mode === DialogMode.View &&
               pendingIso === null &&
               // Past instances stay viewable but read-only (spec §232);
@@ -926,8 +991,9 @@ export function EditTaskDialog({
                 setViewed(picked);
                 setPendingIso(null);
               } else {
+                // Viewing alone must not write: materialize only on an
+                // explicit edit of the scheduled-only date (spec §231).
                 setPendingIso(iso);
-                materialize.mutate(iso);
               }
             }}
             onClose={onClose}

@@ -885,12 +885,18 @@ describe("EditTaskDialog", () => {
       </QueryClientProvider>,
     );
 
-    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance,
-    // so picking it materializes in the background (the mock stays
-    // pending, keeping the loading panel visible).
+    // Mondays in Oct 2026: 5, 12, 19, 26 — 26 has no persisted instance.
+    // Picking it shows the pending panel only — viewing alone must not
+    // write; the Edit click is what materializes the row.
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
+    expect(
+      await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+    ).toBeInTheDocument();
+    expect(mockedGetOrCreate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
     expect(
       await screen.findByText(INSTANCE_MATERIALIZING_MESSAGE),
     ).toBeInTheDocument();
@@ -898,9 +904,6 @@ describe("EditTaskDialog", () => {
       baseSeries.id,
       OTHER_INSTANCE_DATE,
     );
-    expect(
-      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
-    ).not.toBeInTheDocument();
   });
 
   it("swaps to the materialized instance once it is created", async () => {
@@ -928,15 +931,12 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
-    expect(await screen.findByText(created.description)).toBeInTheDocument();
-    // A future instance is editable — the pending message is gone and the
-    // Edit affordance applies to the materialized row, not the opened one.
-    expect(
-      screen.queryByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
-    ).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
+    // Edit intent on a future date materializes straight into edit mode.
+    await screen.findByRole("textbox", { name: /title/i });
+    expect(await screen.findByDisplayValue(created.title)).toBeInTheDocument();
   });
 
   it("keeps the pending panel and surfaces a typed materialize error", async () => {
@@ -964,6 +964,9 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
     );
@@ -971,8 +974,8 @@ describe("EditTaskDialog", () => {
       screen.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).toBeInTheDocument();
   });
 
   it("loads a persisted instance when its date is picked", async () => {
@@ -1441,6 +1444,30 @@ describe("EditTaskDialog", () => {
       ),
     );
     expect(mockedUpdateSeries).not.toHaveBeenCalled();
+  });
+
+  it("keeps typed edits when the scope switches to the series", async () => {
+    // The series seed fills only untouched fields — a title the user
+    // typed while the instance scope was active must not be reset to the
+    // series' stored value.
+    mockedListTaskSeries.mockResolvedValue([
+      { ...baseSeries, description: SERIES_DESCRIPTION },
+    ]);
+    renderDialog({ ...baseTask, series_id: baseSeries.id });
+
+    fireEvent.change(screen.getByLabelText(/Title/), {
+      target: { value: TITLE_EDITED },
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Description/)).toHaveValue(
+        SERIES_DESCRIPTION,
+      ),
+    );
+    expect(screen.getByLabelText(/Title/)).toHaveValue(TITLE_EDITED);
   });
 
   it("keeps the shared fields disabled until the series row loads", async () => {

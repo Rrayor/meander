@@ -890,16 +890,19 @@ test("picking a scheduled date without an instance materializes it", async ({
   const dialog = page.getByRole("dialog");
 
   // The Monday after the opened one is scheduled but has no persisted
-  // instance — picking it materializes the row and swaps the view to it.
+  // instance — picking it shows the pending panel without writing.
   await pickCalendarDate(dialog, SERIES_PICK);
-  await expect(dialog.getByText("fresh occurrence")).toBeVisible();
   await expect(
     dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }),
   ).toBeVisible();
+  expect(
+    (await getInvocations(page)).filter(
+      (c) => c.cmd === COMMANDS.getOrCreateInstance,
+    ),
+  ).toHaveLength(0);
 
+  // Only the explicit Edit click materializes the row.
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   const call = (
     await getInvocations<{ seriesId: number; date: string }>(page)
   ).find((c) => c.cmd === COMMANDS.getOrCreateInstance);
@@ -934,6 +937,7 @@ test("a rejected materialization keeps the pending panel and surfaces the error"
   const dialog = page.getByRole("dialog");
 
   await pickCalendarDate(dialog, SERIES_PICK);
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
   await expect(dialog.getByRole("alert")).toHaveText(
     INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
   );
