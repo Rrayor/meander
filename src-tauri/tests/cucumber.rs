@@ -1784,12 +1784,20 @@ fn series_of(world: &mut MeanderWorld, title: &str) -> meander_lib::series::Task
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
+    // Not tasks::list — that is the backlog view, which hides archived
+    // series. Any persisted instance can resolve its series here.
     let task = world
         .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .find(|t| t.title == title)
+        .block_on(async {
+            sqlx::query_as::<_, meander_lib::tasks::Task>(
+                "SELECT * FROM tasks WHERE profile_id = ? AND title = ?",
+            )
+            .bind(active)
+            .bind(title)
+            .fetch_optional(&pool)
+            .await
+        })
+        .expect("task lookup failed")
         .expect("task missing");
     let series_id = task.series_id.expect("the task does not repeat");
     world

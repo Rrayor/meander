@@ -18,9 +18,13 @@ series keeps its id so the change is seamless everywhere it is referenced.
 1. When persisted instances exist before the cutoff, an "archive" series
    is inserted: a clone of the old schedule (old fields, recurrence,
    start, categories) ended the day before `from_date` — same cutoff rule
-   as `truncate` (earlier of `from - 1` and any existing `end_date`).
-   Rows before the cutoff move onto it, ids preserved — instance notes
-   stay attached and custom per-instance values are untouched.
+   as `truncate` (earlier of `from - 1` and any existing `end_date`). It
+   carries `archived = 1`, which excludes its rows from `tasks::list` —
+   the backlog shows the living series only, and the archive produces no
+   new entry or occurrences (though its instances stay viewable through
+   the per-series instance query). Rows before the cutoff move onto it,
+   ids preserved — instance notes stay attached and custom per-instance
+   values are untouched.
 2. The living series row is updated in place with the edited fields,
    recurrence, and end date; its `start_date` becomes `from_date`. The
    editor shows Starts read-only at that cutoff so the displayed value is

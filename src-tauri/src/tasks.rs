@@ -462,8 +462,12 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
+    // Instances parked on an archived (pre-split) series are history —
+    // the backlog must not list them as a new series.
     Ok(sqlx::query_as::<_, Task>(
-        "SELECT * FROM tasks WHERE profile_id = ? ORDER BY sort_order, id",
+        "SELECT * FROM tasks WHERE profile_id = ? AND (series_id IS NULL OR \
+         series_id NOT IN (SELECT id FROM task_series WHERE archived = 1)) \
+         ORDER BY sort_order, id",
     )
     .bind(profile_id)
     .fetch_all(pool)
