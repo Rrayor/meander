@@ -106,7 +106,7 @@ export const REPEAT_DAY_OF_MONTH_LABEL = "Day of month";
 export const REPEAT_ON_THE_LABEL = "On the";
 export const REPEAT_STARTS_LABEL = "Starts";
 export const REPEAT_ENDS_LABEL = "Ends";
-export const REPEAT_ENDS_OPTIONAL_HINT = "Leave empty to repeat indefinitely";
+export const REPEAT_ENDS_EMPTY_PLACEHOLDER = "No end date";
 export const REPEAT_MONTHLY_CLAMP_HINT =
   "Days past the end of a shorter month land on its last day.";
 export const REPEAT_STARTS_REQUIRED_MESSAGE =

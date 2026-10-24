@@ -109,19 +109,31 @@ function TaskRow({
             {formatMinutes(task.estimated_minutes)}
           </span>
         )}
-        <select
-          aria-label={statusLabel(task.title)}
-          value={task.status}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
-          className={`cursor-pointer rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
-        >
-          {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((st) => (
-            <option key={st} value={st}>
-              {STATUS_LABELS[st]}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            aria-label={statusLabel(task.title)}
+            value={task.status}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
+            className={`cursor-pointer appearance-none rounded pr-6 pl-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
+          >
+            {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((st) => (
+              <option key={st} value={st} className="bg-surface text-text">
+                {STATUS_LABELS[st]}
+              </option>
+            ))}
+          </select>
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 right-1 h-3 w-3 -translate-y-1/2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
         <DeleteButton
           label={deleteTaskLabel(task.title)}
           disabled={deletePending}
