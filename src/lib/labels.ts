@@ -219,7 +219,7 @@ export const WEEK_START_SAVED_LABEL = "Week start saved";
 /// and weekday pickers so the week-start setting is display-only.
 export const weekdaysFrom = (weekStart: Weekday) => {
   const i = WEEKDAY_OPTIONS.findIndex((o) => o.value === weekStart);
-  const start = i < 0 ? 0 : i;
+  const start = Math.max(i, 0);
   return [...WEEKDAY_OPTIONS.slice(start), ...WEEKDAY_OPTIONS.slice(0, start)];
 };
 export const CALENDAR_LEGEND_PERSISTED = "recorded instance";
