@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Controller, useForm } from "react-hook-form";
 import type {
   FieldNamesMarkedBoolean,
@@ -503,6 +503,53 @@ function usePendingSegment(
   return { pendingSegment, pendingCats };
 }
 
+function invalidateSeriesQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  viewedSeriesId: number | null,
+  livingSeriesId: number | null | undefined,
+) {
+  for (const key of [
+    QUERY_KEYS.tasks,
+    QUERY_KEYS.taskSeries,
+    QUERY_KEYS.seriesInstances(viewedSeriesId!),
+    QUERY_KEYS.seriesCategories(livingSeriesId!),
+    QUERY_KEYS.allTaskCategories,
+  ]) {
+    void queryClient.invalidateQueries({ queryKey: key });
+  }
+}
+
+function useMaterializeInstance({
+  queryClient,
+  viewedSeriesId,
+  editAfterMaterializeRef,
+  onMaterialized,
+  startEditing,
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+  viewedSeriesId: number | null;
+  editAfterMaterializeRef: RefObject<boolean>;
+  onMaterialized: (created: Task) => void;
+  startEditing: (created: Task) => void;
+}) {
+  return useMutation({
+    mutationFn: ({ iso, seriesId }: { iso: string; seriesId: number }) =>
+      getOrCreateInstance(seriesId, iso),
+    onSuccess: (created) => {
+      onMaterialized(created);
+      if (editAfterMaterializeRef.current) {
+        editAfterMaterializeRef.current = false;
+        startEditing(created);
+      }
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.seriesInstances(viewedSeriesId!),
+      });
+    },
+  });
+}
+
 function useSeriesScopeSeed({
   saveScope,
   seriesRow,
@@ -812,41 +859,27 @@ export function EditTaskDialog({
     },
   });
 
+  const invalidateSeriesScope = () =>
+    invalidateSeriesQueries(queryClient, viewed.series_id, livingSeriesId);
+
   // Picking a scheduled-but-unpersisted date materializes its instance in
   // the background (spec: the instance exists once the user wants to edit
   // it). The pick stays pending until the row arrives, then the view swaps
   // to it — on failure the date keeps the pending panel plus the error.
-  const materialize = useMutation({
-    mutationFn: ({ iso, seriesId }: { iso: string; seriesId: number }) =>
-      getOrCreateInstance(seriesId, iso),
-    onSuccess: (created) => {
+  const materialize = useMaterializeInstance({
+    queryClient,
+    viewedSeriesId: viewed.series_id,
+    editAfterMaterializeRef: editAfterMaterialize,
+    onMaterialized: (created) => {
       setViewed(created);
       setPendingIso(null);
       invalidateSeriesScope();
-      if (editAfterMaterialize.current) {
-        editAfterMaterialize.current = false;
-        reset(defaultsFor(created));
-        setMode(DialogMode.Edit);
-      }
     },
-    onError: () => {
-      void queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.seriesInstances(viewed.series_id!),
-      });
+    startEditing: (created) => {
+      reset(defaultsFor(created));
+      setMode(DialogMode.Edit);
     },
   });
-
-  const invalidateSeriesScope = () => {
-    for (const key of [
-      QUERY_KEYS.tasks,
-      QUERY_KEYS.taskSeries,
-      QUERY_KEYS.seriesInstances(viewed.series_id!),
-      QUERY_KEYS.seriesCategories(livingSeriesId!),
-      QUERY_KEYS.allTaskCategories,
-    ]) {
-      void queryClient.invalidateQueries({ queryKey: key });
-    }
-  };
 
   const updateSeries = useMutation({
     mutationFn: (input: UpdateSeries) =>
