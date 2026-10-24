@@ -431,9 +431,9 @@ pub struct TaskSeries {
     pub recurrence: Recurrence,
     pub start_date: String,
     pub end_date: Option<String>,
-    /// Internal clone of a pre-split schedule holding the past (spec
-    /// §146). Never produces backlog entries or new occurrences.
-    pub archived: bool,
+    /// Set only on archive rows: the series this pre-split schedule
+    /// continues as (spec §146). Archives produce no new occurrences.
+    pub succeeded_by: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -445,7 +445,7 @@ struct SeriesRow {
     title: String,
     description: Option<String>,
     carry_over_rule: CarryOverRule,
-    archived: bool,
+    succeeded_by: Option<i64>,
     estimated_minutes: Option<i64>,
     recurrence: String,
     start_date: String,
@@ -455,7 +455,7 @@ struct SeriesRow {
 }
 
 const SERIES_COLUMNS: &str = "id, profile_id, title, description, carry_over_rule, estimated_minutes, \
-     recurrence, start_date, end_date, archived, created_at, updated_at";
+     recurrence, start_date, end_date, succeeded_by, created_at, updated_at";
 
 /// Decodes a stored row. A recurrence blob that fails to parse means the
 /// stored document drifted from the enum — an internal error, not input.
@@ -473,7 +473,7 @@ fn into_series(row: SeriesRow) -> Result<TaskSeries> {
         })?,
         start_date: row.start_date,
         end_date: row.end_date,
-        archived: row.archived,
+        succeeded_by: row.succeeded_by,
         created_at: row.created_at,
         updated_at: row.updated_at,
     })
@@ -856,8 +856,8 @@ pub async fn update_from(
         let archive: SeriesRow = sqlx::query_as(&format!(
             "INSERT INTO task_series \
              (profile_id, title, description, carry_over_rule, estimated_minutes, \
-              recurrence, start_date, end_date, archived) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1) RETURNING {SERIES_COLUMNS}"
+              recurrence, start_date, end_date, succeeded_by) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING {SERIES_COLUMNS}"
         ))
         .bind(profile_id)
         .bind(&row.title)
@@ -867,6 +867,7 @@ pub async fn update_from(
         .bind(&row.recurrence)
         .bind(&row.start_date)
         .bind(&archive_end)
+        .bind(id)
         .fetch_one(&mut *tx)
         .await?;
         sqlx::query(
@@ -1834,16 +1835,25 @@ mod tests {
             assert_eq!(moved.description.as_deref(), Some("weekly chore"));
         }
 
-        // The backlog lists the living series only — the archive's
-        // rows are history, not a new entry (spec §146).
+        // The backlog shows one entry per family — the earliest
+        // instance, which sits on the archive (spec §146: a continuing
+        // series, not a new entry).
         let backlog: Vec<i64> = crate::tasks::list(&pool, pid)
             .await
             .unwrap()
             .into_iter()
             .map(|t| t.id)
             .collect();
-        assert!(!backlog.contains(&first));
-        assert!(backlog.contains(&second));
+        assert!(backlog.contains(&first));
+        assert!(!backlog.contains(&second));
+        assert!(!backlog.contains(&third));
+
+        // The details view resolves the whole family from any member:
+        // instances queried through the archive still see the future.
+        let via_archive = crate::tasks::list_instances(&pool, pid, archive.id)
+            .await
+            .unwrap();
+        assert_eq!(via_archive.len(), 3);
     }
 
     #[tokio::test]

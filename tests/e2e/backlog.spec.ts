@@ -741,7 +741,7 @@ const seriesFixture = {
   },
   start_date: "2026-10-05",
   end_date: null,
-  archived: false,
+  succeeded_by: null,
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-11 10:00:00",
 };

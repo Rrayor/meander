@@ -10,7 +10,7 @@ export type NewTask = { title: string; description: string | null; estimated_min
  * the spec lists (notes, categories, repetition come in later milestones).
  */
 export type UpdateTask = { title: string; description: string | null; estimated_minutes: number | null; spent_minutes: number | null; carry_over_rule: CarryOverRule | null; status: TaskStatus; series: NewSeries | null }
-export type TaskSeries = { id: number; profile_id: number; title: string; description: string | null; carry_over_rule: CarryOverRule; estimated_minutes: number | null; recurrence: Recurrence; start_date: string; end_date: string | null; archived: boolean; created_at: string; updated_at: string }
+export type TaskSeries = { id: number; profile_id: number; title: string; description: string | null; carry_over_rule: CarryOverRule; estimated_minutes: number | null; recurrence: Recurrence; start_date: string; end_date: string | null; succeeded_by: number | null; created_at: string; updated_at: string }
 /**
  * Input carrying the schedule — a `series` field on task create/update.
  * `recurrence` arrives as untrusted JSON: decoding it inside the typed

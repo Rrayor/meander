@@ -180,6 +180,7 @@ interface TaskDetailsViewProps {
   materializeError?: string;
   categories: Category[];
   seriesRow: TaskSeries | undefined;
+  seriesSegments: TaskSeries[] | undefined;
   seriesInstances: Task[] | undefined;
   onPick: (picked: Task | null, iso: string) => void;
   onClose: () => void;
@@ -194,6 +195,7 @@ function TaskDetailsView({
   materializeError,
   categories,
   seriesRow,
+  seriesSegments,
   seriesInstances,
   onPick,
   onClose,
@@ -327,9 +329,9 @@ function TaskDetailsView({
           )}
         </p>
       )}
-      {seriesRow && seriesInstances && (
+      {seriesRow && seriesInstances && seriesSegments && (
         <InstanceCalendar
-          series={seriesRow}
+          series={seriesSegments}
           instances={seriesInstances}
           selectedIso={pendingIso ?? viewed.scheduled_date}
           onPick={onPick}
@@ -624,19 +626,31 @@ export function EditTaskDialog({
     queryFn: listTaskSeries,
     enabled: task.series_id !== null,
   });
+  const viewedSeries = taskSeries?.find((s) => s.id === viewed.series_id);
+  // The living continuation of a pre-split family: saves, seeds, and
+  // materialization always target it, never an archive row.
+  const livingSeriesId =
+    viewedSeries?.succeeded_by ?? viewed.series_id ?? task.series_id;
+  const seriesRow = taskSeries?.find((s) => s.id === livingSeriesId);
+  // Every segment of the conceptual series — the living row plus its
+  // archives — so the calendar shows the full schedule across splits.
+  const familySegments = taskSeries?.filter(
+    (s) =>
+      livingSeriesId !== null &&
+      (s.id === livingSeriesId || s.succeeded_by === livingSeriesId),
+  );
   const { data: seriesInstances } = useQuery({
-    queryKey: QUERY_KEYS.seriesInstances(task.series_id!),
-    queryFn: () => listSeriesInstances(task.series_id!),
-    enabled: task.series_id !== null,
+    queryKey: QUERY_KEYS.seriesInstances(viewed.series_id!),
+    queryFn: () => listSeriesInstances(viewed.series_id!),
+    enabled: viewed.series_id !== null,
   });
-  const seriesRow = taskSeries?.find((s) => s.id === task.series_id);
   // Save scope: instance edits today's task; series writes the shared
   // fields + schedule + categories onto the series and every instance.
   const [saveScope, setSaveScope] = useState<SaveScope>(TaskScope.Instance);
   const { data: seriesCats, error: seriesCatsError } = useQuery({
-    queryKey: QUERY_KEYS.seriesCategories(task.series_id!),
-    queryFn: () => listSeriesCategories(task.series_id!),
-    enabled: task.series_id !== null && saveScope !== TaskScope.Instance,
+    queryKey: QUERY_KEYS.seriesCategories(livingSeriesId!),
+    queryFn: () => listSeriesCategories(livingSeriesId!),
+    enabled: livingSeriesId !== null && saveScope !== TaskScope.Instance,
   });
   // The series-scope schedule draft: null = untouched (use the stored
   // schedule), cleared = the user collapsed the section (a series needs a
@@ -658,7 +672,7 @@ export function EditTaskDialog({
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const { categories, stored, onCategoriesChange } = useScopedCategories({
     saveScope,
-    seriesId: task.series_id,
+    seriesId: livingSeriesId,
     viewedId: viewed.id,
     seriesCats,
     initialCategories,
@@ -694,7 +708,7 @@ export function EditTaskDialog({
   // it). The pick stays pending until the row arrives, then the view swaps
   // to it — on failure the date keeps the pending panel plus the error.
   const materialize = useMutation({
-    mutationFn: (iso: string) => getOrCreateInstance(task.series_id!, iso),
+    mutationFn: (iso: string) => getOrCreateInstance(livingSeriesId!, iso),
     onSuccess: (created) => {
       setViewed(created);
       setPendingIso(null);
@@ -707,7 +721,7 @@ export function EditTaskDialog({
     },
     onError: () => {
       void queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.seriesInstances(task.series_id!),
+        queryKey: QUERY_KEYS.seriesInstances(viewed.series_id!),
       });
     },
   });
@@ -716,8 +730,8 @@ export function EditTaskDialog({
     for (const key of [
       QUERY_KEYS.tasks,
       QUERY_KEYS.taskSeries,
-      QUERY_KEYS.seriesInstances(task.series_id!),
-      QUERY_KEYS.seriesCategories(task.series_id!),
+      QUERY_KEYS.seriesInstances(viewed.series_id!),
+      QUERY_KEYS.seriesCategories(livingSeriesId!),
       QUERY_KEYS.allTaskCategories,
     ]) {
       void queryClient.invalidateQueries({ queryKey: key });
@@ -726,7 +740,7 @@ export function EditTaskDialog({
 
   const updateSeries = useMutation({
     mutationFn: (input: UpdateSeries) =>
-      updateTaskSeries(task.series_id!, input),
+      updateTaskSeries(livingSeriesId!, input),
     onSuccess: onClose,
     onSettled: invalidateSeriesScope,
   });
@@ -738,7 +752,7 @@ export function EditTaskDialog({
     }: {
       fromDate: string;
       input: UpdateSeries;
-    }) => updateTaskSeriesFrom(task.series_id!, fromDate, input),
+    }) => updateTaskSeriesFrom(livingSeriesId!, fromDate, input),
     onSuccess: onClose,
     onSettled: invalidateSeriesScope,
   });
@@ -747,7 +761,7 @@ export function EditTaskDialog({
   // date in the calendar moves the target with it.
   const remove = useMutation({
     mutationFn: async () => {
-      const seriesId = task.series_id;
+      const seriesId = livingSeriesId;
       if (seriesId === null || deleteScope === TaskScope.Instance) {
         return deleteTask(viewed.id);
       }
@@ -985,6 +999,7 @@ export function EditTaskDialog({
             materializeError={serverErrorMessage(materialize.error)}
             categories={categories}
             seriesRow={seriesRow}
+            seriesSegments={familySegments}
             seriesInstances={seriesInstances}
             onPick={(picked, iso) => {
               if (picked) {

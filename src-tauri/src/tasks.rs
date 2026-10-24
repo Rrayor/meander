@@ -462,11 +462,18 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
-    // Instances parked on an archived (pre-split) series are history —
-    // the backlog must not list them as a new series.
+    // One backlog entry per series family — the earliest instance ever
+    // persisted is the row the user thinks of as "the series" (spec
+    // §146: a this-and-future save continues the series, it does not
+    // start a new backlog item). Families join archives to the living
+    // series through `succeeded_by`.
     Ok(sqlx::query_as::<_, Task>(
-        "SELECT * FROM tasks WHERE profile_id = ? AND (series_id IS NULL OR \
-         series_id NOT IN (SELECT id FROM task_series WHERE archived = 1)) \
+        "SELECT * FROM tasks t WHERE t.profile_id = ? AND (t.series_id IS NULL \
+         OR t.id = (SELECT MIN(t2.id) FROM tasks t2 \
+           JOIN task_series s2 ON s2.id = t2.series_id \
+           WHERE COALESCE(s2.succeeded_by, s2.id) = \
+                 COALESCE((SELECT s.succeeded_by FROM task_series s \
+                           WHERE s.id = t.series_id), t.series_id))) \
          ORDER BY sort_order, id",
     )
     .bind(profile_id)
@@ -551,10 +558,17 @@ pub async fn list_instances(
     profile_id: i64,
     series_id: i64,
 ) -> Result<Vec<Task>> {
+    // Family-scoped: any member id — the living series or one of its
+    // archive clones — resolves to the same instance set, so a details
+    // view opened on a pre-split instance still sees the continuation.
     Ok(sqlx::query_as::<_, Task>(
-        "SELECT * FROM tasks WHERE profile_id = ? AND series_id = ? ORDER BY scheduled_date, id",
+        "SELECT * FROM tasks WHERE profile_id = ? AND series_id IN ( \
+           SELECT id FROM task_series WHERE COALESCE(succeeded_by, id) = \
+             COALESCE((SELECT succeeded_by FROM task_series WHERE id = ?), ?)) \
+         ORDER BY scheduled_date, id",
     )
     .bind(profile_id)
+    .bind(series_id)
     .bind(series_id)
     .fetch_all(pool)
     .await?)

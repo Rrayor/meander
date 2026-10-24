@@ -30,7 +30,9 @@ const monthLabel = (year: number, month: number, locale?: string) =>
   });
 
 interface InstanceCalendarProps {
-  series: TaskSeries;
+  // One segment per pre-split archive plus the living series — a
+  // date is scheduled when any segment's window produces it.
+  series: TaskSeries[];
   instances: Task[];
   selectedIso: string | null;
   onPick: (task: Task | null, iso: string) => void;
@@ -109,11 +111,13 @@ export function InstanceCalendar({
           const persisted = instances.some((t) => t.scheduled_date === iso);
           const scheduled =
             persisted ||
-            isScheduledOn(
-              series.recurrence,
-              series.start_date,
-              series.end_date,
-              iso,
+            series.some((segment) =>
+              isScheduledOn(
+                segment.recurrence,
+                segment.start_date,
+                segment.end_date,
+                iso,
+              ),
             );
           if (!scheduled) {
             // Padding days outside the month stay blank — showing them
