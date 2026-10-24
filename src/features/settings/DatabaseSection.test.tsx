@@ -26,12 +26,31 @@ describe("DatabaseSection", () => {
     vi.mocked(pickFile).mockResolvedValue("/other/app.db");
   });
 
+  it("invalidates every cached query after a database switch", async () => {
+    const client = testQueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    render(
+      <QueryClientProvider client={client}>
+        <DatabaseSection />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose database file" }),
+    );
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith());
+  });
+
   it("shows the current database path", async () => {
     renderSection();
     expect(await screen.findByText("/data/meander.db")).toBeInTheDocument();
   });
 
   it("selects a new database file through the picker", async () => {
+    // The switch invalidates every query — the post-switch db-path
+    // refetch must come back as the new file (as the backend would).
+    vi.mocked(currentDatabasePath)
+      .mockResolvedValueOnce("/data/meander.db")
+      .mockResolvedValue("/other/app.db");
     renderSection();
     fireEvent.click(
       await screen.findByRole("button", { name: "Choose database file" }),

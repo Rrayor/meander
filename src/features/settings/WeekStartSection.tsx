@@ -29,6 +29,8 @@ export function WeekStartSection() {
     onSuccess: () => {
       setSelected(undefined);
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.weekStart });
+      // set_week_start bumps the profile's updated_at — refresh the row.
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
     },
   });
 

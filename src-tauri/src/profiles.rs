@@ -129,6 +129,15 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn week_start_is_scoped_to_each_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other = create(&pool, "second").await.unwrap();
+        set_week_start(&pool, pid, Weekday::Sunday).await.unwrap();
+        assert_eq!(week_start(&pool, other.id).await.unwrap(), Weekday::Monday);
+        assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Sunday);
+    }
+
+    #[tokio::test]
     async fn week_start_falls_back_to_monday_on_an_out_of_range_value() {
         let (pool, pid) = seeded_pool().await;
         sqlx::query("UPDATE profiles SET week_start = 9 WHERE id = ?")
