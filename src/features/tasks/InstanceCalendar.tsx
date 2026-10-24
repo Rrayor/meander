@@ -30,8 +30,8 @@ const monthLabel = (year: number, month: number, locale?: string) =>
   });
 
 interface InstanceCalendarProps {
-  // One segment per pre-split archive plus the living series — a
-  // date is scheduled when any segment's window produces it.
+  // The earlier segments plus the living series — a date is
+  // scheduled when any segment's window produces it.
   series: TaskSeries[];
   instances: Task[];
   selectedIso: string | null;

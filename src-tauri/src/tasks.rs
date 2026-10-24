@@ -462,11 +462,11 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Task> {
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
-    // One backlog entry per series family — the earliest instance ever
+    // One backlog entry per series — the earliest instance ever
     // persisted is the row the user thinks of as "the series" (spec
     // §146: a this-and-future save continues the series, it does not
-    // start a new backlog item). Families join archives to the living
-    // series through `succeeded_by`.
+    // start a new backlog item). Segments join to the living series
+    // through `succeeded_by`.
     Ok(sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks t WHERE t.profile_id = ? AND (t.series_id IS NULL \
          OR t.id = (SELECT MIN(t2.id) FROM tasks t2 \
@@ -558,8 +558,8 @@ pub async fn list_instances(
     profile_id: i64,
     series_id: i64,
 ) -> Result<Vec<Task>> {
-    // Family-scoped: any member id — the living series or one of its
-    // archive clones — resolves to the same instance set, so a details
+    // Segment-scoped: any member id — the living series or one of its
+    // earlier segments — resolves to the same instance set, so a details
     // view opened on a pre-split instance still sees the continuation.
     Ok(sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks WHERE profile_id = ? AND series_id IN ( \

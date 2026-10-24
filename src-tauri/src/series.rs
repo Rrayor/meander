@@ -431,8 +431,9 @@ pub struct TaskSeries {
     pub recurrence: Recurrence,
     pub start_date: String,
     pub end_date: Option<String>,
-    /// Set only on archive rows: the series this pre-split schedule
-    /// continues as (spec §146). Archives produce no new occurrences.
+    /// Set only on earlier segments: the living series this pre-split
+    /// schedule continues as (spec §146). Segments produce occurrences
+    /// only within their own start/end window.
     pub succeeded_by: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
@@ -796,13 +797,14 @@ pub async fn truncate(pool: &SqlitePool, profile_id: i64, id: i64, from_date: &s
 /// "This and future" editing (spec §146/§234): splits the series at
 /// `from_date` *invisibly* — the living series keeps its id, so every
 /// reference (open dialogs, notes, queries) sees the edit immediately.
-/// A new "archive" row carries the past: it is a clone of the old
+/// A new earlier segment carries the past: it is a clone of the old
 /// schedule ended the day before the cutoff (same rule as `truncate`),
 /// and persisted instances before `from_date` move onto it with their
 /// custom values untouched. The living series then takes the edited
 /// fields and schedule starting at the cutoff — identical to a
-/// series-scope `update` restricted to the future. A `from_date` at or
-/// before the start with nothing earlier persisted is a full update.
+/// series-scope `update` restricted to the future. Repeated splits just
+/// add more segments; nothing assumes a single one. A `from_date` at
+/// or before the start with nothing earlier persisted is a full update.
 pub async fn update_from(
     pool: &SqlitePool,
     profile_id: i64,
@@ -843,17 +845,17 @@ pub async fn update_from(
     let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
 
     if earlier > 0 {
-        // Archive: a clone of the old series, ended the day before the
-        // cutoff (earlier of from-1 and any existing end), taking over
-        // the persisted past. Its categories mirror the old set so
-        // archived instances keep their chips.
+        // Earlier segment: a clone of the old series, ended the day
+        // before the cutoff (earlier of from-1 and any existing end),
+        // taking over the persisted past. Its categories mirror the old
+        // set so the moved instances keep their chips.
         let (y, m, d) = parse_iso(from_date);
         let proposed = to_iso(civil_from_days(days_from_civil(y, m, d) - 1));
-        let archive_end = match &row.end_date {
+        let segment_end = match &row.end_date {
             Some(existing) if existing < &proposed => existing.clone(),
             _ => proposed,
         };
-        let archive: SeriesRow = sqlx::query_as(&format!(
+        let segment: SeriesRow = sqlx::query_as(&format!(
             "INSERT INTO task_series \
              (profile_id, title, description, carry_over_rule, estimated_minutes, \
               recurrence, start_date, end_date, succeeded_by) \
@@ -866,7 +868,7 @@ pub async fn update_from(
         .bind(row.estimated_minutes)
         .bind(&row.recurrence)
         .bind(&row.start_date)
-        .bind(&archive_end)
+        .bind(&segment_end)
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
@@ -874,12 +876,12 @@ pub async fn update_from(
             "INSERT INTO series_categories (series_id, category_id) \
              SELECT ?, category_id FROM series_categories WHERE series_id = ?",
         )
-        .bind(archive.id)
+        .bind(segment.id)
         .bind(id)
         .execute(&mut *tx)
         .await?;
         sqlx::query("UPDATE tasks SET series_id = ? WHERE series_id = ? AND scheduled_date < ?")
-            .bind(archive.id)
+            .bind(segment.id)
             .bind(id)
             .bind(from_date)
             .execute(&mut *tx)
@@ -1790,7 +1792,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_from_archives_the_past_and_updates_the_living_series() {
+    async fn update_from_splits_a_prior_segment_off_the_living_series() {
         let (pool, pid) = seeded_pool().await;
         let saved = create(&pool, pid, &fields_for(&series(weekly())))
             .await
@@ -1815,15 +1817,15 @@ mod tests {
         assert_eq!(updated.title, NEW_TITLE);
         assert_eq!(updated.start_date, SECOND_INSTANCE_DATE);
 
-        // The archive is a clone of the old schedule ended the day
-        // before, holding the past instance with its custom values.
+        // The prior segment is a clone of the old schedule ended the
+        // day before, holding the past instance with its custom values.
         let series = list(&pool, pid).await.unwrap();
         assert_eq!(series.len(), 2);
-        let archive = series.iter().find(|s| s.id != saved.id).unwrap();
-        assert_eq!(archive.end_date.as_deref(), Some("2026-10-25"));
-        assert_eq!(archive.start_date, START);
+        let segment = series.iter().find(|s| s.id != saved.id).unwrap();
+        assert_eq!(segment.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(segment.start_date, START);
         let past = instance(&pool, first).await;
-        assert_eq!(past.series_id, Some(archive.id));
+        assert_eq!(past.series_id, Some(segment.id));
         assert_eq!(past.title, "custom title");
 
         // Future rows stay on the living series — ids preserved — with
@@ -1835,9 +1837,9 @@ mod tests {
             assert_eq!(moved.description.as_deref(), Some("weekly chore"));
         }
 
-        // The backlog shows one entry per family — the earliest
-        // instance, which sits on the archive (spec §146: a continuing
-        // series, not a new entry).
+        // The backlog shows one entry per series — the earliest
+        // instance, which sits on the prior segment (spec §146: a
+        // continuing series, not a new entry).
         let backlog: Vec<i64> = crate::tasks::list(&pool, pid)
             .await
             .unwrap()
@@ -1848,12 +1850,13 @@ mod tests {
         assert!(!backlog.contains(&second));
         assert!(!backlog.contains(&third));
 
-        // The details view resolves the whole family from any member:
-        // instances queried through the archive still see the future.
-        let via_archive = crate::tasks::list_instances(&pool, pid, archive.id)
+        // The details view resolves the whole series from any member:
+        // instances queried through the prior segment still see the
+        // future.
+        let via_segment = crate::tasks::list_instances(&pool, pid, segment.id)
             .await
             .unwrap();
-        assert_eq!(via_archive.len(), 3);
+        assert_eq!(via_segment.len(), 3);
     }
 
     #[tokio::test]
@@ -1874,7 +1877,7 @@ mod tests {
         )
         .await
         .unwrap();
-        // The old series had this category; the archive must keep it.
+        // The old series had this category; the segment must keep it.
         let mut input = update_input(weekly());
         input.category_ids = vec![cat.id];
         update(&pool, pid, saved.id, &input).await.unwrap();
@@ -1895,7 +1898,7 @@ mod tests {
             .unwrap();
 
         // The living series takes the new set; the moved-off past keeps
-        // the archive's copy of the old one.
+        // the segment's copy of the old one.
         assert_eq!(
             list_categories(&pool, pid, saved.id).await.unwrap()[0].id,
             new_cat.id
@@ -1907,14 +1910,14 @@ mod tests {
                 .id,
             new_cat.id
         );
-        let archive = list(&pool, pid)
+        let segment = list(&pool, pid)
             .await
             .unwrap()
             .into_iter()
             .find(|s| s.id != saved.id)
             .unwrap();
         assert_eq!(
-            list_categories(&pool, pid, archive.id).await.unwrap()[0].id,
+            list_categories(&pool, pid, segment.id).await.unwrap()[0].id,
             cat.id
         );
         assert_eq!(
@@ -2004,13 +2007,13 @@ mod tests {
 
         assert_eq!(updated.id, saved.id);
         let past = instance(&pool, early).await;
-        let archive = list(&pool, pid)
+        let segment = list(&pool, pid)
             .await
             .unwrap()
             .into_iter()
             .find(|s| s.id != saved.id)
             .unwrap();
-        assert_eq!(past.series_id, Some(archive.id));
+        assert_eq!(past.series_id, Some(segment.id));
         assert_eq!(past.title, "custom title");
         let moved = instance(&pool, later).await;
         assert_eq!(moved.series_id, Some(saved.id));

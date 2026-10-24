@@ -1784,8 +1784,8 @@ fn series_of(world: &mut MeanderWorld, title: &str) -> meander_lib::series::Task
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    // Not tasks::list — that is the backlog view, which hides archived
-    // series. Any persisted instance can resolve its series here.
+    // Not tasks::list — that is the backlog view, which shows only the
+    // anchor per series. Any persisted instance resolves its segment.
     let task = world
         .rt()
         .block_on(async {
@@ -2558,9 +2558,10 @@ fn new_series_at_later(world: &mut MeanderWorld, title: String) {
 
 #[then(expr = "the later instance moved to the new series")]
 fn later_instance_moved(world: &mut MeanderWorld) {
-    // The split archives the past: the living series — retitled, so the
-    // only one the later instance's title resolves to — keeps the cutoff
-    // instance. The archive holds the earlier date instead.
+    // The split moves the past to an earlier segment: the living
+    // series — retitled, so the only one the later instance's title
+    // resolves to — keeps the cutoff instance. The earlier segment
+    // holds the earlier date instead.
     let series = series_of(world, "Daily sync");
     assert_eq!(
         series_instance_dates(world, series.id),

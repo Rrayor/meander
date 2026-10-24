@@ -9,21 +9,28 @@ the viewed instance and every later occurrence, leaving past instances —
 and the series' past — untouched (spec §146: "only leaves past instances
 intact").
 
-## Data model: split, but keep the living id
+## Data model: a series is a chain of segments
 
 A forward-only edit that can change the recurrence cannot be represented
-on a single series row, so the save splits it — **invisibly**: the living
-series keeps its id so the change is seamless everywhere it is referenced.
+on a single series row, so a series is modeled as a **chain of schedule
+segments**: each row carries its own `start_date`/`end_date` window and a
+`succeeded_by` link to the segment that continues it. A split adds an
+earlier segment — the living row keeps its id, so the change is seamless
+everywhere it is referenced, and any number of splits just lengthens the
+chain. Nothing treats an earlier segment as dead history: it is a normal
+segment producing occurrences only inside its own window.
 
-1. When persisted instances exist before the cutoff, an "archive" series
-   is inserted: a clone of the old schedule (old fields, recurrence,
-   start, categories) ended the day before `from_date` — same cutoff rule
-   as `truncate` (earlier of `from - 1` and any existing `end_date`). It
-   carries `archived = 1`, which excludes its rows from `tasks::list` —
-   the backlog shows the living series only, and the archive produces no
-   new entry or occurrences (though its instances stay viewable through
-   the per-series instance query). Rows before the cutoff move onto it,
-   ids preserved — instance notes stay attached and custom per-instance
+1. When persisted instances exist before the cutoff, a new earlier
+   segment is inserted: a clone of the old schedule (old fields,
+   recurrence, start, categories) ended the day before `from_date` —
+   same cutoff rule as `truncate` (earlier of `from - 1` and any
+   existing `end_date`). Its `succeeded_by` points at the living series,
+   which is what makes it a segment rather than a standalone row:
+   `tasks::list` shows only the chain's single anchor entry (the
+   earliest instance across all segments), and `list_instances` resolves
+   the whole chain from any member id so the details view sees every
+   segment's rows. Rows before the cutoff move onto the new segment, ids
+   preserved — instance notes stay attached and custom per-instance
    values are untouched.
 2. The living series row is updated in place with the edited fields,
    recurrence, and end date; its `start_date` becomes `from_date`. The
@@ -42,7 +49,7 @@ series keeps its id so the change is seamless everywhere it is referenced.
 
 Off-schedule persisted instances follow the same rule as series-scope
 edits: they are kept and viewable even if the schedule wouldn't produce
-them — an archived one simply lives on the archive instead.
+them — an earlier-segment one simply lives on its segment instead.
 
 ## Backend
 
@@ -51,7 +58,7 @@ them — an archived one simply lives on the archive instead.
 - validates `from_date` as strict ISO (`InstanceDateInvalid`);
 - `owned_row` ownership check (`SeriesNotFound`);
 - counts rows before/after the cutoff to pick between full `update`,
-  rejection, or archive-and-rewrite — all in one transaction;
+  rejection, or segment-and-rewrite — all in one transaction;
 - returns the (still same id) `TaskSeries`.
 
 Command `update_task_series_from` (args `seriesId`, `fromDate`, `input`),
@@ -83,7 +90,7 @@ style from the same component.
 
 ## Tests
 
-- Rust: archive+rewrite happy path (living id kept, archive ended,
+- Rust: split happy path (living id kept, earlier segment ended,
   past moved with custom values, future overwritten), category sync on
   both segments, `from <= start` with no earlier rows delegates,
   off-schedule earlier row preserved, retried split is a harmless full

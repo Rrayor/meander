@@ -241,7 +241,7 @@ function TaskDetailsView({
           </div>
           {/* A scheduled-only occurrence has no row yet — its shared
               fields come from the segment that produces it (spec
-              §230), archive or living. */}
+              §230), an earlier segment or the living one. */}
           {(pendingSegment ?? seriesRow) && (
             <div className="grid grid-cols-4 gap-4">
               <div className="flex flex-col gap-1">
@@ -677,21 +677,21 @@ export function EditTaskDialog({
     enabled: task.series_id !== null,
   });
   const viewedSeries = taskSeries?.find((s) => s.id === viewed.series_id);
-  // The living continuation of a pre-split family: saves, seeds, and
-  // materialization always target it, never an archive row.
+  // The living continuation of a segmented series: saves, seeds, and
+  // materialization always target it, never an earlier segment.
   const livingSeriesId =
     viewedSeries?.succeeded_by ?? viewed.series_id ?? task.series_id;
   const seriesRow = taskSeries?.find((s) => s.id === livingSeriesId);
-  // Every segment of the conceptual series — the living row plus its
-  // archives — so the calendar shows the full schedule across splits.
+  // Every segment of the conceptual series — the living row plus the
+  // earlier segments — so the calendar shows the full schedule.
   const familySegments = taskSeries?.filter(
     (s) =>
       livingSeriesId !== null &&
       (s.id === livingSeriesId || s.succeeded_by === livingSeriesId),
   );
   // The segment that produces a pending picked date — a pre-cutoff
-  // date belongs to an archive and shows its values, not the living
-  // series'.
+  // date belongs to an earlier segment and shows its values, not the
+  // living series'.
   const pendingSegment =
     pendingIso !== null
       ? familySegments?.find((s) =>
