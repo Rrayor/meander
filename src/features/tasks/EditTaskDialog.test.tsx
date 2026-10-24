@@ -979,7 +979,9 @@ describe("EditTaskDialog", () => {
 
     // Oct 19 is before the Oct 26 cutoff — the earlier segment's title
     // shows, and materializing it targets the segment, not the living row.
-    fireEvent.click(await screen.findByRole("button", { name: "2026-10-19" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: OPENED_INSTANCE_DATE }),
+    );
     expect(
       await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
@@ -991,7 +993,7 @@ describe("EditTaskDialog", () => {
     await screen.findByText(INSTANCE_MATERIALIZING_MESSAGE);
     expect(mockedGetOrCreate).toHaveBeenCalledWith(
       EARLIER_SEGMENT.id,
-      "2026-10-19",
+      OPENED_INSTANCE_DATE,
     );
   });
 
@@ -1011,7 +1013,9 @@ describe("EditTaskDialog", () => {
     );
 
     // Oct 26 is the cutoff — the living series produces it.
-    fireEvent.click(await screen.findByRole("button", { name: "2026-10-26" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
     expect(
       await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
     ).toBeInTheDocument();
