@@ -560,11 +560,18 @@ export function RepeatScheduleFields({
                 type="date"
                 required
                 value={draft.startDate}
-                disabled={lockedStartDate !== undefined}
-                onChange={(e) => onStartChange(e.target.value)}
+                // readOnly keeps the themed text color — WebKit renders
+                // disabled inputs in system colors regardless of our
+                // classes. The lock prevents the change below.
+                readOnly={lockedStartDate !== undefined}
+                onChange={(e) => {
+                  if (lockedStartDate === undefined) {
+                    onStartChange(e.target.value);
+                  }
+                }}
                 aria-invalid={!!errors.startDate}
                 aria-describedby={errorFor("startDate")}
-                className={`${FIELD_CLASSES} disabled:cursor-not-allowed disabled:opacity-60`}
+                className={`${FIELD_CLASSES} ${lockedStartDate !== undefined ? "cursor-default opacity-75" : ""}`}
               />
               {errors.startDate && (
                 <p

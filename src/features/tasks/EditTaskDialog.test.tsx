@@ -1216,7 +1216,7 @@ describe("EditTaskDialog", () => {
     // which is locked to the viewed date the split anchors on.
     const starts = await screen.findByLabelText(REPEAT_STARTS_LABEL);
     expect(starts).toHaveValue(FUTURE_INSTANCE_DATE);
-    expect(starts).toBeDisabled();
+    expect(starts).toHaveAttribute("readonly");
     expect(
       screen.getByRole("radio", { name: STATUS_LABELS.todo }),
     ).toBeDisabled();
