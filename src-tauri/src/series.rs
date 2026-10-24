@@ -227,29 +227,20 @@ pub(crate) fn first_occurrence(
     let first = match recurrence {
         Recurrence::Daily { .. } => (y, m, d),
         Recurrence::Weekly {
-            interval_weeks,
+            interval_weeks: _,
             weekdays,
         } => {
-            // Eligible weeks are Monday-anchored at the start's week, every
-            // `interval_weeks` — the same anchor the frontend predicate uses.
-            // This is a fixed internal convention for counting intervals,
-            // independent of the user-facing week-start display setting.
+            // Interval weeks count 7-day blocks from the start date itself,
+            // so every picked weekday appears once in the first block — the
+            // first occurrence is simply the nearest of those offsets.
+            // `interval_weeks` only governs later blocks. Independent of the
+            // user-facing week-start display setting; mirrors isScheduledOn.
             let start_wd = weekday_index(y, m, d);
-            let anchor_monday = days_from_civil(y, m, d) - start_wd;
-            let this_week = weekdays
+            let offset = weekdays
                 .iter()
-                .map(|w| i64::from(*w as u8))
-                .filter(|w| *w >= start_wd)
-                .min();
-            let z = match this_week {
-                Some(w) => anchor_monday + w,
-                None => {
-                    anchor_monday
-                        + 7 * i64::from(*interval_weeks)
-                        + weekdays.iter().map(|w| i64::from(*w as u8)).min()?
-                }
-            };
-            civil_from_days(z)
+                .map(|w| (i64::from(*w as u8) - start_wd).rem_euclid(7))
+                .min()?;
+            civil_from_days(days_from_civil(y, m, d) + offset)
         }
         Recurrence::MonthlyDay {
             interval_months,
@@ -343,10 +334,10 @@ pub(crate) fn occurs_on(
             if *interval_weeks == 0 || !weekdays.iter().any(|w| i64::from(*w as u8) == wd) {
                 return false;
             }
-            // Same Monday anchor as first_occurrence/isScheduledOn.
-            let start_monday = start_z - weekday_index(sy, sm, sd);
-            let day_monday = day_z - wd;
-            ((day_monday - start_monday) / 7) % i64::from(*interval_weeks) == 0
+            // Interval weeks count 7-day blocks from the start date itself —
+            // independent of any week-start convention — so a weekday pick
+            // can never fall into a boundary seam. Mirrors isScheduledOn.
+            ((day_z - start_z) / 7) % i64::from(*interval_weeks) == 0
         }
         Recurrence::MonthlyDay {
             interval_months,
@@ -1286,19 +1277,20 @@ mod tests {
             .as_deref(),
             Some(WEDNESDAY_AFTER_START)
         );
-        // No matching weekday left this week: the next eligible week —
-        // `interval_weeks` later, on the earliest selected weekday.
+        // Interval blocks anchor at the start date, so the first block always
+        // contains every picked weekday — the nearest one wins even though
+        // Monday is "earlier in the week" than the Saturday start.
         assert_eq!(
             first_occurrence(
                 &Recurrence::Weekly {
                     interval_weeks: 2,
                     weekdays: vec![Weekday::Monday, Weekday::Friday],
                 },
-                "2026-10-24", // a Saturday — past both picks for this week
+                "2026-10-24", // a Saturday — Oct 26 (Mon) and Oct 30 (Fri) are in block 0
                 None,
             )
             .as_deref(),
-            Some("2026-11-02")
+            Some("2026-10-26")
         );
         // Monthly-day past this month: clamp into the next eligible month.
         assert_eq!(
@@ -1407,6 +1399,39 @@ mod tests {
                 },
                 START,
                 "2026-11-02",
+                None,
+                true,
+            ),
+            // Start-anchored blocks: a Saturday start's block 0 is Oct
+            // 24–30, so Friday Oct 30 is the first occurrence — a Monday
+            // anchor would have skipped the whole week and matched Nov 6.
+            (
+                Recurrence::Weekly {
+                    interval_weeks: 2,
+                    weekdays: vec![Weekday::Friday],
+                },
+                "2026-10-24",
+                "2026-10-30",
+                None,
+                true,
+            ),
+            (
+                Recurrence::Weekly {
+                    interval_weeks: 2,
+                    weekdays: vec![Weekday::Friday],
+                },
+                "2026-10-24",
+                "2026-11-06", // block 1 — skipped
+                None,
+                false,
+            ),
+            (
+                Recurrence::Weekly {
+                    interval_weeks: 2,
+                    weekdays: vec![Weekday::Friday],
+                },
+                "2026-10-24",
+                "2026-11-13", // block 2
                 None,
                 true,
             ),

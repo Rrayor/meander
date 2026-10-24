@@ -28,12 +28,6 @@ const dayEpoch = (iso: string): number | null => {
 const daysInMonth = (year: number, month: number) =>
   new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-// Monday of the week containing `epoch` (all epochs here are UTC days).
-const mondayOf = (epoch: number) => {
-  const dow = new Date(epoch).getUTCDay();
-  return epoch - ((dow + 6) % 7) * DAY_MS;
-};
-
 const monthsBetween = (from: Date, to: Date) =>
   (to.getUTCFullYear() - from.getUTCFullYear()) * 12 +
   (to.getUTCMonth() - from.getUTCMonth());
@@ -52,7 +46,9 @@ const matchesWeekly = (
   if (interval <= 0 || !weekday || !recurrence.weekdays.includes(weekday)) {
     return false;
   }
-  const weeks = (mondayOf(day) - mondayOf(start)) / (7 * DAY_MS);
+  // Interval weeks count 7-day blocks from the start date itself —
+  // independent of any week-start convention — matching `occurs_on`.
+  const weeks = Math.floor((day - start) / (7 * DAY_MS));
   return weeks % interval === 0;
 };
 
@@ -185,13 +181,11 @@ const firstWeekly = (
     .filter((i) => i >= 0)
     .sort((a, b) => a - b);
   if (interval <= 0 || picks.length === 0) return null;
-  const anchor = mondayOf(start);
-  const sameWeek = picks.find((i) => i >= startWeekday);
-  const epoch =
-    sameWeek !== undefined
-      ? anchor + sameWeek * DAY_MS
-      : anchor + interval * 7 * DAY_MS + picks[0] * DAY_MS;
-  const first = new Date(epoch);
+  // Interval weeks count 7-day blocks from the start date — every pick
+  // appears once in the first block, so the first occurrence is the
+  // nearest offset. Mirrors first_occurrence in src-tauri/src/series.rs.
+  const offset = Math.min(...picks.map((i) => (i - startWeekday + 7) % 7));
+  const first = new Date(start + offset * DAY_MS);
   return toIsoDay(
     first.getUTCFullYear(),
     first.getUTCMonth() + 1,

@@ -287,9 +287,9 @@ describe("firstOccurrence", () => {
           interval_weeks: 2,
           weekdays: [Weekday.Monday, Weekday.Friday],
         },
-        "2026-10-24", // a Saturday — past both picks for this week
+        "2026-10-24", // a Saturday — block 0 is Oct 24–30, Mon Oct 26 wins
       ),
-    ).toBe("2026-11-02");
+    ).toBe("2026-10-26");
     // Monthly-day: clamped into the start month, or the next eligible one.
     expect(
       firstOccurrence(
