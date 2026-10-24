@@ -6,7 +6,9 @@ import { Controller, useForm } from "react-hook-form";
 import type {
   FieldNamesMarkedBoolean,
   UseFormGetValues,
+  UseFormRegister,
   UseFormReset,
+  UseFormReturn,
 } from "react-hook-form";
 import { z } from "zod";
 
@@ -868,6 +870,386 @@ function SaveScopeFieldset({
   );
 }
 
+function EditTaskForm({
+  form,
+  task,
+  viewedDate,
+  categories,
+  saveScope,
+  seriesRow,
+  seriesError,
+  serverError,
+  seriesFieldsPending,
+  seriesSaveBlocked,
+  submitting,
+  onScopeChange,
+  onAttachSchedule,
+  onDraftSchedule,
+  onCategoriesChange,
+  onSubmit,
+  onClose,
+}: Readonly<{
+  form: UseFormReturn<FormValues>;
+  task: Task;
+  viewedDate: string | null;
+  categories: Category[];
+  saveScope: SaveScope;
+  seriesRow: TaskSeries | undefined;
+  seriesError: string | null;
+  serverError: string | null | undefined;
+  seriesFieldsPending: boolean;
+  seriesSaveBlocked: boolean;
+  submitting: boolean;
+  onScopeChange: (scope: SaveScope) => void;
+  onAttachSchedule: (next: NewSeries | null, error: string | null) => void;
+  onDraftSchedule: (next: NewSeries | null, error: string | null) => void;
+  onCategoriesChange: (next: Category[]) => void;
+  onSubmit: (values: FormValues) => void;
+  onClose: () => void;
+}>) {
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = form;
+  const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
+  const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="edit-task-title-input"
+          className="text-xs font-medium text-text-muted"
+        >
+          {TITLE_FIELD_LABEL} *
+        </label>
+        <input
+          id="edit-task-title-input"
+          type="text"
+          disabled={seriesFieldsPending}
+          aria-invalid={!!errors.title}
+          aria-describedby={errors.title ? "edit-task-title-error" : undefined}
+          className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
+          {...register("title")}
+        />
+        {errors.title && (
+          <p
+            id="edit-task-title-error"
+            role="alert"
+            className="text-sm text-danger"
+          >
+            {errors.title.message}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label
+          htmlFor="edit-task-description"
+          className="text-xs font-medium text-text-muted"
+        >
+          {DESCRIPTION_FIELD_LABEL}{" "}
+          <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+        </label>
+        <textarea
+          id="edit-task-description"
+          rows={3}
+          disabled={seriesFieldsPending}
+          aria-invalid={!!errors.description}
+          aria-describedby={
+            errors.description ? "edit-task-description-error" : undefined
+          }
+          className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+          {...register("description")}
+        />
+        {errors.description && (
+          <p
+            id="edit-task-description-error"
+            role="alert"
+            className="text-sm text-danger"
+          >
+            {errors.description.message}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-text-muted">
+          {CATEGORIES_FIELD_LABEL}{" "}
+          <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+        </span>
+        <CategoryMultiSelect
+          idPrefix="edit-task"
+          selected={categories}
+          onChange={onCategoriesChange}
+          disabled={seriesFieldsPending}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-text-muted">
+            {ESTIMATED_TIME_LABEL}{" "}
+            <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+          </span>
+          <DurationField
+            register={register}
+            idPrefix="edit-task-est"
+            hoursLabel={ESTIMATED_HOURS_LABEL}
+            minutesLabel={ESTIMATED_MINUTES_LABEL}
+            hoursField="estHours"
+            minutesField="estMinutes"
+            errorId="edit-task-estimate-error"
+            invalid={!!estimateError}
+            disabled={seriesFieldsPending}
+          />
+          {estimateError && (
+            <p
+              id="edit-task-estimate-error"
+              role="alert"
+              className="text-sm text-danger"
+            >
+              {estimateError}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-text-muted">
+            {SPENT_TIME_LABEL}{" "}
+            <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
+          </span>
+          <DurationField
+            register={register}
+            idPrefix="edit-task-spent"
+            hoursLabel={SPENT_HOURS_LABEL}
+            minutesLabel={SPENT_MINUTES_LABEL}
+            hoursField="spentHours"
+            minutesField="spentMinutes"
+            errorId="edit-task-spent-error"
+            invalid={!!spentError}
+            disabled={saveScope !== TaskScope.Instance}
+          />
+          {spentError && (
+            <p
+              id="edit-task-spent-error"
+              role="alert"
+              className="text-sm text-danger"
+            >
+              {spentError}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span
+          id="edit-task-status-label"
+          className="text-xs font-medium text-text-muted"
+        >
+          {TASK_STATUS_FIELD_LABEL}
+        </span>
+        <Controller
+          name="status"
+          control={control}
+          render={({ field: { value, onChange } }) => (
+            // Status and spent time stay per-instance — the series
+            // row doesn't carry them, so a series save can't apply
+            // them and the controls are disabled.
+            <div
+              role="radiogroup"
+              aria-labelledby="edit-task-status-label"
+              className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
+                saveScope !== TaskScope.Instance ? "opacity-50" : ""
+              }`}
+            >
+              {Object.values(TaskStatus).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={value === option}
+                  disabled={saveScope !== TaskScope.Instance}
+                  onClick={() => onChange(option)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                    value === option
+                      ? "bg-primary text-on-primary"
+                      : "text-text-muted hover:text-text"
+                  }`}
+                >
+                  {STATUS_LABELS[option]}
+                </button>
+              ))}
+            </div>
+          )}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span
+          id="edit-task-carry-over-label"
+          className="text-xs font-medium text-text-muted"
+        >
+          {CARRY_OVER_FIELD_LABEL}
+        </span>
+        <Controller
+          name="carryOver"
+          control={control}
+          render={({ field: { value, onChange } }) => (
+            <div
+              role="radiogroup"
+              aria-labelledby="edit-task-carry-over-label"
+              className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
+            >
+              {CARRY_OVER_OPTIONS.map(({ value: option, label }) => (
+                <button
+                  key={option || "ask"}
+                  type="button"
+                  role="radio"
+                  aria-checked={value === option}
+                  disabled={seriesFieldsPending}
+                  onClick={() => onChange(option)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
+                    value === option
+                      ? "bg-primary text-on-primary"
+                      : "text-text-muted hover:text-text"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        />
+      </div>
+      {task.series_id !== null && (
+        <SaveScopeFieldset
+          saveScope={saveScope}
+          futureDisabled={viewedDate === null}
+          onChange={onScopeChange}
+        />
+      )}
+      {task.series_id === null && (
+        <RepeatScheduleFields
+          idPrefix="edit-task"
+          onChange={(next, error) => {
+            onAttachSchedule(next, error);
+          }}
+        />
+      )}
+      {task.series_id !== null &&
+        saveScope !== TaskScope.Instance &&
+        seriesRow !== undefined && (
+          <RepeatScheduleFields
+            // Remount per scope and anchor so switching scopes
+            // reseeds and a different viewed date re-locks the
+            // start at its cutoff.
+            key={`${saveScope}-${viewedDate}`}
+            idPrefix="edit-series"
+            initial={{
+              recurrence: seriesRow.recurrence,
+              start_date: seriesRow.start_date,
+              end_date: seriesRow.end_date,
+            }}
+            lockedStartDate={lockedStartFor(saveScope, viewedDate)}
+            onChange={(next, error) => {
+              onDraftSchedule(next, error);
+            }}
+          />
+        )}
+      {serverError && (
+        <p role="alert" className="text-sm text-danger">
+          {serverError}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-text-muted">
+          {auditTimestampsLabel(
+            formatDate(task.created_at),
+            formatDate(task.updated_at),
+          )}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+          >
+            {CANCEL_BUTTON_LABEL}
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || seriesError !== null || seriesSaveBlocked}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+          >
+            {SAVE_BUTTON_LABEL}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function DurationField({
+  idPrefix,
+  hoursLabel,
+  minutesLabel,
+  hoursField,
+  minutesField,
+  errorId,
+  invalid,
+  disabled = false,
+  register,
+}: Readonly<{
+  idPrefix: string;
+  hoursLabel: string;
+  minutesLabel: string;
+  hoursField: "estHours" | "spentHours";
+  minutesField: "estMinutes" | "spentMinutes";
+  errorId: string;
+  invalid: boolean;
+  disabled?: boolean;
+  register: UseFormRegister<FormValues>;
+}>) {
+  return (
+    <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-2">
+        <input
+          id={`${idPrefix}-hours`}
+          aria-label={hoursLabel}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? errorId : undefined}
+          type="number"
+          placeholder="0"
+          disabled={disabled}
+          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+          {...register(hoursField)}
+        />
+        <label
+          htmlFor={`${idPrefix}-hours`}
+          className="text-xs text-text-muted"
+        >
+          {HOURS_UNIT_LABEL}
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id={`${idPrefix}-minutes`}
+          aria-label={minutesLabel}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? errorId : undefined}
+          type="number"
+          placeholder="0"
+          disabled={disabled}
+          className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
+          {...register(minutesField)}
+        />
+        <label
+          htmlFor={`${idPrefix}-minutes`}
+          className="text-xs text-text-muted"
+        >
+          {MINUTES_UNIT_LABEL}
+        </label>
+      </div>
+    </div>
+  );
+}
+
 export function EditTaskDialog({
   task,
   onClose,
@@ -894,19 +1276,17 @@ export function EditTaskDialog({
   const editAfterMaterialize = useRef(false);
 
   const instanceDefaults = useMemo(() => defaultsFor(viewed), [viewed]);
-  const {
-    register,
-    control,
-    handleSubmit,
-    setFocus,
-    reset,
-    getValues,
-    formState: { errors, dirtyFields },
-  } = useForm<FormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
     defaultValues: instanceDefaults,
   });
+  const {
+    setFocus,
+    reset,
+    getValues,
+    formState: { dirtyFields },
+  } = form;
 
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -1105,8 +1485,6 @@ export function EditTaskDialog({
     });
   };
 
-  const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
-  const spentError = errors.spentHours?.message ?? errors.spentMinutes?.message;
   // The category error only belongs to series scope — a failed load
   // shouldn't linger on the instance form after switching back.
   const serverError = serverErrorMessage(
@@ -1131,72 +1509,6 @@ export function EditTaskDialog({
       seriesCats === undefined ||
       seriesCleared ||
       seriesDraftError !== null);
-
-  const durationField = (options: {
-    idPrefix: string;
-    hoursLabel: string;
-    minutesLabel: string;
-    hoursField: "estHours" | "spentHours";
-    minutesField: "estMinutes" | "spentMinutes";
-    errorId: string;
-    invalid: boolean;
-    disabled?: boolean;
-  }) => {
-    const {
-      idPrefix,
-      hoursLabel,
-      minutesLabel,
-      hoursField,
-      minutesField,
-      errorId,
-      invalid,
-      disabled = false,
-    } = options;
-    return (
-      <div
-        className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}
-      >
-        <div className="flex items-center gap-2">
-          <input
-            id={`${idPrefix}-hours`}
-            aria-label={hoursLabel}
-            aria-invalid={invalid}
-            aria-describedby={invalid ? errorId : undefined}
-            type="number"
-            placeholder="0"
-            disabled={disabled}
-            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-            {...register(hoursField)}
-          />
-          <label
-            htmlFor={`${idPrefix}-hours`}
-            className="text-xs text-text-muted"
-          >
-            {HOURS_UNIT_LABEL}
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            id={`${idPrefix}-minutes`}
-            aria-label={minutesLabel}
-            aria-invalid={invalid}
-            aria-describedby={invalid ? errorId : undefined}
-            type="number"
-            placeholder="0"
-            disabled={disabled}
-            className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-            {...register(minutesField)}
-          />
-          <label
-            htmlFor={`${idPrefix}-minutes`}
-            className="text-xs text-text-muted"
-          >
-            {MINUTES_UNIT_LABEL}
-          </label>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1345,291 +1657,36 @@ export function EditTaskDialog({
             }
           />
         ) : (
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="edit-task-title-input"
-                className="text-xs font-medium text-text-muted"
-              >
-                {TITLE_FIELD_LABEL} *
-              </label>
-              <input
-                id="edit-task-title-input"
-                type="text"
-                disabled={seriesFieldsPending}
-                aria-invalid={!!errors.title}
-                aria-describedby={
-                  errors.title ? "edit-task-title-error" : undefined
-                }
-                className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
-                {...register("title")}
-              />
-              {errors.title && (
-                <p
-                  id="edit-task-title-error"
-                  role="alert"
-                  className="text-sm text-danger"
-                >
-                  {errors.title.message}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="edit-task-description"
-                className="text-xs font-medium text-text-muted"
-              >
-                {DESCRIPTION_FIELD_LABEL}{" "}
-                <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-              </label>
-              <textarea
-                id="edit-task-description"
-                rows={3}
-                disabled={seriesFieldsPending}
-                aria-invalid={!!errors.description}
-                aria-describedby={
-                  errors.description ? "edit-task-description-error" : undefined
-                }
-                className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-                {...register("description")}
-              />
-              {errors.description && (
-                <p
-                  id="edit-task-description-error"
-                  role="alert"
-                  className="text-sm text-danger"
-                >
-                  {errors.description.message}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-text-muted">
-                {CATEGORIES_FIELD_LABEL}{" "}
-                <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-              </span>
-              <CategoryMultiSelect
-                idPrefix="edit-task"
-                selected={categories}
-                onChange={onCategoriesChange}
-                disabled={seriesFieldsPending}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-muted">
-                  {ESTIMATED_TIME_LABEL}{" "}
-                  <span className="text-text-muted">
-                    {OPTIONAL_FIELD_LABEL}
-                  </span>
-                </span>
-                {durationField({
-                  idPrefix: "edit-task-est",
-                  hoursLabel: ESTIMATED_HOURS_LABEL,
-                  minutesLabel: ESTIMATED_MINUTES_LABEL,
-                  hoursField: "estHours",
-                  minutesField: "estMinutes",
-                  errorId: "edit-task-estimate-error",
-                  invalid: !!estimateError,
-                  disabled: seriesFieldsPending,
-                })}
-                {estimateError && (
-                  <p
-                    id="edit-task-estimate-error"
-                    role="alert"
-                    className="text-sm text-danger"
-                  >
-                    {estimateError}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-muted">
-                  {SPENT_TIME_LABEL}{" "}
-                  <span className="text-text-muted">
-                    {OPTIONAL_FIELD_LABEL}
-                  </span>
-                </span>
-                {durationField({
-                  idPrefix: "edit-task-spent",
-                  hoursLabel: SPENT_HOURS_LABEL,
-                  minutesLabel: SPENT_MINUTES_LABEL,
-                  hoursField: "spentHours",
-                  minutesField: "spentMinutes",
-                  errorId: "edit-task-spent-error",
-                  invalid: !!spentError,
-                  disabled: saveScope !== TaskScope.Instance,
-                })}
-                {spentError && (
-                  <p
-                    id="edit-task-spent-error"
-                    role="alert"
-                    className="text-sm text-danger"
-                  >
-                    {spentError}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span
-                id="edit-task-status-label"
-                className="text-xs font-medium text-text-muted"
-              >
-                {TASK_STATUS_FIELD_LABEL}
-              </span>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field: { value, onChange } }) => (
-                  // Status and spent time stay per-instance — the series
-                  // row doesn't carry them, so a series save can't apply
-                  // them and the controls are disabled.
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="edit-task-status-label"
-                    className={`flex gap-1 rounded-lg border border-border bg-surface-raised p-1 ${
-                      saveScope !== TaskScope.Instance ? "opacity-50" : ""
-                    }`}
-                  >
-                    {Object.values(TaskStatus).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        role="radio"
-                        aria-checked={value === option}
-                        disabled={saveScope !== TaskScope.Instance}
-                        onClick={() => onChange(option)}
-                        className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
-                          value === option
-                            ? "bg-primary text-on-primary"
-                            : "text-text-muted hover:text-text"
-                        }`}
-                      >
-                        {STATUS_LABELS[option]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span
-                id="edit-task-carry-over-label"
-                className="text-xs font-medium text-text-muted"
-              >
-                {CARRY_OVER_FIELD_LABEL}
-              </span>
-              <Controller
-                name="carryOver"
-                control={control}
-                render={({ field: { value, onChange } }) => (
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="edit-task-carry-over-label"
-                    className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
-                  >
-                    {CARRY_OVER_OPTIONS.map(({ value: option, label }) => (
-                      <button
-                        key={option || "ask"}
-                        type="button"
-                        role="radio"
-                        aria-checked={value === option}
-                        disabled={seriesFieldsPending}
-                        onClick={() => onChange(option)}
-                        className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
-                          value === option
-                            ? "bg-primary text-on-primary"
-                            : "text-text-muted hover:text-text"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
-            {task.series_id !== null && (
-              <SaveScopeFieldset
-                saveScope={saveScope}
-                futureDisabled={viewed.scheduled_date === null}
-                onChange={setSaveScope}
-              />
-            )}
-            {task.series_id === null && (
-              <RepeatScheduleFields
-                idPrefix="edit-task"
-                onChange={(next, error) => {
-                  setSeries(next);
-                  setSeriesError(error);
-                }}
-              />
-            )}
-            {task.series_id !== null &&
-              saveScope !== TaskScope.Instance &&
-              seriesRow !== undefined && (
-                <RepeatScheduleFields
-                  // Remount per scope and anchor so switching scopes
-                  // reseeds and a different viewed date re-locks the
-                  // start at its cutoff.
-                  key={`${saveScope}-${viewed.scheduled_date}`}
-                  idPrefix="edit-series"
-                  initial={{
-                    recurrence: seriesRow.recurrence,
-                    start_date: seriesRow.start_date,
-                    end_date: seriesRow.end_date,
-                  }}
-                  lockedStartDate={lockedStartFor(
-                    saveScope,
-                    viewed.scheduled_date,
-                  )}
-                  onChange={(next, error) => {
-                    setSeriesDraft(next);
-                    setSeriesCleared(next === null);
-                    setSeriesDraftError(error);
-                  }}
-                />
-              )}
-            {serverError && (
-              <p role="alert" className="text-sm text-danger">
-                {serverError}
-              </p>
-            )}
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-text-muted">
-                {auditTimestampsLabel(
-                  formatDate(task.created_at),
-                  formatDate(task.updated_at),
-                )}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-md px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
-                >
-                  {CANCEL_BUTTON_LABEL}
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    update.isPending ||
-                    updateSeries.isPending ||
-                    updateSeriesFrom.isPending ||
-                    seriesError !== null ||
-                    seriesSaveBlocked
-                  }
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-                >
-                  {SAVE_BUTTON_LABEL}
-                </button>
-              </div>
-            </div>
-          </form>
+          <EditTaskForm
+            form={form}
+            task={task}
+            viewedDate={viewed.scheduled_date}
+            categories={categories}
+            saveScope={saveScope}
+            seriesRow={seriesRow}
+            seriesError={seriesError}
+            serverError={serverError}
+            seriesFieldsPending={seriesFieldsPending}
+            seriesSaveBlocked={seriesSaveBlocked}
+            submitting={
+              update.isPending ||
+              updateSeries.isPending ||
+              updateSeriesFrom.isPending
+            }
+            onScopeChange={setSaveScope}
+            onAttachSchedule={(next, error) => {
+              setSeries(next);
+              setSeriesError(error);
+            }}
+            onDraftSchedule={(next, error) => {
+              setSeriesDraft(next);
+              setSeriesCleared(next === null);
+              setSeriesDraftError(error);
+            }}
+            onCategoriesChange={onCategoriesChange}
+            onSubmit={onSubmit}
+            onClose={onClose}
+          />
         )}
       </dialog>
     </div>
