@@ -57,6 +57,8 @@ pub fn run() {
             commands::update_note,
             commands::delete_note,
             commands::current_profile,
+            commands::week_start,
+            commands::set_week_start,
             commands::create_profile,
             commands::rename_profile,
             commands::switch_profile

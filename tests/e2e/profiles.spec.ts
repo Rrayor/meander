@@ -115,7 +115,7 @@ test("renaming a profile updates the list and the footer", async ({ page }) => {
   await page
     .getByLabel(renameProfileLabel(DEFAULT_PROFILE_NAME))
     .fill(RENAMED_PROFILE_NAME);
-  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
   await expect(section.getByText(RENAMED_PROFILE_NAME)).toBeVisible();
   await expect(

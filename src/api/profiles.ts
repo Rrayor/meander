@@ -2,6 +2,7 @@ import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
 import type { Profile } from "./bindings";
+import { Weekday } from "@/lib/enums";
 
 export type { Profile };
 
@@ -21,3 +22,8 @@ export const renameProfile = (id: number, name: string) =>
 
 export const switchProfile = (id: number) =>
   transport.invoke<void>(COMMANDS.switchProfile, { id });
+
+export const weekStart = () => transport.invoke<Weekday>(COMMANDS.weekStart);
+
+export const setWeekStart = (weekday: Weekday) =>
+  transport.invoke<void>(COMMANDS.setWeekStart, { weekday });

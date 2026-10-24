@@ -1,6 +1,8 @@
 use serde::Serialize;
 use sqlx::SqlitePool;
 
+use crate::series::Weekday;
+
 use crate::db::Result;
 
 #[derive(Debug, Serialize, specta::Type, sqlx::FromRow)]
@@ -80,9 +82,62 @@ pub async fn get(pool: &SqlitePool, id: i64) -> Result<Profile> {
     .await?)
 }
 
+pub async fn week_start(pool: &SqlitePool, profile_id: i64) -> Result<Weekday> {
+    let (value,): (i64,) = sqlx::query_as("SELECT week_start FROM profiles WHERE id = ?")
+        .bind(profile_id)
+        .fetch_one(pool)
+        .await?;
+    // Anything out of range falls back to Monday rather than breaking
+    // display reads on a row a hand-edited DB could produce.
+    Ok(Weekday::from_index(value).unwrap_or(Weekday::Monday))
+}
+
+pub async fn set_week_start(pool: &SqlitePool, profile_id: i64, weekday: Weekday) -> Result<()> {
+    sqlx::query("UPDATE profiles SET week_start = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(weekday.index())
+        .bind(profile_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn seeded_pool() -> (SqlitePool, i64) {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "meander-profiles-test-{}-{nanos}.db",
+            std::process::id()
+        ));
+        let pool = crate::db::connect(&path).await.unwrap();
+        crate::db::seed(&pool).await.unwrap();
+        let pid = list(&pool).await.unwrap()[0].id;
+        (pool, pid)
+    }
+
+    #[tokio::test]
+    async fn week_start_defaults_to_monday_and_updates() {
+        let (pool, pid) = seeded_pool().await;
+        assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Monday);
+        set_week_start(&pool, pid, Weekday::Sunday).await.unwrap();
+        assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Sunday);
+    }
+
+    #[tokio::test]
+    async fn week_start_falls_back_to_monday_on_an_out_of_range_value() {
+        let (pool, pid) = seeded_pool().await;
+        sqlx::query("UPDATE profiles SET week_start = 9 WHERE id = ?")
+            .bind(pid)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Monday);
+    }
 
     #[test]
     fn accepts_a_name_at_the_limit() {

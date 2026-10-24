@@ -2,7 +2,10 @@ import { RecurrenceKind, Weekday } from "@/lib/enums";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { NewSeries } from "@/api/bindings";
+import { QueryClientProvider } from "@tanstack/react-query";
+
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import { testQueryClient } from "@/test/queryClient";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
@@ -23,7 +26,11 @@ const ID_PREFIX = "test-task";
 
 const renderField = () => {
   const onChange = vi.fn();
-  render(<RepeatScheduleFields idPrefix={ID_PREFIX} onChange={onChange} />);
+  render(
+    <QueryClientProvider client={testQueryClient()}>
+      <RepeatScheduleFields idPrefix={ID_PREFIX} onChange={onChange} />
+    </QueryClientProvider>,
+  );
   return onChange;
 };
 

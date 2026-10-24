@@ -1,12 +1,17 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
+import { weekStart as fetchWeekStart } from "@/api/profiles";
+import { QUERY_KEYS } from "@/api/queryKeys";
+import { Weekday } from "@/lib/enums";
 import {
   CALENDAR_LEGEND_PERSISTED,
   CALENDAR_LEGEND_SCHEDULED,
   CALENDAR_NEXT_LABEL,
   CALENDAR_PREVIOUS_LABEL,
   WEEKDAY_OPTIONS,
+  weekdaysFrom,
 } from "@/lib/labels";
 import { isScheduledOn } from "@/lib/recurrence";
 import { todayLocalIso } from "@/lib/utils";
@@ -16,11 +21,6 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 const toIso = (d: Date) =>
   `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-
-// Display order only: canonical WEEKDAY_OPTIONS happens to start on Monday,
-// the default week start. When the week-start setting lands, rotate a copy
-// here — do not reorder the canonical registry.
-const WEEK_ORDER = WEEKDAY_OPTIONS;
 
 const monthLabel = (year: number, month: number, locale?: string) =>
   new Date(Date.UTC(year, month, 1)).toLocaleDateString(locale, {
@@ -44,6 +44,12 @@ export function InstanceCalendar({
   selectedIso,
   onPick,
 }: Readonly<InstanceCalendarProps>) {
+  const { data: weekStart = Weekday.Monday } = useQuery({
+    queryKey: QUERY_KEYS.weekStart,
+    queryFn: fetchWeekStart,
+  });
+  const weekOrder = weekdaysFrom(weekStart);
+
   const anchor = selectedIso ?? todayLocalIso();
   const [month, setMonth] = useState(() =>
     Date.UTC(Number(anchor.slice(0, 4)), Number(anchor.slice(5, 7)) - 1, 1),
@@ -51,8 +57,14 @@ export function InstanceCalendar({
 
   const cells = useMemo(() => {
     const first = new Date(month);
-    // Offset back to the Monday of the first displayed week.
-    const monday = new Date(month - ((first.getUTCDay() + 6) % 7) * DAY_MS);
+    // Offset back to the configured week start of the first displayed
+    // week. JS getUTCDay is Sunday-based; Weekday is Monday-first.
+    const configured =
+      weekStart === Weekday.Sunday
+        ? 0
+        : WEEKDAY_OPTIONS.findIndex((o) => o.value === weekStart) + 1;
+    const back = ((first.getUTCDay() - configured + 7) % 7) * DAY_MS;
+    const monday = new Date(month - back);
     // Six weeks covers every possible month layout.
     return Array.from({ length: 42 }, (_, i) => {
       const date = new Date(monday.getTime() + i * DAY_MS);
@@ -62,7 +74,7 @@ export function InstanceCalendar({
         day: date.getUTCDate(),
       };
     });
-  }, [month]);
+  }, [month, weekStart]);
 
   const monthDate = new Date(month);
   const shiftMonth = (delta: number) =>
@@ -100,7 +112,7 @@ export function InstanceCalendar({
         </div>
       </div>
       <div className="mt-3 grid grid-cols-7 gap-1">
-        {WEEK_ORDER.map((w) => (
+        {weekOrder.map((w) => (
           <span key={w.value} className="text-center text-xs text-text-muted">
             {w.short}
           </span>

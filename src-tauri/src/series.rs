@@ -22,6 +22,26 @@ pub enum Weekday {
     Sunday,
 }
 
+impl Weekday {
+    /// Index in declaration order, Monday = 0 — matches `weekday_index`.
+    pub(crate) fn index(self) -> i64 {
+        i64::from(self as u8)
+    }
+
+    pub(crate) fn from_index(i: i64) -> Option<Self> {
+        Some(match i {
+            0 => Self::Monday,
+            1 => Self::Tuesday,
+            2 => Self::Wednesday,
+            3 => Self::Thursday,
+            4 => Self::Friday,
+            5 => Self::Saturday,
+            6 => Self::Sunday,
+            _ => return None,
+        })
+    }
+}
+
 /// Spec §111-121: the supported recurrence shapes are a closed set —
 /// daily/weekly/monthly and the named positional variants. Stored as
 /// serde JSON in `task_series.recurrence`; the wire type and the stored

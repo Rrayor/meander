@@ -4,10 +4,12 @@ import {
   TaskStatus,
   Weekday,
 } from "@/lib/enums";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
+import { testQueryClient } from "@/test/queryClient";
 import {
   CALENDAR_NEXT_LABEL,
   CALENDAR_PREVIOUS_LABEL,
@@ -67,12 +69,14 @@ const renderCalendar = (
   vi.useFakeTimers();
   vi.setSystemTime(new Date(TODAY_TIME));
   render(
-    <InstanceCalendar
-      series={[series]}
-      instances={instances}
-      selectedIso={selectedIso}
-      onPick={onPick}
-    />,
+    <QueryClientProvider client={testQueryClient()}>
+      <InstanceCalendar
+        series={[series]}
+        instances={instances}
+        selectedIso={selectedIso}
+        onPick={onPick}
+      />
+    </QueryClientProvider>,
   );
   return onPick;
 };
@@ -84,12 +88,14 @@ describe("InstanceCalendar", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(TODAY_TIME));
     const { container } = render(
-      <InstanceCalendar
-        series={[series]}
-        instances={[]}
-        selectedIso={null}
-        onPick={vi.fn()}
-      />,
+      <QueryClientProvider client={testQueryClient()}>
+        <InstanceCalendar
+          series={[series]}
+          instances={[]}
+          selectedIso={null}
+          onPick={vi.fn()}
+        />
+      </QueryClientProvider>,
     );
     const headerTexts = Array.from(container.querySelector(".grid")!.children)
       .slice(0, 7)

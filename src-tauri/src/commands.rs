@@ -5,6 +5,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use crate::config::{self, Config};
 use crate::errors::ApiError;
 use crate::profiles::{self, Profile};
+use crate::series::Weekday;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -692,4 +693,18 @@ mod tests {
         let err = delete_task(ids[0], state.clone()).await.unwrap_err();
         assert_eq!(err.code, crate::errors::ErrorCode::TaskNotFound);
     }
+}
+
+#[tauri::command]
+pub async fn week_start(state: State<'_, AppState>) -> Result<Weekday, ApiError> {
+    profiles::week_start(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn set_week_start(state: State<'_, AppState>, weekday: Weekday) -> Result<(), ApiError> {
+    profiles::set_week_start(&state.pool(), state.active_profile_id(), weekday)
+        .await
+        .map_err(ApiError::from)
 }
