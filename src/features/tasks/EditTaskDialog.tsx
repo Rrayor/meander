@@ -192,6 +192,102 @@ interface TaskDetailsViewProps {
   deletePrompt?: ReactNode;
 }
 
+function DeleteConfirmPanel({
+  isSeries,
+  pendingIso,
+  scheduledDate,
+  deleteScope,
+  error,
+  deleting,
+  onScopeChange,
+  onCancel,
+  onConfirm,
+}: Readonly<{
+  isSeries: boolean;
+  pendingIso: string | null;
+  scheduledDate: string | null;
+  deleteScope: TaskScope;
+  error: string | null | undefined;
+  deleting: boolean;
+  onScopeChange: (scope: TaskScope) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-surface-raised/60 p-4">
+      <h3 className="text-sm font-semibold text-danger">
+        {DELETE_TASK_HEADING}
+      </h3>
+      {isSeries && (
+        <fieldset className="flex flex-col gap-2">
+          {[
+            {
+              value: TaskScope.Instance,
+              label: TASK_SCOPE_INSTANCE_LABEL,
+              shown: pendingIso === null,
+            },
+            {
+              value: TaskScope.Series,
+              label: TASK_SCOPE_SERIES_LABEL,
+              shown: true,
+            },
+            {
+              value: TaskScope.Future,
+              label: DELETE_SCOPE_FUTURE_LABEL,
+              shown: (pendingIso ?? scheduledDate) !== null,
+            },
+          ]
+            .filter(({ shown }) => shown)
+            .map(({ value, label }) => (
+              <label
+                key={value}
+                className="flex items-center gap-2 text-sm text-text"
+              >
+                <input
+                  type="radio"
+                  name="task-delete-scope"
+                  value={value}
+                  checked={deleteScope === value}
+                  onChange={() => onScopeChange(value)}
+                  className="accent-danger"
+                />
+                {label}
+              </label>
+            ))}
+        </fieldset>
+      )}
+      <p className="text-xs text-text-muted">{DELETE_UNDO_WARNING}</p>
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border px-4 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+        >
+          {DELETE_KEEP_LABEL}
+        </button>
+        <button
+          type="button"
+          disabled={
+            deleting ||
+            (isSeries &&
+              deleteScope === TaskScope.Instance &&
+              pendingIso !== null)
+          }
+          onClick={onConfirm}
+          className="rounded-md bg-danger px-4 py-1.5 text-sm font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50"
+        >
+          {DELETE_BUTTON_LABEL}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PendingOccurrence({
   segment,
   materializing,
@@ -501,6 +597,35 @@ function usePendingSegment(
     enabled: pendingSegment !== undefined,
   });
   return { pendingSegment, pendingCats };
+}
+
+function seriesUpdatePayload(
+  shared: {
+    title: string;
+    description: string | null;
+    estimated_minutes: number | null;
+    carry_over_rule: UpdateSeries["carry_over_rule"];
+  },
+  seriesDraft: {
+    recurrence: UpdateSeries["recurrence"];
+    start_date: string;
+    end_date: string | null;
+  } | null,
+  seriesRow: TaskSeries,
+  categoryIds: number[],
+): UpdateSeries {
+  const schedule = seriesDraft ?? {
+    recurrence: seriesRow.recurrence,
+    start_date: seriesRow.start_date,
+    end_date: seriesRow.end_date,
+  };
+  return {
+    ...shared,
+    recurrence: schedule.recurrence,
+    start_date: schedule.start_date,
+    end_date: schedule.end_date,
+    category_ids: categoryIds,
+  };
 }
 
 function toMinutes(hours: string, minutes: string) {
@@ -954,18 +1079,12 @@ export function EditTaskDialog({
       carry_over_rule: carryOverToWire(values.carryOver),
     };
     if (saveScope !== TaskScope.Instance) {
-      const schedule = seriesDraft ?? {
-        recurrence: seriesRow!.recurrence,
-        start_date: seriesRow!.start_date,
-        end_date: seriesRow!.end_date,
-      };
-      const payload = {
-        ...shared,
-        recurrence: schedule.recurrence,
-        start_date: schedule.start_date,
-        end_date: schedule.end_date,
-        category_ids: categories.map((c) => c.id),
-      };
+      const payload = seriesUpdatePayload(
+        shared,
+        seriesDraft,
+        seriesRow!,
+        categories.map((c) => c.id),
+      );
       // "This and future" splits the series at the viewed date; the
       // backend anchors the new series on fromDate (spec §146).
       if (saveScope === TaskScope.Future) {
@@ -1211,79 +1330,17 @@ export function EditTaskDialog({
             }}
             deletePrompt={
               confirmingDelete ? (
-                <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-surface-raised/60 p-4">
-                  <h3 className="text-sm font-semibold text-danger">
-                    {DELETE_TASK_HEADING}
-                  </h3>
-                  {task.series_id !== null && (
-                    <fieldset className="flex flex-col gap-2">
-                      {[
-                        {
-                          value: TaskScope.Instance,
-                          label: TASK_SCOPE_INSTANCE_LABEL,
-                          shown: pendingIso === null,
-                        },
-                        {
-                          value: TaskScope.Series,
-                          label: TASK_SCOPE_SERIES_LABEL,
-                          shown: true,
-                        },
-                        {
-                          value: TaskScope.Future,
-                          label: DELETE_SCOPE_FUTURE_LABEL,
-                          shown: (pendingIso ?? viewed.scheduled_date) !== null,
-                        },
-                      ]
-                        .filter(({ shown }) => shown)
-                        .map(({ value, label }) => (
-                          <label
-                            key={value}
-                            className="flex items-center gap-2 text-sm text-text"
-                          >
-                            <input
-                              type="radio"
-                              name="task-delete-scope"
-                              value={value}
-                              checked={deleteScope === value}
-                              onChange={() => setDeleteScope(value)}
-                              className="accent-danger"
-                            />
-                            {label}
-                          </label>
-                        ))}
-                    </fieldset>
-                  )}
-                  <p className="text-xs text-text-muted">
-                    {DELETE_UNDO_WARNING}
-                  </p>
-                  {serverErrorMessage(remove.error) && (
-                    <p role="alert" className="text-sm text-danger">
-                      {serverErrorMessage(remove.error)}
-                    </p>
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDelete(false)}
-                      className="rounded-md border border-border px-4 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
-                    >
-                      {DELETE_KEEP_LABEL}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={
-                        remove.isPending ||
-                        (task.series_id !== null &&
-                          deleteScope === TaskScope.Instance &&
-                          pendingIso !== null)
-                      }
-                      onClick={() => remove.mutate()}
-                      className="rounded-md bg-danger px-4 py-1.5 text-sm font-medium text-on-primary transition-colors hover:brightness-110 disabled:opacity-50"
-                    >
-                      {DELETE_BUTTON_LABEL}
-                    </button>
-                  </div>
-                </div>
+                <DeleteConfirmPanel
+                  isSeries={task.series_id !== null}
+                  pendingIso={pendingIso}
+                  scheduledDate={viewed.scheduled_date}
+                  deleteScope={deleteScope}
+                  error={serverErrorMessage(remove.error)}
+                  deleting={remove.isPending}
+                  onScopeChange={setDeleteScope}
+                  onCancel={() => setConfirmingDelete(false)}
+                  onConfirm={() => remove.mutate()}
+                />
               ) : null
             }
           />
