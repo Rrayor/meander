@@ -11,11 +11,11 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
-// Real end-to-end path: picking a scheduled-but-unpersisted date goes
-// through get_or_create_instance IPC and SQLite, so the materialized
-// instance must become editable in the same dialog session.
+// Real end-to-end path: editing a scheduled-but-unpersisted date goes
+// through get_or_create_instance IPC and SQLite — the Edit click is what
+// materializes the row, and the dialog must enter edit mode on it.
 describe("Series instance smoke", () => {
-  it("materializes a scheduled-only date into an editable instance", async () => {
+  it("materializes a scheduled-only date on edit intent", async () => {
     const taskTitle = `Smoke series ${Date.now()}`;
 
     const nav = await $(`aria/${NAV_LABEL}`);
@@ -48,12 +48,13 @@ describe("Series instance smoke", () => {
     }
     await (await $(`${dialog} button[aria-label='${pick}']`)).click();
 
-    // The materialized instance replaces the pending placeholder and is
-    // editable because it is a future occurrence.
-    const pendingPanel = await $(dialog).$(
-      `*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`,
+    // The pending placeholder shows until the Edit click materializes
+    // the instance; a future date opens straight into edit mode.
+    await browser.waitUntil(async () =>
+      (
+        await $(dialog).$(`*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`)
+      ).isExisting(),
     );
-    await browser.waitUntil(async () => !(await pendingPanel.isExisting()));
     const dialogEl = await $(dialog);
     const editButton = await dialogEl.$(`aria/${EDIT_BUTTON_LABEL}`);
     await expect(editButton).toExist();

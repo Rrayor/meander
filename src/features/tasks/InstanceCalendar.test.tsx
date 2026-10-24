@@ -28,6 +28,7 @@ const series: TaskSeries = {
   },
   start_date: "2026-10-05",
   end_date: null,
+  succeeded_by: null,
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-11 10:00:00",
 };
@@ -67,7 +68,7 @@ const renderCalendar = (
   vi.setSystemTime(new Date(TODAY_TIME));
   render(
     <InstanceCalendar
-      series={series}
+      series={[series]}
       instances={instances}
       selectedIso={selectedIso}
       onPick={onPick}
@@ -84,7 +85,7 @@ describe("InstanceCalendar", () => {
     vi.setSystemTime(new Date(TODAY_TIME));
     const { container } = render(
       <InstanceCalendar
-        series={series}
+        series={[series]}
         instances={[]}
         selectedIso={null}
         onPick={vi.fn()}

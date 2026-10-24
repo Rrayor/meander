@@ -431,6 +431,10 @@ pub struct TaskSeries {
     pub recurrence: Recurrence,
     pub start_date: String,
     pub end_date: Option<String>,
+    /// Set only on earlier segments: the living series this pre-split
+    /// schedule continues as (spec §146). Segments produce occurrences
+    /// only within their own start/end window.
+    pub succeeded_by: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -442,6 +446,7 @@ struct SeriesRow {
     title: String,
     description: Option<String>,
     carry_over_rule: CarryOverRule,
+    succeeded_by: Option<i64>,
     estimated_minutes: Option<i64>,
     recurrence: String,
     start_date: String,
@@ -451,7 +456,7 @@ struct SeriesRow {
 }
 
 const SERIES_COLUMNS: &str = "id, profile_id, title, description, carry_over_rule, estimated_minutes, \
-     recurrence, start_date, end_date, created_at, updated_at";
+     recurrence, start_date, end_date, succeeded_by, created_at, updated_at";
 
 /// Decodes a stored row. A recurrence blob that fails to parse means the
 /// stored document drifted from the enum — an internal error, not input.
@@ -469,6 +474,7 @@ fn into_series(row: SeriesRow) -> Result<TaskSeries> {
         })?,
         start_date: row.start_date,
         end_date: row.end_date,
+        succeeded_by: row.succeeded_by,
         created_at: row.created_at,
         updated_at: row.updated_at,
     })
@@ -619,11 +625,18 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<TaskSeries>>
 /// Deletes a series scoped to its owning profile; instances cascade
 /// (spec §154). Unknown or foreign ids are an error, not a no-op.
 pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
-    let result = sqlx::query("DELETE FROM task_series WHERE id = ? AND profile_id = ?")
-        .bind(id)
-        .bind(profile_id)
-        .execute(pool)
-        .await?;
+    // Deleting a split series removes its whole chain: earlier segments
+    // reference the living row through succeeded_by, so they must go in
+    // the same delete or the FK blocks it. Instance rows cascade from
+    // every segment.
+    let result = sqlx::query(
+        "DELETE FROM task_series WHERE (id = ? OR succeeded_by = ?) AND profile_id = ?",
+    )
+    .bind(id)
+    .bind(id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(series_not_found());
     }
@@ -786,6 +799,184 @@ pub async fn truncate(pool: &SqlitePool, profile_id: i64, id: i64, from_date: &s
         .await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// "This and future" editing (spec §146/§234): splits the series at
+/// `from_date` *invisibly* — the living series keeps its id, so every
+/// reference (open dialogs, notes, queries) sees the edit immediately.
+/// A new earlier segment carries the past: it is a clone of the old
+/// schedule ended the day before the cutoff (same rule as `truncate`),
+/// and persisted instances before `from_date` move onto it with their
+/// custom values untouched. The living series then takes the edited
+/// fields and schedule starting at the cutoff — identical to a
+/// series-scope `update` restricted to the future. Repeated splits just
+/// add more segments; nothing assumes a single one. A `from_date` at
+/// or before the start with nothing earlier persisted is a full update.
+pub async fn update_from(
+    pool: &SqlitePool,
+    profile_id: i64,
+    id: i64,
+    from_date: &str,
+    input: &UpdateSeries,
+) -> Result<TaskSeries> {
+    iso_date(from_date, ErrorCode::InstanceDateInvalid, "from date")?;
+    let row = owned_row(pool, profile_id, id).await?;
+    let earlier: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date < ?")
+            .bind(id)
+            .bind(from_date)
+            .fetch_one(pool)
+            .await?;
+    // A cutoff at the series start degenerates to a full update when
+    // nothing earlier persisted — a start moved forward can leave
+    // off-schedule rows behind that must not be overwritten. A cutoff
+    // *before* the start is ambiguous: a stale retry of a superseded
+    // split lands in an earlier segment's window, while a legit edit
+    // anchored on an off-schedule persisted row does not. Only the
+    // former is an idempotent no-op; the latter applies normally.
+    if earlier == 0 {
+        if from_date == row.start_date {
+            return update(pool, profile_id, id, input).await;
+        }
+        if from_date < row.start_date.as_str() {
+            let covered: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM task_series \
+                 WHERE succeeded_by = ? AND start_date <= ? \
+                 AND (end_date IS NULL OR end_date >= ?))",
+            )
+            .bind(id)
+            .bind(from_date)
+            .bind(from_date)
+            .fetch_one(pool)
+            .await?;
+            if covered {
+                return get(pool, profile_id, id).await;
+            }
+            // Uncovered and before the start is only legitimate when a
+            // persisted row anchors the cutoff (a moved start's
+            // survivor). Without one the date is fabricated — applying
+            // the payload would rewrite the whole series.
+            let anchored: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM tasks \
+                 WHERE series_id = ? AND scheduled_date = ?)",
+            )
+            .bind(id)
+            .bind(from_date)
+            .fetch_one(pool)
+            .await?;
+            if !anchored {
+                return Err(crate::db::DbError::Validation {
+                    code: ErrorCode::InstanceDateNotScheduled,
+                    message: "no instance of this series exists on that date".into(),
+                });
+            }
+            return update(pool, profile_id, id, input).await;
+        }
+    }
+    let later: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= ?",
+    )
+    .bind(id)
+    .bind(from_date)
+    .fetch_one(pool)
+    .await?;
+    // A real split always keeps at least the anchored instance. Zero
+    // rows means the split already ran (a retried submit against the
+    // old id) or the anchor never belonged to the series.
+    if later == 0 {
+        return Err(crate::db::DbError::Validation {
+            code: ErrorCode::InstanceDateNotScheduled,
+            message: "no instance of this series exists on or after that date".into(),
+        });
+    }
+    let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
+
+    if earlier > 0 {
+        // Earlier segment: a clone of the old series, ended the day
+        // before the cutoff (earlier of from-1 and any existing end),
+        // taking over the persisted past. Its categories mirror the old
+        // set so the moved instances keep their chips.
+        let (y, m, d) = parse_iso(from_date);
+        let proposed = to_iso(civil_from_days(days_from_civil(y, m, d) - 1));
+        let segment_end = match &row.end_date {
+            Some(existing) if existing < &proposed => existing.clone(),
+            _ => proposed,
+        };
+        let segment: SeriesRow = sqlx::query_as(&format!(
+            "INSERT INTO task_series \
+             (profile_id, title, description, carry_over_rule, estimated_minutes, \
+              recurrence, start_date, end_date, succeeded_by) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING {SERIES_COLUMNS}"
+        ))
+        .bind(profile_id)
+        .bind(&row.title)
+        .bind(&row.description)
+        .bind(row.carry_over_rule)
+        .bind(row.estimated_minutes)
+        .bind(&row.recurrence)
+        .bind(&row.start_date)
+        .bind(&segment_end)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        sqlx::query(
+            "INSERT INTO series_categories (series_id, category_id) \
+             SELECT ?, category_id FROM series_categories WHERE series_id = ?",
+        )
+        .bind(segment.id)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("UPDATE tasks SET series_id = ? WHERE series_id = ? AND scheduled_date < ?")
+            .bind(segment.id)
+            .bind(id)
+            .bind(from_date)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // The living series takes the edited values; its start anchors at
+    // the cutoff so persisted instances can never sit before it.
+    let prepared = prepare(
+        &input.recurrence,
+        &input.title,
+        input.description.as_deref(),
+        from_date,
+        input.end_date.as_deref(),
+    )?;
+    let carry_over = input.carry_over_rule.unwrap_or(CarryOverRule::Return);
+    let estimated = crate::tasks::parse_estimate(input.estimated_minutes)?;
+    sqlx::query(
+        "UPDATE task_series SET title = ?, description = ?, carry_over_rule = ?, \
+         estimated_minutes = ?, recurrence = ?, start_date = ?, end_date = ?, \
+         updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(&prepared.title)
+    .bind(&prepared.description)
+    .bind(carry_over)
+    .bind(estimated)
+    .bind(&prepared.recurrence_json)
+    .bind(&prepared.start)
+    .bind(&prepared.end)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE tasks SET title = ?, description = ?, carry_over_rule = ?, \
+         estimated_minutes = ?, updated_at = CURRENT_TIMESTAMP \
+         WHERE series_id = ? AND scheduled_date >= ?",
+    )
+    .bind(&prepared.title)
+    .bind(&prepared.description)
+    .bind(carry_over)
+    .bind(estimated)
+    .bind(id)
+    .bind(from_date)
+    .execute(&mut *tx)
+    .await?;
+    sync_categories(&mut tx, pool, profile_id, id, &input.category_ids).await?;
+    tx.commit().await?;
+    into_series(owned_row(pool, profile_id, id).await?)
 }
 
 /// Categories attached to a series, ordered like the task-scoped listing.
@@ -1331,6 +1522,7 @@ mod tests {
 
     const NEW_TITLE: &str = "Mow the lawn";
     const SECOND_INSTANCE_DATE: &str = "2026-10-26";
+    const INSTANCE_FIXTURE_TITLE: &str = "custom title";
     const THIRD_INSTANCE_DATE: &str = "2026-11-02";
 
     fn update_input(recurrence: Recurrence) -> UpdateSeries {
@@ -1352,9 +1544,10 @@ mod tests {
         sqlx::query(
             "INSERT INTO tasks (profile_id, title, description, carry_over_rule, \
              estimated_minutes, series_id, scheduled_date, sort_order) \
-             VALUES (?, 'custom title', 'custom notes', 'carry', 5, ?, ?, 0)",
+             VALUES (?, ?, 'custom notes', 'carry', 5, ?, ?, 0)",
         )
         .bind(profile_id)
+        .bind(INSTANCE_FIXTURE_TITLE)
         .bind(series_id)
         .bind(iso)
         .execute(pool)
@@ -1645,5 +1838,368 @@ mod tests {
             .unwrap()
                 == 0
         );
+    }
+
+    #[tokio::test]
+    async fn update_from_splits_a_prior_segment_off_the_living_series() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let first = add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        let third = add_instance(&pool, pid, saved.id, THIRD_INSTANCE_DATE).await;
+
+        let updated = update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+
+        // The living series keeps its id and takes the edited values
+        // anchored at the cutoff.
+        assert_eq!(updated.id, saved.id);
+        assert_eq!(updated.title, NEW_TITLE);
+        assert_eq!(updated.start_date, SECOND_INSTANCE_DATE);
+
+        // The prior segment is a clone of the old schedule ended the
+        // day before, holding the past instance with its custom values.
+        let series = list(&pool, pid).await.unwrap();
+        assert_eq!(series.len(), 2);
+        let segment = series.iter().find(|s| s.id != saved.id).unwrap();
+        assert_eq!(segment.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(segment.start_date, START);
+        let past = instance(&pool, first).await;
+        assert_eq!(past.series_id, Some(segment.id));
+        assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
+
+        // Future rows stay on the living series — ids preserved — with
+        // the edited shared fields written over them.
+        for id in [second, third] {
+            let moved = instance(&pool, id).await;
+            assert_eq!(moved.series_id, Some(saved.id));
+            assert_eq!(moved.title, NEW_TITLE);
+            assert_eq!(moved.description.as_deref(), Some("weekly chore"));
+        }
+
+        // The backlog shows one entry per series — the earliest
+        // instance, which sits on the prior segment (spec §146: a
+        // continuing series, not a new entry).
+        let backlog: Vec<i64> = crate::tasks::list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
+        assert!(backlog.contains(&first));
+        assert!(!backlog.contains(&second));
+        assert!(!backlog.contains(&third));
+
+        // The details view resolves the whole series from any member:
+        // instances queried through the prior segment still see the
+        // future.
+        let via_segment = crate::tasks::list_instances(&pool, pid, segment.id)
+            .await
+            .unwrap();
+        assert_eq!(via_segment.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn update_from_syncs_categories_onto_the_living_series() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let first = add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        let cat = crate::categories::create(
+            &pool,
+            pid,
+            &crate::categories::NewCategory {
+                title: "Home".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        // The old series had this category; the segment must keep it.
+        let mut input = update_input(weekly());
+        input.category_ids = vec![cat.id];
+        update(&pool, pid, saved.id, &input).await.unwrap();
+
+        let new_cat = crate::categories::create(
+            &pool,
+            pid,
+            &crate::categories::NewCategory {
+                title: "Work".to_string(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        input.category_ids = vec![new_cat.id];
+        update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        // The living series takes the new set; the moved-off past keeps
+        // the segment's copy of the old one.
+        assert_eq!(
+            list_categories(&pool, pid, saved.id).await.unwrap()[0].id,
+            new_cat.id
+        );
+        assert_eq!(
+            crate::categories::for_task(&pool, pid, second)
+                .await
+                .unwrap()[0]
+                .id,
+            new_cat.id
+        );
+        let segment = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id != saved.id)
+            .unwrap();
+        assert_eq!(
+            list_categories(&pool, pid, segment.id).await.unwrap()[0].id,
+            cat.id
+        );
+        assert_eq!(
+            crate::categories::for_task(&pool, pid, first)
+                .await
+                .unwrap()[0]
+                .id,
+            cat.id
+        );
+    }
+
+    #[tokio::test]
+    async fn update_from_at_or_before_the_start_is_a_full_update() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let result = update_from(&pool, pid, saved.id, START, &update_input(weekly()))
+            .await
+            .unwrap();
+
+        // No split — the same row came back updated.
+        assert_eq!(result.id, saved.id);
+        assert_eq!(result.title, NEW_TITLE);
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 1);
+        assert_eq!(instance(&pool, second).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_rejects_foreign_series_and_bad_dates() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let other = crate::profiles::create(&pool, "Work").await.unwrap();
+
+        assert_code(
+            &update_from(
+                &pool,
+                other.id,
+                saved.id,
+                SECOND_INSTANCE_DATE,
+                &update_input(weekly()),
+            )
+            .await
+            .unwrap_err(),
+            ErrorCode::SeriesNotFound,
+        );
+        assert_code(
+            &update_from(&pool, pid, saved.id, "not-a-date", &update_input(weekly()))
+                .await
+                .unwrap_err(),
+            ErrorCode::InstanceDateInvalid,
+        );
+    }
+
+    #[tokio::test]
+    async fn update_from_before_the_start_still_splits_when_earlier_rows_exist() {
+        const MOVED_START: &str = "2026-11-02";
+
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        // An off-schedule persisted row before a start the user moved
+        // forward — a full update must not overwrite it.
+        let early = add_instance(&pool, pid, saved.id, START).await;
+        sqlx::query("UPDATE task_series SET start_date = ? WHERE id = ?")
+            .bind(MOVED_START)
+            .bind(saved.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let later = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let updated = update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updated.id, saved.id);
+        let past = instance(&pool, early).await;
+        let segment = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id != saved.id)
+            .unwrap();
+        assert_eq!(past.series_id, Some(segment.id));
+        assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
+        let moved = instance(&pool, later).await;
+        assert_eq!(moved.series_id, Some(saved.id));
+        assert_eq!(moved.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_a_retried_split_is_a_harmless_full_update() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        let input = update_input(weekly());
+        update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        // Retrying against the same (living) id: no earlier rows remain
+        // and the cutoff is its start, so it degenerates to a normal
+        // whole-series update — same values, no duplicate, no error.
+        let result = update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+        assert_eq!(result.id, saved.id);
+        let all = list(&pool, pid).await.unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(instance(&pool, second).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_a_stale_retry_after_a_later_split_is_a_no_op() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        for iso in [START, SECOND_INSTANCE_DATE, THIRD_INSTANCE_DATE] {
+            add_instance(&pool, pid, saved.id, iso).await;
+        }
+
+        let input = update_input(weekly());
+        update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+        update_from(&pool, pid, saved.id, THIRD_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        // A stale retry of the first split arrives after the second one
+        // moved the living start forward. Rewinding the start would
+        // overlap the second segment's window, so the call must leave
+        // everything as-is.
+        let result = update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+        assert_eq!(result.start_date, THIRD_INSTANCE_DATE);
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn update_from_before_a_moved_start_still_saves() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let anchor = add_instance(&pool, pid, saved.id, START).await;
+        add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        // A whole-series update can move the start past persisted rows
+        // without deleting them (off-schedule survivors).
+        let mut moved = update_input(weekly());
+        moved.start_date = THIRD_INSTANCE_DATE.into();
+        update(&pool, pid, saved.id, &moved).await.unwrap();
+
+        // Editing the earliest row — now predating the start — must
+        // apply, not be mistaken for a stale retry: no earlier segment
+        // covers its date.
+        let result = update_from(&pool, pid, saved.id, START, &update_input(weekly()))
+            .await
+            .unwrap();
+        assert_eq!(result.title, NEW_TITLE);
+        assert_eq!(instance(&pool, anchor).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_a_fabricated_pre_start_date_rejects() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let anchor = add_instance(&pool, pid, saved.id, START).await;
+
+        // No segment and no instance on the cutoff — a fabricated
+        // from_date must not rewrite the whole series.
+        let err = update_from(&pool, pid, saved.id, "2026-10-05", &update_input(weekly()))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::InstanceDateNotScheduled,
+                ..
+            }
+        ));
+        assert_eq!(instance(&pool, anchor).await.title, INSTANCE_FIXTURE_TITLE);
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_whole_segment_chain() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        for iso in [START, SECOND_INSTANCE_DATE] {
+            add_instance(&pool, pid, saved.id, iso).await;
+        }
+        update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 2);
+
+        delete(&pool, pid, saved.id).await.unwrap();
+
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 0);
+        let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE profile_id = ?")
+            .bind(pid)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(remaining, 0);
     }
 }

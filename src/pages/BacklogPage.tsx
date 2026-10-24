@@ -131,10 +131,23 @@ export function BacklogPage() {
     }),
   );
 
-  const { data: tasks, error } = useQuery({
+  const { data: allTasks, error } = useQuery({
     queryKey: QUERY_KEYS.tasks,
     queryFn: listTasks,
   });
+  // One backlog entry per series — the anchor row stands in for it.
+  // Persisted later instances belong to the series, not the backlog.
+  const anchorBySeries = new Map<number, number>();
+  for (const t of allTasks ?? []) {
+    if (t.series_id === null) continue;
+    const current = anchorBySeries.get(t.series_id);
+    if (current === undefined || t.id < current) {
+      anchorBySeries.set(t.series_id, t.id);
+    }
+  }
+  const tasks = allTasks?.filter(
+    (t) => t.series_id === null || anchorBySeries.get(t.series_id) === t.id,
+  );
   const move = useMutation({
     mutationFn: ({
       taskId,

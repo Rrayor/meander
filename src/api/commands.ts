@@ -26,6 +26,7 @@ export const COMMANDS = {
   deleteTaskSeries: "delete_task_series",
   updateTaskSeries: "update_task_series",
   truncateTaskSeries: "truncate_task_series",
+  updateTaskSeriesFrom: "update_task_series_from",
   listSeriesCategories: "list_series_categories",
   listTaskNotes: "list_task_notes",
   listSeriesNotes: "list_series_notes",

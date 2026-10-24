@@ -21,6 +21,7 @@ import {
   serverErrorMessage,
 } from "@/lib/errors";
 import {
+  REPEAT_ENDS_ADD_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   TITLE_REQUIRED_MESSAGE,
   removeTaskCategoryLabel,
@@ -385,6 +386,7 @@ describe("NewTaskDialog", () => {
   it("disables Create while the repeat schedule is invalid", async () => {
     renderDialog();
     fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(/Ends/), {
       target: { value: "2020-01-01" },
     });
@@ -404,6 +406,7 @@ describe("NewTaskDialog", () => {
       {} as Awaited<ReturnType<typeof createTask>>,
     );
     fireEvent.click(screen.getByRole("button", { name: /Repeat/ }));
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     const ends = screen.getByLabelText(/Ends/);
     fireEvent.change(ends, { target: { value: "2020-01-01" } });
     expect(screen.getByRole("button", { name: "Create task" })).toBeDisabled();
@@ -454,6 +457,7 @@ describe("NewTaskDialog", () => {
     // While the create is in flight the user breaks the schedule — the
     // section unmounts when the task links, and that stale error must not
     // keep the retry disabled.
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(/Ends/), {
       target: { value: "2020-01-01" },
     });
