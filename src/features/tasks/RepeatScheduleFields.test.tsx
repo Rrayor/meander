@@ -5,6 +5,7 @@ import type { NewSeries } from "@/api/bindings";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { testQueryClient } from "@/test/queryClient";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
@@ -19,15 +20,20 @@ import {
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
   WEEKDAY_OPTIONS,
+  weekdaysFrom,
 } from "@/lib/labels";
 import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 
 const ID_PREFIX = "test-task";
 
-const renderField = () => {
+const renderField = (weekStart?: Weekday) => {
   const onChange = vi.fn();
+  const client = testQueryClient();
+  if (weekStart !== undefined) {
+    client.setQueryData(QUERY_KEYS.weekStart, weekStart);
+  }
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={client}>
       <RepeatScheduleFields idPrefix={ID_PREFIX} onChange={onChange} />
     </QueryClientProvider>,
   );
@@ -90,6 +96,19 @@ describe("RepeatScheduleFields", () => {
     expect(new Set(weekdays)).toEqual(
       new Set([todayWeekday(), Weekday.Friday]),
     );
+  });
+
+  it("orders the weekly weekday chips from the configured week start", () => {
+    renderField(Weekday.Sunday);
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+    const dayNames = new RegExp(
+      `^(${WEEKDAY_OPTIONS.map((o) => o.label).join("|")})$`,
+    );
+    const chips = screen
+      .getAllByRole("button", { name: dayNames })
+      .map((b) => b.getAttribute("aria-label"));
+    expect(chips).toEqual(weekdaysFrom(Weekday.Sunday).map((o) => o.label));
   });
 
   it("does not allow deselecting the last weekly weekday", () => {

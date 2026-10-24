@@ -34,3 +34,12 @@ Feature: Profiles
     When I create a profile with a newline in the name
     Then the creation fails
     And the profile list contains only the default profile
+
+  Scenario: the week start is a per-profile display setting
+    Given an application state on a temporary seeded database
+    Then the active profile's week start is Monday
+    When I set the active profile's week start to Sunday
+    Then the active profile's week start is Sunday
+    Given a second profile exists
+    When the application switches to the second profile
+    Then the active profile's week start is Monday

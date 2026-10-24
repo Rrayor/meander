@@ -8,12 +8,14 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
 import { testQueryClient } from "@/test/queryClient";
 import {
   CALENDAR_NEXT_LABEL,
   CALENDAR_PREVIOUS_LABEL,
   WEEKDAY_OPTIONS,
+  weekdaysFrom,
 } from "@/lib/labels";
 
 const series: TaskSeries = {
@@ -64,12 +66,15 @@ const renderCalendar = (
   instances: Task[] = [],
   onPick = vi.fn(),
   selectedIso: string | null = null,
+  weekStart: Weekday = Weekday.Monday,
 ) => {
   // Fixed today so the calendar's initial month is deterministic.
   vi.useFakeTimers();
   vi.setSystemTime(new Date(TODAY_TIME));
+  const client = testQueryClient();
+  client.setQueryData(QUERY_KEYS.weekStart, weekStart);
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={client}>
       <InstanceCalendar
         series={[series]}
         instances={instances}
@@ -101,6 +106,31 @@ describe("InstanceCalendar", () => {
       .slice(0, 7)
       .map((el) => el.textContent);
     expect(headerTexts).toEqual(WEEKDAY_OPTIONS.map((w) => w.short));
+  });
+
+  it("rotates headers and anchors the grid on a Sunday week start", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(TODAY_TIME));
+    const client = testQueryClient();
+    client.setQueryData(QUERY_KEYS.weekStart, Weekday.Sunday);
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <InstanceCalendar
+          series={[series]}
+          instances={[]}
+          selectedIso={null}
+          onPick={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    const grid = Array.from(container.querySelector(".grid")!.children);
+    const headerTexts = grid.slice(0, 7).map((el) => el.textContent);
+    expect(headerTexts).toEqual(
+      weekdaysFrom(Weekday.Sunday).map((w) => w.short),
+    );
+    // October 2026 starts on a Thursday: under a Sunday-first grid it
+    // sits in the fifth column, under "Th".
+    expect(grid[7 + 4].textContent).toBe("1");
   });
 
   it("renders the current month with prev/next navigation", () => {

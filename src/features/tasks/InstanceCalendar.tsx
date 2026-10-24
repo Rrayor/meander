@@ -64,10 +64,10 @@ export function InstanceCalendar({
         ? 0
         : WEEKDAY_OPTIONS.findIndex((o) => o.value === weekStart) + 1;
     const back = ((first.getUTCDay() - configured + 7) % 7) * DAY_MS;
-    const monday = new Date(month - back);
+    const firstCell = new Date(month - back);
     // Six weeks covers every possible month layout.
     return Array.from({ length: 42 }, (_, i) => {
-      const date = new Date(monday.getTime() + i * DAY_MS);
+      const date = new Date(firstCell.getTime() + i * DAY_MS);
       return {
         iso: toIso(date),
         inMonth: date.getUTCMonth() === first.getUTCMonth(),

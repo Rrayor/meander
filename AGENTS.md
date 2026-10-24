@@ -48,6 +48,11 @@ For any UI task, create the design with Stitch before implementing:
 - Persisted data and view transforms are separate concerns: stored values
   (e.g. manual `sort_order`) are data; sorting, filtering, and searching are
   view-time transforms that must never mutate stored data.
+- The app is dark-theme only. Native control popups (`<select>` dropdowns,
+  `input[type="date"]` pickers, scrollbars) follow the OS color scheme, not
+  Tailwind classes — `color-scheme: dark` is set once on `:root` in
+  `index.css`. Never restyle the element to fix a light popup; fix or
+  preserve the root color-scheme instead.
 
 ## Architecture and layering
 
