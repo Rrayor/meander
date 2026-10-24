@@ -57,6 +57,17 @@ describe("WeekStartSection", () => {
     ).toBeDisabled();
   });
 
+  it("keeps Save disabled when the stored value is re-picked", async () => {
+    renderSection();
+    const select = await screen.findByLabelText(WEEK_START_LABEL);
+    await waitFor(() => expect(select).toHaveValue(Weekday.Monday));
+    fireEvent.change(select, { target: { value: Weekday.Sunday } });
+    fireEvent.change(select, { target: { value: Weekday.Monday } });
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+  });
+
   it("surfaces a failed save", async () => {
     const message = "write failed";
     mockedSetWeekStart.mockRejectedValue(new Error(message));

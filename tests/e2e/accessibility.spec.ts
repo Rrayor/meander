@@ -275,6 +275,7 @@ test("the settings page has no WCAG AA violations", async ({ page }) => {
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listProfiles]: [current],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.workDays]: [],
   });
   await page.goto(`/#${settingsPath}`);
   await expect(page.getByRole("list").getByText("Default")).toBeVisible();

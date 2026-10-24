@@ -4,6 +4,7 @@ export const QUERY_KEYS = {
   profiles: ["profiles"],
   currentProfile: ["current-profile"],
   weekStart: ["week-start"],
+  workDays: ["work-days"],
   dbPath: ["db-path"],
   tasks: ["tasks"],
   categories: ["categories"],

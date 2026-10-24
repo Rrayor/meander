@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings — Meander</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-primary": "#0B1B19",
+            "surface-dim": "#0e1513",
+            "secondary-container": "#46494e",
+            "on-error-container": "#ffdad6",
+            "threshold-orange": "#FB923C",
+            "background": "#121417",
+            "text-muted": "#9AA0A6",
+            "on-primary-fixed-variant": "#005047",
+            "tertiary-container": "#ffac5a",
+            "primary-fixed-dim": "#3cddc7",
+            "surface-container-lowest": "#09100e",
+            "on-secondary-container": "#b6b8be",
+            "on-secondary-fixed-variant": "#44474b",
+            "inverse-on-surface": "#2b3230",
+            "primary-container": "#2dd4bf",
+            "tertiary-fixed-dim": "#ffb875",
+            "on-tertiary-container": "#744000",
+            "on-tertiary": "#4b2800",
+            "secondary": "#c5c6cc",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "surface-container-highest": "#2f3634",
+            "error": "#ffb4ab",
+            "threshold-red": "#F87171",
+            "on-primary-container": "#00574d",
+            "text": "#E8EAED",
+            "inverse-primary": "#006b5f",
+            "on-secondary": "#2e3135",
+            "threshold-violet": "#A78BFA",
+            "border": "#2E3338",
+            "surface-raised": "#22262B",
+            "on-surface-variant": "#bacac5",
+            "threshold-blue": "#60A5FA",
+            "outline-variant": "#3c4a46",
+            "tertiary-fixed": "#ffdcc0",
+            "primary-fixed": "#62fae3",
+            "on-secondary-fixed": "#191c20",
+            "surface-bright": "#333b39",
+            "inverse-surface": "#dde4e1",
+            "on-primary-fixed": "#00201c",
+            "surface-variant": "#2f3634",
+            "surface-container-low": "#161d1b",
+            "secondary-fixed": "#e1e2e8",
+            "secondary-fixed-dim": "#c5c6cc",
+            "surface-container": "#1a211f",
+            "on-surface": "#dde4e1",
+            "primary": "#57f1db",
+            "on-error": "#690005",
+            "error-container": "#93000a",
+            "on-tertiary-fixed": "#2d1600",
+            "surface": "#1A1D21",
+            "outline": "#859490",
+            "on-background": "#dde4e1",
+            "surface-tint": "#3cddc7",
+            "tertiary": "#ffd1aa",
+            "threshold-green": "#4ADE80",
+            "surface-container-high": "#242b2a"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin": "24px",
+            "space-sm": "8px",
+            "space-xs": "4px",
+            "space-md": "12px",
+            "gutter": "16px",
+            "space-lg": "16px",
+            "space-xl": "24px"
+          },
+          "fontFamily": {
+            "display": ["Inter"],
+            "label": ["Inter"],
+            "title": ["Inter"],
+            "body": ["Inter"]
+          },
+          "fontSize": {
+            "display": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+            "label": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "title": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+            "body": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-size: 18px;
+      line-height: 1;
+    }
+    ::selection {
+      background-color: #2dd4bf;
+      color: #0B1B19;
+    }
+  </style>
+</head>
+<body class="bg-background text-text font-body text-body min-h-screen flex antialiased select-none">
+<!-- Side Navigation Rail (JSON Anchor: SideNavBar) -->
+<aside class="w-56 h-screen flex flex-col justify-between p-space-lg bg-surface border-r border-border shrink-0">
+<!-- Top Section: Logo & Primary Nav -->
+<div class="flex flex-col gap-space-xl">
+<!-- App Header & Calm Offline Indicator -->
+<div class="flex items-center justify-between px-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="w-2 h-2 rounded-full bg-primary inline-block"></span>
+<span class="font-title text-title font-semibold text-text tracking-tight">Meander</span>
+</div>
+<span class="font-label text-label text-text-muted px-space-xs py-0.5 rounded bg-surface-raised border border-border">Offline</span>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex flex-col gap-1">
+<!-- Tab: Board (Inactive) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_view_week">calendar_view_week</span>
+<span>Board</span>
+</a>
+<!-- Tab: Backlog (Inactive) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span>Backlog</span>
+</a>
+<!-- Tab: Settings (Active: JSON Match) -->
+<a aria-current="page" class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg bg-surface-raised text-primary font-body text-body focus:outline-none focus:ring-1 focus:ring-primary" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Profile Anchor -->
+<div class="pt-space-md border-t border-border">
+<button class="w-full flex items-center justify-between px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="font-body text-body text-text font-medium truncate">Default</span>
+</div>
+<span class="material-symbols-outlined text-text-muted" data-icon="unfold_more">unfold_more</span>
+</button>
+</div>
+</aside>
+<!-- Main Canvas Canvas Area -->
+<main class="flex-1 h-screen flex flex-col overflow-y-auto bg-background">
+<!-- Top Bar (JSON Anchor: TopNavBar) -->
+<header class="flex justify-between items-center w-full px-margin py-space-md bg-background border-b border-border">
+<div class="flex items-center gap-space-md">
+<h1 class="font-display text-display font-semibold text-text tracking-tight">Settings</h1>
+</div>
+<div class="flex items-center gap-space-sm">
+<button aria-label="Fine-tune settings" class="p-space-sm rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined" data-icon="tune">tune</span>
+</button>
+<button aria-label="More options" class="p-space-sm rounded-lg text-text-muted hover:bg-surface-raised hover:text-text transition-colors duration-150 focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</header>
+<!-- Settings Content Body -->
+<div class="flex-1 p-margin">
+<div class="max-w-3xl flex flex-col gap-8"><!-- Section 1: Scheduling -->
+<section class="flex flex-col gap-space-md">
+<div class="flex flex-col gap-0.5">
+<h2 class="font-title text-title font-semibold text-text">Scheduling</h2>
+<p class="font-body text-body text-text-muted">Configure calendar and planning preferences</p>
+</div>
+<div class="bg-surface border border-border rounded-lg p-5 flex flex-col gap-4">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="flex flex-col gap-0.5">
+<label class="text-text text-sm font-medium" for="week-starts-on">Week starts on</label>
+<span class="font-label text-label text-text-muted">Choose the first day displayed in calendar views</span>
+</div>
+<div class="flex items-center gap-3">
+<select class="bg-surface-raised border border-border text-text rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary w-64 cursor-pointer" id="week-starts-on">
+<option selected="" value="monday">Monday</option>
+<option value="sunday">Sunday</option>
+<option value="saturday">Saturday</option>
+</select>
+<button class="px-4 py-2 bg-primary text-on-primary font-medium text-sm rounded-md hover:opacity-90 transition-opacity focus:outline-none focus:ring-1 focus:ring-primary shrink-0" type="button">
+          Save
+        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: Work days -->
+<section class="flex flex-col gap-space-md">
+<div class="flex flex-col gap-0.5">
+<h2 class="font-title text-title font-semibold text-text">Work days</h2>
+<p class="font-body text-body text-text-muted">Select which days appear as active columns on your board</p>
+</div>
+<div class="bg-surface border border-border rounded-lg p-5 flex flex-col gap-5">
+<div class="flex flex-col gap-3">
+<div class="flex flex-col gap-0.5">
+<span class="text-text text-sm font-medium">Active work days</span>
+<span class="font-label text-label text-text-muted">Toggle weekdays on or off to adjust board column visibility</span>
+</div>
+<div class="flex flex-wrap items-center gap-2">
+<button aria-pressed="true" class="bg-primary/10 border-primary text-primary border font-medium px-4 py-2 rounded-md text-sm cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Mo</button>
+<button aria-pressed="true" class="bg-primary/10 border-primary text-primary border font-medium px-4 py-2 rounded-md text-sm cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Tu</button>
+<button aria-pressed="true" class="bg-primary/10 border-primary text-primary border font-medium px-4 py-2 rounded-md text-sm cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">We</button>
+<button aria-pressed="true" class="bg-primary/10 border-primary text-primary border font-medium px-4 py-2 rounded-md text-sm cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Th</button>
+<button aria-pressed="true" class="bg-primary/10 border-primary text-primary border font-medium px-4 py-2 rounded-md text-sm cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Fr</button>
+<button aria-pressed="false" class="bg-surface-raised border-border text-text-muted border px-4 py-2 rounded-md text-sm hover:text-text cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Sa</button>
+<button aria-pressed="false" class="bg-surface-raised border-border text-text-muted border px-4 py-2 rounded-md text-sm hover:text-text cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-primary" type="button">Su</button>
+</div>
+</div>
+<div class="flex justify-end pt-3 border-t border-border">
+<button class="px-4 py-2 bg-primary text-on-primary font-medium text-sm rounded-md hover:opacity-90 transition-opacity focus:outline-none focus:ring-1 focus:ring-primary" type="button">
+        Save
+      </button>
+</div>
+</div>
+</section>
+<!-- Section 3: Database -->
+<section class="flex flex-col gap-space-md">
+<div class="flex flex-col gap-0.5">
+<h2 class="font-title text-title font-semibold text-text">Database</h2>
+<p class="font-body text-body text-text-muted">Tasks and settings are stored in this file</p>
+</div>
+<div class="bg-surface rounded-lg border border-border p-space-lg flex flex-col gap-space-lg">
+<div class="flex flex-col md:flex-row md:items-center gap-space-md justify-between">
+<!-- Read-only Path Container -->
+<div class="flex-1 min-w-0">
+<label class="sr-only" for="db-path">Database file path</label>
+<div class="flex items-center font-mono text-xs bg-surface-raised px-space-md py-2.5 rounded-lg text-text-muted border border-border select-all overflow-x-auto truncate">
+<span class="truncate" id="db-path">~/Library/Application Support/Meander/meander.db</span>
+</div>
+</div>
+<!-- Action: Choose File -->
+<button class="shrink-0 px-space-md py-2 rounded-lg border border-border text-text font-body text-body hover:bg-surface-raised focus:outline-none focus:ring-1 focus:ring-primary transition-colors duration-150" type="button">
+        Choose database file
+      </button>
+</div>
+<!-- Metadata Details Footnote -->
+<div class="flex items-center justify-between pt-space-xs border-t border-border text-text-muted">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-green"></span>
+<span class="font-label text-label">SQLite 3 · Local only · 420 KB</span>
+</div>
+<span class="font-label text-label text-text-muted">Read / Write verified</span>
+</div>
+</div>
+</section></div>
+</div>
+</main>
+</body></html>

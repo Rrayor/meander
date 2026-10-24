@@ -2623,3 +2623,79 @@ fn switch_back(world: &mut MeanderWorld) {
         world.error = Some(e.to_string());
     }
 }
+
+fn monday_friday() -> Vec<meander_lib::series::Weekday> {
+    use meander_lib::series::Weekday;
+    vec![
+        Weekday::Monday,
+        Weekday::Tuesday,
+        Weekday::Wednesday,
+        Weekday::Thursday,
+        Weekday::Friday,
+    ]
+}
+
+fn weekend() -> Vec<meander_lib::series::Weekday> {
+    vec![
+        meander_lib::series::Weekday::Saturday,
+        meander_lib::series::Weekday::Sunday,
+    ]
+}
+
+#[when("I set the active profile's work days to the weekend")]
+fn set_active_work_days(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_work_days(&pool, id, &weekend()))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+fn assert_active_work_days(world: &mut MeanderWorld, expected: Vec<meander_lib::series::Weekday>) {
+    let (pool, id) = active_profile_pool(world);
+    let got = world
+        .rt()
+        .block_on(meander_lib::profiles::work_days(&pool, id))
+        .expect("work days query failed");
+    assert_eq!(got, expected);
+}
+
+#[then("the active profile's work days are the default set")]
+fn active_work_days_default(world: &mut MeanderWorld) {
+    assert_active_work_days(world, monday_friday());
+}
+
+#[then("the active profile's work days are the weekend")]
+fn active_work_days_weekend(world: &mut MeanderWorld) {
+    assert_active_work_days(world, weekend());
+}
+
+#[when("I clear the active profile's work days")]
+fn clear_active_work_days(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_work_days(&pool, id, &[]))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I set the active profile's work days to Monday only")]
+fn set_work_days_monday(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world.rt().block_on(meander_lib::profiles::set_work_days(
+        &pool,
+        id,
+        &[meander_lib::series::Weekday::Monday],
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the active profile's work days are Monday only")]
+fn work_days_monday(world: &mut MeanderWorld) {
+    assert_active_work_days(world, vec![meander_lib::series::Weekday::Monday]);
+}

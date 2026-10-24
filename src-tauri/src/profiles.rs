@@ -101,6 +101,49 @@ pub async fn set_week_start(pool: &SqlitePool, profile_id: i64, weekday: Weekday
     Ok(())
 }
 
+/// The Mon-Fri default from the spec — also the fallback for a stored mask
+/// with no recognizable bits (a hand-edited database).
+const DEFAULT_WORK_DAYS_MASK: i64 = 0b001_1111;
+const WEEKDAY_BITS: i64 = 0b111_1111;
+
+/// Stored `work_days` mask → weekday list in canonical Monday-first order.
+fn decode_work_days(mask: i64) -> Vec<Weekday> {
+    let mask = mask & WEEKDAY_BITS;
+    let mask = if mask == 0 {
+        DEFAULT_WORK_DAYS_MASK
+    } else {
+        mask
+    };
+    Weekday::ALL
+        .into_iter()
+        .filter(|d| mask & d.bit() != 0)
+        .collect()
+}
+
+pub async fn work_days(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Weekday>> {
+    let (mask,): (i64,) = sqlx::query_as("SELECT work_days FROM profiles WHERE id = ?")
+        .bind(profile_id)
+        .fetch_one(pool)
+        .await?;
+    Ok(decode_work_days(mask))
+}
+
+pub async fn set_work_days(pool: &SqlitePool, profile_id: i64, days: &[Weekday]) -> Result<()> {
+    if days.is_empty() {
+        return Err(crate::db::DbError::Validation {
+            code: crate::errors::ErrorCode::WorkDaysRequired,
+            message: "at least one work day is required".into(),
+        });
+    }
+    let mask = days.iter().fold(0, |m, d| m | d.bit());
+    sqlx::query("UPDATE profiles SET work_days = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(mask)
+        .bind(profile_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,6 +189,84 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Monday);
+    }
+
+    fn monday_friday() -> Vec<Weekday> {
+        vec![
+            Weekday::Monday,
+            Weekday::Tuesday,
+            Weekday::Wednesday,
+            Weekday::Thursday,
+            Weekday::Friday,
+        ]
+    }
+
+    #[tokio::test]
+    async fn work_days_defaults_to_monday_friday_and_updates() {
+        let (pool, pid) = seeded_pool().await;
+        assert_eq!(work_days(&pool, pid).await.unwrap(), monday_friday());
+        let weekend_only = vec![Weekday::Saturday, Weekday::Sunday];
+        set_work_days(&pool, pid, &weekend_only).await.unwrap();
+        assert_eq!(work_days(&pool, pid).await.unwrap(), weekend_only);
+    }
+
+    #[tokio::test]
+    async fn work_days_is_scoped_to_each_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other = create(&pool, "second").await.unwrap();
+        let weekend_only = vec![Weekday::Saturday, Weekday::Sunday];
+        set_work_days(&pool, pid, &weekend_only).await.unwrap();
+        assert_eq!(work_days(&pool, other.id).await.unwrap(), monday_friday());
+        assert_eq!(work_days(&pool, pid).await.unwrap(), weekend_only);
+    }
+
+    #[tokio::test]
+    async fn work_days_rejects_an_empty_set() {
+        let (pool, pid) = seeded_pool().await;
+        let err = set_work_days(&pool, pid, &[]).await.unwrap_err();
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: crate::errors::ErrorCode::WorkDaysRequired,
+                ..
+            }
+        ));
+        assert_eq!(work_days(&pool, pid).await.unwrap(), monday_friday());
+    }
+
+    #[tokio::test]
+    async fn work_days_dedupes_input_and_keeps_canonical_order() {
+        let (pool, pid) = seeded_pool().await;
+        set_work_days(
+            &pool,
+            pid,
+            &[Weekday::Friday, Weekday::Monday, Weekday::Friday],
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            work_days(&pool, pid).await.unwrap(),
+            vec![Weekday::Monday, Weekday::Friday]
+        );
+    }
+
+    #[tokio::test]
+    async fn work_days_masks_unknown_bits_and_falls_back_on_zero() {
+        let (pool, pid) = seeded_pool().await;
+        // Bit 8 set alone — no recognizable weekday bits.
+        sqlx::query("UPDATE profiles SET work_days = 256 WHERE id = ?")
+            .bind(pid)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(work_days(&pool, pid).await.unwrap(), monday_friday());
+        // Unknown high bits are ignored when weekday bits are present.
+        sqlx::query("UPDATE profiles SET work_days = 257 WHERE id = ?")
+            .bind(pid)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(work_days(&pool, pid).await.unwrap(), vec![Weekday::Monday]);
     }
 
     #[test]

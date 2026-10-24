@@ -11,6 +11,7 @@ import {
   SAVE_BUTTON_LABEL,
   WEEKDAY_OPTIONS,
   WEEK_START_HEADING,
+  WEEK_START_HEADING_ID,
   WEEK_START_LABEL,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
@@ -22,7 +23,11 @@ export function WeekStartSection() {
     queryFn: fetchWeekStart,
   });
   const [selected, setSelected] = useState<Weekday>();
-  const current = selected ?? weekStart ?? Weekday.Monday;
+  const stored = weekStart ?? Weekday.Monday;
+  const current = selected ?? stored;
+  // Selecting the stored value is no draft — save must stay disabled or it
+  // would write the same value and still bump updated_at.
+  const dirty = selected !== undefined && selected !== stored;
 
   const save = useMutation({
     mutationFn: setWeekStartCommand,
@@ -36,10 +41,10 @@ export function WeekStartSection() {
 
   return (
     <section
-      aria-labelledby="week-start-heading"
+      aria-labelledby={WEEK_START_HEADING_ID}
       className="flex flex-col gap-3"
     >
-      <h2 id="week-start-heading" className="text-lg font-semibold">
+      <h2 id={WEEK_START_HEADING_ID} className="text-lg font-semibold">
         {WEEK_START_HEADING}
       </h2>
       <div className="flex items-end gap-3">
@@ -63,7 +68,7 @@ export function WeekStartSection() {
         <button
           type="button"
           onClick={() => save.mutate(current)}
-          disabled={save.isPending || selected === undefined}
+          disabled={save.isPending || !dirty}
           className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition-colors disabled:opacity-50"
         >
           {SAVE_BUTTON_LABEL}

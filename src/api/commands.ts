@@ -6,6 +6,8 @@ export const COMMANDS = {
   listProfiles: "list_profiles",
   weekStart: "week_start",
   setWeekStart: "set_week_start",
+  workDays: "work_days",
+  setWorkDays: "set_work_days",
   currentProfile: "current_profile",
   createProfile: "create_profile",
   renameProfile: "rename_profile",
