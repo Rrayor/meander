@@ -254,3 +254,8 @@ export const NOTE_DELETE_LABEL = "Delete";
 export const SCHEDULED_INSTANCE_PENDING_MESSAGE =
   "Scheduled — this instance will be created when the board is generated.";
 export const INSTANCE_MATERIALIZING_MESSAGE = "Opening this instance…";
+
+export const TASK_CARD_LABEL = (title: string) => `Task: ${title}`;
+export const BOARD_HEADING = "Board";
+export const BOARD_PREVIEW_NOTE =
+  "Your weekly board will appear here — this card previews its task card.";

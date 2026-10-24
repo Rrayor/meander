@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — Offline Planner</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "secondary-fixed-dim": "#c5c6cc",
+            "tertiary-fixed-dim": "#ffb875",
+            "threshold-orange": "#FB923C",
+            "error": "#ffb4ab",
+            "primary-fixed-dim": "#3cddc7",
+            "surface-container-lowest": "#09100e",
+            "primary": "#2DD4BF",
+            "on-error-container": "#ffdad6",
+            "on-secondary-fixed-variant": "#44474b",
+            "surface-container-highest": "#2f3634",
+            "threshold-violet": "#A78BFA",
+            "secondary": "#c5c6cc",
+            "outline-variant": "#3c4a46",
+            "on-error": "#690005",
+            "surface-bright": "#333b39",
+            "primary-container": "#2dd4bf",
+            "outline": "#859490",
+            "on-tertiary-container": "#744000",
+            "on-primary": "#003731",
+            "inverse-on-surface": "#2b3230",
+            "border": "#2E3338",
+            "threshold-amber": "#FBBF24",
+            "primary-fixed": "#62fae3",
+            "tertiary": "#ffd1aa",
+            "threshold-pink": "#F472B6",
+            "surface-container": "#1a211f",
+            "surface-variant": "#2f3634",
+            "secondary-container": "#46494e",
+            "on-tertiary": "#4b2800",
+            "on-surface": "#dde4e1",
+            "inverse-surface": "#dde4e1",
+            "threshold-blue": "#60A5FA",
+            "surface": "#1A1D21",
+            "on-secondary-container": "#b6b8be",
+            "threshold-red": "#F87171",
+            "threshold-green": "#4ADE80",
+            "secondary-fixed": "#e1e2e8",
+            "on-secondary": "#2e3135",
+            "tertiary-fixed": "#ffdcc0",
+            "threshold-emerald": "#34D399",
+            "surface-dim": "#0e1513",
+            "on-primary-fixed": "#00201c",
+            "threshold-cyan": "#22D3EE",
+            "threshold-fuchsia": "#E879F9",
+            "tertiary-container": "#ffac5a",
+            "on-primary-fixed-variant": "#005047",
+            "inverse-primary": "#006b5f",
+            "error-container": "#93000a",
+            "text": "#E8EAED",
+            "on-primary-container": "#00574d",
+            "surface-raised": "#22262B",
+            "on-tertiary-fixed": "#2d1600",
+            "on-surface-variant": "#bacac5",
+            "surface-container-low": "#161d1b",
+            "text-muted": "#9AA0A6",
+            "surface-container-high": "#242b2a",
+            "background": "#121417",
+            "threshold-lime": "#A3E635",
+            "surface-tint": "#3cddc7",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "on-background": "#dde4e1",
+            "threshold-indigo": "#818CF8",
+            "on-secondary-fixed": "#191c20"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-sm": "0.5rem",
+            "gutter": "1rem",
+            "space-xl": "1.5rem",
+            "space-md": "0.75rem",
+            "space-xs": "0.25rem",
+            "space-lg": "1rem",
+            "margin": "1.5rem"
+          },
+          "fontFamily": {
+            "body": ["Inter"],
+            "label": ["Inter"],
+            "title": ["Inter"],
+            "display": ["Inter"]
+          },
+          "fontSize": {
+            "body": [
+              "14px",
+              {
+                "lineHeight": "20px",
+                "fontWeight": "400"
+              }
+            ],
+            "label": [
+              "12px",
+              {
+                "lineHeight": "16px",
+                "fontWeight": "500"
+              }
+            ],
+            "title": [
+              "16px",
+              {
+                "lineHeight": "24px",
+                "fontWeight": "600"
+              }
+            ],
+            "display": [
+              "24px",
+              {
+                "lineHeight": "32px",
+                "fontWeight": "600"
+              }
+            ]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      font-size: 20px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #121417;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #2E3338;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #3c4a46;
+    }
+  </style>
+</head>
+<body class="bg-background text-text font-body text-body selection:bg-primary selection:text-on-primary min-h-screen overflow-hidden flex">
+<!-- Persistent Left Rail Navigation Shell (Shared Components JSON) -->
+<aside class="h-screen w-56 flex flex-col justify-between p-space-md bg-surface border-r border-border shrink-0 select-none">
+<!-- Header Section -->
+<div class="flex flex-col gap-space-lg">
+<div class="flex items-center justify-between px-space-xs pt-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-7 h-7 rounded-lg bg-surface-raised border border-border flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-primary" data-icon="view_kanban">view_kanban</span>
+</div>
+<div>
+<span class="font-title text-title text-text tracking-tight block">Meander</span>
+<span class="font-label text-label text-text-muted block -mt-1">Offline Planner</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-raised border border-border" title="Private &amp; Offline Local Storage">
+<span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+<span class="font-label text-label text-text-muted text-[10px] uppercase tracking-wider">Offline</span>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex flex-col gap-1">
+<!-- Board (Active tab according to context logic) -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-xl bg-surface-raised text-primary font-title text-title hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-primary" data-icon="view_kanban">view_kanban</span>
+<span>Board</span>
+</a>
+<!-- Backlog -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-xl text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-text-muted" data-icon="inventory_2">inventory_2</span>
+<span>Backlog</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-xl text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-text-muted" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer Workspace Target -->
+<div class="pt-space-md border-t border-border">
+<div class="flex items-center gap-space-md px-space-md py-space-sm rounded-xl text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150 cursor-pointer">
+<span class="material-symbols-outlined text-text-muted" data-icon="folder_shared">folder_shared</span>
+<span class="truncate">Personal Workspace</span>
+</div>
+</div>
+</aside>
+<!-- Main Canvas Area -->
+<main class="flex-1 flex flex-col min-w-0 h-screen bg-background overflow-hidden">
+<!-- Top Canvas Header Bar -->
+<header class="h-14 px-space-xl flex items-center justify-between border-b border-border bg-background shrink-0">
+<div class="flex items-center gap-space-md">
+<h1 class="font-title text-title text-text">Board</h1>
+<div class="h-4 w-px bg-border"></div>
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface border border-border">
+<span class="material-symbols-outlined text-text-muted text-[16px]" data-icon="calendar_today">calendar_today</span>
+<span class="font-label text-label text-text">Oct 19 – Oct 25</span>
+<span class="font-label text-label text-text-muted">· Week 42</span>
+</div>
+</div>
+<!-- Action Cluster -->
+<div class="flex items-center gap-space-sm">
+<button class="p-2 rounded-xl text-text-muted hover:text-text hover:bg-surface transition-colors duration-150" title="Filter board view">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+<button class="p-2 rounded-xl text-text-muted hover:text-text hover:bg-surface transition-colors duration-150" title="More options">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+<div class="h-4 w-px bg-border mx-1"></div>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-on-primary font-title text-title text-xs hover:opacity-95 active:scale-[0.98] transition-all duration-150">
+<span class="material-symbols-outlined text-on-primary text-[18px]" data-icon="add">add</span>
+<span>Add Task</span>
+</button>
+</div>
+</header>
+<!-- Kanban Board Canvas -->
+<div class="flex-1 overflow-x-auto custom-scrollbar p-space-xl flex gap-space-xl items-start">
+<!-- COLUMN: Monday (Active Focal Column) -->
+<div class="w-80 shrink-0 flex flex-col rounded-xl bg-surface border border-border p-3 gap-3">
+<!-- Column Header -->
+<div class="flex items-start justify-between px-1 pt-1 pb-0.5">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title text-title text-text">Monday</h2>
+<span class="font-label text-label text-text-muted">Oct 19</span>
+</div>
+<p class="font-label text-label text-text-muted mt-0.5">3 tasks · 5h 15m planned</p>
+</div>
+<button class="p-1 rounded-lg text-text-muted hover:text-text hover:bg-surface-raised transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<!-- Task Cards Stack -->
+<div class="flex flex-col gap-3">
+<!-- Card 1: Work (Teal Solid) -->
+<article class="relative flex flex-col gap-2.5 p-3 rounded-xl bg-surface-raised hover:bg-surface-bright/20 transition-all duration-150 border-l-[4px] border-l-primary group cursor-grab active:cursor-grabbing">
+<div class="flex items-start justify-between gap-2">
+<h3 class="font-body text-body font-medium text-text group-hover:text-primary transition-colors">
+                Refactor SQLite connection pooling
+              </h3>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-1 text-text-muted font-label text-label">
+<span class="material-symbols-outlined text-text-muted text-[15px]" data-icon="schedule">schedule</span>
+<span>2h 30m</span>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/15 text-primary font-label text-label text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Work</span>
+</div>
+</div>
+</article>
+<!-- Card 2: Hobbies (Violet Solid) -->
+<article class="relative flex flex-col gap-2.5 p-3 rounded-xl bg-surface-raised hover:bg-surface-bright/20 transition-all duration-150 border-l-[4px] border-l-threshold-violet group cursor-grab active:cursor-grabbing">
+<div class="flex items-start justify-between gap-2">
+<h3 class="font-body text-body font-medium text-text group-hover:text-threshold-violet transition-colors">
+                Draft weekly reflection &amp; journaling
+              </h3>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-1 text-text-muted font-label text-label">
+<span class="material-symbols-outlined text-text-muted text-[15px]" data-icon="schedule">schedule</span>
+<span>45m</span>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-threshold-violet/15 text-threshold-violet font-label text-label text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-violet"></span>
+<span>Hobbies</span>
+</div>
+</div>
+</article>
+<!-- Card 3: Dual-category (Work + Health, Teal-to-Amber Gradient) -->
+<article class="relative flex flex-col gap-2.5 p-3 rounded-xl bg-surface-raised hover:bg-surface-bright/20 transition-all duration-150 overflow-hidden group cursor-grab active:cursor-grabbing pl-4">
+<!-- 4px Dual-color vertical gradient strip -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary to-threshold-amber"></div>
+<div class="flex items-start justify-between gap-2">
+<h3 class="font-body text-body font-medium text-text group-hover:text-text-muted transition-colors">
+                Ergonomic workspace audit &amp; desk setup
+              </h3>
+</div>
+<div class="flex items-center justify-between pt-1 flex-wrap gap-2">
+<div class="flex items-center gap-1 text-text-muted font-label text-label">
+<span class="material-symbols-outlined text-text-muted text-[15px]" data-icon="schedule">schedule</span>
+<span>1h 15m</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-label text-label text-[10px]">
+<span class="w-1 h-1 rounded-full bg-primary"></span>
+<span>Work</span>
+</div>
+<div class="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-threshold-amber/15 text-threshold-amber font-label text-label text-[10px]">
+<span class="w-1 h-1 rounded-full bg-threshold-amber"></span>
+<span>Health</span>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- Add Task Quick Affordance -->
+<button class="mt-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-border text-text-muted font-label text-label hover:border-primary/50 hover:text-text hover:bg-surface-raised/40 transition-all duration-150">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+<span>Add task</span>
+</button>
+</div>
+<!-- COLUMN: Tuesday (Quiet State) -->
+<div class="w-80 shrink-0 flex flex-col rounded-xl bg-surface/50 border border-border/60 p-3 gap-3">
+<div class="flex items-start justify-between px-1 pt-1 pb-0.5">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title text-title text-text">Tuesday</h2>
+<span class="font-label text-label text-text-muted">Oct 20</span>
+</div>
+<p class="font-label text-label text-text-muted mt-0.5">1 task · 1h 30m planned</p>
+</div>
+<button class="p-1 rounded-lg text-text-muted hover:text-text transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex flex-col gap-3">
+<article class="relative flex flex-col gap-2.5 p-3 rounded-xl bg-surface-raised hover:bg-surface-bright/20 transition-all duration-150 border-l-[4px] border-l-primary group cursor-grab">
+<h3 class="font-body text-body font-medium text-text group-hover:text-primary transition-colors">
+              Database schema migration benchmarks
+            </h3>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-1 text-text-muted font-label text-label">
+<span class="material-symbols-outlined text-text-muted text-[15px]" data-icon="schedule">schedule</span>
+<span>1h 30m</span>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/15 text-primary font-label text-label text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Work</span>
+</div>
+</div>
+</article>
+</div>
+<button class="mt-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-border/60 text-text-muted font-label text-label hover:border-primary/50 hover:text-text transition-all duration-150">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+<span>Add task</span>
+</button>
+</div>
+<!-- COLUMN: Wednesday (Quiet Placeholder) -->
+<div class="w-80 shrink-0 flex flex-col rounded-xl bg-surface/30 border border-border/40 p-3 gap-3">
+<div class="flex items-start justify-between px-1 pt-1 pb-0.5">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title text-title text-text-muted">Wednesday</h2>
+<span class="font-label text-label text-text-muted">Oct 21</span>
+</div>
+<p class="font-label text-label text-text-muted mt-0.5">0 tasks · 0m planned</p>
+</div>
+<button class="p-1 rounded-lg text-text-muted hover:text-text transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="py-10 flex flex-col items-center justify-center text-center gap-1.5">
+<span class="material-symbols-outlined text-border text-[28px]" data-icon="drag_indicator">drag_indicator</span>
+<p class="font-label text-label text-text-muted">No scheduled effort</p>
+</div>
+<button class="mt-auto flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-border/40 text-text-muted font-label text-label hover:border-border hover:text-text transition-all duration-150">
+<span class="material-symbols-outlined text-[16px]" data-icon="add">add</span>
+<span>Plan Wednesday</span>
+</button>
+</div>
+<!-- COLUMN: Thursday (Quiet Column Outline) -->
+<div class="w-80 shrink-0 flex flex-col rounded-xl bg-surface/20 border border-border/30 p-3 gap-3 opacity-60 hover:opacity-100 transition-opacity duration-150">
+<div class="flex items-start justify-between px-1 pt-1 pb-0.5">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title text-title text-text-muted">Thursday</h2>
+<span class="font-label text-label text-text-muted">Oct 22</span>
+</div>
+<p class="font-label text-label text-text-muted mt-0.5">0 tasks · 0m planned</p>
+</div>
+</div>
+<div class="py-10 flex flex-col items-center justify-center text-center gap-1.5">
+<p class="font-label text-label text-text-muted">Free day</p>
+</div>
+</div>
+</div>
+</main>
+</body></html>
