@@ -99,6 +99,7 @@ import {
   formatMinutes,
   seriesAuditLabel,
 } from "@/lib/labels";
+import { isScheduledOn } from "@/lib/recurrence";
 import {
   codePointsWithin,
   formatDate,
@@ -180,6 +181,9 @@ interface TaskDetailsViewProps {
   materializeError?: string;
   categories: Category[];
   seriesRow: TaskSeries | undefined;
+  // The segment producing a pending picked date — its values, not the
+  // living series', back the unpersisted-occurrence display.
+  pendingSegment: TaskSeries | undefined;
   seriesSegments: TaskSeries[] | undefined;
   seriesInstances: Task[] | undefined;
   onPick: (picked: Task | null, iso: string) => void;
@@ -195,6 +199,7 @@ function TaskDetailsView({
   materializeError,
   categories,
   seriesRow,
+  pendingSegment,
   seriesSegments,
   seriesInstances,
   onPick,
@@ -235,15 +240,17 @@ function TaskDetailsView({
             )}
           </div>
           {/* A scheduled-only occurrence has no row yet — its shared
-              fields come from the living series (spec §230). */}
-          {seriesRow && (
+              fields come from the segment that produces it (spec
+              §230), archive or living. */}
+          {(pendingSegment ?? seriesRow) && (
             <div className="grid grid-cols-4 gap-4">
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
                   {DESCRIPTION_FIELD_LABEL}
                 </span>
                 <p className="text-sm text-text">
-                  {seriesRow.description || EMPTY_VALUE_LABEL}
+                  {(pendingSegment ?? seriesRow)!.description ||
+                    EMPTY_VALUE_LABEL}
                 </p>
               </div>
               <div className="flex flex-col gap-1">
@@ -251,9 +258,11 @@ function TaskDetailsView({
                   {ESTIMATED_TIME_LABEL}
                 </span>
                 <span className="text-sm">
-                  {seriesRow.estimated_minutes === null
+                  {(pendingSegment ?? seriesRow)!.estimated_minutes === null
                     ? EMPTY_VALUE_LABEL
-                    : formatMinutes(seriesRow.estimated_minutes)}
+                    : formatMinutes(
+                        (pendingSegment ?? seriesRow)!.estimated_minutes!,
+                      )}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -264,7 +273,8 @@ function TaskDetailsView({
                   {CARRY_OVER_OPTIONS.find(
                     (o) =>
                       o.value ===
-                      (seriesRow.carry_over_rule ?? CarryOverRule.Ask),
+                      ((pendingSegment ?? seriesRow)!.carry_over_rule ??
+                        CarryOverRule.Ask),
                   )?.label ?? EMPTY_VALUE_LABEL}
                 </span>
               </div>
@@ -679,6 +689,20 @@ export function EditTaskDialog({
       livingSeriesId !== null &&
       (s.id === livingSeriesId || s.succeeded_by === livingSeriesId),
   );
+  // The segment that produces a pending picked date — a pre-cutoff
+  // date belongs to an archive and shows its values, not the living
+  // series'.
+  const pendingSegment =
+    pendingIso !== null
+      ? familySegments?.find((s) =>
+          isScheduledOn(s.recurrence, s.start_date, s.end_date, pendingIso),
+        )
+      : undefined;
+  const { data: pendingCats } = useQuery({
+    queryKey: QUERY_KEYS.seriesCategories(pendingSegment?.id ?? -1),
+    queryFn: () => listSeriesCategories(pendingSegment!.id),
+    enabled: pendingSegment !== undefined,
+  });
   const { data: seriesInstances } = useQuery({
     queryKey: QUERY_KEYS.seriesInstances(viewed.series_id!),
     queryFn: () => listSeriesInstances(viewed.series_id!),
@@ -1042,8 +1066,9 @@ export function EditTaskDialog({
             pendingIso={pendingIso}
             materializing={materialize.isPending}
             materializeError={serverErrorMessage(materialize.error)}
-            categories={pendingIso !== null ? (seriesCats ?? []) : categories}
+            categories={pendingIso !== null ? (pendingCats ?? []) : categories}
             seriesRow={seriesRow}
+            pendingSegment={pendingSegment}
             seriesSegments={familySegments}
             seriesInstances={seriesInstances}
             onPick={(picked, iso) => {
