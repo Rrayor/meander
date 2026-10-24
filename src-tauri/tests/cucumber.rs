@@ -2671,3 +2671,31 @@ fn active_work_days_default(world: &mut MeanderWorld) {
 fn active_work_days_weekend(world: &mut MeanderWorld) {
     assert_active_work_days(world, weekend());
 }
+
+#[when("I clear the active profile's work days")]
+fn clear_active_work_days(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_work_days(&pool, id, &[]))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I set the active profile's work days to Monday only")]
+fn set_work_days_monday(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world.rt().block_on(meander_lib::profiles::set_work_days(
+        &pool,
+        id,
+        &[meander_lib::series::Weekday::Monday],
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the active profile's work days are Monday only")]
+fn work_days_monday(world: &mut MeanderWorld) {
+    assert_active_work_days(world, vec![meander_lib::series::Weekday::Monday]);
+}

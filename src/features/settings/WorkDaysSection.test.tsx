@@ -3,11 +3,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { setWorkDays, weekStart, workDays } from "@/api/profiles";
 import { WorkDaysSection } from "@/features/settings/WorkDaysSection";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { Weekday } from "@/lib/enums";
 import {
   SAVE_BUTTON_LABEL,
   WEEKDAY_OPTIONS,
   WORK_DAYS_DEFAULT,
+  WORK_DAYS_FIELD_LABEL,
   weekdaysFrom,
 } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
@@ -31,12 +33,15 @@ const dayNames = new RegExp(
 );
 const chips = () => screen.getAllByRole("button", { name: dayNames });
 
-const renderSection = () =>
+const renderSection = () => {
+  const client = testQueryClient();
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={client}>
       <WorkDaysSection />
     </QueryClientProvider>,
   );
+  return client;
+};
 
 describe("WorkDaysSection", () => {
   beforeEach(() => {
@@ -129,6 +134,65 @@ describe("WorkDaysSection", () => {
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
     ).toBeDisabled();
     expect(mockedSetWorkDays).not.toHaveBeenCalled();
+  });
+
+  it("accumulates multiple toggles in the saved set", async () => {
+    renderSection();
+    await screen.findByRole("button", { name: dayLabel(Weekday.Monday) });
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Saturday) }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Sunday) }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(mockedSetWorkDays).toHaveBeenCalledWith(
+        [...WORK_DAYS_DEFAULT, Weekday.Saturday, Weekday.Sunday],
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("invalidates work days and the profile row after a save", async () => {
+    const client = renderSection();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    await screen.findByRole("button", { name: dayLabel(Weekday.Monday) });
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Saturday) }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: QUERY_KEYS.workDays }),
+      ),
+    );
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: QUERY_KEYS.profiles }),
+    );
+  });
+
+  it("clears the draft once a save lands", async () => {
+    renderSection();
+    await screen.findByRole("button", { name: dayLabel(Weekday.Monday) });
+    fireEvent.click(
+      screen.getByRole("button", { name: dayLabel(Weekday.Saturday) }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+      ).toBeDisabled(),
+    );
+    // The stored query refetches with the saved set once invalidated.
+    expect(chips().length).toBe(WEEKDAY_OPTIONS.length);
+  });
+
+  it("exposes the field label as the group accessible name", async () => {
+    renderSection();
+    expect(
+      await screen.findByRole("group", { name: WORK_DAYS_FIELD_LABEL }),
+    ).toBeInTheDocument();
   });
 
   it("surfaces a failed save", async () => {

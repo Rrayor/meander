@@ -58,3 +58,14 @@ Feature: Profiles
     Then the active profile's work days are the default set
     When the application switches back to the original profile
     Then the active profile's work days are the weekend
+
+  Scenario: clearing all work days is rejected
+    Given an application state on a temporary seeded database
+    When I clear the active profile's work days
+    Then the update fails
+    And the active profile's work days are the default set
+
+  Scenario: a single work day is allowed
+    Given an application state on a temporary seeded database
+    When I set the active profile's work days to Monday only
+    Then the active profile's work days are Monday only

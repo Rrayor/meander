@@ -183,8 +183,12 @@ test("saving a week start sends it on the wire", async ({ page }) => {
     [COMMANDS.listProfiles]: profiles,
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
-    [COMMANDS.weekStart]: Weekday.Monday,
-    [COMMANDS.setWeekStart]: undefined,
+    [COMMANDS.weekStart]: stubSequence([
+      Weekday.Monday,
+      Weekday.Monday,
+      Weekday.Sunday,
+    ]),
+    [COMMANDS.setWeekStart]: null,
     [COMMANDS.workDays]: [],
   });
   await page.goto(`/#${settingsPath}`);
@@ -227,7 +231,7 @@ test("saving work days sends them on the wire", async ({ page }) => {
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.workDays]: mondayFriday,
-    [COMMANDS.setWorkDays]: undefined,
+    [COMMANDS.setWorkDays]: null,
   });
   await page.goto(`/#${settingsPath}`);
 
@@ -243,6 +247,52 @@ test("saving work days sends them on the wire", async ({ page }) => {
   expect(saveCall?.args).toEqual({
     days: mondayFriday.filter((d) => d !== friday.value).concat(saturday.value),
   });
+});
+
+test("a saved work-days set refetches into the chips", async ({ page }) => {
+  const weekend = [Weekday.Saturday, Weekday.Sunday];
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    // Mount may fetch more than once (StrictMode) — every call after the
+    // second serves the post-save stored set.
+    [COMMANDS.workDays]: stubSequence([mondayFriday, mondayFriday, weekend]),
+    [COMMANDS.setWorkDays]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: WORK_DAYS_HEADING });
+  const friday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Friday)!;
+  const saturday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Saturday)!;
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+  await section.getByRole("button", { name: friday.label }).click();
+  await section.getByRole("button", { name: saturday.label }).click();
+  await section.getByRole("button", { name: sunday.label }).click();
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  // The save must trigger a work_days refetch (invalidateQueries).
+  await expect
+    .poll(
+      async () =>
+        (await getInvocations(page)).filter((c) => c.cmd === COMMANDS.workDays)
+          .length,
+    )
+    .toBeGreaterThan(2);
+  await expect(
+    section.getByRole("button", { name: saturday.label }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    section.getByRole("button", { name: sunday.label }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    section.getByRole("button", { name: friday.label }),
+  ).toHaveAttribute("aria-pressed", "false");
+  // The draft cleared — nothing differs from stored anymore.
+  await expect(
+    section.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+  ).toBeDisabled();
 });
 
 test("a failed work-days save surfaces the error", async ({ page }) => {
