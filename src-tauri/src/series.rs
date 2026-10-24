@@ -40,6 +40,22 @@ impl Weekday {
             _ => return None,
         })
     }
+
+    /// All weekdays in canonical Monday-first order.
+    pub(crate) const ALL: [Self; 7] = [
+        Self::Monday,
+        Self::Tuesday,
+        Self::Wednesday,
+        Self::Thursday,
+        Self::Friday,
+        Self::Saturday,
+        Self::Sunday,
+    ];
+
+    /// Bit position in the profiles.work_days mask — Monday is bit 0.
+    pub(crate) fn bit(self) -> i64 {
+        1 << self.index()
+    }
 }
 
 /// Spec §111-121: the supported recurrence shapes are a closed set —

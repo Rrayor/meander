@@ -35,6 +35,7 @@ pub enum ErrorCode {
     ProfileNameRequired,
     ProfileNameTooLong,
     ProfileNameInvalidCharacters,
+    WorkDaysRequired,
     Internal,
 }
 

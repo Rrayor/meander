@@ -1,5 +1,6 @@
 import { DatabaseSection } from "@/features/settings/DatabaseSection";
 import { WeekStartSection } from "@/features/settings/WeekStartSection";
+import { WorkDaysSection } from "@/features/settings/WorkDaysSection";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
 
 export function SettingsPage() {
@@ -14,6 +15,7 @@ export function SettingsPage() {
         <div className="flex max-w-3xl flex-col gap-8">
           <ProfilesSection />
           <WeekStartSection />
+          <WorkDaysSection />
           <DatabaseSection />
         </div>
       </div>

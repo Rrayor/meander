@@ -27,3 +27,8 @@ export const weekStart = () => transport.invoke<Weekday>(COMMANDS.weekStart);
 
 export const setWeekStart = (weekday: Weekday) =>
   transport.invoke<void>(COMMANDS.setWeekStart, { weekday });
+
+export const workDays = () => transport.invoke<Weekday[]>(COMMANDS.workDays);
+
+export const setWorkDays = (days: Weekday[]) =>
+  transport.invoke<void>(COMMANDS.setWorkDays, { days });

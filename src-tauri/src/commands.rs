@@ -387,6 +387,20 @@ pub async fn set_week_start(state: State<'_, AppState>, weekday: Weekday) -> Res
         .map_err(ApiError::from)
 }
 
+#[tauri::command]
+pub async fn work_days(state: State<'_, AppState>) -> Result<Vec<Weekday>, ApiError> {
+    profiles::work_days(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn set_work_days(state: State<'_, AppState>, days: Vec<Weekday>) -> Result<(), ApiError> {
+    profiles::set_work_days(&state.pool(), state.active_profile_id(), &days)
+        .await
+        .map_err(ApiError::from)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
