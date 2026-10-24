@@ -31,6 +31,7 @@ import {
   CALENDAR_NEXT_LABEL,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_ADD_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_NTH_OPTIONS,
   REPEAT_ON_THE_LABEL,
@@ -57,7 +58,6 @@ import {
   INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
   NOTE_BODY_TOO_LONG_MESSAGE,
 } from "@/lib/errors";
-import { statusLabel } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
 import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
@@ -138,9 +138,7 @@ test("backlog lists tasks with status and estimate", async ({ page }) => {
   await expect(page.getByText(TITLE_MILESTONE)).toBeVisible();
   await expect(page.getByText(formatMinutes(45))).toBeVisible();
   await expect(page.getByText(formatMinutes(180))).toBeVisible();
-  await expect(
-    page.getByRole("combobox", { name: statusLabel(TITLE_MILESTONE) }),
-  ).toHaveValue(TaskStatus.InProgress);
+  await expect(page.getByText(STATUS_LABELS.in_progress)).toBeVisible();
 });
 
 test("an empty backlog shows the empty state", async ({ page }) => {
@@ -522,6 +520,7 @@ test("creating a repeating task sends the series payload", async ({ page }) => {
   await dialog.getByRole("button", { name: WEEK_UNIT.label }).click();
   // exact: the expanded toggle's summary also contains the weekday name.
   await dialog.getByRole("button", { name: FRIDAY.label, exact: true }).click();
+  await dialog.getByText(REPEAT_ENDS_ADD_LABEL).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2027-01-01");
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
@@ -564,6 +563,7 @@ test("an invalid repeat schedule keeps the dialog open without a call", async ({
   await dialog
     .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
     .click();
+  await dialog.getByText(REPEAT_ENDS_ADD_LABEL).click();
   await dialog.getByLabel(REPEAT_ENDS_LABEL).fill("2020-01-01");
 
   await expect(

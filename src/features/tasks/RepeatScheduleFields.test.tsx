@@ -6,6 +6,7 @@ import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_ADD_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
   REPEAT_EVERY_LABEL,
@@ -185,6 +186,7 @@ describe("RepeatScheduleFields", () => {
   it("flags an end date before the start date and reports the error", () => {
     const onChange = renderField();
     expand();
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: "2027-01-01" },
     });
@@ -220,6 +222,7 @@ describe("RepeatScheduleFields", () => {
     if (monday.getAttribute("aria-pressed") === "true") {
       fireEvent.click(monday);
     }
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: "2026-10-19" },
     });
@@ -256,6 +259,7 @@ describe("RepeatScheduleFields", () => {
   it("emits the optional end date", () => {
     const onChange = renderField();
     expand();
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: "2027-01-01" },
     });

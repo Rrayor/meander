@@ -28,12 +28,10 @@ import {
   editTaskLabel,
   formatMinutes,
   reorderLabel,
-  statusLabel,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
-import { deleteTask, listTasks, moveTask, updateTask } from "@/api/tasks";
+import { deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
-import type { TaskStatus } from "@/api/bindings";
 import { DeleteButton } from "@/components/DeleteButton";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
@@ -48,13 +46,11 @@ function TaskRow({
   task,
   onDelete,
   onEdit,
-  onStatusChange,
   deletePending,
 }: Readonly<{
   task: Task;
   onDelete: () => void;
   onEdit: () => void;
-  onStatusChange: (status: TaskStatus) => void;
   deletePending: boolean;
 }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -109,31 +105,11 @@ function TaskRow({
             {formatMinutes(task.estimated_minutes)}
           </span>
         )}
-        <div className="relative">
-          <select
-            aria-label={statusLabel(task.title)}
-            value={task.status}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onStatusChange(e.target.value as TaskStatus)}
-            className={`cursor-pointer appearance-none rounded pr-6 pl-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
-          >
-            {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((st) => (
-              <option key={st} value={st} className="bg-surface text-text">
-                {STATUS_LABELS[st]}
-              </option>
-            ))}
-          </select>
-          <svg
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 right-1 h-3 w-3 -translate-y-1/2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </div>
+        <span
+          className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
+        >
+          {STATUS_LABELS[task.status]}
+        </span>
         <DeleteButton
           label={deleteTaskLabel(task.title)}
           disabled={deletePending}
@@ -182,24 +158,6 @@ export function BacklogPage() {
       beforeId: number | null;
       afterId: number | null;
     }) => moveTask(taskId, beforeId, afterId),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
-    },
-  });
-
-  // Backlog status edits send the whole row — update_task takes the
-  // full payload, so unchanged fields ride along.
-  const statusUpdate = useMutation({
-    mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) =>
-      updateTask(task.id, {
-        title: task.title,
-        description: task.description,
-        estimated_minutes: task.estimated_minutes,
-        spent_minutes: task.spent_minutes,
-        carry_over_rule: task.carry_over_rule,
-        status,
-        series: null,
-      }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
     },
@@ -312,9 +270,6 @@ export function BacklogPage() {
                   <TaskRow
                     key={task.id}
                     task={task}
-                    onStatusChange={(status) =>
-                      statusUpdate.mutate({ task, status })
-                    }
                     deletePending={del.isPending}
                     onDelete={() => del.mutate(task.id)}
                     onEdit={() => setEditingTask(task)}

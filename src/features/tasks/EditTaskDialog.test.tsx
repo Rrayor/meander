@@ -48,6 +48,7 @@ import {
   ESTIMATED_HOURS_LABEL,
   ESTIMATED_MINUTES_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
+  REPEAT_ENDS_ADD_LABEL,
   REPEAT_ENDS_LABEL,
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
@@ -675,6 +676,7 @@ describe("EditTaskDialog", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: WEEKLY_UNIT.label }));
     fireEvent.click(screen.getByRole("button", { name: WEDNESDAY.label }));
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: REPEAT_END_DATE },
     });
@@ -701,6 +703,7 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       screen.getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) }),
     );
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     const ends = screen.getByLabelText(REPEAT_ENDS_LABEL);
     fireEvent.change(ends, { target: { value: "2020-01-01" } });
 
@@ -721,6 +724,7 @@ describe("EditTaskDialog", () => {
       name: new RegExp(REPEAT_SECTION_LABEL),
     });
     fireEvent.click(toggle);
+    fireEvent.click(screen.getByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(screen.getByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: REPEAT_END_DATE },
     });
@@ -1271,6 +1275,7 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
     );
+    fireEvent.click(await screen.findByText(REPEAT_ENDS_ADD_LABEL));
     fireEvent.change(await screen.findByLabelText(REPEAT_ENDS_LABEL), {
       target: { value: REPEAT_END_DATE },
     });
@@ -1290,6 +1295,7 @@ describe("EditTaskDialog", () => {
     fireEvent.click(
       screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
     );
+    fireEvent.click(await screen.findByText(REPEAT_ENDS_ADD_LABEL));
     const ends = await screen.findByLabelText(REPEAT_ENDS_LABEL);
     fireEvent.change(ends, { target: { value: "2020-01-01" } });
 

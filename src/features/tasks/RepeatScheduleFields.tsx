@@ -8,7 +8,8 @@ import {
   REPEAT_ENDS_INVALID_MESSAGE,
   REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
   REPEAT_ENDS_LABEL,
-  REPEAT_ENDS_EMPTY_PLACEHOLDER,
+  REPEAT_ENDS_ADD_LABEL,
+  REPEAT_ENDS_CLEAR_LABEL,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NONE_SUMMARY,
@@ -582,20 +583,45 @@ export function RepeatScheduleFields({
               >
                 {REPEAT_ENDS_LABEL}
               </label>
-              <input
-                id={`${idPrefix}-repeat-ends`}
-                // A text input carries a real placeholder — date inputs
-                // show the current date as theirs, which reads as a
-                // prefilled value. The draft validation already enforces
-                // ISO dates.
-                type="text"
-                placeholder={REPEAT_ENDS_EMPTY_PLACEHOLDER}
-                value={draft.endDate}
-                onChange={(e) => patch({ endDate: e.target.value })}
-                aria-invalid={!!errors.endDate}
-                aria-describedby={errorFor("endDate")}
-                className={FIELD_CLASSES}
-              />
+              {draft.endDate === "" ? (
+                <button
+                  type="button"
+                  onClick={() => patch({ endDate: draft.startDate })}
+                  className="cursor-pointer rounded-md border border-dashed border-border px-3 py-2 text-left text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text"
+                >
+                  {REPEAT_ENDS_ADD_LABEL}
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id={`${idPrefix}-repeat-ends`}
+                    type="date"
+                    min={draft.startDate}
+                    value={draft.endDate}
+                    onChange={(e) => patch({ endDate: e.target.value })}
+                    aria-invalid={!!errors.endDate}
+                    aria-describedby={errorFor("endDate")}
+                    className={FIELD_CLASSES}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => patch({ endDate: "" })}
+                    aria-label={REPEAT_ENDS_CLEAR_LABEL}
+                    className="cursor-pointer rounded p-1 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               {errors.endDate && (
                 <p
                   id={errorFor("endDate")}
