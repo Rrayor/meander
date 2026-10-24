@@ -18,6 +18,9 @@ import {
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 
+const sameDays = (a: readonly Weekday[], b: readonly Weekday[]) =>
+  a.length === b.length && a.every((d) => b.includes(d));
+
 export function WorkDaysSection() {
   const queryClient = useQueryClient();
   const { data: weekStart = Weekday.Monday } = useQuery({
@@ -29,7 +32,8 @@ export function WorkDaysSection() {
     queryFn: fetchWorkDays,
   });
   const [selected, setSelected] = useState<Weekday[]>();
-  const days: Weekday[] = [...(selected ?? stored ?? WORK_DAYS_DEFAULT)];
+  const baseline = stored ?? WORK_DAYS_DEFAULT;
+  const days: Weekday[] = [...(selected ?? baseline)];
 
   const save = useMutation({
     mutationFn: setWorkDaysCommand,
@@ -46,8 +50,14 @@ export function WorkDaysSection() {
       const current = prev ?? days;
       if (!current.includes(day)) return [...current, day];
       // At least one work day is required — the last one can't deselect.
-      return current.length === 1 ? current : current.filter((d) => d !== day);
+      if (current.length === 1) return prev;
+      const next = current.filter((d) => d !== day);
+      // Toggling back to the stored set clears the draft instead of
+      // enabling a no-op save that would still bump updated_at.
+      return sameDays(next, baseline) ? undefined : next;
     });
+
+  const dirty = selected !== undefined && !sameDays(selected, baseline);
 
   return (
     <section
@@ -91,7 +101,7 @@ export function WorkDaysSection() {
               ),
             )
           }
-          disabled={save.isPending || selected === undefined}
+          disabled={save.isPending || !dirty}
           className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition-colors disabled:opacity-50"
         >
           {SAVE_BUTTON_LABEL}

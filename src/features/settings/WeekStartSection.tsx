@@ -22,7 +22,11 @@ export function WeekStartSection() {
     queryFn: fetchWeekStart,
   });
   const [selected, setSelected] = useState<Weekday>();
-  const current = selected ?? weekStart ?? Weekday.Monday;
+  const stored = weekStart ?? Weekday.Monday;
+  const current = selected ?? stored;
+  // Selecting the stored value is no draft — save must stay disabled or it
+  // would write the same value and still bump updated_at.
+  const dirty = selected !== undefined && selected !== stored;
 
   const save = useMutation({
     mutationFn: setWeekStartCommand,
@@ -63,7 +67,7 @@ export function WeekStartSection() {
         <button
           type="button"
           onClick={() => save.mutate(current)}
-          disabled={save.isPending || selected === undefined}
+          disabled={save.isPending || !dirty}
           className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition-colors disabled:opacity-50"
         >
           {SAVE_BUTTON_LABEL}

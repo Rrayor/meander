@@ -94,6 +94,16 @@ describe("WorkDaysSection", () => {
     ).toBeDisabled();
   });
 
+  it("keeps Save disabled when the toggled set matches the stored one", async () => {
+    renderSection();
+    const friday = await screen.findByRole("button", { name: "Friday" });
+    fireEvent.click(friday);
+    fireEvent.click(friday);
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+  });
+
   it("does not allow deselecting the last work day", async () => {
     mockedWorkDays.mockResolvedValue([Weekday.Monday]);
     renderSection();
@@ -106,6 +116,9 @@ describe("WorkDaysSection", () => {
     );
     fireEvent.click(monday);
     expect(monday).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
     expect(mockedSetWorkDays).not.toHaveBeenCalled();
   });
 

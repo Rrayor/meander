@@ -130,6 +130,17 @@
       "notes": "Details-modal calendar with differentiated markers: persisted instances = filled primary dot, scheduled-only recurrence dates = hollow ring (border-primary, transparent fill), 'recorded instance / scheduled' legend line below the grid"
     },
     {
+      "id": "0f157ceda44a4f599cb8cdd51eabdde6",
+      "title": "Meander — Settings (Scheduling & Work Days)",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/settings-work-days.html",
+        "designs/settings-work-days.png"
+      ],
+      "implemented": true,
+      "notes": "Settings sections: 'Scheduling' (Week starts on select + Save) and 'Work days' (Mo-Su toggle chips, Mon-Fri pressed, + Save) stacked above Database. Generated extras omitted: section subtext lines, database status badges, header icon buttons, Offline badge, 'Active work days' label renamed to 'Days that count as work days'"
+    },
+    {
       "id": "2b11a6a0b028454b8ebe024451e582a2",
       "title": "Meander — Task Details Modal (Notes View)",
       "deviceType": "DESKTOP",
