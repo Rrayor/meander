@@ -14,10 +14,10 @@ import {
   EDIT_BUTTON_LABEL,
   EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
-  STATUS_LABELS,
   deleteTaskLabel,
   formatMinutes,
   reorderLabel,
+  statusLabel,
 } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -116,9 +116,15 @@ describe("BacklogPage", () => {
     expect(screen.getByText(formatMinutes(45))).toBeInTheDocument();
     expect(screen.getByText(formatMinutes(60))).toBeInTheDocument();
     expect(screen.getByText(formatMinutes(90))).toBeInTheDocument();
-    expect(screen.getAllByText(STATUS_LABELS.todo)).toHaveLength(2);
-    expect(screen.getByText(STATUS_LABELS.in_progress)).toBeInTheDocument();
-    expect(screen.getByText(STATUS_LABELS.done)).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: statusLabel(TITLE_SHORT) }),
+    ).toHaveValue(TaskStatus.Todo);
+    expect(
+      screen.getByRole("combobox", { name: statusLabel("Hour") }),
+    ).toHaveValue(TaskStatus.InProgress);
+    expect(
+      screen.getByRole("combobox", { name: statusLabel(TITLE_LONG) }),
+    ).toHaveValue(TaskStatus.Done);
     expect(
       screen.getByRole("button", { name: reorderLabel(TITLE_LONG) }),
     ).toBeInTheDocument();

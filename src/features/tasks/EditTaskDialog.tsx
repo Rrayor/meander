@@ -246,6 +246,20 @@ function TaskDetailsView({
             <div className="grid grid-cols-4 gap-4">
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                  {TASK_STATUS_FIELD_LABEL}
+                </span>
+                <span className="text-sm">
+                  {STATUS_LABELS[TaskStatus.Todo]}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                  {SPENT_TIME_LABEL}
+                </span>
+                <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
                   {DESCRIPTION_FIELD_LABEL}
                 </span>
                 <p className="text-sm text-text">
@@ -774,7 +788,8 @@ export function EditTaskDialog({
   // it). The pick stays pending until the row arrives, then the view swaps
   // to it — on failure the date keeps the pending panel plus the error.
   const materialize = useMutation({
-    mutationFn: (iso: string) => getOrCreateInstance(livingSeriesId!, iso),
+    mutationFn: ({ iso, seriesId }: { iso: string; seriesId: number }) =>
+      getOrCreateInstance(seriesId, iso),
     onSuccess: (created) => {
       setViewed(created);
       setPendingIso(null);
@@ -1016,11 +1031,27 @@ export function EditTaskDialog({
                   // date materializes for notes only, staying in
                   // view mode.
                   editAfterMaterialize.current = pendingIso >= todayLocalIso();
-                  materialize.mutate(pendingIso);
+                  // The producing segment owns the row — a pre-cutoff
+                  // date belongs to an earlier segment, not the living
+                  // series.
+                  materialize.mutate({
+                    iso: pendingIso,
+                    seriesId: pendingSegment?.id ?? livingSeriesId!,
+                  });
                 }}
-                className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+                aria-label={EDIT_BUTTON_LABEL}
+                className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
               >
-                {EDIT_BUTTON_LABEL}
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
               </button>
             )}
             {mode === DialogMode.View &&
@@ -1037,9 +1068,19 @@ export function EditTaskDialog({
                     reset(instanceDefaults);
                     setMode(DialogMode.Edit);
                   }}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-raised"
+                  aria-label={EDIT_BUTTON_LABEL}
+                  className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
                 >
-                  {EDIT_BUTTON_LABEL}
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
                 </button>
               )}
             <button

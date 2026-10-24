@@ -8,6 +8,7 @@ import {
   REPEAT_ENDS_INVALID_MESSAGE,
   REPEAT_ENDS_NO_OCCURRENCE_MESSAGE,
   REPEAT_ENDS_LABEL,
+  REPEAT_ENDS_OPTIONAL_HINT,
   REPEAT_EVERY_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NONE_SUMMARY,
@@ -581,6 +582,9 @@ export function RepeatScheduleFields({
               >
                 {REPEAT_ENDS_LABEL}
               </label>
+              <span className="text-xs text-text-muted">
+                {REPEAT_ENDS_OPTIONAL_HINT}
+              </span>
               <input
                 id={`${idPrefix}-repeat-ends`}
                 type="date"

@@ -57,6 +57,7 @@ import {
   INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
   NOTE_BODY_TOO_LONG_MESSAGE,
 } from "@/lib/errors";
+import { statusLabel } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
 import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
@@ -137,7 +138,9 @@ test("backlog lists tasks with status and estimate", async ({ page }) => {
   await expect(page.getByText(TITLE_MILESTONE)).toBeVisible();
   await expect(page.getByText(formatMinutes(45))).toBeVisible();
   await expect(page.getByText(formatMinutes(180))).toBeVisible();
-  await expect(page.getByText(STATUS_LABELS.in_progress)).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: statusLabel(TITLE_MILESTONE) }),
+  ).toHaveValue(TaskStatus.InProgress);
 });
 
 test("an empty backlog shows the empty state", async ({ page }) => {

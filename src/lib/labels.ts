@@ -16,6 +16,7 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 
 export const reorderLabel = (title: string) => `Reorder ${title}`;
 export const deleteTaskLabel = (title: string) => `Delete ${title}`;
+export const statusLabel = (title: string) => `Status for ${title}`;
 export const editTaskLabel = (title: string) => `Edit ${title}`;
 
 export const formatMinutes = (minutes: number) => {
@@ -105,6 +106,7 @@ export const REPEAT_DAY_OF_MONTH_LABEL = "Day of month";
 export const REPEAT_ON_THE_LABEL = "On the";
 export const REPEAT_STARTS_LABEL = "Starts";
 export const REPEAT_ENDS_LABEL = "Ends";
+export const REPEAT_ENDS_OPTIONAL_HINT = "Leave empty to repeat indefinitely";
 export const REPEAT_MONTHLY_CLAMP_HINT =
   "Days past the end of a shorter month land on its last day.";
 export const REPEAT_STARTS_REQUIRED_MESSAGE =
