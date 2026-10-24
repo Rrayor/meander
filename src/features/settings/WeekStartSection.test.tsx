@@ -58,12 +58,13 @@ describe("WeekStartSection", () => {
   });
 
   it("surfaces a failed save", async () => {
-    mockedSetWeekStart.mockRejectedValue(new Error("write failed"));
+    const message = "write failed";
+    mockedSetWeekStart.mockRejectedValue(new Error(message));
     renderSection();
     fireEvent.change(await screen.findByLabelText(WEEK_START_LABEL), {
       target: { value: Weekday.Sunday },
     });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("write failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
 });
