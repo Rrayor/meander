@@ -625,11 +625,18 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<TaskSeries>>
 /// Deletes a series scoped to its owning profile; instances cascade
 /// (spec §154). Unknown or foreign ids are an error, not a no-op.
 pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
-    let result = sqlx::query("DELETE FROM task_series WHERE id = ? AND profile_id = ?")
-        .bind(id)
-        .bind(profile_id)
-        .execute(pool)
-        .await?;
+    // Deleting a split series removes its whole chain: earlier segments
+    // reference the living row through succeeded_by, so they must go in
+    // the same delete or the FK blocks it. Instance rows cascade from
+    // every segment.
+    let result = sqlx::query(
+        "DELETE FROM task_series WHERE (id = ? OR succeeded_by = ?) AND profile_id = ?",
+    )
+    .bind(id)
+    .bind(id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
     if result.rows_affected() == 0 {
         return Err(series_not_found());
     }
@@ -820,11 +827,20 @@ pub async fn update_from(
             .bind(from_date)
             .fetch_one(pool)
             .await?;
-    // A cutoff at or before the series start only degenerates to a full
-    // update when nothing earlier persisted — a start moved forward can
-    // leave off-schedule rows behind that must not be overwritten.
-    if earlier == 0 && from_date <= row.start_date.as_str() {
-        return update(pool, profile_id, id, input).await;
+    // A cutoff at the series start degenerates to a full update when
+    // nothing earlier persisted — a start moved forward can leave
+    // off-schedule rows behind that must not be overwritten. A cutoff
+    // *before* the start is a stale retry of an earlier split (a later
+    // split already moved the start forward); rewinding it would
+    // produce occurrences overlapping a newer segment's window, so it
+    // is an idempotent no-op.
+    if earlier == 0 {
+        if from_date < row.start_date.as_str() {
+            return get(pool, profile_id, id).await;
+        }
+        if from_date == row.start_date {
+            return update(pool, profile_id, id, input).await;
+        }
     }
     let later: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date >= ?",
@@ -2044,5 +2060,65 @@ mod tests {
         let all = list(&pool, pid).await.unwrap();
         assert_eq!(all.len(), 2);
         assert_eq!(instance(&pool, second).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_a_stale_retry_after_a_later_split_is_a_no_op() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        for iso in [START, SECOND_INSTANCE_DATE, THIRD_INSTANCE_DATE] {
+            add_instance(&pool, pid, saved.id, iso).await;
+        }
+
+        let input = update_input(weekly());
+        update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+        update_from(&pool, pid, saved.id, THIRD_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+
+        // A stale retry of the first split arrives after the second one
+        // moved the living start forward. Rewinding the start would
+        // overlap the second segment's window, so the call must leave
+        // everything as-is.
+        let result = update_from(&pool, pid, saved.id, SECOND_INSTANCE_DATE, &input)
+            .await
+            .unwrap();
+        assert_eq!(result.start_date, THIRD_INSTANCE_DATE);
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_whole_segment_chain() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        for iso in [START, SECOND_INSTANCE_DATE] {
+            add_instance(&pool, pid, saved.id, iso).await;
+        }
+        update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 2);
+
+        delete(&pool, pid, saved.id).await.unwrap();
+
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 0);
+        let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE profile_id = ?")
+            .bind(pid)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(remaining, 0);
     }
 }

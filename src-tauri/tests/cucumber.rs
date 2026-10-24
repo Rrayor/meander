@@ -2370,6 +2370,7 @@ fn note_foreign_task(world: &mut MeanderWorld, body: String) {
 }
 
 const UNSCHEDULED_DATE: &str = "2026-10-21"; // a Wednesday — off the Monday schedule
+const RETITLED_SERIES_TITLE: &str = "Daily sync";
 
 /// Picking a scheduled occurrence materializes its instance (spec §230):
 /// the row appears in the background and becomes the viewed task.
@@ -2562,7 +2563,7 @@ fn later_instance_moved(world: &mut MeanderWorld) {
     // series — retitled, so the only one the later instance's title
     // resolves to — keeps the cutoff instance. The earlier segment
     // holds the earlier date instead.
-    let series = series_of(world, "Daily sync");
+    let series = series_of(world, RETITLED_SERIES_TITLE);
     assert_eq!(
         series_instance_dates(world, series.id),
         vec![LATER_INSTANCE_DATE.to_string()]
