@@ -50,10 +50,11 @@ describe("Series instance smoke", () => {
 
     // The pending placeholder shows until the Edit click materializes
     // the instance; a future date opens straight into edit mode.
-    const pendingPanel = await $(dialog).$(
-      `*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`,
+    await browser.waitUntil(async () =>
+      (
+        await $(dialog).$(`*=${SCHEDULED_INSTANCE_PENDING_MESSAGE}`)
+      ).isExisting(),
     );
-    await expect(pendingPanel).toExist();
     const dialogEl = await $(dialog);
     const editButton = await dialogEl.$(`aria/${EDIT_BUTTON_LABEL}`);
     await expect(editButton).toExist();
