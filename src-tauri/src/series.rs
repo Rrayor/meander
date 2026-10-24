@@ -852,6 +852,24 @@ pub async fn update_from(
             if covered {
                 return get(pool, profile_id, id).await;
             }
+            // Uncovered and before the start is only legitimate when a
+            // persisted row anchors the cutoff (a moved start's
+            // survivor). Without one the date is fabricated — applying
+            // the payload would rewrite the whole series.
+            let anchored: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM tasks \
+                 WHERE series_id = ? AND scheduled_date = ?)",
+            )
+            .bind(id)
+            .bind(from_date)
+            .fetch_one(pool)
+            .await?;
+            if !anchored {
+                return Err(crate::db::DbError::Validation {
+                    code: ErrorCode::InstanceDateNotScheduled,
+                    message: "no instance of this series exists on that date".into(),
+                });
+            }
             return update(pool, profile_id, id, input).await;
         }
     }
@@ -2127,6 +2145,29 @@ mod tests {
             .unwrap();
         assert_eq!(result.title, NEW_TITLE);
         assert_eq!(instance(&pool, anchor).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_a_fabricated_pre_start_date_rejects() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let anchor = add_instance(&pool, pid, saved.id, START).await;
+
+        // No segment and no instance on the cutoff — a fabricated
+        // from_date must not rewrite the whole series.
+        let err = update_from(&pool, pid, saved.id, "2026-10-05", &update_input(weekly()))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            crate::db::DbError::Validation {
+                code: ErrorCode::InstanceDateNotScheduled,
+                ..
+            }
+        ));
+        assert_eq!(instance(&pool, anchor).await.title, "custom title");
     }
 
     #[tokio::test]
