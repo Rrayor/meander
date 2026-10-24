@@ -830,15 +830,28 @@ pub async fn update_from(
     // A cutoff at the series start degenerates to a full update when
     // nothing earlier persisted — a start moved forward can leave
     // off-schedule rows behind that must not be overwritten. A cutoff
-    // *before* the start is a stale retry of an earlier split (a later
-    // split already moved the start forward); rewinding it would
-    // produce occurrences overlapping a newer segment's window, so it
-    // is an idempotent no-op.
+    // *before* the start is ambiguous: a stale retry of a superseded
+    // split lands in an earlier segment's window, while a legit edit
+    // anchored on an off-schedule persisted row does not. Only the
+    // former is an idempotent no-op; the latter applies normally.
     if earlier == 0 {
-        if from_date < row.start_date.as_str() {
-            return get(pool, profile_id, id).await;
-        }
         if from_date == row.start_date {
+            return update(pool, profile_id, id, input).await;
+        }
+        if from_date < row.start_date.as_str() {
+            let covered: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM task_series \
+                 WHERE succeeded_by = ? AND start_date <= ? \
+                 AND (end_date IS NULL OR end_date >= ?))",
+            )
+            .bind(id)
+            .bind(from_date)
+            .bind(from_date)
+            .fetch_one(pool)
+            .await?;
+            if covered {
+                return get(pool, profile_id, id).await;
+            }
             return update(pool, profile_id, id, input).await;
         }
     }
@@ -2089,6 +2102,31 @@ mod tests {
             .unwrap();
         assert_eq!(result.start_date, THIRD_INSTANCE_DATE);
         assert_eq!(list(&pool, pid).await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn update_from_before_a_moved_start_still_saves() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let anchor = add_instance(&pool, pid, saved.id, START).await;
+        add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+
+        // A whole-series update can move the start past persisted rows
+        // without deleting them (off-schedule survivors).
+        let mut moved = update_input(weekly());
+        moved.start_date = THIRD_INSTANCE_DATE.into();
+        update(&pool, pid, saved.id, &moved).await.unwrap();
+
+        // Editing the earliest row — now predating the start — must
+        // apply, not be mistaken for a stale retry: no earlier segment
+        // covers its date.
+        let result = update_from(&pool, pid, saved.id, START, &update_input(weekly()))
+            .await
+            .unwrap();
+        assert_eq!(result.title, NEW_TITLE);
+        assert_eq!(instance(&pool, anchor).await.title, NEW_TITLE);
     }
 
     #[tokio::test]
