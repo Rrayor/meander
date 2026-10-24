@@ -4,14 +4,18 @@ import {
   TaskStatus,
   Weekday,
 } from "@/lib/enums";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
+import { testQueryClient } from "@/test/queryClient";
 import {
   CALENDAR_NEXT_LABEL,
   CALENDAR_PREVIOUS_LABEL,
   WEEKDAY_OPTIONS,
+  weekdaysFrom,
 } from "@/lib/labels";
 
 const series: TaskSeries = {
@@ -62,17 +66,22 @@ const renderCalendar = (
   instances: Task[] = [],
   onPick = vi.fn(),
   selectedIso: string | null = null,
+  weekStart: Weekday = Weekday.Monday,
 ) => {
   // Fixed today so the calendar's initial month is deterministic.
   vi.useFakeTimers();
   vi.setSystemTime(new Date(TODAY_TIME));
+  const client = testQueryClient();
+  client.setQueryData(QUERY_KEYS.weekStart, weekStart);
   render(
-    <InstanceCalendar
-      series={[series]}
-      instances={instances}
-      selectedIso={selectedIso}
-      onPick={onPick}
-    />,
+    <QueryClientProvider client={client}>
+      <InstanceCalendar
+        series={[series]}
+        instances={instances}
+        selectedIso={selectedIso}
+        onPick={onPick}
+      />
+    </QueryClientProvider>,
   );
   return onPick;
 };
@@ -84,18 +93,52 @@ describe("InstanceCalendar", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(TODAY_TIME));
     const { container } = render(
-      <InstanceCalendar
-        series={[series]}
-        instances={[]}
-        selectedIso={null}
-        onPick={vi.fn()}
-      />,
+      <QueryClientProvider client={testQueryClient()}>
+        <InstanceCalendar
+          series={[series]}
+          instances={[]}
+          selectedIso={null}
+          onPick={vi.fn()}
+        />
+      </QueryClientProvider>,
     );
     const headerTexts = Array.from(container.querySelector(".grid")!.children)
       .slice(0, 7)
       .map((el) => el.textContent);
     expect(headerTexts).toEqual(WEEKDAY_OPTIONS.map((w) => w.short));
   });
+
+  it.each([
+    // Sunday start: Thu Oct 1 sits in the fifth column (Su Mo Tu We Th).
+    [Weekday.Sunday, 4],
+    // Saturday start exercises the index-based column mapping: Sa Su Mo
+    // Tu We Th — the 1st sits under "Th" at index 5.
+    [Weekday.Saturday, 5],
+  ])(
+    "rotates headers and anchors the grid on a %s week start",
+    (weekStart, firstOfMonthColumn) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(TODAY_TIME));
+      const client = testQueryClient();
+      client.setQueryData(QUERY_KEYS.weekStart, weekStart);
+      const { container } = render(
+        <QueryClientProvider client={client}>
+          <InstanceCalendar
+            series={[series]}
+            instances={[]}
+            selectedIso={null}
+            onPick={vi.fn()}
+          />
+        </QueryClientProvider>,
+      );
+      const grid = Array.from(container.querySelector(".grid")!.children);
+      const headerTexts = grid.slice(0, 7).map((el) => el.textContent);
+      expect(headerTexts).toEqual(weekdaysFrom(weekStart).map((w) => w.short));
+      // October 2026 starts on a Thursday; the column depends on the
+      // configured week start.
+      expect(grid[7 + firstOfMonthColumn].textContent).toBe("1");
+    },
+  );
 
   it("renders the current month with prev/next navigation", () => {
     renderCalendar();

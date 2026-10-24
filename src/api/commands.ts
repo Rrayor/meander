@@ -4,6 +4,8 @@ export const COMMANDS = {
   currentDbPath: "current_db_path",
   selectDatabaseFile: "select_database_file",
   listProfiles: "list_profiles",
+  weekStart: "week_start",
+  setWeekStart: "set_week_start",
   currentProfile: "current_profile",
   createProfile: "create_profile",
   renameProfile: "rename_profile",

@@ -31,6 +31,13 @@
   --color-threshold-pink: #f472b6;
 }
 
+/* The app is dark-only: declare the scheme so native control popups —
+   <select> dropdowns, input[type="date"] pickers, scrollbars — render dark
+   instead of the OS light theme. */
+:root {
+  color-scheme: dark;
+}
+
 body {
   @apply bg-background text-text font-sans antialiased;
 }

@@ -20,7 +20,11 @@ export function DatabaseSection() {
       return selected ? selectDatabaseFile(selected) : null;
     },
     onSuccess: (newPath) => {
-      if (newPath) queryClient.setQueryData(QUERY_KEYS.dbPath, newPath);
+      if (!newPath) return;
+      queryClient.setQueryData(QUERY_KEYS.dbPath, newPath);
+      // Every cached query reads from the previous pool — refetch them
+      // all against the newly selected database.
+      void queryClient.invalidateQueries();
     },
   });
 

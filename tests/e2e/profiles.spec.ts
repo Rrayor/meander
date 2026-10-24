@@ -1,4 +1,5 @@
 import { COMMANDS } from "@/api/commands";
+import { Weekday } from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
   CREATE_PROFILE_LABEL,
@@ -7,12 +8,21 @@ import {
   PROFILE_NAME_REQUIRED_MESSAGE,
   RENAME_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
+  WEEKDAY_OPTIONS,
+  WEEK_START_HEADING,
+  WEEK_START_LABEL,
   renameProfileLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
-import { STUB_DB_PATH, stubSequence, stubTauriCommands } from "./stubs";
+import {
+  STUB_DB_PATH,
+  getInvocations,
+  stubApiError,
+  stubSequence,
+  stubTauriCommands,
+} from "./stubs";
 
 const DEFAULT_PROFILE_NAME = "Default";
 const WORK_PROFILE_NAME = "Work";
@@ -115,7 +125,7 @@ test("renaming a profile updates the list and the footer", async ({ page }) => {
   await page
     .getByLabel(renameProfileLabel(DEFAULT_PROFILE_NAME))
     .fill(RENAMED_PROFILE_NAME);
-  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
   await expect(section.getByText(RENAMED_PROFILE_NAME)).toBeVisible();
   await expect(
@@ -165,4 +175,42 @@ test("the nav footer switches the active profile", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: WORK_PROFILE_NAME }),
   ).toBeVisible();
+});
+
+test("saving a week start sends it on the wire", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.setWeekStart]: undefined,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: WEEK_START_HEADING });
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+  await section.getByLabel(WEEK_START_LABEL).selectOption(sunday.value);
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const calls = await getInvocations<{ weekday: string }>(page);
+  const saveCall = calls.find((c) => c.cmd === COMMANDS.setWeekStart);
+  expect(saveCall?.args).toEqual({ weekday: sunday.value });
+  await expect(section.getByLabel(WEEK_START_LABEL)).toHaveValue(sunday.value);
+});
+
+test("a failed week-start save surfaces the error", async ({ page }) => {
+  const message = "db write failed";
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.setWeekStart]: stubApiError("internal", "internal", message),
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: WEEK_START_HEADING });
+  await section.getByLabel(WEEK_START_LABEL).selectOption(Weekday.Sunday);
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+  await expect(section.getByRole("alert")).toHaveText(message);
 });

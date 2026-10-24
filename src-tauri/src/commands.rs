@@ -5,6 +5,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use crate::config::{self, Config};
 use crate::errors::ApiError;
 use crate::profiles::{self, Profile};
+use crate::series::Weekday;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -370,6 +371,20 @@ pub async fn select_database_file<R: Runtime>(
     };
     config::save(&dir, &config).map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn week_start(state: State<'_, AppState>) -> Result<Weekday, ApiError> {
+    profiles::week_start(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn set_week_start(state: State<'_, AppState>, weekday: Weekday) -> Result<(), ApiError> {
+    profiles::set_week_start(&state.pool(), state.active_profile_id(), weekday)
+        .await
+        .map_err(ApiError::from)
 }
 
 #[cfg(test)]

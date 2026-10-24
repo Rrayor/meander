@@ -6,6 +6,7 @@ import {
   STUB_DB_PATH,
   STUB_OTHER_DB_PATH,
   stubError,
+  stubSequence,
   stubTauriCommands,
 } from "./stubs";
 
@@ -17,7 +18,8 @@ test("settings shows the current database and swaps it on selection", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
-    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    // The switch refetches dbPath — the second call answers the new path.
+    [COMMANDS.currentDbPath]: stubSequence([STUB_DB_PATH, STUB_OTHER_DB_PATH]),
     [COMMANDS.dialogOpen]: STUB_OTHER_DB_PATH,
     [COMMANDS.selectDatabaseFile]: STUB_OTHER_DB_PATH,
   });

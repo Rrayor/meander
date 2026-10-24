@@ -1,7 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { z } from "zod";
 
 import type { NewSeries, Recurrence } from "@/api/bindings";
+import { weekStart as fetchWeekStart } from "@/api/profiles";
+import { QUERY_KEYS } from "@/api/queryKeys";
 import { MonthMode, RecurrenceKind, RepeatUnit, Weekday } from "@/lib/enums";
 import {
   REPEAT_ENDS_BEFORE_START_MESSAGE,
@@ -24,6 +27,7 @@ import {
   REPEAT_STARTS_REQUIRED_MESSAGE,
   REPEAT_UNIT_OPTIONS,
   WEEKDAY_OPTIONS,
+  weekdaysFrom,
 } from "@/lib/labels";
 import { firstOccurrence } from "@/lib/recurrence";
 import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
@@ -302,6 +306,11 @@ export function RepeatScheduleFields({
   lockedStartDate,
 }: Readonly<RepeatScheduleFieldsProps>) {
   const [expanded, setExpanded] = useState(initial !== undefined);
+  const { data: weekStart = Weekday.Monday } = useQuery({
+    queryKey: QUERY_KEYS.weekStart,
+    queryFn: fetchWeekStart,
+  });
+  const weekOrder = weekdaysFrom(weekStart as Weekday);
   const [draft, setDraft] = useState<RepeatDraft>(() => {
     const seeded =
       initial === undefined ? defaultDraft() : draftFromSeries(initial);
@@ -363,11 +372,12 @@ export function RepeatScheduleFields({
   };
 
   const weekdayChips = (
+    orderedDays: readonly (typeof WEEKDAY_OPTIONS)[number][],
     selected: readonly Weekday[],
     onPick: (w: Weekday) => void,
   ) => (
     <div className="flex items-center gap-1.5">
-      {WEEKDAY_OPTIONS.map(({ value, label, short }) => (
+      {orderedDays.map(({ value, label, short }) => (
         <button
           key={value}
           type="button"
@@ -456,7 +466,7 @@ export function RepeatScheduleFields({
               <span className="text-xs font-medium text-text-muted">
                 {REPEAT_ON_LABEL}
               </span>
-              {weekdayChips(draft.weekdays, toggleWeekday)}
+              {weekdayChips(weekOrder, draft.weekdays, toggleWeekday)}
             </div>
           )}
           {draft.unit === RepeatUnit.Month && (
@@ -542,7 +552,7 @@ export function RepeatScheduleFields({
                 </fieldset>
               </div>
               {draft.monthMode === MonthMode.Weekday &&
-                weekdayChips([draft.weekday], (w) =>
+                weekdayChips(weekOrder, [draft.weekday], (w) =>
                   patchMonthly({ weekday: w }),
                 )}
             </div>

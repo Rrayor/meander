@@ -209,6 +209,18 @@ export const DELETE_KEEP_LABEL = "Keep task";
 
 export const CALENDAR_PREVIOUS_LABEL = "Previous month";
 export const CALENDAR_NEXT_LABEL = "Next month";
+
+export const WEEK_START_HEADING = "Scheduling";
+export const WEEK_START_LABEL = "Week starts on";
+
+/// Weekday options rotated to start on `weekStart` — a derived copy; the
+/// canonical WEEKDAY_OPTIONS stays Monday-first. Used by calendar headers
+/// and weekday pickers so the week-start setting is display-only.
+export const weekdaysFrom = (weekStart: Weekday) => {
+  const i = WEEKDAY_OPTIONS.findIndex((o) => o.value === weekStart);
+  const start = Math.max(i, 0);
+  return [...WEEKDAY_OPTIONS.slice(start), ...WEEKDAY_OPTIONS.slice(0, start)];
+};
 export const CALENDAR_LEGEND_PERSISTED = "recorded instance";
 export const CALENDAR_LEGEND_SCHEDULED = "scheduled";
 export const NOTES_TAB_INSTANCE_LABEL = "Current instance";

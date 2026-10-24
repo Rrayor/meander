@@ -2,7 +2,11 @@ import { RecurrenceKind, Weekday } from "@/lib/enums";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { NewSeries } from "@/api/bindings";
+import { QueryClientProvider } from "@tanstack/react-query";
+
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import { QUERY_KEYS } from "@/api/queryKeys";
+import { testQueryClient } from "@/test/queryClient";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
@@ -16,14 +20,23 @@ import {
   REPEAT_SECTION_LABEL,
   REPEAT_STARTS_LABEL,
   WEEKDAY_OPTIONS,
+  weekdaysFrom,
 } from "@/lib/labels";
 import { todayLocalIso, weekdayOfIso } from "@/lib/utils";
 
 const ID_PREFIX = "test-task";
 
-const renderField = () => {
+const renderField = (weekStart?: Weekday) => {
   const onChange = vi.fn();
-  render(<RepeatScheduleFields idPrefix={ID_PREFIX} onChange={onChange} />);
+  const client = testQueryClient();
+  if (weekStart !== undefined) {
+    client.setQueryData(QUERY_KEYS.weekStart, weekStart);
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <RepeatScheduleFields idPrefix={ID_PREFIX} onChange={onChange} />
+    </QueryClientProvider>,
+  );
   return onChange;
 };
 
@@ -82,6 +95,34 @@ describe("RepeatScheduleFields", () => {
     };
     expect(new Set(weekdays)).toEqual(
       new Set([todayWeekday(), Weekday.Friday]),
+    );
+  });
+
+  const dayNames = new RegExp(
+    `^(${WEEKDAY_OPTIONS.map((o) => o.label).join("|")})$`,
+  );
+  const chipOrder = () =>
+    screen
+      .getAllByRole("button", { name: dayNames })
+      .map((b) => b.getAttribute("aria-label"));
+
+  it.each([Weekday.Sunday, Weekday.Wednesday])(
+    "orders the weekly weekday chips from a %s week start",
+    (weekStart) => {
+      renderField(weekStart);
+      expand();
+      fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+      expect(chipOrder()).toEqual(weekdaysFrom(weekStart).map((o) => o.label));
+    },
+  );
+
+  it("orders the monthly nth-weekday chips from the configured week start", () => {
+    renderField(Weekday.Sunday);
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "months" }));
+    fireEvent.click(screen.getByRole("radio", { name: REPEAT_ON_THE_LABEL }));
+    expect(chipOrder()).toEqual(
+      weekdaysFrom(Weekday.Sunday).map((o) => o.label),
     );
   });
 

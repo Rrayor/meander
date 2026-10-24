@@ -316,6 +316,7 @@ fn switch_to_second(world: &mut MeanderWorld) {
         .runtime
         .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
     let state = world.state.as_ref().expect("no app state in world");
+    world.previous_active = Some(state.active_profile_id());
     if let Err(e) = rt.block_on(state.switch_profile(id)) {
         world.error = Some(e.to_string());
     }
@@ -2568,4 +2569,57 @@ fn later_instance_moved(world: &mut MeanderWorld) {
         series_instance_dates(world, series.id),
         vec![LATER_INSTANCE_DATE.to_string()]
     );
+}
+
+fn parse_weekday(day: &str) -> meander_lib::series::Weekday {
+    use meander_lib::series::Weekday;
+    match day {
+        "Monday" => Weekday::Monday,
+        "Tuesday" => Weekday::Tuesday,
+        "Wednesday" => Weekday::Wednesday,
+        "Thursday" => Weekday::Thursday,
+        "Friday" => Weekday::Friday,
+        "Saturday" => Weekday::Saturday,
+        "Sunday" => Weekday::Sunday,
+        other => panic!("unknown weekday {other}"),
+    }
+}
+
+#[when(expr = "I set the active profile's week start to {word}")]
+fn set_active_week_start(world: &mut MeanderWorld, day: String) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world.rt().block_on(meander_lib::profiles::set_week_start(
+        &pool,
+        id,
+        parse_weekday(&day),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the active profile's week start is {word}")]
+fn active_week_start_is(world: &mut MeanderWorld, day: String) {
+    let (pool, id) = active_profile_pool(world);
+    let got = world
+        .rt()
+        .block_on(meander_lib::profiles::week_start(&pool, id))
+        .expect("week start query failed");
+    assert_eq!(got, parse_weekday(&day));
+}
+
+fn active_profile_pool(world: &MeanderWorld) -> (sqlx::SqlitePool, i64) {
+    let state = world.state.as_ref().expect("no app state in world");
+    (state.pool(), state.active_profile_id())
+}
+
+#[when("the application switches back to the original profile")]
+fn switch_back(world: &mut MeanderWorld) {
+    let id = world.previous_active.expect("no original profile recorded");
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    if let Err(e) = rt.block_on(state.switch_profile(id)) {
+        world.error = Some(e.to_string());
+    }
 }
