@@ -2550,15 +2550,12 @@ fn new_series_at_later(world: &mut MeanderWorld, title: String) {
 
 #[then(expr = "the later instance moved to the new series")]
 fn later_instance_moved(world: &mut MeanderWorld) {
-    let state = world.state.as_ref().expect("no app state in world");
-    let pool = state.pool();
-    let active = state.active_profile_id();
-    // The new series holds a single instance on the cutoff date.
-    let all = world
-        .rt()
-        .block_on(meander_lib::series::list(&pool, active))
-        .expect("series list failed");
-    let new_series = all.iter().max_by_key(|s| s.id).expect("new series missing");
-    let dates = series_instance_dates(world, new_series.id);
-    assert_eq!(dates, vec![LATER_INSTANCE_DATE.to_string()]);
+    // The split archives the past: the living series — retitled, so the
+    // only one the later instance's title resolves to — keeps the cutoff
+    // instance. The archive holds the earlier date instead.
+    let series = series_of(world, "Daily sync");
+    assert_eq!(
+        series_instance_dates(world, series.id),
+        vec![LATER_INSTANCE_DATE.to_string()]
+    );
 }
