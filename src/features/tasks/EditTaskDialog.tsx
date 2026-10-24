@@ -221,18 +221,56 @@ function TaskDetailsView({
   return (
     <div className="flex flex-col gap-4">
       {pendingIso !== null ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-text-muted italic">
-            {materializing
-              ? INSTANCE_MATERIALIZING_MESSAGE
-              : SCHEDULED_INSTANCE_PENDING_MESSAGE}
-          </p>
-          {materializeError && (
-            <p role="alert" className="text-sm text-danger">
-              {materializeError}
+        <>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-text-muted italic">
+              {materializing
+                ? INSTANCE_MATERIALIZING_MESSAGE
+                : SCHEDULED_INSTANCE_PENDING_MESSAGE}
             </p>
+            {materializeError && (
+              <p role="alert" className="text-sm text-danger">
+                {materializeError}
+              </p>
+            )}
+          </div>
+          {/* A scheduled-only occurrence has no row yet — its shared
+              fields come from the living series (spec §230). */}
+          {seriesRow && (
+            <div className="grid grid-cols-4 gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                  {DESCRIPTION_FIELD_LABEL}
+                </span>
+                <p className="text-sm text-text">
+                  {seriesRow.description || EMPTY_VALUE_LABEL}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                  {ESTIMATED_TIME_LABEL}
+                </span>
+                <span className="text-sm">
+                  {seriesRow.estimated_minutes === null
+                    ? EMPTY_VALUE_LABEL
+                    : formatMinutes(seriesRow.estimated_minutes)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+                  {CARRY_OVER_FIELD_LABEL}
+                </span>
+                <span className="text-sm">
+                  {CARRY_OVER_OPTIONS.find(
+                    (o) =>
+                      o.value ===
+                      (seriesRow.carry_over_rule ?? CarryOverRule.Ask),
+                  )?.label ?? EMPTY_VALUE_LABEL}
+                </span>
+              </div>
+            </div>
           )}
-        </div>
+        </>
       ) : (
         <>
           <div className="flex flex-col gap-1.5">
@@ -284,38 +322,40 @@ function TaskDetailsView({
               </span>
             </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
-              {CATEGORIES_FIELD_LABEL}
-            </span>
-            {categories.length === 0 ? (
-              <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
-            ) : (
-              <ul className="flex flex-wrap gap-1.5">
-                {categories.map((category) => (
-                  <li
-                    key={category.id}
-                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-                    style={{
-                      color: category.color ?? undefined,
-                      backgroundColor: `${category.color ?? "#859490"}26`,
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 rounded-full"
-                      style={{
-                        backgroundColor: category.color ?? undefined,
-                      }}
-                    />
-                    {category.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </>
       )}
+      {/* Categories are shared too: pending dates show the series' set,
+          persisted instances their own. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium tracking-wider text-text-muted uppercase">
+          {CATEGORIES_FIELD_LABEL}
+        </span>
+        {categories.length === 0 ? (
+          <span className="text-sm">{EMPTY_VALUE_LABEL}</span>
+        ) : (
+          <ul className="flex flex-wrap gap-1.5">
+            {categories.map((category) => (
+              <li
+                key={category.id}
+                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
+                style={{
+                  color: category.color ?? undefined,
+                  backgroundColor: `${category.color ?? "#859490"}26`,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: category.color ?? undefined,
+                  }}
+                />
+                {category.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {seriesRow && (
         <p className="border-t border-border pt-4 text-sm text-text-muted">
           {seriesAuditLabel(
@@ -650,7 +690,9 @@ export function EditTaskDialog({
   const { data: seriesCats, error: seriesCatsError } = useQuery({
     queryKey: QUERY_KEYS.seriesCategories(livingSeriesId!),
     queryFn: () => listSeriesCategories(livingSeriesId!),
-    enabled: livingSeriesId !== null && saveScope !== TaskScope.Instance,
+    // Also fetched in view mode: a pending (unpersisted) occurrence
+    // displays the living series' categories.
+    enabled: livingSeriesId !== null,
   });
   // The series-scope schedule draft: null = untouched (use the stored
   // schedule), cleared = the user collapsed the section (a series needs a
@@ -934,7 +976,10 @@ export function EditTaskDialog({
             id="edit-task-title"
             className="font-title text-lg font-semibold text-text"
           >
-            {mode === DialogMode.View ? viewed.title : EDIT_TASK_HEADING}
+            {mode === DialogMode.View
+              ? ((pendingIso !== null ? seriesRow?.title : undefined) ??
+                viewed.title)
+              : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
             {mode === DialogMode.View && pendingIso !== null && (
@@ -997,7 +1042,7 @@ export function EditTaskDialog({
             pendingIso={pendingIso}
             materializing={materialize.isPending}
             materializeError={serverErrorMessage(materialize.error)}
-            categories={categories}
+            categories={pendingIso !== null ? (seriesCats ?? []) : categories}
             seriesRow={seriesRow}
             seriesSegments={familySegments}
             seriesInstances={seriesInstances}
