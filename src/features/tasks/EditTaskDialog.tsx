@@ -366,16 +366,16 @@ function TaskDetailsView({
           </ul>
         )}
       </div>
-      {seriesRow && (
+      {(pendingSegment ?? seriesRow) && (
         <p className="border-t border-border pt-4 text-sm text-text-muted">
           {seriesAuditLabel(
-            describeRecurrence(seriesRow.recurrence),
-            formatIsoDay(seriesRow.start_date),
-            seriesRow.end_date === null
+            describeRecurrence((pendingSegment ?? seriesRow)!.recurrence),
+            formatIsoDay((pendingSegment ?? seriesRow)!.start_date),
+            (pendingSegment ?? seriesRow)!.end_date === null
               ? null
-              : formatIsoDay(seriesRow.end_date),
-            formatDate(seriesRow.created_at),
-            formatDate(seriesRow.updated_at),
+              : formatIsoDay((pendingSegment ?? seriesRow)!.end_date!),
+            formatDate((pendingSegment ?? seriesRow)!.created_at),
+            formatDate((pendingSegment ?? seriesRow)!.updated_at),
           )}
         </p>
       )}
@@ -1001,8 +1001,9 @@ export function EditTaskDialog({
             className="font-title text-lg font-semibold text-text"
           >
             {mode === DialogMode.View
-              ? ((pendingIso !== null ? seriesRow?.title : undefined) ??
-                viewed.title)
+              ? ((pendingIso !== null
+                  ? (pendingSegment ?? seriesRow)?.title
+                  : undefined) ?? viewed.title)
               : EDIT_TASK_HEADING}
           </h2>
           <div className="flex items-center gap-1">
