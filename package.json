@@ -13,7 +13,8 @@
     "test:smoke": "wdio run ./wdio.conf.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:smoke": "npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -1,9 +1,4 @@
-import {
-  NAV_LABEL,
-  SAVE_BUTTON_LABEL,
-  WEEKDAY_OPTIONS,
-  WORK_DAYS_HEADING,
-} from "@/lib/labels";
+import { NAV_LABEL, SAVE_BUTTON_LABEL, WEEKDAY_OPTIONS } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 import { Weekday } from "@/lib/enums";
 
@@ -13,9 +8,10 @@ describe("Settings smoke", () => {
   it("persists a work-days change through the real backend", async () => {
     const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
     const nav = await $(`aria/${NAV_LABEL}`);
+    await expect(nav).toExist();
     await nav.$(`=${settingsRoute.label}`).click();
 
-    const section = await $(`aria/${WORK_DAYS_HEADING}`);
+    const section = await $("section[aria-labelledby='work-days-heading']");
     await expect(section).toExist();
     const saturday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Saturday)!;
     const chip = await section.$(`aria/${saturday.label}`);
