@@ -11,6 +11,7 @@ import {
   SAVE_BUTTON_LABEL,
   WEEKDAY_OPTIONS,
   WEEK_START_HEADING,
+  WEEK_START_HEADING_ID,
   WEEK_START_LABEL,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
@@ -40,10 +41,10 @@ export function WeekStartSection() {
 
   return (
     <section
-      aria-labelledby="week-start-heading"
+      aria-labelledby={WEEK_START_HEADING_ID}
       className="flex flex-col gap-3"
     >
-      <h2 id="week-start-heading" className="text-lg font-semibold">
+      <h2 id={WEEK_START_HEADING_ID} className="text-lg font-semibold">
         {WEEK_START_HEADING}
       </h2>
       <div className="flex items-end gap-3">

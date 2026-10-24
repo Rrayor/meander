@@ -14,6 +14,7 @@ import {
   WORK_DAYS_DEFAULT,
   WORK_DAYS_FIELD_LABEL,
   WORK_DAYS_HEADING,
+  WORK_DAYS_HEADING_ID,
   weekdaysFrom,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
@@ -61,10 +62,10 @@ export function WorkDaysSection() {
 
   return (
     <section
-      aria-labelledby="work-days-heading"
+      aria-labelledby={WORK_DAYS_HEADING_ID}
       className="flex flex-col gap-3"
     >
-      <h2 id="work-days-heading" className="text-lg font-semibold">
+      <h2 id={WORK_DAYS_HEADING_ID} className="text-lg font-semibold">
         {WORK_DAYS_HEADING}
       </h2>
       <fieldset

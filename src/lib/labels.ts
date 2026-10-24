@@ -213,6 +213,8 @@ export const CALENDAR_NEXT_LABEL = "Next month";
 export const WEEK_START_HEADING = "Scheduling";
 export const WEEK_START_LABEL = "Week starts on";
 export const WORK_DAYS_HEADING = "Work days";
+export const WORK_DAYS_HEADING_ID = "work-days-heading";
+export const WEEK_START_HEADING_ID = "week-start-heading";
 export const WORK_DAYS_FIELD_LABEL = "Days that count as work days";
 // Spec: work days default to Monday-Friday; used as the pre-load display.
 export const WORK_DAYS_DEFAULT: readonly Weekday[] = [
