@@ -1,4 +1,5 @@
 import { COMMANDS } from "@/api/commands";
+import { Weekday } from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
   CREATE_PROFILE_LABEL,
@@ -181,13 +182,13 @@ test("saving a week start sends it on the wire", async ({ page }) => {
     [COMMANDS.listProfiles]: profiles,
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
-    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.setWeekStart]: undefined,
   });
   await page.goto(`/#${settingsPath}`);
 
   const section = page.getByRole("region", { name: WEEK_START_HEADING });
-  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === "sunday")!;
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
   await section.getByLabel(WEEK_START_LABEL).selectOption(sunday.value);
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
@@ -203,13 +204,13 @@ test("a failed week-start save surfaces the error", async ({ page }) => {
     [COMMANDS.listProfiles]: profiles,
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
-    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.setWeekStart]: stubApiError("internal", "internal", message),
   });
   await page.goto(`/#${settingsPath}`);
 
   const section = page.getByRole("region", { name: WEEK_START_HEADING });
-  await section.getByLabel(WEEK_START_LABEL).selectOption("sunday");
+  await section.getByLabel(WEEK_START_LABEL).selectOption(Weekday.Sunday);
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
   await expect(section.getByRole("alert")).toHaveText(message);
 });
