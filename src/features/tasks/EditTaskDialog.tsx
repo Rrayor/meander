@@ -503,6 +503,37 @@ function usePendingSegment(
   return { pendingSegment, pendingCats };
 }
 
+function toMinutes(hours: string, minutes: string) {
+  return hours.trim() === "" && minutes.trim() === ""
+    ? null
+    : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+}
+
+// The delete scope picks the command: an instance (or a non-series task)
+// drops its row, the series scope removes the whole chain, and the
+// future scope truncates the series at the viewed date (spec §154).
+function deleteForScope({
+  deleteScope,
+  seriesId,
+  taskId,
+  scheduledDate,
+  pendingIso,
+}: {
+  deleteScope: TaskScope;
+  seriesId: number | null;
+  taskId: number;
+  scheduledDate: string | null;
+  pendingIso: string | null;
+}) {
+  if (seriesId === null || deleteScope === TaskScope.Instance) {
+    return deleteTask(taskId);
+  }
+  if (deleteScope === TaskScope.Series) {
+    return deleteTaskSeries(seriesId);
+  }
+  return truncateTaskSeries(seriesId, (pendingIso ?? scheduledDate)!);
+}
+
 function invalidateSeriesQueries(
   queryClient: ReturnType<typeof useQueryClient>,
   viewedSeriesId: number | null,
@@ -903,25 +934,17 @@ export function EditTaskDialog({
   // Delete runs against the *viewed* instance — picking another persisted
   // date in the calendar moves the target with it.
   const remove = useMutation({
-    mutationFn: async () => {
-      const seriesId = livingSeriesId;
-      if (seriesId === null || deleteScope === TaskScope.Instance) {
-        return deleteTask(viewed.id);
-      }
-      if (deleteScope === TaskScope.Series) {
-        return deleteTaskSeries(seriesId);
-      }
-      const fromIso = pendingIso ?? viewed.scheduled_date;
-      return truncateTaskSeries(seriesId, fromIso!);
-    },
+    mutationFn: () =>
+      deleteForScope({
+        deleteScope,
+        seriesId: livingSeriesId,
+        taskId: viewed.id,
+        scheduledDate: viewed.scheduled_date,
+        pendingIso,
+      }),
     onSuccess: onClose,
     onSettled: invalidateSeriesScope,
   });
-
-  const toMinutes = (hours: string, minutes: string) =>
-    hours.trim() === "" && minutes.trim() === ""
-      ? null
-      : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
 
   const onSubmit = (values: FormValues) => {
     const shared = {
