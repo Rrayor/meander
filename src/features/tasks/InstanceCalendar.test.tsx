@@ -108,30 +108,37 @@ describe("InstanceCalendar", () => {
     expect(headerTexts).toEqual(WEEKDAY_OPTIONS.map((w) => w.short));
   });
 
-  it("rotates headers and anchors the grid on a Sunday week start", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(TODAY_TIME));
-    const client = testQueryClient();
-    client.setQueryData(QUERY_KEYS.weekStart, Weekday.Sunday);
-    const { container } = render(
-      <QueryClientProvider client={client}>
-        <InstanceCalendar
-          series={[series]}
-          instances={[]}
-          selectedIso={null}
-          onPick={vi.fn()}
-        />
-      </QueryClientProvider>,
-    );
-    const grid = Array.from(container.querySelector(".grid")!.children);
-    const headerTexts = grid.slice(0, 7).map((el) => el.textContent);
-    expect(headerTexts).toEqual(
-      weekdaysFrom(Weekday.Sunday).map((w) => w.short),
-    );
-    // October 2026 starts on a Thursday: under a Sunday-first grid it
-    // sits in the fifth column, under "Th".
-    expect(grid[7 + 4].textContent).toBe("1");
-  });
+  it.each([
+    // Sunday start: Thu Oct 1 sits in the fifth column (Su Mo Tu We Th).
+    [Weekday.Sunday, 4],
+    // Saturday start exercises the index-based column mapping: Sa Su Mo
+    // Tu We Th — the 1st sits under "Th" at index 5.
+    [Weekday.Saturday, 5],
+  ])(
+    "rotates headers and anchors the grid on a %s week start",
+    (weekStart, firstOfMonthColumn) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(TODAY_TIME));
+      const client = testQueryClient();
+      client.setQueryData(QUERY_KEYS.weekStart, weekStart);
+      const { container } = render(
+        <QueryClientProvider client={client}>
+          <InstanceCalendar
+            series={[series]}
+            instances={[]}
+            selectedIso={null}
+            onPick={vi.fn()}
+          />
+        </QueryClientProvider>,
+      );
+      const grid = Array.from(container.querySelector(".grid")!.children);
+      const headerTexts = grid.slice(0, 7).map((el) => el.textContent);
+      expect(headerTexts).toEqual(weekdaysFrom(weekStart).map((w) => w.short));
+      // October 2026 starts on a Thursday; the column depends on the
+      // configured week start.
+      expect(grid[7 + firstOfMonthColumn].textContent).toBe("1");
+    },
+  );
 
   it("renders the current month with prev/next navigation", () => {
     renderCalendar();

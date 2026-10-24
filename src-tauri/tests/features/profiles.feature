@@ -43,3 +43,7 @@ Feature: Profiles
     Given a second profile exists
     When the application switches to the second profile
     Then the active profile's week start is Monday
+    When I set the active profile's week start to Wednesday
+    Then the active profile's week start is Wednesday
+    When the application switches back to the original profile
+    Then the active profile's week start is Sunday

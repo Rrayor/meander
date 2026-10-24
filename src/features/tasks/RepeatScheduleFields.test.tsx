@@ -98,17 +98,32 @@ describe("RepeatScheduleFields", () => {
     );
   });
 
-  it("orders the weekly weekday chips from the configured week start", () => {
-    renderField(Weekday.Sunday);
-    expand();
-    fireEvent.click(screen.getByRole("button", { name: "weeks" }));
-    const dayNames = new RegExp(
-      `^(${WEEKDAY_OPTIONS.map((o) => o.label).join("|")})$`,
-    );
-    const chips = screen
+  const dayNames = new RegExp(
+    `^(${WEEKDAY_OPTIONS.map((o) => o.label).join("|")})$`,
+  );
+  const chipOrder = () =>
+    screen
       .getAllByRole("button", { name: dayNames })
       .map((b) => b.getAttribute("aria-label"));
-    expect(chips).toEqual(weekdaysFrom(Weekday.Sunday).map((o) => o.label));
+
+  it.each([Weekday.Sunday, Weekday.Wednesday])(
+    "orders the weekly weekday chips from a %s week start",
+    (weekStart) => {
+      renderField(weekStart);
+      expand();
+      fireEvent.click(screen.getByRole("button", { name: "weeks" }));
+      expect(chipOrder()).toEqual(weekdaysFrom(weekStart).map((o) => o.label));
+    },
+  );
+
+  it("orders the monthly nth-weekday chips from the configured week start", () => {
+    renderField(Weekday.Sunday);
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "months" }));
+    fireEvent.click(screen.getByRole("radio", { name: REPEAT_ON_THE_LABEL }));
+    expect(chipOrder()).toEqual(
+      weekdaysFrom(Weekday.Sunday).map((o) => o.label),
+    );
   });
 
   it("does not allow deselecting the last weekly weekday", () => {

@@ -29,4 +29,16 @@ describe("weekdaysFrom", () => {
     weekdaysFrom(Weekday.Saturday);
     expect(WEEKDAY_OPTIONS[0].value).toBe(Weekday.Monday);
   });
+
+  it("rotates a mid-week start to the front", () => {
+    const rotated = weekdaysFrom(Weekday.Wednesday).map((o) => o.value);
+    expect(rotated[0]).toBe(Weekday.Wednesday);
+    expect(rotated.slice(-2)).toEqual([Weekday.Monday, Weekday.Tuesday]);
+  });
+
+  it("falls back to the canonical order for an unknown wire value", () => {
+    expect(weekdaysFrom("bogus" as Weekday).map((o) => o.value)).toEqual(
+      WEEKDAY_OPTIONS.map((o) => o.value),
+    );
+  });
 });

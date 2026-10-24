@@ -212,7 +212,6 @@ export const CALENDAR_NEXT_LABEL = "Next month";
 
 export const WEEK_START_HEADING = "Scheduling";
 export const WEEK_START_LABEL = "Week starts on";
-export const WEEK_START_SAVED_LABEL = "Week start saved";
 
 /// Weekday options rotated to start on `weekStart` — a derived copy; the
 /// canonical WEEKDAY_OPTIONS stays Monday-first. Used by calendar headers

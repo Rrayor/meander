@@ -316,6 +316,7 @@ fn switch_to_second(world: &mut MeanderWorld) {
         .runtime
         .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
     let state = world.state.as_ref().expect("no app state in world");
+    world.previous_active = Some(state.active_profile_id());
     if let Err(e) = rt.block_on(state.switch_profile(id)) {
         world.error = Some(e.to_string());
     }
@@ -2609,4 +2610,16 @@ fn active_week_start_is(world: &mut MeanderWorld, day: String) {
 fn active_profile_pool(world: &MeanderWorld) -> (sqlx::SqlitePool, i64) {
     let state = world.state.as_ref().expect("no app state in world");
     (state.pool(), state.active_profile_id())
+}
+
+#[when("the application switches back to the original profile")]
+fn switch_back(world: &mut MeanderWorld) {
+    let id = world.previous_active.expect("no original profile recorded");
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    if let Err(e) = rt.block_on(state.switch_profile(id)) {
+        world.error = Some(e.to_string());
+    }
 }
