@@ -2914,15 +2914,14 @@ fn run_demo_seed(world: &mut MeanderWorld) {
     }
 }
 
-#[when(expr = "I view the board for the week {int} weeks ago")]
-fn view_board_weeks_ago(world: &mut MeanderWorld, weeks: i64) {
+fn view_board_weeks_offset(world: &mut MeanderWorld, weeks: i64) {
     let (pool, id) = active_profile_pool(world);
     // SQLite computes the offset date — no Rust date math needed.
     let iso: String = world
         .rt()
         .block_on(async {
             sqlx::query_scalar("SELECT date('now', 'localtime', ? || ' days')")
-                .bind(format!("-{}", weeks * 7))
+                .bind(format!("{}", weeks * 7))
                 .fetch_one(&pool)
                 .await
         })
@@ -2934,6 +2933,16 @@ fn view_board_weeks_ago(world: &mut MeanderWorld, weeks: i64) {
         Ok(tasks) => world.board_tasks = Some(tasks),
         Err(e) => world.error = Some(e.to_string()),
     }
+}
+
+#[when(expr = "I view the board for the week {int} weeks ago")]
+fn view_board_weeks_ago(world: &mut MeanderWorld, weeks: i64) {
+    view_board_weeks_offset(world, -weeks);
+}
+
+#[when(expr = "I view the board for the week {int} weeks ahead")]
+fn view_board_weeks_ahead(world: &mut MeanderWorld, weeks: i64) {
+    view_board_weeks_offset(world, weeks);
 }
 
 #[then("the board is not empty")]

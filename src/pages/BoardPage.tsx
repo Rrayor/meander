@@ -162,7 +162,6 @@ export function BoardPage() {
             type="button"
             aria-label={BOARD_NEXT_WEEK_LABEL}
             onClick={() => setAnchor(shiftDays(days[0], 7))}
-            disabled={isCurrentWeek}
             className="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ChevronRight size={16} />

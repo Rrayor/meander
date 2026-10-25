@@ -172,8 +172,19 @@
       "title": "Meander \u2014 Board (Week Jump Popover)",
       "deviceType": "DESKTOP",
       "files": ["designs/board-week-jump.html", "designs/board-week-jump.png"],
-      "implemented": false,
+      "implemented": true,
       "notes": "Week range dropdown opens a month-grid popover: week band selected, today dotted, future weeks dimmed+disabled, hint line. Plan item 37."
+    },
+    {
+      "id": "3e123caf797b4b21bf8eb8cc07701f57",
+      "title": "Meander \u2014 Board (Week Jump Popover with Future Weeks Active)",
+      "deviceType": "DESKTOP",
+      "files": [
+        "designs/board-week-jump-future.html",
+        "designs/board-week-jump-future.png"
+      ],
+      "implemented": true,
+      "notes": "Item 38 variant of the week-jump popover: future dates pickable, next-month enabled; supersedes the dimmed-future state of board-week-jump."
     }
   ]
 }

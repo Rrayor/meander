@@ -5,14 +5,9 @@ interface MonthNavProps {
   // Epoch ms of the displayed month's first day.
   month: number;
   onShift: (delta: number) => void;
-  nextDisabled?: boolean;
 }
 
-export function MonthNav({
-  month,
-  onShift,
-  nextDisabled,
-}: Readonly<MonthNavProps>) {
+export function MonthNav({ month, onShift }: Readonly<MonthNavProps>) {
   const d = new Date(month);
   return (
     <div className="flex items-center justify-between">
@@ -32,8 +27,7 @@ export function MonthNav({
           type="button"
           aria-label={CALENDAR_NEXT_LABEL}
           onClick={() => onShift(1)}
-          disabled={nextDisabled}
-          className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface hover:text-text"
         >
           ›
         </button>

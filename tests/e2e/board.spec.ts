@@ -259,7 +259,7 @@ test("the previous-week arrow shows a past board without the weekly backlog", as
   });
   await expect(backlog).toBeVisible();
   const next = page.getByRole("button", { name: BOARD_NEXT_WEEK_LABEL });
-  await expect(next).toBeDisabled();
+  await expect(next).toBeEnabled();
 
   await page.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }).click();
 
@@ -337,7 +337,7 @@ test("the calendar popover closes on Escape and outside click", async ({
   await expect(popover).toBeHidden();
 });
 
-test("clicking a disabled future-week day does not move the board", async ({
+test("the calendar jumps the board to a picked future week", async ({
   page,
 }) => {
   await stubBoard(page);
@@ -351,17 +351,12 @@ test("clicking a disabled future-week day does not move the board", async ({
   await page
     .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
     .click();
-  const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
-  const futureDay = page.getByRole("button", {
-    name: formatIsoDay(future[0]),
-  });
-  await expect(futureDay).toBeDisabled();
+  const future = weekDates(shiftDays(days[0], 14), Weekday.Monday);
+  await page.getByRole("button", { name: formatIsoDay(future[0]) }).click();
 
-  // The board stays on the current week and the popover stays open.
+  // Future boards show day columns only (spec §336/§354).
+  await expect(backlog).toBeHidden();
   await expect(
-    page.getByRole("button", {
-      name: boardWeekRangeLabel(days[0], days[6]),
-    }),
+    page.getByText(boardWeekRangeLabel(future[0], future[6])),
   ).toBeVisible();
-  await expect(backlog).toBeVisible();
 });
