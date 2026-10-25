@@ -106,7 +106,6 @@ import {
   codePointsWithin,
   formatDate,
   formatIsoDay,
-  todayLocalIso,
   unicodeTrim,
 } from "@/lib/utils";
 
@@ -1539,10 +1538,8 @@ export function EditTaskDialog({
                 type="button"
                 onClick={() => {
                   // Edit intent on a scheduled-only date is what
-                  // materializes the instance (spec §231) — a past
-                  // date materializes for notes only, staying in
-                  // view mode.
-                  editAfterMaterialize.current = pendingIso >= todayLocalIso();
+                  // materializes the instance (spec §231).
+                  editAfterMaterialize.current = true;
                   // The producing segment owns the row — a pre-cutoff
                   // date belongs to an earlier segment, not the living
                   // series.
@@ -1566,35 +1563,30 @@ export function EditTaskDialog({
                 </svg>
               </button>
             )}
-            {mode === DialogMode.View &&
-              pendingIso === null &&
-              // Past instances stay viewable but read-only (spec §232);
-              // a task without a scheduled date is always editable.
-              (viewed.scheduled_date === null ||
-                viewed.scheduled_date >= todayLocalIso()) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Seed the form from the viewed instance — it may not
-                    // be the task the dialog opened on.
-                    reset(instanceDefaults);
-                    setMode(DialogMode.Edit);
-                  }}
-                  aria-label={EDIT_BUTTON_LABEL}
-                  className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+            {mode === DialogMode.View && pendingIso === null && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Seed the form from the viewed instance — it may not
+                  // be the task the dialog opened on.
+                  reset(instanceDefaults);
+                  setMode(DialogMode.Edit);
+                }}
+                aria-label={EDIT_BUTTON_LABEL}
+                className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                  </svg>
-                </button>
-              )}
+                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

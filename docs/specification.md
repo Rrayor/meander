@@ -229,7 +229,7 @@ From this view, tasks can also be moved to a different date, which doesn't neces
 
 In case of a repeating task, the other instances in the series can be viewed as well. For future instances, there is a date selector. The dates that are supposed to have an instance are highlighted. If a date is selected in this selector, the future instance can be edited (inlcuding adding or removing notes). In the background an instance for that date is created. When the kanban board including that date is created, the instance is used instead of creating a new instance. Dates that have these "pre-created" instances are highlighted with a different color in the date selector.
 
-Past instances can be viewed, but not edited with the exception of notes. Notes can be modified, added or removed for past instances too.
+Past instances can be viewed and edited like any other instance. Notes can be modified, added or removed for past instances too.
 
 When saving changes the user can choose to save for the currently edited instance, for all instances (past and future and current) or for the current and upcoming instances. The exception is notes as instance and series notes are differentiated in another way.
 
@@ -246,7 +246,7 @@ Notes are show in 2 tabs. "Current instance" and "Series". All can be added, upd
 - For repeating tasks, the audit information of both the series and the currently viewed instance are shown
 - All the information on the page can be edited except for audit information
 - In case of a repeating task, future and past instances can be viewed as well
-- Past instances can't be edited, only notes on them
+- Past instances can be edited like any other instance, including their notes
 - Future instances can be selected from a date selector. The date selector highlights the dates where the instances would take place and only allows selecting those dates
 - If a date is selected, the future instance can be edited
 - When the kanban board for a week where an edited future instance is present is created, the existing instance is used instead of creating a new one
