@@ -57,8 +57,9 @@ The following steps cover the remaining specification features that weren't item
 50. Add the "add to current week" action to backlog items and the option to move board tasks back to the backlog
 51. Add pagination to the backlog and category list views (50 items per page by default)
 52. Add scheduling a task for an arbitrary date from the task details view
-53. Add drag and drop to the kanban board for moving tasks between days, states and the weekly backlog (Respect the responsiveness targets in the specification)
-54. Add filtering, searching and sorting to the backlog and kanban board
-55. Add the option to display task statuses as columns and days of the week as rows on the kanban board
-56. Once kanban boards exist, hide in-progress series from the backlog entirely — a series whose start date is today or earlier is no longer a backlog item. (Already done earlier: only one backlog entry per series — the anchor row — since materialized instances are not backlog items. Until boards exist, in-progress series stay visible so they remain testable.)
-57. Create user documentation with screenshots if not done yet
+53. Add the ability to change the date a task or series instance takes place, in either direction (earlier or later). For a scheduled-but-unpersisted occurrence the move materializes an instance first — otherwise the new date won't stick (spec §228: any date may be used, not just the current week).
+54. Add drag and drop to the kanban board for moving tasks between days, states and the weekly backlog (Respect the responsiveness targets in the specification)
+55. Add filtering, searching and sorting to the backlog and kanban board
+56. Add the option to display task statuses as columns and days of the week as rows on the kanban board
+57. Once kanban boards exist, hide in-progress series from the backlog entirely — a series whose start date is today or earlier is no longer a backlog item. (Already done earlier: only one backlog entry per series — the anchor row — since materialized instances are not backlog items. Until boards exist, in-progress series stay visible so they remain testable.)
+58. Create user documentation with screenshots if not done yet
