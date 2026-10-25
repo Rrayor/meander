@@ -420,6 +420,42 @@ describe("BoardPage", () => {
     );
   });
 
+  it("shows the carried task in the weekly backlog after applying", async () => {
+    const stray = { ...baseTask, title: "Leftover" };
+    const carried = {
+      ...stray,
+      carry_over_rule: "carry" as const,
+      placement: TaskPlacement.WeeklyBacklog,
+      scheduled_date: null,
+    };
+    mockedPendingCarryOver.mockResolvedValue([stray]);
+    mockedResolveCarryOver.mockResolvedValue(undefined);
+    mockedListWeekTasks.mockResolvedValueOnce([baseTask, weeklyTask]);
+    mockedListWeekTasks.mockResolvedValue([baseTask, weeklyTask, carried]);
+    renderBoard();
+    const prompt = await screen.findByRole("dialog", {
+      name: /week started/i,
+    });
+    fireEvent.click(within(prompt).getByRole("button", { name: "Carry over" }));
+    fireEvent.click(
+      within(prompt).getByRole("button", { name: "Apply decisions" }),
+    );
+    // The refetched board shows the carried card under Weekly backlog.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() => {
+      const backlogCol = screen
+        .getByRole("columnheader", { name: new RegExp(WEEKLY_BACKLOG_LABEL) })
+        .closest("th");
+      expect(backlogCol).toBeInTheDocument();
+    });
+  });
+
   it("never prompts on a past board", async () => {
     // Pending decisions exist — they must still not surface on a past
     // board once the view navigates away from the current week.
