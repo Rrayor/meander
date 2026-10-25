@@ -584,13 +584,22 @@ pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result
     }
     tx.commit().await?;
 
+    // The weekly backlog is a standing container of current state —
+    // it renders on the current week's board only, never on past or
+    // future weeks (spec §336/§348/§354).
+    let today_iso: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+        .fetch_one(pool)
+        .await?;
+    let is_current_week = week_start_iso <= today_iso && today_iso <= week_end_iso;
+
     Ok(sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks WHERE profile_id = ? AND \
-         (placement = 'weekly_backlog' OR \
+         ((placement = 'weekly_backlog' AND ?) OR \
           (scheduled_date IS NOT NULL AND scheduled_date BETWEEN ? AND ?)) \
          ORDER BY scheduled_date, sort_order, id",
     )
     .bind(profile_id)
+    .bind(is_current_week)
     .bind(&week_start_iso)
     .bind(&week_end_iso)
     .fetch_all(pool)
@@ -747,6 +756,38 @@ mod tests {
             title: title.to_string(),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn list_week_omits_the_weekly_backlog_outside_the_current_week() {
+        // The weekly backlog is a standing container of current
+        // state — it renders on the current week's board only, never
+        // on past or future weeks (spec §336/§348/§354).
+        let (pool, pid) = seeded_pool().await;
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, placement) VALUES (?, ?, 'weekly_backlog')",
+        )
+        .bind(pid)
+        .bind("Pending")
+        .execute(&pool)
+        .await
+        .unwrap();
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert!(list_week(&pool, pid, BEFORE_WEEK).await.unwrap().is_empty());
+        assert!(list_week(&pool, pid, NEXT_WEEK).await.unwrap().is_empty());
+        assert_eq!(
+            list_week(&pool, pid, &today)
+                .await
+                .unwrap()
+                .iter()
+                .map(|t| t.title.as_str())
+                .collect::<Vec<_>>(),
+            ["Pending"],
+        );
     }
 
     #[tokio::test]

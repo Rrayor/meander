@@ -60,3 +60,9 @@ Feature: Weekly kanban board
     When I run the demo seed
     And I run the demo seed
     Then the demo seed inserted no rows
+
+  Scenario: the weekly backlog is current-week state, never history
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Pending
+    When I view the board for the week 2 weeks ago
+    Then the board lists 0 tasks
