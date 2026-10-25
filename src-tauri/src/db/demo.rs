@@ -275,12 +275,13 @@ mod tests {
     #[test]
     fn first_seeded_review_lands_on_a_real_friday() {
         // Whatever the configured week start is, the first review must
-        // be an actual Friday (weekday index 4), or the board's Friday
-        // materialization would duplicate it.
+        // be an actual Friday, or the board's Friday materialization
+        // would duplicate it.
         let monday = crate::series::days_from_civil(2026, 10, 26);
+        let friday = crate::series::Weekday::Friday.index();
         for week_start in 0..7 {
-            let first = next_weekday(week_start_of(monday, week_start) - 11 * 7, 4);
-            assert_eq!((first + 3) % 7, 4, "week_start {week_start}");
+            let first = next_weekday(week_start_of(monday, week_start) - 11 * 7, friday);
+            assert_eq!((first + 3) % 7, friday, "week_start {week_start}");
         }
     }
 
