@@ -14,7 +14,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test:coverage": "vitest run --coverage",
-    "build:smoke": "npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol"
+    "build:smoke": "npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml --features tauri/custom-protocol",
+    "seed:demo": "cargo run --manifest-path src-tauri/Cargo.toml --bin seed_demo_db"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

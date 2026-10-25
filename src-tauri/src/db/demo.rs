@@ -1,0 +1,242 @@
+//! One-shot developer seeding: fills a database with realistic task
+//! data for the past twelve weeks so board navigation and carry-over
+//! have something to display (plan item 35). Guarded by a
+//! meander_meta flag — running it twice inserts nothing.
+
+use sqlx::SqlitePool;
+
+use super::Result;
+
+/// Weeks of history to fill, the current week included.
+const SEED_WEEKS: i64 = 12;
+
+const DEMO_CATEGORIES: &[(&str, &str)] = &[
+    ("Work", "#3b82f6"),
+    ("Personal", "#22c55e"),
+    ("Health", "#f59e0b"),
+];
+
+const TASK_TITLES: &[&str] = &[
+    "Write weekly report",
+    "Review open PRs",
+    "Grocery run",
+    "Clean the kitchen",
+    "Read twenty pages",
+    "File expenses",
+    "Water the plants",
+    "Call the bank",
+];
+
+const WEEKLY_BACKLOG_TITLES: &[&str] = &["Plan meals", "Tidy the desk"];
+const BACKLOG_TITLES: &[&str] = &[
+    "Renew passport",
+    "Sort the hallway closet",
+    "Read the tax letter",
+];
+
+/// Days since the Unix epoch — the ordinal `civil_from_days` consumes.
+fn today_ordinal() -> i64 {
+    (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        / 86_400) as i64
+}
+
+/// The Monday of the week containing `z`. 1970-01-01 was a Thursday,
+/// so +3 shifts epoch ordinals onto the Monday-first weekday index.
+fn monday_of(z: i64) -> i64 {
+    z - (z + 3).rem_euclid(7)
+}
+
+fn iso_of(z: i64) -> String {
+    crate::series::to_iso(crate::series::civil_from_days(z))
+}
+
+/// Returns the number of rows the seed inserted — 0 when the database
+/// was demo-seeded before.
+pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
+    let marked =
+        sqlx::query("INSERT OR IGNORE INTO meander_meta (key, value) VALUES ('demo_seeded', '1')")
+            .execute(pool)
+            .await?;
+    if marked.rows_affected() == 0 {
+        return Ok(0);
+    }
+    let profile_id: i64 = sqlx::query_scalar("SELECT id FROM profiles ORDER BY id LIMIT 1")
+        .fetch_one(pool)
+        .await?;
+    let today = today_ordinal();
+    let week_start = monday_of(today);
+    let oldest = week_start - (SEED_WEEKS - 1) * 7;
+
+    let mut count = 0usize;
+
+    let mut category_ids = Vec::new();
+    for (title, color) in DEMO_CATEGORIES {
+        let category = crate::categories::create(
+            pool,
+            profile_id,
+            &crate::categories::NewCategory {
+                title: (*title).to_string(),
+                description: None,
+                color: Some((*color).to_string()),
+            },
+        )
+        .await?;
+        category_ids.push(category.id);
+        count += 1;
+    }
+
+    // A Friday review series — past occurrences materialized through
+    // the real service path so instances look exactly like live ones.
+    let first_friday = oldest + 4;
+    let review = crate::tasks::create(
+        pool,
+        profile_id,
+        &crate::tasks::NewTask {
+            title: "Weekly review".to_string(),
+            description: None,
+            estimated_minutes: Some(30),
+            carry_over_rule: Some(crate::tasks::CarryOverRule::Carry),
+            series: Some(crate::series::NewSeries {
+                recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
+                    interval_weeks: 1,
+                    weekdays: vec![crate::series::Weekday::Friday],
+                })
+                .expect("recurrence serializes"),
+                start_date: iso_of(first_friday),
+                end_date: None,
+            }),
+        },
+    )
+    .await?;
+    count += 1;
+    let series_id = review.series_id.expect("series task is linked");
+    let mut friday = first_friday + 7;
+    while friday <= today {
+        crate::tasks::get_or_create_instance(pool, profile_id, series_id, &iso_of(friday)).await?;
+        friday += 7;
+        count += 1;
+    }
+
+    // One standalone scheduled task per day across the window. Past
+    // weeks are done; the current week mixes statuses so the board
+    // shows all three rows.
+    for z in oldest..=today {
+        let idx = (z - oldest) as usize;
+        let est = 30 + (idx % 3) as i64 * 30;
+        let (status, spent) = if z < week_start {
+            ("done", Some(est))
+        } else {
+            match idx % 3 {
+                0 => ("todo", None),
+                1 => ("in_progress", Some(est / 2)),
+                _ => ("done", Some(est)),
+            }
+        };
+        let result = sqlx::query(
+            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes, \
+             placement, scheduled_date, sort_order) VALUES (?, ?, ?, ?, ?, 'scheduled', ?, \
+             (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        )
+        .bind(profile_id)
+        .bind(TASK_TITLES[idx % TASK_TITLES.len()])
+        .bind(status)
+        .bind(est)
+        .bind(spent)
+        .bind(iso_of(z))
+        .bind(profile_id)
+        .execute(pool)
+        .await?;
+        sqlx::query("INSERT INTO task_categories (task_id, category_id) VALUES (?, ?)")
+            .bind(result.last_insert_rowid())
+            .bind(category_ids[idx % category_ids.len()])
+            .execute(pool)
+            .await?;
+        count += 1;
+    }
+
+    for title in WEEKLY_BACKLOG_TITLES {
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, placement) VALUES (?, ?, 'weekly_backlog')",
+        )
+        .bind(profile_id)
+        .bind(*title)
+        .execute(pool)
+        .await?;
+        count += 1;
+    }
+    for title in BACKLOG_TITLES {
+        sqlx::query("INSERT INTO tasks (profile_id, title) VALUES (?, ?)")
+            .bind(profile_id)
+            .bind(*title)
+            .execute(pool)
+            .await?;
+        count += 1;
+    }
+
+    Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn seeded_pool() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        crate::db::seed(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn demo_seed_fills_past_weeks_and_is_idempotent() {
+        let pool = seeded_pool().await;
+        let first = seed_demo(&pool).await.unwrap();
+        assert!(first > 80, "expected a populated window, got {first}");
+        // Second run is a no-op — the meta flag guards it.
+        assert_eq!(seed_demo(&pool).await.unwrap(), 0);
+
+        let earliest: Option<String> = sqlx::query_scalar(
+            "SELECT MIN(scheduled_date) FROM tasks WHERE placement = 'scheduled'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(earliest.is_some());
+        let range: f64 = sqlx::query_scalar(
+            "SELECT julianday(MAX(scheduled_date)) - julianday(MIN(scheduled_date)) \
+             FROM tasks WHERE placement = 'scheduled'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(
+            (70.0..=90.0).contains(&range),
+            "seeded span {range} days is not ~12 weeks"
+        );
+    }
+
+    #[tokio::test]
+    async fn demo_seed_links_categories_and_the_series() {
+        let pool = seeded_pool().await;
+        seed_demo(&pool).await.unwrap();
+        let categories: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM categories")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(categories, DEMO_CATEGORIES.len() as i64);
+        let linked: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM task_categories")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(linked > 0);
+        let instances: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE series_id IS NOT NULL")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(instances >= 11, "expected ~12 Friday instances");
+    }
+}
