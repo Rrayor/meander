@@ -26,6 +26,16 @@ pub async fn list_tasks(state: State<'_, AppState>) -> Result<Vec<crate::tasks::
 }
 
 #[tauri::command]
+pub async fn list_week_tasks(
+    state: State<'_, AppState>,
+    date: &str,
+) -> Result<Vec<crate::tasks::Task>, ApiError> {
+    crate::tasks::list_week(&state.pool(), state.active_profile_id(), date)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_categories(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::categories::Category>, ApiError> {

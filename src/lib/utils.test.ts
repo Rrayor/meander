@@ -5,6 +5,7 @@ import {
   formatIsoDay,
   todayLocalIso,
   unicodeTrim,
+  weekDates,
   weekdayOfIso,
 } from "@/lib/utils";
 import { MULTI_UNIT_EMOJI } from "@/test/unicode";
@@ -154,5 +155,41 @@ describe("formatIsoDay", () => {
     // "YYYY-MM-DD" carries no time — formatDate's datetime assumption used
     // to produce "Invalid Date" for series start/end.
     expect(formatIsoDay("2026-10-05", "en-US")).toBe("Oct 5, 2026");
+  });
+});
+
+describe("weekDates", () => {
+  const WEDNESDAY = "2026-10-21";
+
+  it("anchors the week at a Monday week start", () => {
+    expect(weekDates(WEDNESDAY, Weekday.Monday)).toEqual([
+      "2026-10-19",
+      "2026-10-20",
+      "2026-10-21",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-10-24",
+      "2026-10-25",
+    ]);
+  });
+
+  it("anchors the week at a Sunday week start", () => {
+    expect(weekDates(WEDNESDAY, Weekday.Sunday)).toEqual([
+      "2026-10-18",
+      "2026-10-19",
+      "2026-10-20",
+      "2026-10-21",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-10-24",
+    ]);
+  });
+
+  it("starts a new week when the date lands on the start day", () => {
+    expect(weekDates("2026-10-19", Weekday.Monday)[0]).toBe("2026-10-19");
+  });
+
+  it("wraps across a month boundary", () => {
+    expect(weekDates("2026-11-01", Weekday.Monday)[0]).toBe("2026-10-26");
   });
 });

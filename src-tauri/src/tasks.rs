@@ -481,6 +481,47 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     .await?)
 }
 
+/// Board listing (spec §312–§316): one week's tasks — the standing
+/// weekly backlog plus everything scheduled inside the week bounds.
+/// Reading a week materializes that week's series occurrences (spec
+/// §148/§342: boards prepopulate scheduled instances on view) — living
+/// series only, since segments are history and never produce new rows.
+/// Carry-over into the weekly backlog is a later plan item.
+pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result<Vec<Task>> {
+    crate::series::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
+    let week_start = crate::profiles::week_start(pool, profile_id).await?;
+    let (y, m, d) = crate::series::parse_iso(date);
+    let z = crate::series::days_from_civil(y, m, d);
+    // days_from_civil's epoch (1970-01-01) is a Thursday, so `z % 7`
+    // gives Sunday = 0; Weekday indexes Monday = 0.
+    let day_index = (z + 10).rem_euclid(7);
+    let start_z = z - (day_index - week_start.index()).rem_euclid(7);
+    let week_start_iso = crate::series::to_iso(crate::series::civil_from_days(start_z));
+    let week_end_iso = crate::series::to_iso(crate::series::civil_from_days(start_z + 6));
+
+    let series = crate::series::list(pool, profile_id).await?;
+    for s in series.iter().filter(|s| s.succeeded_by.is_none()) {
+        for offset in 0..7 {
+            let iso = crate::series::to_iso(crate::series::civil_from_days(start_z + offset));
+            if crate::series::occurs_on(&s.recurrence, &s.start_date, s.end_date.as_deref(), &iso) {
+                get_or_create_instance(pool, profile_id, s.id, &iso).await?;
+            }
+        }
+    }
+
+    Ok(sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? AND \
+         (placement = 'weekly_backlog' OR \
+          (scheduled_date IS NOT NULL AND scheduled_date BETWEEN ? AND ?)) \
+         ORDER BY scheduled_date, sort_order, id",
+    )
+    .bind(profile_id)
+    .bind(&week_start_iso)
+    .bind(&week_end_iso)
+    .fetch_all(pool)
+    .await?)
+}
+
 /// Materializes the instance for one scheduled occurrence (spec §230):
 /// picking a scheduled-but-unpersisted calendar date creates its task row
 /// in the background so it can be viewed, noted, and edited. Idempotent —
@@ -614,6 +655,68 @@ mod tests {
             title: title.to_string(),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn list_week_materializes_and_filters_the_displayed_week() {
+        const WEEK_DATE: &str = "2026-10-21"; // a Wednesday
+        const SERIES_START: &str = "2026-10-19"; // the week's Monday
+        const NEXT_WEEK: &str = "2026-10-26";
+
+        let (pool, pid) = seeded_pool().await;
+        create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                series: Some(crate::series::NewSeries {
+                    recurrence: serde_json::json!({
+                        "kind": "weekly",
+                        "interval_weeks": 1,
+                        "weekdays": ["monday"],
+                    }),
+                    start_date: SERIES_START.to_string(),
+                    end_date: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        // A weekly-backlog task and a task scheduled outside the week.
+        let weekly = create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'weekly_backlog' WHERE id = ?")
+            .bind(weekly.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let outside = create(&pool, pid, &task(TITLE_C)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
+            .bind("2026-11-10")
+            .bind(outside.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // The Monday instance materializes on view and is returned
+        // alongside the weekly backlog; the out-of-week task is not.
+        let tasks = list_week(&pool, pid, WEEK_DATE).await.unwrap();
+        let titles: Vec<&str> = tasks.iter().map(|t| t.title.as_str()).collect();
+        assert!(titles.contains(&TITLE_A));
+        assert!(titles.contains(&TITLE_B));
+        assert!(!titles.contains(&TITLE_C));
+        let instance = tasks.iter().find(|t| t.title == TITLE_A).unwrap();
+        assert_eq!(instance.scheduled_date.as_deref(), Some(SERIES_START));
+
+        // A later week materializes that week's instance instead.
+        let next = list_week(&pool, pid, NEXT_WEEK).await.unwrap();
+        assert_eq!(
+            next.iter()
+                .filter(|t| t.series_id.is_some())
+                .map(|t| t.scheduled_date.as_deref())
+                .collect::<Vec<_>>(),
+            vec![Some(NEXT_WEEK)]
+        );
     }
 
     #[tokio::test]

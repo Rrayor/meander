@@ -13,6 +13,7 @@ export const COMMANDS = {
   renameProfile: "rename_profile",
   switchProfile: "switch_profile",
   listTasks: "list_tasks",
+  listWeekTasks: "list_week_tasks",
   listCategories: "list_categories",
   createCategory: "create_category",
   updateCategory: "update_category",

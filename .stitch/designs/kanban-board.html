@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — Weekly Planner</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Inter Google Font -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-primary-fixed-variant": "#005047",
+            "threshold-emerald": "#34D399",
+            "surface-bright": "#333b39",
+            "surface": "#1A1D21",
+            "primary-container": "#2dd4bf",
+            "surface-container-low": "#161d1b",
+            "inverse-on-surface": "#2b3230",
+            "surface-variant": "#2f3634",
+            "threshold-green": "#4ADE80",
+            "inverse-surface": "#dde4e1",
+            "surface-raised": "#22262B",
+            "threshold-indigo": "#818CF8",
+            "secondary-fixed": "#e1e2e8",
+            "threshold-cyan": "#22D3EE",
+            "primary-fixed": "#62fae3",
+            "on-surface-variant": "#bacac5",
+            "threshold-pink": "#F472B6",
+            "threshold-violet": "#A78BFA",
+            "tertiary-container": "#ffac5a",
+            "on-primary": "#0B1B19",
+            "surface-container-high": "#242b2a",
+            "primary": "#2DD4BF",
+            "surface-container-lowest": "#09100e",
+            "on-secondary-container": "#b6b8be",
+            "on-secondary-fixed-variant": "#44474b",
+            "threshold-amber": "#FBBF24",
+            "secondary-fixed-dim": "#c5c6cc",
+            "secondary": "#c5c6cc",
+            "on-primary-fixed": "#00201c",
+            "on-secondary-fixed": "#191c20",
+            "on-error-container": "#ffdad6",
+            "background": "#121417",
+            "outline-variant": "#3c4a46",
+            "text": "#E8EAED",
+            "on-error": "#690005",
+            "threshold-fuchsia": "#E879F9",
+            "outline": "#859490",
+            "tertiary": "#ffd1aa",
+            "secondary-container": "#46494e",
+            "text-muted": "#9AA0A6",
+            "border": "#2E3338",
+            "surface-dim": "#0e1513",
+            "error": "#ffb4ab",
+            "threshold-red": "#F87171",
+            "threshold-orange": "#FB923C",
+            "tertiary-fixed-dim": "#ffb875",
+            "error-container": "#93000a",
+            "on-tertiary-container": "#744000",
+            "on-surface": "#dde4e1",
+            "on-tertiary": "#4b2800",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "on-tertiary-fixed": "#2d1600",
+            "threshold-blue": "#60A5FA",
+            "surface-container-highest": "#2f3634",
+            "inverse-primary": "#006b5f",
+            "tertiary-fixed": "#ffdcc0",
+            "on-secondary": "#2e3135",
+            "threshold-lime": "#A3E635",
+            "on-background": "#dde4e1",
+            "surface-tint": "#3cddc7",
+            "surface-container": "#1a211f",
+            "primary-fixed-dim": "#3cddc7",
+            "on-primary-container": "#00574d"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-xl": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-lg": "1rem",
+            "gutter": "1rem",
+            "margin": "1.5rem",
+            "space-sm": "0.5rem",
+            "space-md": "0.75rem"
+          },
+          "fontFamily": {
+            "title": ["Inter"],
+            "label": ["Inter"],
+            "body": ["Inter"],
+            "display": ["Inter"]
+          },
+          "fontSize": {
+            "title": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+            "label": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "body": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "display": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    /* Custom subtle scrollbars for high-density horizontal kanban view */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #121417;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2E3338;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3c4a46;
+    }
+  </style>
+</head>
+<body class="bg-background text-text font-body antialiased selection:bg-primary-container selection:text-on-primary-container min-h-screen overflow-x-hidden">
+<!-- ==================== SIDE NAV BAR (FROM SHARED COMPONENT) ==================== -->
+<aside class="fixed top-0 left-0 h-screen w-56 border-r border-border bg-surface flex flex-col justify-between p-space-md z-30 select-none">
+<div class="flex flex-col gap-space-lg">
+<!-- App Brand Header -->
+<div class="flex items-center gap-space-sm px-space-xs py-space-xs">
+<div class="w-8 h-8 rounded-lg bg-surface-raised flex items-center justify-center text-primary border border-border">
+<span class="material-symbols-outlined text-[20px]" data-icon="polyline">polyline</span>
+</div>
+<div class="flex flex-col leading-none">
+<div class="flex items-center gap-space-xs">
+<span class="font-title text-title text-text font-semibold tracking-tight">Meander</span>
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-emerald"></span>
+</div>
+<span class="font-label text-label text-text-muted mt-space-xs">Offline Ready</span>
+</div>
+</div>
+<!-- Quick Action: New Task -->
+<button class="w-full flex items-center justify-center gap-space-sm bg-primary hover:bg-primary-fixed text-on-primary font-label text-label py-space-sm px-space-md rounded-lg transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary focus:outline-none">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span>New task</span>
+</button>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-space-xs">
+<!-- Board (Active Item) -->
+<a aria-current="page" class="flex items-center gap-space-md px-space-md py-space-sm bg-surface-raised text-primary rounded-lg font-medium transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="view_week">view_week</span>
+<span class="font-body text-body">Board</span>
+</a>
+<!-- Backlog -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm text-text-muted hover:text-text hover:bg-surface-raised rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2">inventory_2</span>
+<span class="font-body text-body">Backlog</span>
+<span class="ml-auto font-label text-label text-text-muted bg-surface-container-low px-1.5 py-0.5 rounded">14</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm text-text-muted hover:text-text hover:bg-surface-raised rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="font-body text-body">Settings</span>
+</a>
+</nav>
+</div>
+<!-- Footer: Local Database State & Profile -->
+<div class="flex flex-col gap-space-sm border-t border-border pt-space-md">
+<!-- Local DB indicator -->
+<div class="flex items-center justify-between px-space-sm py-1 bg-surface-raised/60 rounded text-text-muted font-label text-label">
+<div class="flex items-center gap-1.5 truncate">
+<span class="material-symbols-outlined text-[14px] text-threshold-emerald" data-icon="database">database</span>
+<span class="truncate">meander.sqlite</span>
+</div>
+<span class="text-[10px] text-text-muted uppercase tracking-wider">Synced</span>
+</div>
+<!-- User Profile Row -->
+<div class="flex items-center justify-between p-space-xs rounded-lg hover:bg-surface-raised cursor-pointer transition-colors duration-150 text-text">
+<div class="flex items-center gap-space-sm truncate">
+<span class="material-symbols-outlined text-[28px] text-text-muted" data-icon="account_circle">account_circle</span>
+<div class="flex flex-col truncate">
+<span class="font-label text-label font-medium truncate">Marcus Miller</span>
+<span class="text-[11px] text-text-muted truncate">Local Workspace</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-text-muted text-[16px]" data-icon="unfold_more">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- ==================== TOP NAV BAR (FROM SHARED COMPONENT) ==================== -->
+<header class="fixed top-0 left-0 right-0 h-14 bg-background border-b border-border z-20 flex items-center justify-between px-space-lg ml-56 select-none">
+<!-- Left: Page Heading + Subdued Week Tag -->
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-sm">
+<h1 class="font-title text-title text-text font-semibold">Board</h1>
+<span class="bg-surface-raised text-text-muted font-label text-label px-2 py-0.5 rounded border border-border">Week 43</span>
+</div>
+<!-- Date Picker Range Controls -->
+<div class="flex items-center bg-surface rounded-lg p-0.5 border border-border text-text ml-space-md">
+<button aria-label="Previous week" class="w-7 h-7 flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-raised rounded transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_left">chevron_left</span>
+</button>
+<div class="flex items-center gap-1.5 px-space-sm font-label text-label font-medium">
+<span class="material-symbols-outlined text-[16px] text-text-muted" data-icon="calendar_today">calendar_today</span>
+<span>Oct 20 – Oct 26, 2026</span>
+</div>
+<button aria-label="Next week" class="w-7 h-7 flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-raised rounded transition-colors duration-150">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Right: Metrics Pill Cluster & Actions -->
+<div class="flex items-center gap-space-md">
+<!-- Weekly Capacity / Totals Pill Group -->
+<div class="hidden xl:flex items-center bg-surface border border-border rounded-lg p-1 gap-1 text-label font-label">
+<div class="px-space-sm py-0.5 rounded text-text font-medium flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>8 tasks</span>
+</div>
+<div class="h-3 w-[1px] bg-border"></div>
+<div class="px-space-sm py-0.5 text-text-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="timer">timer</span>
+<span>18h 30m est</span>
+</div>
+<div class="h-3 w-[1px] bg-border"></div>
+<div class="px-space-sm py-0.5 text-threshold-emerald flex items-center gap-1 font-medium">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle">check_circle</span>
+<span>9h 15m spent</span>
+</div>
+</div>
+<!-- Action: Filter Button -->
+<button class="flex items-center gap-1.5 px-space-md py-1.5 bg-surface hover:bg-surface-raised border border-border text-text font-label text-label rounded-lg transition-colors duration-150">
+<span class="material-symbols-outlined text-[16px] text-text-muted" data-icon="filter_list">filter_list</span>
+<span>Filter</span>
+</button>
+<!-- Action: Jump to Today (Trailing Primary Action) -->
+<button class="flex items-center gap-1.5 px-space-md py-1.5 bg-surface-raised hover:bg-surface-bright text-primary border border-border font-label text-label font-medium rounded-lg transition-colors duration-150">
+<span class="material-symbols-outlined text-[16px]" data-icon="my_location">my_location</span>
+<span>Jump to today</span>
+</button>
+</div>
+</header>
+<!-- ==================== MAIN KANBAN MATRIX CANVAS ==================== -->
+<main class="ml-56 pt-14 min-h-[calc(100vh-3.5rem)] flex flex-col bg-background">
+<div class="flex-1 overflow-x-auto pb-space-xl">
+<!-- Table/Matrix Container: Min-width ensures no awkward horizontal squash on 8 columns -->
+<div class="min-w-[1360px] flex flex-col px-space-lg pt-space-lg">
+<!-- ==================== KANBAN HEADER ROW (8 Columns) ==================== -->
+<div class="grid grid-cols-[130px_repeat(8,minmax(140px,1fr))] gap-space-md pb-space-sm border-b border-border items-end sticky top-14 bg-background z-10 py-space-sm">
+<!-- Empty Spacer for Left Row-Header margin -->
+<div class="font-label text-label text-text-muted uppercase tracking-wider text-[11px] font-medium pl-1">
+            Status / Flow
+          </div>
+<!-- Col 1: Weekly Backlog -->
+<div class="flex flex-col gap-0.5 bg-surface/50 border border-border rounded-lg p-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text truncate">Weekly backlog</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">1</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">3h 0m est</span>
+</div>
+<!-- Col 2: Mon 20 -->
+<div class="flex flex-col gap-0.5 bg-surface/30 border border-border rounded-lg p-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text">Mon 20</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">2</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">4h 30m · 2h spent</span>
+</div>
+<!-- Col 3: Tue 21 (TODAY HIGHLIGHT) -->
+<div class="flex flex-col gap-0.5 bg-surface border border-primary/40 rounded-lg p-space-sm relative ring-1 ring-primary/20">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="font-label text-label font-semibold text-primary">Tue 21</span>
+<span class="bg-primary/10 text-primary text-[10px] font-semibold px-1.5 py-0.2 rounded uppercase tracking-wider">Today</span>
+</div>
+<span class="font-label text-label text-primary bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">2</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">3h 15m · 1h 15m</span>
+</div>
+<!-- Col 4: Wed 22 -->
+<div class="flex flex-col gap-0.5 bg-surface/30 border border-border rounded-lg p-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text">Wed 22</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">1</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">2h 45m</span>
+</div>
+<!-- Col 5: Thu 23 -->
+<div class="flex flex-col gap-0.5 bg-surface/30 border border-border rounded-lg p-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text">Thu 23</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">0</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">0h 0m</span>
+</div>
+<!-- Col 6: Fri 24 -->
+<div class="flex flex-col gap-0.5 bg-surface/30 border border-border rounded-lg p-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text">Fri 24</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">1</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">1h 30m</span>
+</div>
+<!-- Col 7: Sa 25 -->
+<div class="flex flex-col gap-0.5 bg-surface/20 border border-border/60 rounded-lg p-space-sm opacity-80">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text-muted">Sa 25</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">0</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">Weekend</span>
+</div>
+<!-- Col 8: Su 26 -->
+<div class="flex flex-col gap-0.5 bg-surface/20 border border-border/60 rounded-lg p-space-sm opacity-80">
+<div class="flex items-center justify-between">
+<span class="font-label text-label font-semibold text-text-muted">Su 26</span>
+<span class="font-label text-label text-text-muted bg-surface-raised px-1.5 py-0.2 rounded text-[11px]">0</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">Weekend</span>
+</div>
+</div>
+<!-- ==================== MATRIX BODY (3 ROWS) ==================== -->
+<div class="flex flex-col gap-space-lg pt-space-md">
+<!-- ---------------- ROW 1: TODO ---------------- -->
+<div class="grid grid-cols-[130px_repeat(8,minmax(140px,1fr))] gap-space-md items-start border-b border-border/50 pb-space-lg">
+<!-- Row Header -->
+<div class="flex flex-col gap-1 pr-space-sm pt-1">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-threshold-blue"></span>
+<span class="font-title text-[13px] font-semibold text-text uppercase tracking-wider">TODO</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">3 planned</span>
+<span class="font-label text-label text-text-muted text-[11px]">7h 15m est</span>
+</div>
+<!-- Col 1: Backlog TODO -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/30 border border-dashed border-border/40 hover:border-border transition-colors">
+<!-- Card: SQLite Connection Pooling -->
+<div class="bg-surface rounded-lg p-space-md border border-border/80 hover:bg-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-text-muted">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                    Engineering
+                  </span>
+<span class="material-symbols-outlined text-[14px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" data-icon="drag_indicator">drag_indicator</span>
+</div>
+<h4 class="font-body text-body font-medium text-text text-[13px] leading-snug">Refactor SQLite connection pooling</h4>
+<div class="flex items-center justify-between text-text-muted font-label text-label text-[11px] pt-1 mt-1 border-t border-border/40">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]" data-icon="schedule">schedule</span>
+                    3h 0m
+                  </span>
+<span class="material-symbols-outlined text-[14px]" data-icon="offline_pin">offline_pin</span>
+</div>
+</div>
+</div>
+<!-- Col 2: Mon 20 TODO -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/30 border border-dashed border-border/40">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/40 font-label text-[11px]">
+                No pending tasks
+              </div>
+</div>
+<!-- Col 3: Tue 21 TODO (Today) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/40 border border-dashed border-primary/20">
+<!-- Card: Ergonomic Workspace Audit -->
+<div class="bg-surface rounded-lg p-space-md border border-border/80 hover:bg-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-text-muted">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-green"></span>
+                    Personal
+                  </span>
+<span class="material-symbols-outlined text-[14px] text-text-muted" data-icon="tune">tune</span>
+</div>
+<h4 class="font-body text-body font-medium text-text text-[13px] leading-snug">Ergonomic workspace audit</h4>
+<div class="flex items-center justify-between text-text-muted font-label text-label text-[11px] pt-1 mt-1 border-t border-border/40">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]" data-icon="schedule">schedule</span>
+                    45m
+                  </span>
+<span class="text-[10px] text-threshold-amber bg-threshold-amber/10 px-1 py-0.2 rounded font-medium">Low energy</span>
+</div>
+</div>
+</div>
+<!-- Col 4: Wed 22 TODO -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/30 border border-dashed border-border/40">
+<!-- Card: Benchmark WAL Mode -->
+<div class="bg-surface rounded-lg p-space-md border border-border/80 hover:bg-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-text-muted">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                    Engineering
+                  </span>
+<span class="material-symbols-outlined text-[14px] text-text-muted opacity-0 group-hover:opacity-100" data-icon="drag_indicator">drag_indicator</span>
+</div>
+<h4 class="font-body text-body font-medium text-text text-[13px] leading-snug">Benchmark WAL mode performance</h4>
+<div class="flex items-center justify-between text-text-muted font-label text-label text-[11px] pt-1 mt-1 border-t border-border/40">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]" data-icon="schedule">schedule</span>
+                    2h 45m
+                  </span>
+<span class="material-symbols-outlined text-[13px] text-threshold-indigo" data-icon="memory">memory</span>
+</div>
+</div>
+</div>
+<!-- Col 5: Thu 23 TODO (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Drop task
+              </div>
+</div>
+<!-- Col 6: Fri 24 TODO -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/30 border border-dashed border-border/40">
+<!-- Card: Clean Architecture Documentation -->
+<div class="bg-surface rounded-lg p-space-md border border-border/80 hover:bg-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-text-muted">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-violet"></span>
+                    Infrastructure
+                  </span>
+<span class="material-symbols-outlined text-[14px] text-text-muted" data-icon="repeat">repeat</span>
+</div>
+<h4 class="font-body text-body font-medium text-text text-[13px] leading-snug">Offline cache synchronization audit</h4>
+<div class="flex items-center justify-between text-text-muted font-label text-label text-[11px] pt-1 mt-1 border-t border-border/40">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]" data-icon="schedule">schedule</span>
+                    1h 30m
+                  </span>
+<span class="text-[10px] text-text-muted">Weekly</span>
+</div>
+</div>
+</div>
+<!-- Col 7: Sa 25 TODO (Weekend Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/10 border border-dashed border-border/20 opacity-60">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/20 font-label text-[11px]">
+                Off
+              </div>
+</div>
+<!-- Col 8: Su 26 TODO (Weekend Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/10 border border-dashed border-border/20 opacity-60">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/20 font-label text-[11px]">
+                Off
+              </div>
+</div>
+</div>
+<!-- ---------------- ROW 2: IN PROGRESS ---------------- -->
+<div class="grid grid-cols-[130px_repeat(8,minmax(140px,1fr))] gap-space-md items-start border-b border-border/50 pb-space-lg">
+<!-- Row Header -->
+<div class="flex flex-col gap-1 pr-space-sm pt-1">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-threshold-amber"></span>
+<span class="font-title text-[13px] font-semibold text-text uppercase tracking-wider">IN PROGRESS</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">2 active</span>
+<span class="font-label text-label text-threshold-amber text-[11px] font-medium">3h 45m logged</span>
+</div>
+<!-- Col 1: Backlog In Progress (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Empty
+              </div>
+</div>
+<!-- Col 2: Mon 20 In Progress -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/30 border border-dashed border-border/40">
+<!-- Card: In-progress carried item -->
+<div class="bg-surface rounded-lg p-space-md border border-border/80 hover:bg-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-text-muted">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-orange"></span>
+                    Product &amp; Design
+                  </span>
+<span class="material-symbols-outlined text-[15px] text-threshold-amber animate-spin" data-icon="progress_activity" style="animation-duration: 8s;">progress_activity</span>
+</div>
+<h4 class="font-body text-body font-medium text-text text-[13px] leading-snug">Review quarterly milestone planning &amp; roadmap</h4>
+<!-- Progress meter -->
+<div class="flex flex-col gap-1 pt-1 mt-1 border-t border-border/40">
+<div class="flex items-center justify-between text-[11px] font-label text-text-muted">
+<span>2h 00m / 2h 30m</span>
+<span class="text-text font-medium">80%</span>
+</div>
+<div class="w-full h-1.5 bg-surface-raised rounded-full overflow-hidden">
+<div class="h-full bg-threshold-amber rounded-full" style="width: 80%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Col 3: Tue 21 In Progress (Today Active Item) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/40 border border-dashed border-primary/20">
+<!-- Active Card with Teal Accent Glow -->
+<div class="bg-surface rounded-lg p-space-md border border-primary/40 bg-gradient-to-b from-surface to-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group ring-1 ring-primary/10">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-primary font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                    Engineering
+                  </span>
+<span class="material-symbols-outlined text-[15px] text-primary animate-pulse" data-icon="play_circle">play_circle</span>
+</div>
+<h4 class="font-body text-body font-medium text-text text-[13px] leading-snug">Local-first sync engine conflict resolution</h4>
+<!-- Active Progress meter -->
+<div class="flex flex-col gap-1 pt-1 mt-1 border-t border-border/40">
+<div class="flex items-center justify-between text-[11px] font-label">
+<span class="text-text-muted">1h 15m / 2h 30m</span>
+<span class="text-primary font-medium">50%</span>
+</div>
+<div class="w-full h-1.5 bg-surface-raised rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 50%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Col 4: Wed 22 In Progress (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Drop task
+              </div>
+</div>
+<!-- Col 5: Thu 23 In Progress (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Drop task
+              </div>
+</div>
+<!-- Col 6: Fri 24 In Progress (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Drop task
+              </div>
+</div>
+<!-- Col 7: Sa 25 In Progress (Weekend Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/10 border border-dashed border-border/20 opacity-60">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/20 font-label text-[11px]">
+                Off
+              </div>
+</div>
+<!-- Col 8: Su 26 In Progress (Weekend Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/10 border border-dashed border-border/20 opacity-60">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/20 font-label text-[11px]">
+                Off
+              </div>
+</div>
+</div>
+<!-- ---------------- ROW 3: DONE ---------------- -->
+<div class="grid grid-cols-[130px_repeat(8,minmax(140px,1fr))] gap-space-md items-start pb-space-lg">
+<!-- Row Header -->
+<div class="flex flex-col gap-1 pr-space-sm pt-1">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-threshold-emerald"></span>
+<span class="font-title text-[13px] font-semibold text-text uppercase tracking-wider">DONE</span>
+</div>
+<span class="font-label text-label text-text-muted text-[11px]">3 finished</span>
+<span class="font-label text-label text-threshold-emerald text-[11px] font-medium">5h 30m logged</span>
+</div>
+<!-- Col 1: Backlog Done (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Archived
+              </div>
+</div>
+<!-- Col 2: Mon 20 Done -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/30 border border-dashed border-border/40">
+<!-- Completed Card 1: Keybindings Audit -->
+<div class="bg-surface/80 rounded-lg p-space-md border border-border/60 hover:bg-surface-raised cursor-pointer transition-all duration-150 flex flex-col gap-space-xs group opacity-90">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 font-label text-[11px] text-text-muted">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-orange"></span>
+                    Product &amp; Design
+                  </span>
+<span class="material-symbols-outlined text-[16px] text-threshold-emerald" data-icon="check_circle">check_circle</span>
+</div>
+<h4 class="font-body text-body font-medium text-text-muted line-through text-[13px] leading-snug">Vim keybinding overlay &amp; shortcuts</h4>
+<div class="flex items-center justify-between text-text-muted font-label text-label text-[11px] pt-1 mt-1 border-t border-border/40">
+<span class="flex items-center gap-1 text-threshold-emerald">
+<span class="material-symbols-outlined text-[13px]" data-icon="timer">timer</span>
+                    2h 00m logged
+                  </span>
+<span class="material-symbols-outlined text-[13px] text-text-muted" data-icon="repeat">repeat</span>
+</div>
+</div>
+</div>
+<!-- Col 3: Tue 21 Done (Today Done item) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/40 border border-dashed border-primary/20">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/40 font-label text-[11px]">
+                Pending completion
+              </div>
+</div>
+<!-- Col 4: Wed 22 Done (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Empty
+              </div>
+</div>
+<!-- Col 5: Thu 23 Done (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Empty
+              </div>
+</div>
+<!-- Col 6: Fri 24 Done (Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/20 border border-dashed border-border/30">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/30 font-label text-[11px]">
+                Empty
+              </div>
+</div>
+<!-- Col 7: Sa 25 Done (Weekend Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/10 border border-dashed border-border/20 opacity-60">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/20 font-label text-[11px]">
+                Off
+              </div>
+</div>
+<!-- Col 8: Su 26 Done (Weekend Empty) -->
+<div class="flex flex-col gap-space-sm min-h-[140px] p-1 rounded-lg bg-surface-container-low/10 border border-dashed border-border/20 opacity-60">
+<div class="h-full flex items-center justify-center p-2 text-center text-text-muted/20 font-label text-[11px]">
+                Off
+              </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

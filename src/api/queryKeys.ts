@@ -7,6 +7,7 @@ export const QUERY_KEYS = {
   workDays: ["work-days"],
   dbPath: ["db-path"],
   tasks: ["tasks"],
+  boardWeek: (start: string) => ["board-week", start],
   categories: ["categories"],
   // Prefix key: invalidating it covers every task's association list, e.g.
   // after a category rename/recolor or delete changes what chips show.

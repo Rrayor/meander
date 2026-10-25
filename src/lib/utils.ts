@@ -74,6 +74,37 @@ export const todayLocalIso = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
+export const WEEKDAY_INDEX: Record<Weekday, number> = {
+  [Weekday.Monday]: 0,
+  [Weekday.Tuesday]: 1,
+  [Weekday.Wednesday]: 2,
+  [Weekday.Thursday]: 3,
+  [Weekday.Friday]: 4,
+  [Weekday.Saturday]: 5,
+  [Weekday.Sunday]: 6,
+};
+
+const localIso = (date: Date) => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+// The 7 ISO dates of the week containing `iso`, anchored at the
+// configured week-start weekday — mirrors tasks::list_week's bounds.
+export const weekDates = (iso: string, weekStart: Weekday) => {
+  const day = new Date(`${iso}T00:00:00`);
+  const start = new Date(day);
+  start.setDate(
+    day.getDate() -
+      ((((day.getDay() + 6 - WEEKDAY_INDEX[weekStart]) % 7) + 7) % 7),
+  );
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return localIso(d);
+  });
+};
+
 export const WEEKDAYS_BY_JS_DAY = [
   Weekday.Sunday,
   Weekday.Monday,
