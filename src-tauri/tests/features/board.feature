@@ -66,3 +66,11 @@ Feature: Weekly kanban board
     And a weekly backlog task titled Pending
     When I view the board for the week 2 weeks ago
     Then the board lists 0 tasks
+
+  Scenario: a future board materializes series without the weekly backlog
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Pending
+    When I create a task titled "Standup" repeating weekly on Monday
+    And I view the board for the week 2 weeks ahead
+    Then the board lists 1 task
+    And the board does not list Pending

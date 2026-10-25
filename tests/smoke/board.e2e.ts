@@ -1,4 +1,5 @@
 import { formatIsoDay } from "@/lib/utils";
+import { BOARD_NEXT_WEEK_LABEL } from "@/lib/labels";
 import {
   ADD_TASK_LABEL,
   BOARD_HEADING,
@@ -68,6 +69,22 @@ describe("Board smoke", () => {
 
     await (await $$("header button"))[1].click();
     await (await $(`aria/${formatIsoDay(priorIso)}`)).click();
+    await browser.waitUntil(
+      async () => (await $$("th[scope='col']")).length === 7,
+    );
+    const headers = await $$("th[scope='col']");
+    expect(headers).toHaveLength(7);
+    for (const h of headers) {
+      expect((await h.getText()).includes(WEEKLY_BACKLOG_LABEL)).toBe(false);
+    }
+  });
+
+  it("steps to a future week on the real backend", async () => {
+    // Next-week arrow on the current board: the real list_week
+    // materializes the future week and still excludes the standing
+    // weekly backlog (spec §336/§354).
+    const next = await $(`aria/${BOARD_NEXT_WEEK_LABEL}`);
+    await next.click();
     await browser.waitUntil(
       async () => (await $$("th[scope='col']")).length === 7,
     );
