@@ -3,7 +3,8 @@ import { useState } from "react";
 
 import { deleteTask, resolveCarryOver } from "@/api/tasks";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import type { CarryOverRule, Task } from "@/api/bindings";
+import type { Task } from "@/api/bindings";
+import { CarryOverDecision } from "@/lib/enums";
 import {
   CARRY_OVER_APPLY_LABEL,
   CARRY_OVER_CARRY_LABEL,
@@ -27,30 +28,47 @@ export function CarryOverPrompt({
   onDone,
 }: Readonly<CarryOverPromptProps>) {
   const queryClient = useQueryClient();
-  // Local decision per task — default is unset until the user picks.
-  // 'dismiss' is the per-task delete outcome, not a dialog close.
-  const [choices, setChoices] = useState<
-    Record<number, CarryOverRule | "dismiss">
-  >({});
+  // Local decision per task — unset until picked; Dismiss deletes.
+  const [choices, setChoices] = useState<Record<number, CarryOverDecision>>({});
   const resolved = tasks.filter((t) => choices[t.id]).length;
 
   const apply = useMutation({
     mutationFn: async () => {
-      for (const t of tasks) {
-        const rule = choices[t.id];
-        if (rule === "dismiss") await deleteTask(t.id);
-        else if (rule) await resolveCarryOver(t.id, rule);
+      // Attempt each decision and clear it once committed — a partial
+      // failure retries only the remaining ones (a deleted task's
+      // repeat call would fail and block the rest).
+      const results = await Promise.allSettled(
+        tasks.map(async (t) => {
+          const decision = choices[t.id];
+          if (decision === CarryOverDecision.Dismiss) await deleteTask(t.id);
+          else if (decision) await resolveCarryOver(t.id, decision);
+          if (decision) {
+            setChoices((c) =>
+              Object.fromEntries(
+                Object.entries(c).filter(([id]) => Number(id) !== t.id),
+              ),
+            );
+          }
+        }),
+      );
+      const failure = results.find((r) => r.status === "rejected");
+      if (failure) {
+        throw failure.reason instanceof Error
+          ? failure.reason
+          : new Error(String(failure.reason));
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.boardWeeks });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.pendingCarryOver });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.boardWeeks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.pendingCarryOver,
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       onDone();
     },
   });
 
-  const choose = (id: number, rule: CarryOverRule | "dismiss") =>
+  const choose = (id: number, rule: CarryOverDecision) =>
     setChoices((c) => ({ ...c, [id]: rule }));
 
   return (
@@ -72,15 +90,12 @@ export function CarryOverPrompt({
               className="flex items-center justify-between gap-4 rounded-md bg-surface-raised px-3 py-2"
             >
               <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
-              <div
-                className="flex overflow-hidden rounded-md border border-border text-xs"
-                role="group"
-              >
+              <fieldset className="m-0 flex overflow-hidden rounded-md border border-border p-0 text-xs">
                 {(
                   [
-                    ["carry", CARRY_OVER_CARRY_LABEL],
-                    ["return", CARRY_OVER_RETURN_LABEL],
-                    ["dismiss", CARRY_OVER_DISMISS_LABEL],
+                    [CarryOverDecision.Carry, CARRY_OVER_CARRY_LABEL],
+                    [CarryOverDecision.Return, CARRY_OVER_RETURN_LABEL],
+                    [CarryOverDecision.Dismiss, CARRY_OVER_DISMISS_LABEL],
                   ] as const
                 ).map(([rule, label]) => (
                   <button
@@ -97,7 +112,7 @@ export function CarryOverPrompt({
                     {label}
                   </button>
                 ))}
-              </div>
+              </fieldset>
             </li>
           ))}
         </ul>

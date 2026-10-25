@@ -605,6 +605,22 @@ pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result
     .await?)
 }
 
+/// The configured start day of the current week — the carry-over
+/// boundary. Only tasks dated before it are week-turn candidates.
+async fn current_week_start(pool: &SqlitePool, profile_id: i64) -> Result<String> {
+    let week_start = crate::profiles::week_start(pool, profile_id).await?;
+    let today_iso: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+        .fetch_one(pool)
+        .await?;
+    let (y, m, d) = crate::series::parse_iso(&today_iso);
+    let z = crate::series::days_from_civil(y, m, d);
+    let day_index = (z + 10).rem_euclid(7);
+    let start_z = z - (day_index - week_start.index()).rem_euclid(7);
+    Ok(crate::series::to_iso(crate::series::civil_from_days(
+        start_z,
+    )))
+}
+
 /// Does the queried week contain today? Used to gate current-week-only
 /// behavior (the weekly backlog, carry-over) off past and future boards.
 async fn current_week_contains(
@@ -632,7 +648,7 @@ async fn apply_carry_over(
     week_start_iso: &str,
 ) -> Result<()> {
     sqlx::query(
-        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry'",
+        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry' AND series_id IS NULL",
     )
     .bind(profile_id)
     .bind(week_start_iso)
@@ -675,13 +691,18 @@ pub async fn resolve_carry_over(
         CarryOverRule::Carry => "weekly_backlog",
         CarryOverRule::Return => "backlog",
     };
+    // Only a pending task may be resolved — the same eligibility as
+    // pending_carry_over: undecided, incomplete, dated before this week.
+    // Anything else is a not-found error, not a silent date wipe.
+    let week_start = current_week_start(pool, profile_id).await?;
     let result = sqlx::query(
-        "UPDATE tasks SET carry_over_rule = ?, placement = ?, scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
+        "UPDATE tasks SET carry_over_rule = ?, placement = ?, scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND carry_over_rule IS NULL AND status != 'done'          AND scheduled_date IS NOT NULL AND scheduled_date < ?",
     )
     .bind(rule)
     .bind(placement)
     .bind(task_id)
     .bind(profile_id)
+    .bind(week_start)
     .execute(pool)
     .await?;
     if result.rows_affected() == 0 {
@@ -1277,6 +1298,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resolve_carry_over_rejects_tasks_that_are_not_pending() {
+        // The resolver must not wipe dates off tasks that never qualified
+        // for the prompt: done, already-decided, or dated this week.
+        let (pool, pid) = seeded_pool().await;
+        let done = stray_task(&pool, pid, TITLE_A, None, true).await;
+        let decided = stray_task(&pool, pid, TITLE_B, Some("carry"), false).await;
+        let future = stray_task(&pool, pid, TITLE_C, None, false).await;
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = date('now', 'localtime', '+10 days') WHERE id = ?",
+        )
+        .bind(future.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        for task in [&done, &decided, &future] {
+            let err = resolve_carry_over(&pool, pid, task.id, CarryOverRule::Return)
+                .await
+                .unwrap_err();
+            assert!(format!("{err:?}").contains("TaskNotFound"));
+        }
+        for task in [&done, &decided, &future] {
+            let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+                .bind(task.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert!(row.scheduled_date.is_some());
+        }
+    }
+
+    #[tokio::test]
     async fn resolve_carry_over_rejects_unknown_and_foreign_tasks() {
         // Same profile scoping as update/delete — a bare UPDATE that
         // touched nothing is TaskNotFound, not a silent no-op.
@@ -1324,9 +1376,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_carried_series_instance_joins_the_current_weekly_backlog() {
-        // carry on the series moves the instance — that IS the task the
-        // user still needs to finish.
+    async fn a_carried_series_instance_keeps_its_past_date_too() {
+        // Instances are never carry-over subjects — clearing a carried
+        // instance's date would make the past board re-materialize that
+        // occurrence as a fresh duplicate.
         let (pool, pid) = seeded_pool().await;
         let start: String = sqlx::query_scalar("SELECT date('now', 'localtime', '-30 days')")
             .fetch_one(&pool)
@@ -1359,10 +1412,24 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        let week = list_week(&pool, pid, &today).await.unwrap();
-        let carried = week.iter().find(|t| t.id == instance.id).unwrap();
-        assert_eq!(carried.placement, TaskPlacement::WeeklyBacklog);
-        assert!(carried.scheduled_date.is_none());
+        list_week(&pool, pid, &today).await.unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(instance.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(row.scheduled_date.as_deref(), Some(past.as_str()));
+        // …and the past board still shows exactly that instance on its
+        // date — no rematerialized duplicate.
+        let week = list_week(&pool, pid, &past).await.unwrap();
+        let at_date: Vec<&Task> = week
+            .iter()
+            .filter(|t| {
+                t.series_id == row.series_id && t.scheduled_date.as_deref() == Some(past.as_str())
+            })
+            .collect();
+        assert_eq!(at_date.len(), 1);
+        assert_eq!(at_date[0].id, row.id);
     }
 
     #[tokio::test]

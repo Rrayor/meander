@@ -16,6 +16,15 @@ export enum CarryOverRule {
   Return = "return",
 }
 
+/// The week-start prompt's three per-task outcomes (spec §79/§356).
+/// Carry/Return serialize to the wire's CarryOverRule; Dismiss deletes
+/// the task instead — it never crosses the wire as a rule.
+export enum CarryOverDecision {
+  Carry = "carry",
+  Return = "return",
+  Dismiss = "dismiss",
+}
+
 export const carryOverToWire = (rule: CarryOverRule) =>
   rule === CarryOverRule.Ask ? null : (rule as "carry" | "return");
 
