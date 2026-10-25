@@ -19,7 +19,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { formatDate, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 import { BoardPage } from "@/pages/BoardPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -341,7 +341,9 @@ describe("BoardPage", () => {
       }),
     );
     const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
-    fireEvent.click(screen.getByRole("button", { name: formatDate(prior[0]) }));
+    fireEvent.click(
+      screen.getByRole("button", { name: formatIsoDay(prior[0]) }),
+    );
 
     await waitFor(() =>
       expect(
@@ -364,10 +366,10 @@ describe("BoardPage", () => {
     );
     const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
     expect(
-      screen.getByRole("button", { name: formatDate(future[0]) }),
+      screen.getByRole("button", { name: formatIsoDay(future[0]) }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: formatDate(days[0]) }),
+      screen.getByRole("button", { name: formatIsoDay(days[0]) }),
     ).toBeEnabled();
   });
 

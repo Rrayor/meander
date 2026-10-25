@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/utils";
+import { formatIsoDay } from "@/lib/utils";
 import {
   ADD_TASK_LABEL,
   BOARD_HEADING,
@@ -67,7 +67,7 @@ describe("Board smoke", () => {
     ).padStart(2, "0")}-${String(prior.getDate()).padStart(2, "0")}`;
 
     await (await $$("header button"))[1].click();
-    await (await $(`aria/${formatDate(priorIso)}`)).click();
+    await (await $(`aria/${formatIsoDay(priorIso)}`)).click();
     await browser.waitUntil(
       async () => (await $$("th[scope='col']")).length === 7,
     );

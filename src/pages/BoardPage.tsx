@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
 import { weekStart } from "@/api/profiles";
@@ -74,10 +74,16 @@ export function BoardPage() {
   });
   const [anchor, setAnchor] = useState(todayIso);
   const [jumpOpen, setJumpOpen] = useState(false);
+  const rangeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!jumpOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setJumpOpen(false);
+      if (e.key === "Escape") {
+        setJumpOpen(false);
+        // The focused cell unmounts with the popover — hand focus
+        // back to the trigger instead of dropping it on <body>.
+        rangeButton.current?.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -120,6 +126,7 @@ export function BoardPage() {
           </button>
           <button
             type="button"
+            ref={rangeButton}
             aria-expanded={jumpOpen}
             aria-haspopup="dialog"
             onClick={() => setJumpOpen((o) => !o)}

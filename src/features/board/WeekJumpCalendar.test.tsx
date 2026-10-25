@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Weekday } from "@/lib/enums";
 import { CALENDAR_NEXT_LABEL, CALENDAR_PREVIOUS_LABEL } from "@/lib/labels";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
-import { formatDate, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
@@ -29,14 +29,16 @@ beforeEach(() => {
 describe("WeekJumpCalendar", () => {
   it("picks an enabled day and reports its iso date", () => {
     renderCalendar();
-    fireEvent.click(screen.getByRole("button", { name: formatDate(days[0]) }));
+    fireEvent.click(
+      screen.getByRole("button", { name: formatIsoDay(days[0]) }),
+    );
     expect(onPick).toHaveBeenCalledWith(days[0]);
   });
 
   it("does not call onPick for a disabled future-week day", () => {
     renderCalendar();
     const future = weekDates(shiftDays(todayIso, 7), Weekday.Monday);
-    const cell = screen.getByRole("button", { name: formatDate(future[0]) });
+    const cell = screen.getByRole("button", { name: formatIsoDay(future[0]) });
     expect(cell).toBeDisabled();
     fireEvent.click(cell);
     expect(onPick).not.toHaveBeenCalled();
@@ -46,22 +48,22 @@ describe("WeekJumpCalendar", () => {
     renderCalendar();
     for (const iso of days) {
       expect(
-        screen.getByRole("button", { name: formatDate(iso) }).className,
+        screen.getByRole("button", { name: formatIsoDay(iso) }).className,
       ).toContain("bg-primary/20");
     }
     const other = weekDates(shiftDays(days[0], -7), Weekday.Monday);
     expect(
-      screen.getByRole("button", { name: formatDate(other[0]) }).className,
+      screen.getByRole("button", { name: formatIsoDay(other[0]) }).className,
     ).not.toContain("bg-primary/20");
   });
 
   it("shows the marker only on today", () => {
     renderCalendar();
-    const today = screen.getByRole("button", { name: formatDate(todayIso) });
+    const today = screen.getByRole("button", { name: formatIsoDay(todayIso) });
     expect(today.querySelector("span")).not.toBeNull();
     if (!days.includes(todayIso)) return;
     const notToday = screen.getByRole("button", {
-      name: formatDate(shiftDays(todayIso, -1)),
+      name: formatIsoDay(shiftDays(todayIso, -1)),
     });
     expect(notToday.querySelector("span")).toBeNull();
   });
@@ -71,11 +73,11 @@ describe("WeekJumpCalendar", () => {
     renderCalendar({ anchorIso: twoWeeksAgo[3] });
     for (const iso of twoWeeksAgo) {
       expect(
-        screen.getByRole("button", { name: formatDate(iso) }).className,
+        screen.getByRole("button", { name: formatIsoDay(iso) }).className,
       ).toContain("bg-primary/20");
     }
     expect(
-      screen.getByRole("button", { name: formatDate(days[0]) }).className,
+      screen.getByRole("button", { name: formatIsoDay(days[0]) }).className,
     ).not.toContain("bg-primary/20");
   });
 
@@ -97,7 +99,9 @@ describe("WeekJumpCalendar", () => {
       screen.getByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
     );
     const older = weekDates(shiftDays(days[0], -35), Weekday.Monday);
-    fireEvent.click(screen.getByRole("button", { name: formatDate(older[0]) }));
+    fireEvent.click(
+      screen.getByRole("button", { name: formatIsoDay(older[0]) }),
+    );
     expect(onPick).toHaveBeenCalledWith(older[0]);
   });
 
@@ -123,7 +127,7 @@ describe("WeekJumpCalendar", () => {
     // sit on a later weekday than with a Monday start — the day is
     // still pickable because its week is not a future one.
     renderCalendar({ weekStart: Weekday.Saturday });
-    const today = screen.getByRole("button", { name: formatDate(todayIso) });
+    const today = screen.getByRole("button", { name: formatIsoDay(todayIso) });
     expect(today).toBeEnabled();
   });
 });

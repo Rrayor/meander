@@ -1,27 +1,10 @@
 import { useMemo, useState } from "react";
 
+import { MonthNav } from "@/features/calendar/MonthNav";
+import { monthCells, monthLabel, monthOfIso, shiftMonth } from "@/lib/calendar";
 import { Weekday } from "@/lib/enums";
-import {
-  BOARD_JUMP_HINT_LABEL,
-  CALENDAR_NEXT_LABEL,
-  CALENDAR_PREVIOUS_LABEL,
-  WEEKDAY_OPTIONS,
-  weekdaysFrom,
-} from "@/lib/labels";
-import { formatDate, todayLocalIso, weekDates } from "@/lib/utils";
-
-const DAY_MS = 86_400_000;
-const pad = (n: number) => String(n).padStart(2, "0");
-
-const toIso = (d: Date) =>
-  `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-
-const monthLabel = (year: number, month: number, locale?: string) =>
-  new Date(Date.UTC(year, month, 1)).toLocaleDateString(locale, {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+import { BOARD_JUMP_HINT_LABEL, weekdaysFrom } from "@/lib/labels";
+import { formatIsoDay, todayLocalIso, weekDates } from "@/lib/utils";
 
 interface WeekJumpCalendarProps {
   // A date inside the currently-viewed week — its month renders first
@@ -41,45 +24,10 @@ export function WeekJumpCalendar({
   const selectedWeek = weekDates(anchorIso, weekStart);
   const todayWeekStart = weekDates(todayIso, weekStart)[0];
 
-  const [month, setMonth] = useState(() =>
-    Date.UTC(
-      Number(anchorIso.slice(0, 4)),
-      Number(anchorIso.slice(5, 7)) - 1,
-      1,
-    ),
-  );
-  const currentMonth = Date.UTC(
-    Number(todayIso.slice(0, 4)),
-    Number(todayIso.slice(5, 7)) - 1,
-    1,
-  );
+  const [month, setMonth] = useState(() => monthOfIso(anchorIso));
+  const currentMonth = monthOfIso(todayIso);
 
-  const cells = useMemo(() => {
-    const first = new Date(month);
-    // Offset back to the configured week start of the first displayed
-    // week. JS getUTCDay is Sunday-based; Weekday is Monday-first.
-    const configured =
-      weekStart === Weekday.Sunday
-        ? 0
-        : WEEKDAY_OPTIONS.findIndex((o) => o.value === weekStart) + 1;
-    const back = ((first.getUTCDay() - configured + 7) % 7) * DAY_MS;
-    const firstCell = new Date(month - back);
-    return Array.from({ length: 42 }, (_, i) => {
-      const date = new Date(firstCell.getTime() + i * DAY_MS);
-      return {
-        iso: toIso(date),
-        inMonth: date.getUTCMonth() === first.getUTCMonth(),
-        day: date.getUTCDate(),
-      };
-    });
-  }, [month, weekStart]);
-
-  const monthDate = new Date(month);
-  const shiftMonth = (delta: number) =>
-    setMonth((m) => {
-      const d = new Date(m);
-      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + delta, 1);
-    });
+  const cells = useMemo(() => monthCells(month, weekStart), [month, weekStart]);
 
   // Future boards don't exist yet — any day whose week starts after
   // the current week's start is disabled.
@@ -91,35 +39,16 @@ export function WeekJumpCalendar({
     <div
       role="dialog"
       aria-label={monthLabel(
-        monthDate.getUTCFullYear(),
-        monthDate.getUTCMonth(),
+        new Date(month).getUTCFullYear(),
+        new Date(month).getUTCMonth(),
       )}
       className="rounded-lg border border-border bg-surface-raised p-4"
     >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-text">
-          {monthLabel(monthDate.getUTCFullYear(), monthDate.getUTCMonth())}
-        </span>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            aria-label={CALENDAR_PREVIOUS_LABEL}
-            onClick={() => shiftMonth(-1)}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface hover:text-text"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            aria-label={CALENDAR_NEXT_LABEL}
-            onClick={() => shiftMonth(1)}
-            disabled={month >= currentMonth}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            ›
-          </button>
-        </div>
-      </div>
+      <MonthNav
+        month={month}
+        onShift={(delta) => setMonth((m) => shiftMonth(m, delta))}
+        nextDisabled={month >= currentMonth}
+      />
       <div className="mt-2 grid grid-cols-7 gap-px">
         {weekOrder.map((w) => (
           <span
@@ -135,7 +64,7 @@ export function WeekJumpCalendar({
             <button
               key={cell.iso}
               type="button"
-              aria-label={formatDate(cell.iso)}
+              aria-label={formatIsoDay(cell.iso)}
               disabled={disabled(cell.iso)}
               onClick={() => onPick(cell.iso)}
               className={`relative py-1 text-center text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${

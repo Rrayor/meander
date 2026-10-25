@@ -2,32 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import type { Task, TaskSeries } from "@/api/bindings";
+import { MonthNav } from "@/features/calendar/MonthNav";
+import { monthCells, monthOfIso, shiftMonth } from "@/lib/calendar";
 import { weekStart as fetchWeekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { Weekday } from "@/lib/enums";
 import {
   CALENDAR_LEGEND_PERSISTED,
   CALENDAR_LEGEND_SCHEDULED,
-  CALENDAR_NEXT_LABEL,
-  CALENDAR_PREVIOUS_LABEL,
-  WEEKDAY_OPTIONS,
   weekdaysFrom,
 } from "@/lib/labels";
 import { isScheduledOn } from "@/lib/recurrence";
 import { todayLocalIso } from "@/lib/utils";
-
-const DAY_MS = 86_400_000;
-const pad = (n: number) => String(n).padStart(2, "0");
-
-const toIso = (d: Date) =>
-  `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-
-const monthLabel = (year: number, month: number, locale?: string) =>
-  new Date(Date.UTC(year, month, 1)).toLocaleDateString(locale, {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 
 interface InstanceCalendarProps {
   // The earlier segments plus the living series — a date is
@@ -51,66 +37,19 @@ export function InstanceCalendar({
   const weekOrder = weekdaysFrom(weekStart);
 
   const anchor = selectedIso ?? todayLocalIso();
-  const [month, setMonth] = useState(() =>
-    Date.UTC(Number(anchor.slice(0, 4)), Number(anchor.slice(5, 7)) - 1, 1),
-  );
+  const [month, setMonth] = useState(() => monthOfIso(anchor));
 
-  const cells = useMemo(() => {
-    const first = new Date(month);
-    // Offset back to the configured week start of the first displayed
-    // week. JS getUTCDay is Sunday-based; Weekday is Monday-first.
-    const configured =
-      weekStart === Weekday.Sunday
-        ? 0
-        : WEEKDAY_OPTIONS.findIndex((o) => o.value === weekStart) + 1;
-    const back = ((first.getUTCDay() - configured + 7) % 7) * DAY_MS;
-    const firstCell = new Date(month - back);
-    // Six weeks covers every possible month layout.
-    return Array.from({ length: 42 }, (_, i) => {
-      const date = new Date(firstCell.getTime() + i * DAY_MS);
-      return {
-        iso: toIso(date),
-        inMonth: date.getUTCMonth() === first.getUTCMonth(),
-        day: date.getUTCDate(),
-      };
-    });
-  }, [month, weekStart]);
-
-  const monthDate = new Date(month);
-  const shiftMonth = (delta: number) =>
-    setMonth((m) => {
-      const d = new Date(m);
-      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + delta, 1);
-    });
+  const cells = useMemo(() => monthCells(month, weekStart), [month, weekStart]);
 
   const pick = (iso: string) =>
     onPick(instances.find((t) => t.scheduled_date === iso) ?? null, iso);
 
   return (
     <div className="rounded-lg border border-border bg-surface-raised p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-text">
-          {monthLabel(monthDate.getUTCFullYear(), monthDate.getUTCMonth())}
-        </span>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            aria-label={CALENDAR_PREVIOUS_LABEL}
-            onClick={() => shiftMonth(-1)}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface hover:text-text"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            aria-label={CALENDAR_NEXT_LABEL}
-            onClick={() => shiftMonth(1)}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface hover:text-text"
-          >
-            ›
-          </button>
-        </div>
-      </div>
+      <MonthNav
+        month={month}
+        onShift={(delta) => setMonth((m) => shiftMonth(m, delta))}
+      />
       <div className="mt-3 grid grid-cols-7 gap-1">
         {weekOrder.map((w) => (
           <span key={w.value} className="text-center text-xs text-text-muted">

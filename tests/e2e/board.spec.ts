@@ -16,7 +16,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { formatDate, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
 import { stubError, stubSequence, stubTauriCommands } from "./stubs";
@@ -306,7 +306,7 @@ test("the calendar jumps the board to a picked past week", async ({ page }) => {
     .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
     .click();
   const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
-  await page.getByRole("button", { name: formatDate(prior[0]) }).click();
+  await page.getByRole("button", { name: formatIsoDay(prior[0]) }).click();
 
   await expect(backlog).toBeHidden();
   await expect(
@@ -353,7 +353,7 @@ test("clicking a disabled future-week day does not move the board", async ({
     .click();
   const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
   const futureDay = page.getByRole("button", {
-    name: formatDate(future[0]),
+    name: formatIsoDay(future[0]),
   });
   await expect(futureDay).toBeDisabled();
 
