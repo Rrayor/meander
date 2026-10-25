@@ -13,6 +13,7 @@ import {
   boardWeekRangeLabel,
   dayTotalsLabel,
   editTaskLabel,
+  shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
 import { todayLocalIso, weekDates } from "@/lib/utils";
@@ -163,8 +164,12 @@ describe("BoardPage", () => {
       ),
     ).toBeInTheDocument();
     const headers = screen.getAllByRole("columnheader").slice(1);
-    expect(headers[0].textContent).toContain("Wed");
-    expect(headers[6].textContent).toContain("Tue");
+    expect(headers[0].textContent).toContain(
+      shortWeekdayLabel(wednesdayDays[0]),
+    );
+    expect(headers[6].textContent).toContain(
+      shortWeekdayLabel(wednesdayDays[6]),
+    );
   });
 
   it("opens the task details dialog from a card", async () => {
