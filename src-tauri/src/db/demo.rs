@@ -16,6 +16,10 @@ const DEMO_CATEGORIES: &[(&str, &str)] = &[
     ("Health", "#f59e0b"),
 ];
 
+const REVIEW_TITLE: &str = "Weekly review";
+const REVIEW_ESTIMATE: i64 = 30;
+const REVIEW_CARRY_OVER: &str = "carry";
+
 const TASK_TITLES: &[&str] = &[
     "Write weekly report",
     "Review open PRs",
@@ -45,10 +49,11 @@ async fn today_ordinal(pool: &SqlitePool) -> Result<i64> {
     .await?)
 }
 
-/// The Monday of the week containing `z`. 1970-01-01 was a Thursday,
-/// so +3 shifts epoch ordinals onto the Monday-first weekday index.
-fn monday_of(z: i64) -> i64 {
-    z - (z + 3).rem_euclid(7)
+/// The start of the week containing `z` under the profile's
+/// configured `week_start` weekday (Monday = 0). 1970-01-01 was a
+/// Thursday, so +3 shifts epoch ordinals onto that index space.
+fn week_start_of(z: i64, week_start: i64) -> i64 {
+    z - ((z + 3).rem_euclid(7) - week_start).rem_euclid(7)
 }
 
 fn iso_of(z: i64) -> String {
@@ -59,6 +64,11 @@ fn iso_of(z: i64) -> String {
 /// was demo-seeded before.
 pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
     let today = today_ordinal(pool).await?;
+    let profile_id: i64 = sqlx::query_scalar("SELECT id FROM profiles ORDER BY id LIMIT 1")
+        .fetch_one(pool)
+        .await?;
+    let week_start_index = crate::profiles::week_start(pool, profile_id).await?.index();
+    let week_start = week_start_of(today, week_start_index);
 
     // Everything — marker included — lands in one transaction: a
     // failed seed rolls back entirely so a retry can actually run.
@@ -71,10 +81,6 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
         tx.rollback().await?;
         return Ok(0);
     }
-    let profile_id: i64 = sqlx::query_scalar("SELECT id FROM profiles ORDER BY id LIMIT 1")
-        .fetch_one(&mut *tx)
-        .await?;
-    let week_start = monday_of(today);
     let oldest = week_start - (SEED_WEEKS - 1) * 7;
 
     let mut count = 0usize;
@@ -98,10 +104,12 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
     // backlog of open reviews.
     let first_friday = oldest + 4;
     let series = sqlx::query(
-        "INSERT INTO task_series (profile_id, title, carry_over_rule, estimated_minutes,          recurrence, start_date) VALUES (?, ?, 'carry', 30, ?, ?)",
+        "INSERT INTO task_series (profile_id, title, carry_over_rule, estimated_minutes,          recurrence, start_date) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(profile_id)
-    .bind("Weekly review")
+    .bind(REVIEW_TITLE)
+    .bind(REVIEW_CARRY_OVER)
+    .bind(REVIEW_ESTIMATE)
     .bind(
         serde_json::to_value(crate::series::Recurrence::Weekly {
             interval_weeks: 1,
@@ -241,6 +249,22 @@ mod tests {
             (70.0..=90.0).contains(&range),
             "seeded span {range} days is not ~12 weeks"
         );
+    }
+
+    #[test]
+    fn week_start_respects_the_configured_boundary() {
+        // 2026-10-26 is a Monday; the previous Friday (23rd) belongs to
+        // the current week when weeks start on Tuesday — the bug the
+        // review caught. Ordinals: to_iso(days) helpers are private
+        // upstream, so go through julianday-free integer math.
+        let monday = crate::series::days_from_civil(2026, 10, 26);
+        let friday = monday - 3;
+        // Monday start → Friday is in last week.
+        assert_eq!(week_start_of(friday, 0), monday - 7);
+        // Tuesday start → Friday is in the current week.
+        assert_eq!(week_start_of(friday, 1), monday - 6);
+        // Saturday start → Friday belongs to the previous week.
+        assert_eq!(week_start_of(friday, 5), monday - 9);
     }
 
     #[tokio::test]
