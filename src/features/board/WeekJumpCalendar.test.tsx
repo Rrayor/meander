@@ -2,7 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Weekday } from "@/lib/enums";
-import { CALENDAR_NEXT_LABEL, CALENDAR_PREVIOUS_LABEL } from "@/lib/labels";
+import {
+  CALENDAR_NEXT_LABEL,
+  CALENDAR_PREVIOUS_LABEL,
+  weekdaysFrom,
+} from "@/lib/labels";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
 import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
@@ -111,15 +115,10 @@ describe("WeekJumpCalendar", () => {
       .getAllByText(/^(Mo|Tu|We|Th|Fr|Sa|Su)$/)
       .filter((e) => e.tagName === "SPAN")
       .map((e) => e.textContent);
-    expect(headers.slice(0, 7)).toEqual([
-      "We",
-      "Th",
-      "Fr",
-      "Sa",
-      "Su",
-      "Mo",
-      "Tu",
-    ]);
+    const expected = weekdaysFrom(Weekday.Wednesday).map((w) =>
+      w.label.slice(0, 2),
+    );
+    expect(headers.slice(0, 7)).toEqual(expected);
   });
 
   it("gates future days by the configured week, not by the raw date", () => {
