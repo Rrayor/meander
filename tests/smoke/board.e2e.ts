@@ -71,5 +71,10 @@ describe("Board smoke", () => {
     await browser.waitUntil(
       async () => (await $$("th[scope='col']")).length === 7,
     );
+    const headers = await $$("th[scope='col']");
+    expect(headers).toHaveLength(7);
+    for (const h of headers) {
+      expect((await h.getText()).includes(WEEKLY_BACKLOG_LABEL)).toBe(false);
+    }
   });
 });
