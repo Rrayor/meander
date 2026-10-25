@@ -657,7 +657,7 @@ async fn apply_carry_over(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry'",
+        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          series_id = NULL, updated_at = CURRENT_TIMESTAMP          WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry'",
     )
     .bind(profile_id)
     .bind(week_start_iso)
@@ -749,6 +749,8 @@ pub async fn get_or_create_instance(
     {
         return Ok(existing);
     }
+    // Tombstones block auto-materialization only — a deliberate pick
+    // recreates the occurrence on purpose (same as deleted instances).
     if !crate::series::occurs_on(
         &series.recurrence,
         &series.start_date,
@@ -1425,6 +1427,9 @@ mod tests {
         let carried = week.iter().find(|t| t.id == instance.id).unwrap();
         assert_eq!(carried.placement, TaskPlacement::WeeklyBacklog);
         assert!(carried.scheduled_date.is_none());
+        // …and it's detached — no longer an occurrence, so a later
+        // series truncate can't delete work the user chose to keep.
+        assert!(carried.series_id.is_none());
         // The past board shows no row at that date — the tombstone keeps
         // materialization from recreating the moved occurrence.
         let past_week = list_week(&pool, pid, &past).await.unwrap();
