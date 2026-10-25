@@ -14,7 +14,7 @@
   "screens": [
     {
       "id": "ef4d2e752da940fcbc48cdbfcc4d4302",
-      "title": "Meander — Application Shell",
+      "title": "Meander \u2014 Application Shell",
       "deviceType": "DESKTOP",
       "files": ["designs/app-shell.html", "designs/app-shell.png"],
       "implemented": true,
@@ -22,7 +22,7 @@
     },
     {
       "id": "d476865cf375443295d630ca59879bac",
-      "title": "Meander — Settings",
+      "title": "Meander \u2014 Settings",
       "deviceType": "DESKTOP",
       "files": ["designs/settings.html", "designs/settings.png"],
       "implemented": false,
@@ -30,7 +30,7 @@
     },
     {
       "id": "22a33c7a1c7d47f3bb4ce25895bba65e",
-      "title": "Meander — Settings (Inline Profile Edit)",
+      "title": "Meander \u2014 Settings (Inline Profile Edit)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/settings-inline-edit.html",
@@ -41,7 +41,7 @@
     },
     {
       "id": "48b6b70647e54fb29b3098892858181c",
-      "title": "Meander — Backlog",
+      "title": "Meander \u2014 Backlog",
       "deviceType": "DESKTOP",
       "files": ["designs/backlog.html", "designs/backlog.png"],
       "implemented": true,
@@ -49,15 +49,15 @@
     },
     {
       "id": "97873034b9be4fa7a233b4f910b2734d",
-      "title": "Meander — New Task Modal",
+      "title": "Meander \u2014 New Task Modal",
       "deviceType": "DESKTOP",
       "files": ["designs/new-task-dialog.html", "designs/new-task-dialog.png"],
       "implemented": true,
-      "notes": "Task creation dialog: Title* input, Description textarea, Categories token-field multiselect (selected pill chips tinted per category color inline inside the field box, input caret right of the last chip, open dropdown with color dots + check marks + 'New category...' create row), Estimated time, Carry-over segmented control, collapsible Repeat section (disclosure row with summary chip + expanded controls: 'Every' interval input + days/weeks/months segmented unit, weekday toggle chips for weeks, two radio rows 'On day [n]' / 'On the [1st-Last] [weekday]' for months, Starts/Ends date inputs; no select elements), Cancel/Create task footer over dimmed backlog. Repeat markup and dialog scroll constraint spliced locally from Stitch DOM edit events — the remote htmlCode/screenshot artifacts lag behind DOM operations."
+      "notes": "Task creation dialog: Title* input, Description textarea, Categories token-field multiselect (selected pill chips tinted per category color inline inside the field box, input caret right of the last chip, open dropdown with color dots + check marks + 'New category...' create row), Estimated time, Carry-over segmented control, collapsible Repeat section (disclosure row with summary chip + expanded controls: 'Every' interval input + days/weeks/months segmented unit, weekday toggle chips for weeks, two radio rows 'On day [n]' / 'On the [1st-Last] [weekday]' for months, Starts/Ends date inputs; no select elements), Cancel/Create task footer over dimmed backlog. Repeat markup and dialog scroll constraint spliced locally from Stitch DOM edit events \u2014 the remote htmlCode/screenshot artifacts lag behind DOM operations."
     },
     {
       "id": "05f3a99d44754d6dbc60e516a5b71da5",
-      "title": "Meander — Task Detail Modal",
+      "title": "Meander \u2014 Task Detail Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/task-detail-dialog.html",
@@ -68,7 +68,7 @@
     },
     {
       "id": "4bcee8b161a546dab7d35783828aa203",
-      "title": "Meander — Categories",
+      "title": "Meander \u2014 Categories",
       "deviceType": "DESKTOP",
       "files": ["designs/categories.html", "designs/categories.png"],
       "implemented": true,
@@ -76,7 +76,7 @@
     },
     {
       "id": "00738f47ad1c41189a03ef98bfcf61d3",
-      "title": "Meander — New Category Modal",
+      "title": "Meander \u2014 New Category Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/new-category-dialog.html",
@@ -87,7 +87,7 @@
     },
     {
       "id": "f94c4df04f39428a924d1e7a49be52ef",
-      "title": "Meander — Edit Category Modal",
+      "title": "Meander \u2014 Edit Category Modal",
       "deviceType": "DESKTOP",
       "files": [
         "designs/edit-category-dialog.html",
@@ -98,18 +98,18 @@
     },
     {
       "id": "6ec717b319f842ed84e4c4576d7e89a9",
-      "title": "Meander — Task Details Modal (Read-Only)",
+      "title": "Meander \u2014 Task Details Modal (Read-Only)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/task-details-dialog.html",
         "designs/task-details-dialog.png"
       ],
       "implemented": true,
-      "notes": "Read-only task details view over dimmed backlog: task heading + Edit secondary button + close, description/status/estimate/spent/carry-over/category chips as plain text, Created/Updated metadata, series section ('Repeats weekly on Monday — series created …') with compact month calendar (teal dots on scheduled Mondays, selected day highlighted), 'Current instance'/'Series' notes tabs with 'No notes yet.' empty state, 'Apply changes to' radio group (This instance only selected; Entire series / This and future instances disabled with 'available when series editing lands' hint), Close footer"
+      "notes": "Read-only task details view over dimmed backlog: task heading + Edit secondary button + close, description/status/estimate/spent/carry-over/category chips as plain text, Created/Updated metadata, series section ('Repeats weekly on Monday \u2014 series created \u2026') with compact month calendar (teal dots on scheduled Mondays, selected day highlighted), 'Current instance'/'Series' notes tabs with 'No notes yet.' empty state, 'Apply changes to' radio group (This instance only selected; Entire series / This and future instances disabled with 'available when series editing lands' hint), Close footer"
     },
     {
       "id": "dcc37cd5dab042578e395df04f60ac52",
-      "title": "Meander — Task Details Modal (Repeating Task Edit Mode)",
+      "title": "Meander \u2014 Task Details Modal (Repeating Task Edit Mode)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/series-edit-dialog.html",
@@ -120,7 +120,7 @@
     },
     {
       "id": "33fd0fa690924dbaaebf930e0d678a24",
-      "title": "Meander — Task Details Modal (Calendar Legend & Recurrence Markers)",
+      "title": "Meander \u2014 Task Details Modal (Calendar Legend & Recurrence Markers)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/task-details-calendar-markers.html",
@@ -131,7 +131,7 @@
     },
     {
       "id": "0f157ceda44a4f599cb8cdd51eabdde6",
-      "title": "Meander — Settings (Scheduling & Work Days)",
+      "title": "Meander \u2014 Settings (Scheduling & Work Days)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/settings-work-days.html",
@@ -142,7 +142,7 @@
     },
     {
       "id": "2b11a6a0b028454b8ebe024451e582a2",
-      "title": "Meander — Task Details Modal (Notes View)",
+      "title": "Meander \u2014 Task Details Modal (Notes View)",
       "deviceType": "DESKTOP",
       "files": [
         "designs/task-details-notes.html",
@@ -150,6 +150,14 @@
       ],
       "implemented": false,
       "notes": "Notes section of the details view: Instance/Series tabs, note cards (body + edited timestamp + ghost edit/delete), composer textarea + primary Add note. Generated extras omitted: LOCAL VAULT label, composer formatting/attachment icons, tab count badges, duplicate 'Repeats weekly' pill (audit line covers it)"
+    },
+    {
+      "id": "c4058f1c90a446c78bda4d5fff59e30c",
+      "title": "Meander \u2014 Board (Monday Column)",
+      "deviceType": "DESKTOP",
+      "files": ["designs/task-card.html", "designs/task-card.png"],
+      "implemented": true,
+      "notes": "Task card anatomy: title, muted duration estimate, category chips at bottom; 4px left accent border = category color, gradient when multiple categories. Generated extras omitted from item 33 (board columns, header, quick-add, nav tweaks) \u2014 only the card component itself is implemented now."
     }
   ]
 }
