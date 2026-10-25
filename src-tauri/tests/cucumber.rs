@@ -2921,7 +2921,7 @@ fn view_board_weeks_ago(world: &mut MeanderWorld, weeks: i64) {
     let iso: String = world
         .rt()
         .block_on(async {
-            sqlx::query_scalar("SELECT date('now', ? || ' days')")
+            sqlx::query_scalar("SELECT date('now', 'localtime', ? || ' days')")
                 .bind(format!("-{}", weeks * 7))
                 .fetch_one(&pool)
                 .await

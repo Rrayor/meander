@@ -304,6 +304,9 @@ describe("BoardPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
     );
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
+    );
     await waitFor(() =>
       expect(
         screen.queryByRole("columnheader", {
@@ -311,6 +314,11 @@ describe("BoardPage", () => {
         }),
       ).not.toBeInTheDocument(),
     );
+    // Two weeks back — This week is not the same as clicking Next.
+    const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
+    expect(
+      screen.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+    ).toBeInTheDocument();
     expect(thisWeek).toBeEnabled();
 
     fireEvent.click(thisWeek);
