@@ -828,13 +828,17 @@ const SAVE_SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
 ];
 
 // The "apply changes to" radios. The future scope needs a viewed date to
-// anchor the split on, so it's muted and disabled without one.
+// anchor the split on, so it's muted and disabled without one; a past
+// viewed date takes the instance scope away (spec §232) but leaves the
+// series and future scopes (spec §234).
 function SaveScopeFieldset({
   saveScope,
+  instanceDisabled,
   futureDisabled,
   onChange,
 }: Readonly<{
   saveScope: SaveScope;
+  instanceDisabled: boolean;
   futureDisabled: boolean;
   onChange: (scope: SaveScope) => void;
 }>) {
@@ -844,7 +848,9 @@ function SaveScopeFieldset({
         {TASK_SCOPE_GROUP_LABEL}
       </legend>
       {SAVE_SCOPE_OPTIONS.map(({ value, label }) => {
-        const disabled = value === TaskScope.Future && futureDisabled;
+        const disabled =
+          (value === TaskScope.Instance && instanceDisabled) ||
+          (value === TaskScope.Future && futureDisabled);
         return (
           <div key={value} className="flex items-center gap-2">
             <label
@@ -874,6 +880,7 @@ function EditTaskForm({
   form,
   task,
   viewedDate,
+  viewedPast,
   categories,
   saveScope,
   seriesRow,
@@ -892,6 +899,7 @@ function EditTaskForm({
   form: UseFormReturn<FormValues>;
   task: Task;
   viewedDate: string | null;
+  viewedPast: boolean;
   categories: Category[];
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
@@ -1120,6 +1128,7 @@ function EditTaskForm({
       {task.series_id !== null && (
         <SaveScopeFieldset
           saveScope={saveScope}
+          instanceDisabled={viewedPast}
           futureDisabled={viewedDate === null}
           onChange={onScopeChange}
         />
@@ -1334,6 +1343,12 @@ export function EditTaskDialog({
     queryFn: () => listSeriesInstances(viewed.series_id!),
     enabled: viewed.series_id !== null,
   });
+  // Past instances stay viewable but read-only (spec §232) — the instance
+  // scope stays off for a past viewed date. A series member keeps its
+  // series/future scopes: a living series is editable at any date (spec
+  // §234), which is what the backlog's past-dated anchor row needs.
+  const viewedPast =
+    viewed.scheduled_date !== null && viewed.scheduled_date < todayLocalIso();
   // Save scope: instance edits today's task; series writes the shared
   // fields + schedule + categories onto the series and every instance.
   const [saveScope, setSaveScope] = useState<SaveScope>(TaskScope.Instance);
@@ -1568,16 +1583,16 @@ export function EditTaskDialog({
             )}
             {mode === DialogMode.View &&
               pendingIso === null &&
-              // Past instances stay viewable but read-only (spec §232);
-              // a task without a scheduled date is always editable.
-              (viewed.scheduled_date === null ||
-                viewed.scheduled_date >= todayLocalIso()) && (
+              (!viewedPast || viewed.series_id !== null) && (
                 <button
                   type="button"
                   onClick={() => {
                     // Seed the form from the viewed instance — it may not
                     // be the task the dialog opened on.
                     reset(instanceDefaults);
+                    // The instance scope is off for a past viewed date —
+                    // enter on the series scope, which stays editable.
+                    if (viewedPast) setSaveScope(TaskScope.Series);
                     setMode(DialogMode.Edit);
                   }}
                   aria-label={EDIT_BUTTON_LABEL}
@@ -1661,6 +1676,7 @@ export function EditTaskDialog({
             form={form}
             task={task}
             viewedDate={viewed.scheduled_date}
+            viewedPast={viewedPast}
             categories={categories}
             saveScope={saveScope}
             seriesRow={seriesRow}

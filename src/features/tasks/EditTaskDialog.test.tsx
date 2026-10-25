@@ -153,6 +153,8 @@ const REPEAT_END_DATE = "2026-12-31";
 // one the calendar tests pick.
 const OPENED_INSTANCE_DATE = "2026-10-19";
 const OTHER_INSTANCE_DATE = "2026-10-26";
+// The Monday before the opened date — always in the past.
+const PAST_INSTANCE_DATE = "2026-10-12";
 // A scheduled-looking date that stays in the future — past instances are
 // view-only (#29), and a near-future constant would age into the past.
 const FUTURE_INSTANCE_DATE = "2036-01-07";
@@ -1096,13 +1098,12 @@ describe("EditTaskDialog", () => {
   });
 
   it("keeps a past instance read-only while notes stay available", async () => {
-    // The Monday before the opened date — always in the past.
     const past = {
       ...baseTask,
       id: 41,
       description: "last week's occurrence",
       series_id: baseSeries.id,
-      scheduled_date: "2026-10-12",
+      scheduled_date: PAST_INSTANCE_DATE,
     };
     mockedListSeriesInstances.mockResolvedValue([past]);
     render(
@@ -1125,11 +1126,66 @@ describe("EditTaskDialog", () => {
     // Spec §232: past instances are viewable but not editable — notes
     // remain the exception and still render.
     expect(
-      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
-    ).not.toBeInTheDocument();
-    expect(
       screen.getByRole("tab", { name: NOTES_TAB_INSTANCE_LABEL }),
     ).toBeInTheDocument();
+    // Spec §234: the living series stays editable at any viewed date —
+    // only the past instance's own scope is off.
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
+    expect(
+      screen.getByRole("radio", { name: TASK_SCOPE_INSTANCE_LABEL }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    ).toBeChecked();
+  });
+
+  it("keeps the series editable when the opened instance is in the past", async () => {
+    // The backlog anchor of an older series — its scheduled_date is the
+    // original start, already past.
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: PAST_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
+    expect(
+      screen.getByRole("radio", { name: TASK_SCOPE_INSTANCE_LABEL }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("radio", { name: TASK_SCOPE_SERIES_LABEL }),
+    ).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() => expect(mockedUpdateSeries).toHaveBeenCalled());
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("keeps a past-dated task without a series read-only", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{ ...baseTask, scheduled_date: PAST_INSTANCE_DATE }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(TITLE_ORIGINAL)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: EDIT_BUTTON_LABEL }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the selected instance's title in the heading", async () => {
