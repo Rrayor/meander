@@ -219,6 +219,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn demo_seed_fails_without_a_profile() {
+        // No bootstrap seed → no profile → nothing to seed into. The
+        // error surfaces instead of silently inserting orphans.
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        assert!(seed_demo(&pool).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn demo_seed_respects_the_window_bounds() {
+        let pool = seeded_pool().await;
+        seed_demo(&pool).await.unwrap();
+        // Nothing is scheduled in the future — the seed only fills the
+        // past twelve weeks, today included.
+        let future: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE scheduled_date > date('now')")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(future, 0);
+        let out_of_window: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE scheduled_date < date('now', '-84 days')",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(out_of_window, 0);
+    }
+
+    #[tokio::test]
+    async fn demo_seed_marks_past_weeks_done_and_mixes_the_current_one() {
+        let pool = seeded_pool().await;
+        seed_demo(&pool).await.unwrap();
+        let unfinished_past: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE placement = 'scheduled' AND status != 'done'              AND scheduled_date < date('now', 'weekday 1', '-7 days')",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(unfinished_past, 0);
+        for status in ["todo", "in_progress", "done"] {
+            let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE status = ?")
+                .bind(status)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert!(n > 0, "no seeded task with status {status}");
+        }
+    }
+
+    #[tokio::test]
+    async fn demo_seed_keeps_existing_user_data() {
+        let pool = seeded_pool().await;
+        // Pre-existing content must survive the seed unchanged.
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, placement) VALUES (1, 'Mine', 'backlog')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        seed_demo(&pool).await.unwrap();
+        let mine: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE title = 'Mine'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(mine, 1);
+    }
+
+    #[tokio::test]
+    async fn demo_seed_places_weekly_backlog_and_backlog_rows() {
+        let pool = seeded_pool().await;
+        seed_demo(&pool).await.unwrap();
+        let weekly: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE placement = 'weekly_backlog'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(weekly, WEEKLY_BACKLOG_TITLES.len() as i64);
+        // Backlog rows are undated — materialized series instances
+        // keep the backlog placement too, but they carry a date.
+        let backlog: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE placement = 'backlog' AND scheduled_date IS NULL",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(backlog, BACKLOG_TITLES.len() as i64);
+    }
+
+    #[tokio::test]
     async fn demo_seed_links_categories_and_the_series() {
         let pool = seeded_pool().await;
         seed_demo(&pool).await.unwrap();

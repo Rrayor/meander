@@ -48,3 +48,15 @@ Feature: Weekly kanban board
     And a task scheduled for "2026-10-21" exists on a second profile
     When I view the board for the week containing "2026-10-21"
     Then the board lists 0 tasks
+
+  Scenario: the demo seed fills past weeks the board can read
+    Given an application state on a temporary seeded database
+    When I run the demo seed
+    And I view the board for the week 8 weeks ago
+    Then the board is not empty
+
+  Scenario: the demo seed is a one-shot
+    Given an application state on a temporary seeded database
+    When I run the demo seed
+    And I run the demo seed
+    Then the demo seed inserted no rows
