@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
 import { weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { Task } from "@/api/bindings";
 import { listWeekTasks } from "@/api/tasks";
+import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { TaskCard } from "@/features/tasks/TaskCard";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
@@ -72,6 +73,15 @@ export function BoardPage() {
     queryFn: weekStart,
   });
   const [anchor, setAnchor] = useState(todayIso);
+  const [jumpOpen, setJumpOpen] = useState(false);
+  useEffect(() => {
+    if (!jumpOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setJumpOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [jumpOpen]);
   const days = weekDates(anchor, start ?? Weekday.Monday);
   const { data: tasks, error: weekError } = useQuery({
     queryKey: QUERY_KEYS.boardWeek(days[0]),
@@ -99,7 +109,7 @@ export function BoardPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-text">
           {BOARD_HEADING}
         </h1>
-        <div className="flex items-center gap-1">
+        <div className="relative flex items-center gap-1">
           <button
             type="button"
             aria-label={BOARD_PREVIOUS_WEEK_LABEL}
@@ -108,9 +118,39 @@ export function BoardPage() {
           >
             <ChevronLeft size={16} />
           </button>
-          <p className="text-sm font-medium text-text">
+          <button
+            type="button"
+            aria-expanded={jumpOpen}
+            aria-haspopup="dialog"
+            onClick={() => setJumpOpen((o) => !o)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setJumpOpen(false);
+            }}
+            className="rounded px-1 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+          >
             {boardWeekRangeLabel(days[0], days[6])}
-          </p>
+          </button>
+          {jumpOpen && (
+            <>
+              <button
+                type="button"
+                aria-hidden
+                tabIndex={-1}
+                onClick={() => setJumpOpen(false)}
+                className="fixed inset-0 z-10 cursor-default"
+              />
+              <div className="absolute top-full z-20 mt-2 w-72">
+                <WeekJumpCalendar
+                  anchorIso={anchor}
+                  weekStart={start ?? Weekday.Monday}
+                  onPick={(iso) => {
+                    setAnchor(iso);
+                    setJumpOpen(false);
+                  }}
+                />
+              </div>
+            </>
+          )}
           <button
             type="button"
             aria-label={BOARD_NEXT_WEEK_LABEL}

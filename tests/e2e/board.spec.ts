@@ -16,7 +16,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatDate, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
 import { stubError, stubSequence, stubTauriCommands } from "./stubs";
@@ -291,4 +291,25 @@ test("This week jumps straight back to the current board", async ({ page }) => {
   await thisWeek.click();
   await expect(backlog).toBeVisible();
   await expect(thisWeek).toBeDisabled();
+});
+
+test("the calendar jumps the board to a picked past week", async ({ page }) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const backlog = page.getByRole("columnheader", {
+    name: new RegExp(WEEKLY_BACKLOG_LABEL),
+  });
+  await expect(backlog).toBeVisible();
+
+  await page
+    .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
+    .click();
+  const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
+  await page.getByRole("button", { name: formatDate(prior[0]) }).click();
+
+  await expect(backlog).toBeHidden();
+  await expect(
+    page.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+  ).toBeVisible();
 });

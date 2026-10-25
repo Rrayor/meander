@@ -19,7 +19,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatDate, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 import { BoardPage } from "@/pages/BoardPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -327,6 +327,48 @@ describe("BoardPage", () => {
       name: new RegExp(WEEKLY_BACKLOG_LABEL),
     });
     expect(thisWeek).toBeDisabled();
+  });
+
+  it("jumps to a past week via the calendar popover", async () => {
+    renderBoard();
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: boardWeekRangeLabel(days[0], days[6]),
+      }),
+    );
+    const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
+    fireEvent.click(screen.getByRole("button", { name: formatDate(prior[0]) }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+    ).toBeInTheDocument();
+  });
+
+  it("disables days in future weeks inside the calendar popover", async () => {
+    renderBoard();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: boardWeekRangeLabel(days[0], days[6]),
+      }),
+    );
+    const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
+    expect(
+      screen.getByRole("button", { name: formatDate(future[0]) }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: formatDate(days[0]) }),
+    ).toBeEnabled();
   });
 
   it("steps forward again and the weekly backlog reappears", async () => {
