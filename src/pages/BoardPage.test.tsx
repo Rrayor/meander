@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { listTaskCategories } from "@/api/categories";
@@ -8,6 +8,9 @@ import type { Task } from "@/api/bindings";
 import { listWeekTasks } from "@/api/tasks";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
+  BOARD_NEXT_WEEK_LABEL,
+  BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_THIS_WEEK_LABEL,
   STATUS_LABELS,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -16,7 +19,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { todayLocalIso, weekDates } from "@/lib/utils";
+import { shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 import { BoardPage } from "@/pages/BoardPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -255,5 +258,99 @@ describe("BoardPage", () => {
     expect(
       screen.getByRole("button", { name: editTaskLabel(TASK_TITLE) }),
     ).toBeInTheDocument();
+  });
+
+  it("steps back to a past week and hides the weekly backlog column", async () => {
+    renderBoard();
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+    expect(
+      screen.getByRole("button", { name: BOARD_NEXT_WEEK_LABEL }),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
+    );
+
+    // The weekly backlog is current-week state — past boards show
+    // day columns only (spec §336/§354).
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: BOARD_NEXT_WEEK_LABEL }),
+    ).toBeEnabled();
+    const prior = weekDates(shiftDays(days[0], -7), Weekday.Monday);
+    expect(
+      screen.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+    ).toBeInTheDocument();
+  });
+
+  it("jumps straight back to the current week via This week", async () => {
+    renderBoard();
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+    const thisWeek = screen.getByRole("button", {
+      name: BOARD_THIS_WEEK_LABEL,
+    });
+    expect(thisWeek).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    // Two weeks back — This week is not the same as clicking Next.
+    const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
+    expect(
+      screen.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+    ).toBeInTheDocument();
+    expect(thisWeek).toBeEnabled();
+
+    fireEvent.click(thisWeek);
+
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+    expect(thisWeek).toBeDisabled();
+  });
+
+  it("steps forward again and the weekly backlog reappears", async () => {
+    renderBoard();
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_NEXT_WEEK_LABEL }),
+    );
+
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
   });
 });

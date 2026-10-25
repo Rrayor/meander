@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
@@ -12,6 +13,9 @@ import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
   STATUS_LABELS,
+  BOARD_NEXT_WEEK_LABEL,
+  BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_THIS_WEEK_LABEL,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
   dayTotalsLabel,
@@ -20,7 +24,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { errorMessage, todayLocalIso, weekDates } from "@/lib/utils";
+import { errorMessage, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 const STATUS_ROWS = [
   TaskStatus.Todo,
@@ -67,15 +71,20 @@ export function BoardPage() {
     queryKey: QUERY_KEYS.weekStart,
     queryFn: weekStart,
   });
-  const days = weekDates(todayIso, start ?? Weekday.Monday);
+  const [anchor, setAnchor] = useState(todayIso);
+  const days = weekDates(anchor, start ?? Weekday.Monday);
   const { data: tasks, error: weekError } = useQuery({
     queryKey: QUERY_KEYS.boardWeek(days[0]),
-    queryFn: () => listWeekTasks(todayIso),
+    queryFn: () => listWeekTasks(days[0]),
   });
   const error = startError ?? weekError;
+  const isCurrentWeek =
+    days[0] === weekDates(todayIso, start ?? Weekday.Monday)[0];
 
-  // null column = the weekly backlog bucket.
-  const columns: (string | null)[] = [null, ...days];
+  // null column = the weekly backlog bucket, a standing container of
+  // current state — rendered only on the current week's board
+  // (spec §336/§348/§354), never on past or future weeks.
+  const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
   const columnTasks = (column: string | null) =>
     (tasks ?? []).filter((t) =>
       column === null
@@ -90,9 +99,36 @@ export function BoardPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-text">
           {BOARD_HEADING}
         </h1>
-        <p className="text-sm font-medium text-text">
-          {boardWeekRangeLabel(days[0], days[6])}
-        </p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label={BOARD_PREVIOUS_WEEK_LABEL}
+            onClick={() => setAnchor(shiftDays(days[0], -7))}
+            className="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <p className="text-sm font-medium text-text">
+            {boardWeekRangeLabel(days[0], days[6])}
+          </p>
+          <button
+            type="button"
+            aria-label={BOARD_NEXT_WEEK_LABEL}
+            onClick={() => setAnchor(shiftDays(days[0], 7))}
+            disabled={isCurrentWeek}
+            className="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ChevronRight size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnchor(todayIso)}
+            disabled={isCurrentWeek}
+            className="rounded px-space-md py-1 text-sm font-medium text-text transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {BOARD_THIS_WEEK_LABEL}
+          </button>
+        </div>
         <p className="text-sm text-text-muted">
           {taskCountLabel(weekTotals.count)} ·{" "}
           {dayTotalsLabel(weekTotals.estimated, weekTotals.spent)}

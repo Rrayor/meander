@@ -105,6 +105,14 @@ export const weekDates = (iso: string, weekStart: Weekday) => {
   });
 };
 
+/// Shift a "YYYY-MM-DD" date by whole days, read at noon to stay
+/// clear of DST edges (same convention as weekdayOfIso).
+export const shiftDays = (iso: string, delta: number) => {
+  const day = new Date(`${iso}T12:00:00`);
+  day.setDate(day.getDate() + delta);
+  return localIso(day);
+};
+
 export const WEEKDAYS_BY_JS_DAY = [
   Weekday.Sunday,
   Weekday.Monday,

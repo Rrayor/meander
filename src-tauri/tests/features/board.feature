@@ -7,11 +7,11 @@ Feature: Weekly kanban board
   Scenario: the board lists weekly backlog and scheduled tasks for the week
     Given an application state on a temporary seeded database
     And a weekly backlog task titled Errand
-    And a task titled Chore scheduled for "2026-10-21"
-    And a task titled Later scheduled for "2026-11-04"
-    When I view the board for the week containing "2026-10-21"
+    And a task titled Chore scheduled for today
+    And a task titled Later scheduled 8 days from today
+    When I view the board for the week 0 weeks ago
     Then the board lists 2 tasks
-    And the board lists Chore on "2026-10-21"
+    And the board lists Chore on today
     And the board does not list Later
 
   Scenario: viewing the board materializes series occurrences
@@ -60,3 +60,9 @@ Feature: Weekly kanban board
     When I run the demo seed
     And I run the demo seed
     Then the demo seed inserted no rows
+
+  Scenario: the weekly backlog is current-week state, never history
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Pending
+    When I view the board for the week 2 weeks ago
+    Then the board lists 0 tasks

@@ -2,6 +2,9 @@ import { COMMANDS } from "@/api/commands";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
+  BOARD_NEXT_WEEK_LABEL,
+  BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_THIS_WEEK_LABEL,
   EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   WEEKLY_BACKLOG_LABEL,
@@ -13,7 +16,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { todayLocalIso, weekDates } from "@/lib/utils";
+import { shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
 import { stubError, stubSequence, stubTauriCommands } from "./stubs";
@@ -243,4 +246,49 @@ test("a failed board read surfaces an error alert", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("alert")).toContainText(message);
+});
+
+test("the previous-week arrow shows a past board without the weekly backlog", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const backlog = page.getByRole("columnheader", {
+    name: new RegExp(WEEKLY_BACKLOG_LABEL),
+  });
+  await expect(backlog).toBeVisible();
+  const next = page.getByRole("button", { name: BOARD_NEXT_WEEK_LABEL });
+  await expect(next).toBeDisabled();
+
+  await page.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }).click();
+
+  // The weekly backlog is current-week state — past boards show day
+  // columns only (spec §336/§354).
+  await expect(backlog).toBeHidden();
+  const prior = weekDates(shiftDays(days[0], -7), Weekday.Monday);
+  await expect(
+    page.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+  ).toBeVisible();
+  await expect(next).toBeEnabled();
+});
+
+test("This week jumps straight back to the current board", async ({ page }) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const backlog = page.getByRole("columnheader", {
+    name: new RegExp(WEEKLY_BACKLOG_LABEL),
+  });
+  const thisWeek = page.getByRole("button", { name: BOARD_THIS_WEEK_LABEL });
+  await expect(backlog).toBeVisible();
+  await expect(thisWeek).toBeDisabled();
+
+  await page.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }).click();
+  await expect(backlog).toBeHidden();
+  await expect(thisWeek).toBeEnabled();
+
+  await thisWeek.click();
+  await expect(backlog).toBeVisible();
+  await expect(thisWeek).toBeDisabled();
 });
