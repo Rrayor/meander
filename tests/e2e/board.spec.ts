@@ -16,7 +16,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
 import { stubError, stubSequence, stubTauriCommands } from "./stubs";
@@ -291,4 +291,77 @@ test("This week jumps straight back to the current board", async ({ page }) => {
   await thisWeek.click();
   await expect(backlog).toBeVisible();
   await expect(thisWeek).toBeDisabled();
+});
+
+test("the calendar jumps the board to a picked past week", async ({ page }) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const backlog = page.getByRole("columnheader", {
+    name: new RegExp(WEEKLY_BACKLOG_LABEL),
+  });
+  await expect(backlog).toBeVisible();
+
+  await page
+    .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
+    .click();
+  const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
+  await page.getByRole("button", { name: formatIsoDay(prior[0]) }).click();
+
+  await expect(backlog).toBeHidden();
+  await expect(
+    page.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+  ).toBeVisible();
+});
+
+test("the calendar popover closes on Escape and outside click", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const trigger = page.getByRole("button", {
+    name: boardWeekRangeLabel(days[0], days[6]),
+  });
+  const popover = page.getByRole("dialog");
+  await trigger.click();
+  await expect(popover).toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+  await page.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
+
+  await trigger.click();
+  await expect(popover).toBeVisible();
+  await page.locator(".fixed.inset-0").click({ position: { x: 1, y: 1 } });
+  await expect(popover).toBeHidden();
+});
+
+test("clicking a disabled future-week day does not move the board", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const backlog = page.getByRole("columnheader", {
+    name: new RegExp(WEEKLY_BACKLOG_LABEL),
+  });
+  await expect(backlog).toBeVisible();
+
+  await page
+    .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
+    .click();
+  const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
+  const futureDay = page.getByRole("button", {
+    name: formatIsoDay(future[0]),
+  });
+  await expect(futureDay).toBeDisabled();
+
+  // The board stays on the current week and the popover stays open.
+  await expect(
+    page.getByRole("button", {
+      name: boardWeekRangeLabel(days[0], days[6]),
+    }),
+  ).toBeVisible();
+  await expect(backlog).toBeVisible();
 });

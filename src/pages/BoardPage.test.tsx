@@ -19,7 +19,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 import { BoardPage } from "@/pages/BoardPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -327,6 +327,83 @@ describe("BoardPage", () => {
       name: new RegExp(WEEKLY_BACKLOG_LABEL),
     });
     expect(thisWeek).toBeDisabled();
+  });
+
+  it("jumps to a past week via the calendar popover", async () => {
+    renderBoard();
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: boardWeekRangeLabel(days[0], days[6]),
+      }),
+    );
+    const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
+    fireEvent.click(
+      screen.getByRole("button", { name: formatIsoDay(prior[0]) }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(boardWeekRangeLabel(prior[0], prior[6])),
+    ).toBeInTheDocument();
+  });
+
+  it("disables days in future weeks inside the calendar popover", async () => {
+    renderBoard();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: boardWeekRangeLabel(days[0], days[6]),
+      }),
+    );
+    const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
+    expect(
+      screen.getByRole("button", { name: formatIsoDay(future[0]) }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: formatIsoDay(days[0]) }),
+    ).toBeEnabled();
+  });
+
+  it("toggles aria-expanded and closes the popover on Escape", async () => {
+    renderBoard();
+    const trigger = await screen.findByRole("button", {
+      name: boardWeekRangeLabel(days[0], days[6]),
+    });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await screen.findByRole("dialog");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes the popover on an outside click", async () => {
+    renderBoard();
+    const trigger = await screen.findByRole("button", {
+      name: boardWeekRangeLabel(days[0], days[6]),
+    });
+    fireEvent.click(trigger);
+    await screen.findByRole("dialog");
+
+    // The invisible backdrop sits between the popover and the page.
+    fireEvent.click(document.querySelector(".fixed.inset-0")!);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 
   it("steps forward again and the weekly backlog reappears", async () => {

@@ -1,3 +1,4 @@
+import { formatIsoDay } from "@/lib/utils";
 import {
   ADD_TASK_LABEL,
   BOARD_HEADING,
@@ -53,5 +54,27 @@ describe("Board smoke", () => {
     await browser.waitUntil(async () =>
       (await $(`aria/${editTaskLabel(title)}`)).isExisting(),
     );
+  });
+
+  it("jumps to a past week through the calendar popover", async () => {
+    // Real backend: the week-range dropdown opens the popover; picking
+    // a day two weeks back re-renders a past board — the weekly
+    // backlog column is current-week only, so seven headers remain.
+    const prior = new Date();
+    prior.setDate(prior.getDate() - 14);
+    const priorIso = `${prior.getFullYear()}-${String(
+      prior.getMonth() + 1,
+    ).padStart(2, "0")}-${String(prior.getDate()).padStart(2, "0")}`;
+
+    await (await $$("header button"))[1].click();
+    await (await $(`aria/${formatIsoDay(priorIso)}`)).click();
+    await browser.waitUntil(
+      async () => (await $$("th[scope='col']")).length === 7,
+    );
+    const headers = await $$("th[scope='col']");
+    expect(headers).toHaveLength(7);
+    for (const h of headers) {
+      expect((await h.getText()).includes(WEEKLY_BACKLOG_LABEL)).toBe(false);
+    }
   });
 });

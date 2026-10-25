@@ -166,6 +166,14 @@
       "files": ["designs/kanban-board.html", "designs/kanban-board.png"],
       "implemented": false,
       "notes": "Weekly kanban board: 8 columns (weekly backlog + 7 weekdays) x 3 state rows, week header with range + totals, per-day totals in column headers"
+    },
+    {
+      "id": "4125260ef4a5487e8240f9c40cb3016d",
+      "title": "Meander \u2014 Board (Week Jump Popover)",
+      "deviceType": "DESKTOP",
+      "files": ["designs/board-week-jump.html", "designs/board-week-jump.png"],
+      "implemented": false,
+      "notes": "Week range dropdown opens a month-grid popover: week band selected, today dotted, future weeks dimmed+disabled, hint line. Plan item 37."
     }
   ]
 }

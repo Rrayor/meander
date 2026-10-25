@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meander — Weekly Planner</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-primary": "#0B1B19",
+            "on-tertiary-container": "#744000",
+            "inverse-primary": "#006b5f",
+            "threshold-blue": "#60A5FA",
+            "primary-fixed": "#62fae3",
+            "surface-variant": "#2f3634",
+            "secondary-container": "#46494e",
+            "on-secondary": "#2e3135",
+            "on-background": "#dde4e1",
+            "threshold-green": "#4ADE80",
+            "on-primary-fixed-variant": "#005047",
+            "surface-container-lowest": "#09100e",
+            "secondary": "#c5c6cc",
+            "threshold-red": "#F87171",
+            "on-tertiary": "#4b2800",
+            "inverse-surface": "#dde4e1",
+            "secondary-fixed": "#e1e2e8",
+            "surface-bright": "#333b39",
+            "surface-raised": "#22262B",
+            "threshold-violet": "#A78BFA",
+            "on-secondary-container": "#b6b8be",
+            "on-primary-fixed": "#00201c",
+            "threshold-orange": "#FB923C",
+            "on-tertiary-fixed-variant": "#6b3b00",
+            "surface-container-high": "#242b2a",
+            "inverse-on-surface": "#2b3230",
+            "primary-container": "#2dd4bf",
+            "on-primary-container": "#00574d",
+            "primary-fixed-dim": "#3cddc7",
+            "error": "#ffb4ab",
+            "on-error": "#690005",
+            "on-secondary-fixed-variant": "#44474b",
+            "tertiary-fixed-dim": "#ffb875",
+            "outline": "#859490",
+            "primary": "#57f1db",
+            "border": "#2E3338",
+            "tertiary-container": "#ffac5a",
+            "surface-dim": "#0e1513",
+            "on-error-container": "#ffdad6",
+            "on-surface": "#dde4e1",
+            "on-secondary-fixed": "#191c20",
+            "surface-container-low": "#161d1b",
+            "on-tertiary-fixed": "#2d1600",
+            "surface": "#1A1D21",
+            "text": "#E8EAED",
+            "error-container": "#93000a",
+            "surface-container": "#1a211f",
+            "background": "#121417",
+            "outline-variant": "#3c4a46",
+            "on-surface-variant": "#bacac5",
+            "tertiary": "#ffd1aa",
+            "tertiary-fixed": "#ffdcc0",
+            "secondary-fixed-dim": "#c5c6cc",
+            "text-muted": "#9AA0A6",
+            "surface-tint": "#3cddc7",
+            "surface-container-highest": "#2f3634"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "gutter": "16px",
+            "space-md": "12px",
+            "space-xs": "4px",
+            "space-sm": "8px",
+            "space-lg": "16px",
+            "space-xl": "24px",
+            "margin": "24px"
+          },
+          "fontFamily": {
+            "title": ["Inter"],
+            "label": ["Inter"],
+            "body": ["Inter"],
+            "display": ["Inter"]
+          },
+          "fontSize": {
+            "title": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+            "label": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "body": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "display": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    /* Calm subtle custom scrollbar for horizontal canvas */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #121417;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2E3338;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #46494e;
+    }
+  </style>
+</head>
+<body class="bg-background text-text font-body text-body min-h-screen flex overflow-hidden antialiased select-none">
+<!-- LEFT RAIL NAVIGATION (SideNavBar Shared Component) -->
+<aside class="w-56 h-screen flex flex-col justify-between p-space-lg bg-surface border-r border-border shrink-0 z-20">
+<div class="flex flex-col gap-space-xl">
+<!-- App Wordmark / Header -->
+<div class="flex items-center gap-space-sm px-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-raised border border-border flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="waves" style="font-size: 18px;">waves</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-title text-title font-semibold text-text tracking-tight">Meander</span>
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-green" title="Local SQLite database active"></span>
+</div>
+<span class="font-label text-label text-text-muted">Offline Planner</span>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col gap-1">
+<!-- Active Tab: Board -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg bg-surface-raised text-primary font-body text-body font-medium transition-colors duration-150" href="#board">
+<span class="material-symbols-outlined" data-icon="calendar_view_week" style="font-variation-settings: 'FILL' 1;">calendar_view_week</span>
+<span>Board</span>
+</a>
+<!-- Inactive Tab: Backlog -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#backlog">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span>Backlog</span>
+</a>
+<!-- Inactive Tab: Settings -->
+<a class="flex items-center gap-space-md px-space-md py-space-sm rounded-lg text-text-muted font-body text-body hover:bg-surface-raised hover:text-text transition-colors duration-150" href="#settings">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+</div>
+<!-- Workspace Switcher Footer -->
+<div class="pt-space-md border-t border-border flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-space-md py-space-sm rounded-lg hover:bg-surface-raised cursor-pointer transition-colors duration-150 text-text-muted hover:text-text">
+<div class="flex items-center gap-space-md">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="font-body text-body text-text font-medium">Default</span>
+</div>
+<span class="material-symbols-outlined text-text-muted" data-icon="unfold_more" style="font-size: 16px;">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- MAIN APPLICATION SHELL -->
+<div class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<!-- TOP NAVBAR (TopNavBar Shared Component) -->
+<header class="flex justify-between items-center w-full px-margin py-space-md bg-background border-b border-border shrink-0 z-20">
+<div class="flex items-center gap-space-md">
+<h1 class="font-display text-display font-semibold text-text tracking-tight">Board</h1>
+<span class="px-2 py-0.5 rounded-full bg-surface-raised text-text-muted font-label text-label border border-border">Week 43</span>
+</div>
+<!-- Action items on the right -->
+<div class="flex items-center gap-space-sm">
+<button class="flex items-center gap-1.5 px-space-md py-1.5 rounded-lg border border-border text-text hover:bg-surface-raised transition-colors duration-150 font-body text-body">
+<span class="material-symbols-outlined" data-icon="tune" style="font-size: 16px;">tune</span>
+<span>Filter</span>
+</button>
+<button class="px-space-md py-1.5 rounded-lg border border-border text-text hover:bg-surface-raised transition-colors duration-150 font-body text-body">
+          Today
+        </button>
+<button class="flex items-center gap-1.5 px-space-md py-1.5 rounded-lg bg-primary text-on-primary font-body text-body font-medium hover:bg-primary-fixed-dim transition-colors duration-150">
+<span class="material-symbols-outlined" data-icon="add" style="font-size: 18px;">add</span>
+<span>Add Task</span>
+</button>
+<button class="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-raised transition-colors duration-150">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+</button>
+</div>
+</header>
+<!-- SUBHEADER / WEEK NAVIGATION CLUSTER -->
+<section class="px-margin py-space-sm bg-background border-b border-border flex items-center justify-between shrink-0 relative z-20">
+<!-- Week selector cluster -->
+<div class="flex items-center gap-space-sm">
+<div class="flex items-center bg-surface border border-border rounded-lg p-0.5">
+<button class="w-7 h-7 flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-raised rounded transition-colors" title="Previous week">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<!-- Current active dropdown trigger for week range (OPEN STATE) -->
+<button class="flex items-center gap-2 px-space-md py-1 text-text font-title text-title rounded bg-surface-raised text-primary" id="weekDropdownTrigger">
+<span>Oct 19 – Oct 25, 2026</span>
+<span class="material-symbols-outlined text-primary" data-icon="keyboard_arrow_up" style="font-size: 18px;">keyboard_arrow_up</span>
+</button>
+<button class="w-7 h-7 flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-raised rounded transition-colors" title="Next week">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+<button class="px-space-sm py-1 rounded text-text-muted hover:text-text hover:bg-surface font-label text-label transition-colors">
+          This week
+        </button>
+</div>
+<!-- Capacity & stats pills -->
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface border border-border">
+<span class="w-2 h-2 rounded-full bg-threshold-blue"></span>
+<span class="font-label text-label text-text-muted">Total tasks</span>
+<span class="font-label text-label text-text font-semibold">8</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface border border-border">
+<span class="w-2 h-2 rounded-full bg-threshold-orange"></span>
+<span class="font-label text-label text-text-muted">Planned</span>
+<span class="font-label text-label text-text font-semibold">18h 30m</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface border border-border">
+<span class="w-2 h-2 rounded-full bg-threshold-green"></span>
+<span class="font-label text-label text-text-muted">Logged</span>
+<span class="font-label text-label text-text font-semibold">9h 15m</span>
+</div>
+</div>
+</section>
+<!-- WEEK-JUMP CALENDAR POPOVER (OPEN STATE) -->
+<!-- Positioned directly underneath the week range button cluster -->
+<div class="absolute top-[108px] left-[24px] z-40 w-80 bg-surface-raised border border-border rounded-lg shadow-2xl p-space-md flex flex-col gap-3" id="calendarPopover">
+<!-- Popover Month Navigator -->
+<div class="flex items-center justify-between px-1">
+<span class="font-title text-title text-text font-semibold">October 2026</span>
+<div class="flex items-center gap-1">
+<button class="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text hover:bg-surface border border-border/50">
+<span class="material-symbols-outlined" data-icon="chevron_left" style="font-size: 16px;">chevron_left</span>
+</button>
+<button class="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text hover:bg-surface border border-border/50">
+<span class="material-symbols-outlined" data-icon="chevron_right" style="font-size: 16px;">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Month Calendar Grid -->
+<div class="flex flex-col gap-1">
+<!-- Weekday Headers -->
+<div class="grid grid-cols-7 text-center font-label text-label text-text-muted py-1">
+<span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+</div>
+<!-- Row 1 (Sept 28 - Oct 4) -->
+<div class="grid grid-cols-7 text-center font-body text-body py-0.5">
+<span class="text-text-muted/40 py-1">28</span>
+<span class="text-text-muted/40 py-1">29</span>
+<span class="text-text-muted/40 py-1">30</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">1</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">2</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">3</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">4</span>
+</div>
+<!-- Row 2 (Oct 5 - Oct 11) -->
+<div class="grid grid-cols-7 text-center font-body text-body py-0.5">
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">5</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">6</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">7</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">8</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">9</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">10</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">11</span>
+</div>
+<!-- Row 3 (Oct 12 - Oct 18) -->
+<div class="grid grid-cols-7 text-center font-body text-body py-0.5">
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">12</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">13</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">14</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">15</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">16</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">17</span>
+<span class="text-text-muted hover:text-text hover:bg-surface rounded cursor-pointer py-1">18</span>
+</div>
+<!-- Row 4: ACTIVE WEEK SELECTION BAND (Oct 19 - Oct 25) -->
+<div class="grid grid-cols-7 text-center font-body text-body relative bg-surface-variant/70 border border-primary/40 rounded-lg py-0.5">
+<span class="text-text font-medium py-1">19</span>
+<!-- Today: Oct 20 -->
+<span class="relative text-primary font-semibold py-1">
+            20
+            <span class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary"></span>
+</span>
+<span class="text-text font-medium py-1">21</span>
+<span class="text-text font-medium py-1">22</span>
+<span class="text-text font-medium py-1">23</span>
+<span class="text-text font-medium py-1">24</span>
+<span class="text-text font-medium py-1">25</span>
+</div>
+<!-- Row 5 (Oct 26 - Nov 1) -->
+<div class="grid grid-cols-7 text-center font-body text-body py-0.5">
+<span class="text-text-muted/60 hover:text-text hover:bg-surface rounded cursor-pointer py-1">26</span>
+<span class="text-text-muted/60 hover:text-text hover:bg-surface rounded cursor-pointer py-1">27</span>
+<span class="text-text-muted/60 hover:text-text hover:bg-surface rounded cursor-pointer py-1">28</span>
+<span class="text-text-muted/60 hover:text-text hover:bg-surface rounded cursor-pointer py-1">29</span>
+<span class="text-text-muted/60 hover:text-text hover:bg-surface rounded cursor-pointer py-1">30</span>
+<span class="text-text-muted/60 hover:text-text hover:bg-surface rounded cursor-pointer py-1">31</span>
+<span class="text-text-muted/40 py-1">1</span>
+</div>
+</div>
+<!-- Popover Footer Hint -->
+<div class="pt-2 border-t border-border flex items-center justify-between text-text-muted font-label text-label">
+<span>Pick any day to display that week's board</span>
+<span class="font-mono text-[10px] text-text-muted/70">ESC</span>
+</div>
+</div>
+<!-- SEMI-TRANSPARENT BACKDROP (SUBTLE FOCUS TO POPOVER WHILE MAINTAINING BOARD READABILITY) -->
+<div class="absolute inset-0 bg-background/30 backdrop-blur-[0.5px] pointer-events-none z-10"></div>
+<!-- PRIMARY KANBAN BOARD MATRIX CANVAS -->
+<main class="flex-1 overflow-x-auto overflow-y-auto p-margin flex gap-space-md">
+<!-- COLUMN 0: WEEKLY BACKLOG -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/60 rounded-lg border border-border/80 h-full max-h-full">
+<!-- Col Header -->
+<div class="p-3 border-b border-border flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-text-muted" data-icon="inventory_2" style="font-size: 16px;">inventory_2</span>
+<span class="font-body text-body font-medium text-text">Weekly backlog</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted font-label text-label bg-surface-raised rounded">2</span>
+</div>
+<!-- Col Content -->
+<div class="p-2 flex flex-col gap-2 overflow-y-auto flex-1">
+<!-- Card 1 -->
+<article class="p-3 rounded-lg bg-surface border border-border hover:border-outline-variant transition-colors flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-violet">Architecture</span>
+<span class="font-label text-label text-text-muted">4h</span>
+</div>
+<p class="font-body text-body text-text font-normal">Extract SQLite replication adapter</p>
+<div class="flex items-center justify-between pt-1 text-text-muted font-label text-label">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined" data-icon="check_box_outline_blank" style="font-size: 14px;">check_box_outline_blank</span>
+<span>0/3 subtasks</span>
+</span>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="p-3 rounded-lg bg-surface border border-border hover:border-outline-variant transition-colors flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-orange">Strategy</span>
+<span class="font-label text-label text-text-muted">2h 30m</span>
+</div>
+<p class="font-body text-body text-text font-normal">Benchmark cold startup under 40ms</p>
+<div class="flex items-center justify-between pt-1 text-text-muted font-label text-label">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined" data-icon="timer" style="font-size: 14px;">timer</span>
+<span>Unscheduled</span>
+</span>
+</div>
+</article>
+</div>
+</section>
+<!-- COLUMN 1: MONDAY 19 -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/40 rounded-lg border border-border/80 h-full max-h-full">
+<div class="p-3 border-b border-border flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-body text-body font-medium text-text">Mon 19</span>
+<span class="font-label text-label text-text-muted">3h planned</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted font-label text-label bg-surface-raised rounded">1</span>
+</div>
+<div class="p-2 flex flex-col gap-2 overflow-y-auto flex-1">
+<!-- Card: Done -->
+<article class="p-3 rounded-lg bg-surface border border-border/60 opacity-80 flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-green">Completed</span>
+<span class="font-label text-label text-threshold-green flex items-center gap-1">
+<span class="material-symbols-outlined" data-icon="check_circle" style="font-size: 13px; font-variation-settings: 'FILL' 1;">check_circle</span>
+                3h
+              </span>
+</div>
+<p class="font-body text-body text-text line-through text-text-muted">Setup indexed keypath for views</p>
+<div class="w-full bg-surface-raised h-1 rounded-full overflow-hidden">
+<div class="bg-threshold-green h-full w-full"></div>
+</div>
+</article>
+</div>
+</section>
+<!-- COLUMN 2: TUESDAY 20 (TODAY) -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/70 rounded-lg border border-primary/30 h-full max-h-full ring-1 ring-primary/20">
+<div class="p-3 border-b border-border flex items-center justify-between bg-surface-raised/40">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-body text-body font-semibold text-text">Tue 20</span>
+<span class="px-1.5 py-0.2 rounded text-[10px] font-label bg-primary/20 text-primary border border-primary/30">TODAY</span>
+</div>
+<span class="font-label text-label text-primary">5h planned • In progress</span>
+</div>
+<span class="px-1.5 py-0.5 text-primary font-label text-label bg-surface-raised rounded">2</span>
+</div>
+<div class="p-2 flex flex-col gap-2 overflow-y-auto flex-1">
+<!-- In Progress Card -->
+<article class="p-3 rounded-lg bg-surface-raised border border-primary/40 flex flex-col gap-2 shadow-sm">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface text-threshold-blue">Engineering</span>
+<span class="font-label text-label text-primary font-medium flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                2h 15m / 3h
+              </span>
+</div>
+<p class="font-body text-body text-text font-medium">Refactor week-jump calendar popover</p>
+<div class="w-full bg-surface h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-3/4"></div>
+</div>
+</article>
+<!-- Planned Card -->
+<article class="p-3 rounded-lg bg-surface border border-border flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-violet">Design</span>
+<span class="font-label text-label text-text-muted">2h</span>
+</div>
+<p class="font-body text-body text-text">Draft low-contrast capacity gauges</p>
+<div class="flex items-center justify-between text-text-muted font-label text-label">
+<span>Next up</span>
+<span class="material-symbols-outlined" data-icon="schedule" style="font-size: 14px;">schedule</span>
+</div>
+</article>
+</div>
+</section>
+<!-- COLUMN 3: WEDNESDAY 21 -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/40 rounded-lg border border-border/80 h-full max-h-full">
+<div class="p-3 border-b border-border flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-body text-body font-medium text-text">Wed 21</span>
+<span class="font-label text-label text-text-muted">4h planned</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted font-label text-label bg-surface-raised rounded">1</span>
+</div>
+<div class="p-2 flex flex-col gap-2 overflow-y-auto flex-1">
+<article class="p-3 rounded-lg bg-surface border border-border flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-blue">Engineering</span>
+<span class="font-label text-label text-text-muted">4h</span>
+</div>
+<p class="font-body text-body text-text">Verify transactional rollback integrity</p>
+<div class="flex items-center justify-between text-text-muted font-label text-label">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined" data-icon="sync" style="font-size: 14px;">sync</span>
+<span>Offline buffer test</span>
+</span>
+</div>
+</article>
+</div>
+</section>
+<!-- COLUMN 4: THURSDAY 22 -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/40 rounded-lg border border-border/80 h-full max-h-full">
+<div class="p-3 border-b border-border flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-body text-body font-medium text-text">Thu 22</span>
+<span class="font-label text-label text-text-muted">2h planned</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted font-label text-label bg-surface-raised rounded">1</span>
+</div>
+<div class="p-2 flex flex-col gap-2 overflow-y-auto flex-1">
+<article class="p-3 rounded-lg bg-surface border border-border flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-orange">Strategy</span>
+<span class="font-label text-label text-text-muted">2h</span>
+</div>
+<p class="font-body text-body text-text">Review memory footprints for Electron canvas</p>
+</article>
+</div>
+</section>
+<!-- COLUMN 5: FRIDAY 23 -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/40 rounded-lg border border-border/80 h-full max-h-full">
+<div class="p-3 border-b border-border flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-body text-body font-medium text-text">Fri 23</span>
+<span class="font-label text-label text-text-muted">2h planned</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted font-label text-label bg-surface-raised rounded">1</span>
+</div>
+<div class="p-2 flex flex-col gap-2 overflow-y-auto flex-1">
+<article class="p-3 rounded-lg bg-surface border border-border flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded text-[11px] font-label bg-surface-raised text-threshold-violet">Architecture</span>
+<span class="font-label text-label text-text-muted">2h</span>
+</div>
+<p class="font-body text-body text-text">Automated regression schema migration</p>
+</article>
+</div>
+</section>
+<!-- COLUMN 6: SATURDAY 24 -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/20 rounded-lg border border-border/50 h-full max-h-full">
+<div class="p-3 border-b border-border/60 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-body text-body font-normal text-text-muted">Sat 24</span>
+<span class="font-label text-label text-text-muted/60">0h planned</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted/60 font-label text-label bg-surface rounded">0</span>
+</div>
+<div class="p-3 flex items-center justify-center flex-1 text-text-muted/40 font-label text-label border border-dashed border-border/40 m-2 rounded">
+          Rest day
+        </div>
+</section>
+<!-- COLUMN 7: SUNDAY 25 -->
+<section class="w-64 shrink-0 flex flex-col bg-surface/20 rounded-lg border border-border/50 h-full max-h-full">
+<div class="p-3 border-b border-border/60 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-body text-body font-normal text-text-muted">Sun 25</span>
+<span class="font-label text-label text-text-muted/60">0h planned</span>
+</div>
+<span class="px-1.5 py-0.5 text-text-muted/60 font-label text-label bg-surface rounded">0</span>
+</div>
+<div class="p-3 flex items-center justify-center flex-1 text-text-muted/40 font-label text-label border border-dashed border-border/40 m-2 rounded">
+          Weekly review
+        </div>
+</section>
+</main>
+<!-- CALM BOTTOM STATUS BAR (OFFLINE ARCHITECTURE FEEDBACK) -->
+<footer class="h-8 px-margin bg-surface border-t border-border flex items-center justify-between text-text-muted font-label text-label shrink-0 z-20">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-threshold-green"></span>
+<span class="text-text">meander.sqlite</span>
+<span>•</span>
+<span>Synced</span>
+</div>
+<span class="text-text-muted/80">Buffer: 0 pending writes</span>
+</div>
+<div class="flex items-center gap-4 text-text-muted/70">
+<span>Zero cloud telemetry</span>
+<span>•</span>
+<span>Private offline environment</span>
+<span>•</span>
+<span class="font-mono text-[11px]">v1.4.2</span>
+</div>
+</footer>
+</div>
+<script>
+    // Lightweight micro-interaction to toggle popover preview if clicked
+    const trigger = document.getElementById('weekDropdownTrigger');
+    const popover = document.getElementById('calendarPopover');
+
+    if (trigger && popover) {
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popover.classList.toggle('hidden');
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !popover.classList.contains('hidden')) {
+          popover.classList.add('hidden');
+        }
+      });
+    }
+  </script>
+</body></html>
