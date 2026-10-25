@@ -16,6 +16,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
+import { CARRY_OVER_DISMISS_LABEL } from "@/lib/labels";
 import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
@@ -428,7 +429,7 @@ test("the carry-over prompt sends a return decision to the backend", async ({
   await prompt
     .getByRole("listitem")
     .filter({ hasText: "Dropped" })
-    .getByRole("button", { name: "Dismiss" })
+    .getByRole("button", { name: CARRY_OVER_DISMISS_LABEL })
     .click();
   await prompt.getByRole("button", { name: "Apply decisions" }).click();
   await expect(prompt).toBeHidden();
