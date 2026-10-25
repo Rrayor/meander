@@ -14,6 +14,7 @@ struct MeanderWorld {
     task_id: Option<i64>,
     remembered_updated_at: Option<String>,
     board_tasks: Option<Vec<meander_lib::tasks::Task>>,
+    demo_inserted: Option<usize>,
     error: Option<String>,
 }
 
@@ -2836,4 +2837,48 @@ fn scheduled_task_on_second_profile(world: &mut MeanderWorld, date: String) {
             .execute(&pool),
         )
         .expect("insert scheduled task failed");
+}
+
+// ---- Demo seed (plan item 35) --------------------------------------------
+
+#[when("I run the demo seed")]
+fn run_demo_seed(world: &mut MeanderWorld) {
+    let (pool, _id) = active_profile_pool(world);
+    match world.rt().block_on(meander_lib::db::seed_demo(&pool)) {
+        Ok(n) => world.demo_inserted = Some(n),
+        Err(e) => world.error = Some(e.to_string()),
+    }
+}
+
+#[when(expr = "I view the board for the week {int} weeks ago")]
+fn view_board_weeks_ago(world: &mut MeanderWorld, weeks: i64) {
+    let (pool, id) = active_profile_pool(world);
+    // SQLite computes the offset date — no Rust date math needed.
+    let iso: String = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar("SELECT date('now', ? || ' days')")
+                .bind(format!("-{}", weeks * 7))
+                .fetch_one(&pool)
+                .await
+        })
+        .expect("date offset failed");
+    match world
+        .rt()
+        .block_on(meander_lib::tasks::list_week(&pool, id, &iso))
+    {
+        Ok(tasks) => world.board_tasks = Some(tasks),
+        Err(e) => world.error = Some(e.to_string()),
+    }
+}
+
+#[then("the board is not empty")]
+fn board_not_empty(world: &mut MeanderWorld) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    assert!(!tasks.is_empty(), "expected seeded tasks on the board");
+}
+
+#[then("the demo seed inserted no rows")]
+fn demo_seed_inserted_nothing(world: &mut MeanderWorld) {
+    assert_eq!(world.demo_inserted, Some(0));
 }
