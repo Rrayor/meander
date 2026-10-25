@@ -915,6 +915,46 @@ test("picking a scheduled date without an instance materializes it", async ({
   });
 });
 
+test("editing a past series instance at instance scope saves", async ({
+  page,
+}) => {
+  // An instance whose date already passed — editable like any other
+  // (spec §232).
+  const pastInstance = {
+    ...seriesInstance,
+    scheduled_date: "2026-10-12",
+  };
+  const updated = { ...pastInstance, title: TITLE_MILESTONE };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: stubSequence([[pastInstance], [updated]]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.updateTask]: updated,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [pastInstance],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(pastInstance.title) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await expect(dialog.getByLabel(/Title/)).toHaveValue(pastInstance.title);
+  await dialog.getByLabel(/Title/).fill(TITLE_MILESTONE);
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  await expect(page.getByText(TITLE_MILESTONE)).toBeVisible();
+
+  const updateCall = (await getInvocations<{ input: UpdateTask }>(page)).find(
+    (c) => c.cmd === COMMANDS.updateTask,
+  );
+  expect(updateCall?.args.taskId).toBe(pastInstance.id);
+  expect(updateCall?.args.input.title).toBe(TITLE_MILESTONE);
+});
+
 test("a rejected materialization keeps the pending panel and surfaces the error", async ({
   page,
 }) => {
