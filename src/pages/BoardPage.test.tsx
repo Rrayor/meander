@@ -220,6 +220,14 @@ describe("BoardPage", () => {
     ).toHaveLength(2);
   });
 
+  it("surfaces the board read error in an alert", async () => {
+    const message = "the week listing failed";
+    mockedListWeekTasks.mockRejectedValue(new Error(message));
+    renderBoard();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  });
+
   it("opens the task details dialog from a card", async () => {
     renderBoard();
 
@@ -230,5 +238,22 @@ describe("BoardPage", () => {
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes the dialog and returns to the board", async () => {
+    renderBoard();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: editTaskLabel(TASK_TITLE),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The board still shows the task afterwards.
+    expect(
+      screen.getByRole("button", { name: editTaskLabel(TASK_TITLE) }),
+    ).toBeInTheDocument();
   });
 });

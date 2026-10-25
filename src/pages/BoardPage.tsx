@@ -20,7 +20,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { todayLocalIso, weekDates } from "@/lib/utils";
+import { errorMessage, todayLocalIso, weekDates } from "@/lib/utils";
 
 const STATUS_ROWS = [
   TaskStatus.Todo,
@@ -63,15 +63,16 @@ const totals = (tasks: Task[]) => ({
 export function BoardPage() {
   const [editingTask, setEditingTask] = useState<Task>();
   const todayIso = todayLocalIso();
-  const { data: start } = useQuery({
+  const { data: start, error: startError } = useQuery({
     queryKey: QUERY_KEYS.weekStart,
     queryFn: weekStart,
   });
   const days = weekDates(todayIso, start ?? Weekday.Monday);
-  const { data: tasks } = useQuery({
+  const { data: tasks, error: weekError } = useQuery({
     queryKey: QUERY_KEYS.boardWeek(days[0]),
     queryFn: () => listWeekTasks(todayIso),
   });
+  const error = startError ?? weekError;
 
   // null column = the weekly backlog bucket.
   const columns: (string | null)[] = [null, ...days];
@@ -97,6 +98,11 @@ export function BoardPage() {
           {dayTotalsLabel(weekTotals.estimated, weekTotals.spent)}
         </p>
       </header>
+      {error && (
+        <p role="alert" className="px-6 pt-4 text-sm text-danger">
+          {errorMessage(error)}
+        </p>
+      )}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
       <section tabIndex={0} className="flex-1 overflow-auto p-6">
         <table className="w-full min-w-[1200px] border-separate border-spacing-2">
