@@ -37,9 +37,9 @@ The below plan is flexible, it should just serve as a mental frame.
 33. Create the task card component on the frontend (The kanban board isn't necessary yet, an example card can be displayed in it's place until we create the board)
 34. Create the kanban board which displays all the information for the current week respecting the week start setting (No drag and drop functionality, nor past and future weeks view option, nor the option to change the layout is necessary yet).
 35. Fill the test-database with dummy data for the past 12 weeks
-36. Add the option to view past kanban boards (no future kanban boards are necessary, nor the calendar feature yet. Stepping with the arrows is enough).
-37. Add the calendar selection option to view past boards (no future boards yet).
-38. Add the ability to view future boards via stepping or the calendar.
+36. Add the option to view past kanban boards (no future kanban boards are necessary, nor the calendar feature yet. Stepping with the arrows is enough). The weekly backlog column must not render on past weeks — spec §336/§348/§354: it's a standing container of current state, never history. `tasks::list_week` currently includes `placement = 'weekly_backlog'` unconditionally; the weekly-backlog branch needs a current-week gate here.
+37. Add the calendar selection option to view past boards (no future boards yet). Same weekly-backlog gate as item 36 — the column is current-week only.
+38. Add the ability to view future boards via stepping or the calendar. Spec §318: future boards show only repeating-task instances and pre-scheduled tasks — no weekly backlog column there either (§336/§354), so the same gate applies on the forward side.
 39. Add the carry-over functionality if not yet added.
 40. Add the global threshold setting in the settings page and the ability change it (no need to handle it in the board yet).
 41. Handle the global threshold setting in the board.
@@ -61,5 +61,5 @@ The following steps cover the remaining specification features that weren't item
 54. Add drag and drop to the kanban board for moving tasks between days, states and the weekly backlog (Respect the responsiveness targets in the specification)
 55. Add filtering, searching and sorting to the backlog and kanban board
 56. Add the option to display task statuses as columns and days of the week as rows on the kanban board
-57. Once kanban boards exist, hide in-progress series from the backlog entirely — a series whose start date is today or earlier is no longer a backlog item. (Already done earlier: only one backlog entry per series — the anchor row — since materialized instances are not backlog items. Until boards exist, in-progress series stay visible so they remain testable.)
+57. Remove the anchor-row workaround from the backlog list: any dated task — series member or not — is a board entity, not a backlog item, and must never appear in the backlog. The backlog then lists only undated, unscheduled, standalone tasks; `tasks::list`'s series-anchor dedup (`MIN(id)` per family) goes away entirely. The anchor row was a stopgap ('until boards exist, series stay testable'). Do this AFTER items 36–38: without past/future board navigation, a series with no current-week occurrence (e.g. a monthly series between instances) would become unreachable from anywhere. Also drop `placement='scheduled'` in the same pass — the date is the fact; keep the enum to backlog/weekly_backlog pool membership only.
 58. Create user documentation with screenshots if not done yet
