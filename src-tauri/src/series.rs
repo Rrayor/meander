@@ -900,7 +900,23 @@ pub async fn update_from(
     // former is an idempotent no-op; the latter applies normally.
     if earlier == 0 {
         if from_date == row.start_date {
-            return update(pool, profile_id, id, input).await;
+            // With no earlier segments this is a plain whole-series
+            // update. When segments carry the persisted past, the same
+            // call is a this-and-future save anchored at the living
+            // start — it must write only the living row and its
+            // instances, or the family's past gets overwritten.
+            let segments: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM task_series WHERE succeeded_by = ?")
+                    .bind(id)
+                    .fetch_one(pool)
+                    .await?;
+            if segments == 0 {
+                return update(pool, profile_id, id, input).await;
+            }
+            let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
+            apply_edit_from(&mut tx, pool, profile_id, id, from_date, input).await?;
+            tx.commit().await?;
+            return into_series(owned_row(pool, profile_id, id).await?);
         }
         if from_date < row.start_date.as_str() {
             let covered: bool = sqlx::query_scalar(
@@ -1099,6 +1115,17 @@ async fn update_from_in_segment(
     )
     .bind(id)
     .bind(from_date)
+    .bind(id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    // Series notes follow the conceptual series — reparent every
+    // segment's notes onto the living row before the absorbed ones
+    // cascade theirs away.
+    sqlx::query(
+        "UPDATE task_notes SET series_id = ? WHERE series_id IN \
+         (SELECT id FROM task_series WHERE succeeded_by = ?)",
+    )
     .bind(id)
     .bind(id)
     .execute(&mut *tx)
@@ -1660,7 +1687,13 @@ mod tests {
             ),
             // Bounds: before the start and past the end never occur.
             (weekly(), START, "2026-10-12", None, false),
-            (weekly(), START, "2026-10-26", Some("2026-10-25"), false),
+            (
+                weekly(),
+                START,
+                "2026-10-26",
+                Some(DAY_BEFORE_SECOND_INSTANCE),
+                false,
+            ),
             (weekly(), START, "2026-10-26", Some("2026-10-26"), true),
             (
                 Recurrence::WorkdayAfter { day: 11 },
@@ -1707,6 +1740,7 @@ mod tests {
 
     const NEW_TITLE: &str = "Mow the lawn";
     const SECOND_INSTANCE_DATE: &str = "2026-10-26";
+    const DAY_BEFORE_SECOND_INSTANCE: &str = "2026-10-25";
     const INSTANCE_FIXTURE_TITLE: &str = "custom title";
     const THIRD_INSTANCE_DATE: &str = "2026-11-02";
 
@@ -1918,7 +1952,10 @@ mod tests {
         .unwrap();
         assert_eq!(remaining, vec![START.to_string()]);
         let series = list(&pool, pid).await.unwrap();
-        assert_eq!(series[0].end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(
+            series[0].end_date.as_deref(),
+            Some(DAY_BEFORE_SECOND_INSTANCE)
+        );
         // The removed instance is gone entirely.
         assert!(
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tasks WHERE id = ?")
@@ -2056,7 +2093,10 @@ mod tests {
         let series = list(&pool, pid).await.unwrap();
         assert_eq!(series.len(), 2);
         let segment = series.iter().find(|s| s.id != saved.id).unwrap();
-        assert_eq!(segment.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(
+            segment.end_date.as_deref(),
+            Some(DAY_BEFORE_SECOND_INSTANCE)
+        );
         assert_eq!(segment.start_date, START);
         let past = instance(&pool, first).await;
         assert_eq!(past.series_id, Some(segment.id));
@@ -2255,7 +2295,10 @@ mod tests {
         let series = list(&pool, pid).await.unwrap();
         assert_eq!(series.len(), 2);
         let segment = series.iter().find(|s| s.id != saved.id).unwrap();
-        assert_eq!(segment.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(
+            segment.end_date.as_deref(),
+            Some(DAY_BEFORE_SECOND_INSTANCE)
+        );
         let past = instance(&pool, first).await;
         assert_eq!(past.series_id, Some(segment.id));
         assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
@@ -2264,6 +2307,95 @@ mod tests {
             assert_eq!(task.series_id, Some(saved.id));
             assert_eq!(task.title, NEW_TITLE);
         }
+    }
+
+    #[tokio::test]
+    async fn update_from_at_the_living_start_leaves_the_past_segment_untouched() {
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let first = add_instance(&pool, pid, saved.id, START).await;
+        let second = add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+
+        // A this-and-future save anchored at the living start writes
+        // only the living row and its instances — the persisted past on
+        // the earlier segment keeps its values.
+        let result = update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.start_date, SECOND_INSTANCE_DATE);
+        let past = instance(&pool, first).await;
+        assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
+        assert_eq!(instance(&pool, second).await.title, NEW_TITLE);
+    }
+
+    #[tokio::test]
+    async fn update_from_in_a_segment_reparents_series_notes() {
+        const NOTE_BODY: &str = "segment note";
+
+        let (pool, pid) = seeded_pool().await;
+        let saved = create(&pool, pid, &fields_for(&series(weekly())))
+            .await
+            .unwrap();
+        let first = add_instance(&pool, pid, saved.id, START).await;
+        add_instance(&pool, pid, saved.id, SECOND_INSTANCE_DATE).await;
+        add_instance(&pool, pid, saved.id, THIRD_INSTANCE_DATE).await;
+        update_from(
+            &pool,
+            pid,
+            saved.id,
+            THIRD_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+        let segment = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id != saved.id)
+            .unwrap();
+        let note = crate::notes::create_for_series(&pool, pid, segment.id, NOTE_BODY)
+            .await
+            .unwrap();
+
+        // Absorbing the segment must not cascade its notes away — they
+        // follow the conceptual series onto the living row.
+        update_from(
+            &pool,
+            pid,
+            saved.id,
+            SECOND_INSTANCE_DATE,
+            &update_input(weekly()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 2);
+        let notes = crate::notes::list_for_series(&pool, pid, saved.id)
+            .await
+            .unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].id, note.id);
+        assert_eq!(notes[0].body, NOTE_BODY);
+        let past = instance(&pool, first).await;
+        assert_eq!(past.title, INSTANCE_FIXTURE_TITLE);
     }
 
     #[tokio::test]
@@ -2511,7 +2643,10 @@ mod tests {
         let all = list(&pool, pid).await.unwrap();
         assert_eq!(all.len(), 2);
         let earliest = all.iter().find(|s| s.id != saved.id).unwrap();
-        assert_eq!(earliest.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(
+            earliest.end_date.as_deref(),
+            Some(DAY_BEFORE_SECOND_INSTANCE)
+        );
         let past = instance(&pool, first).await;
         assert_eq!(past.series_id, Some(earliest.id));
         for id in [second, third] {
@@ -2598,7 +2733,10 @@ mod tests {
             .find(|s| s.start_date == SECOND_INSTANCE_DATE)
             .unwrap();
         let living = all.iter().find(|s| s.id == saved.id).unwrap();
-        assert_eq!(earliest.end_date.as_deref(), Some("2026-10-25"));
+        assert_eq!(
+            earliest.end_date.as_deref(),
+            Some(DAY_BEFORE_SECOND_INSTANCE)
+        );
         assert_eq!(earliest.succeeded_by, Some(saved.id));
         assert_eq!(middle.end_date.as_deref(), Some("2026-11-01"));
         assert_eq!(middle.succeeded_by, Some(saved.id));
