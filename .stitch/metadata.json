@@ -185,17 +185,6 @@
       ],
       "implemented": true,
       "notes": "Item 38 variant of the week-jump popover: future dates pickable, next-month enabled; supersedes the dimmed-future state of board-week-jump."
-    },
-    {
-      "id": "1c356cf0947944b497da28d4ba68edf8",
-      "title": "Meander \u2014 Board (Carry-Over Decision Modal)",
-      "deviceType": "DESKTOP",
-      "files": [
-        "designs/carry-over-prompt.html",
-        "designs/carry-over-prompt.png"
-      ],
-      "implemented": false,
-      "notes": "Week-start prompt for unset carry-over rules: per-task Carry over/Backlog segmented choice + Apply. Plan item 39."
     }
   ]
 }
