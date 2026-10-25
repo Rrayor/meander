@@ -748,9 +748,8 @@ const seriesFixture = {
   created_at: "2026-10-11 10:00:00",
   updated_at: "2026-10-11 10:00:00",
 };
-// The opened instance must be a future occurrence — past instances are
-// view-only (spec §232), and a fixed date would eventually age into the
-// past and silently flip the dialog's editability.
+// The opened instance is a rolling future occurrence — a fixed date would
+// eventually age out of the fixture series' first week.
 const nextMondayIso = () => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + ((8 - d.getUTCDay()) % 7 || 7));

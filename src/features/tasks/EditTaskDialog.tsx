@@ -106,7 +106,6 @@ import {
   codePointsWithin,
   formatDate,
   formatIsoDay,
-  todayLocalIso,
   unicodeTrim,
 } from "@/lib/utils";
 
@@ -828,17 +827,13 @@ const SAVE_SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
 ];
 
 // The "apply changes to" radios. The future scope needs a viewed date to
-// anchor the split on, so it's muted and disabled without one; a past
-// viewed date takes the instance scope away (spec §232) but leaves the
-// series and future scopes (spec §234).
+// anchor the split on, so it's muted and disabled without one.
 function SaveScopeFieldset({
   saveScope,
-  instanceDisabled,
   futureDisabled,
   onChange,
 }: Readonly<{
   saveScope: SaveScope;
-  instanceDisabled: boolean;
   futureDisabled: boolean;
   onChange: (scope: SaveScope) => void;
 }>) {
@@ -848,9 +843,7 @@ function SaveScopeFieldset({
         {TASK_SCOPE_GROUP_LABEL}
       </legend>
       {SAVE_SCOPE_OPTIONS.map(({ value, label }) => {
-        const disabled =
-          (value === TaskScope.Instance && instanceDisabled) ||
-          (value === TaskScope.Future && futureDisabled);
+        const disabled = value === TaskScope.Future && futureDisabled;
         return (
           <div key={value} className="flex items-center gap-2">
             <label
@@ -880,7 +873,6 @@ function EditTaskForm({
   form,
   task,
   viewedDate,
-  viewedPast,
   categories,
   saveScope,
   seriesRow,
@@ -899,7 +891,6 @@ function EditTaskForm({
   form: UseFormReturn<FormValues>;
   task: Task;
   viewedDate: string | null;
-  viewedPast: boolean;
   categories: Category[];
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
@@ -1128,7 +1119,6 @@ function EditTaskForm({
       {task.series_id !== null && (
         <SaveScopeFieldset
           saveScope={saveScope}
-          instanceDisabled={viewedPast}
           futureDisabled={viewedDate === null}
           onChange={onScopeChange}
         />
@@ -1343,12 +1333,6 @@ export function EditTaskDialog({
     queryFn: () => listSeriesInstances(viewed.series_id!),
     enabled: viewed.series_id !== null,
   });
-  // Past instances stay viewable but read-only (spec §232) — the instance
-  // scope stays off for a past viewed date. A series member keeps its
-  // series/future scopes: a living series is editable at any date (spec
-  // §234), which is what the backlog's past-dated anchor row needs.
-  const viewedPast =
-    viewed.scheduled_date !== null && viewed.scheduled_date < todayLocalIso();
   // Save scope: instance edits today's task; series writes the shared
   // fields + schedule + categories onto the series and every instance.
   const [saveScope, setSaveScope] = useState<SaveScope>(TaskScope.Instance);
@@ -1554,10 +1538,8 @@ export function EditTaskDialog({
                 type="button"
                 onClick={() => {
                   // Edit intent on a scheduled-only date is what
-                  // materializes the instance (spec §231) — a past
-                  // date materializes for notes only, staying in
-                  // view mode.
-                  editAfterMaterialize.current = pendingIso >= todayLocalIso();
+                  // materializes the instance (spec §231).
+                  editAfterMaterialize.current = true;
                   // The producing segment owns the row — a pre-cutoff
                   // date belongs to an earlier segment, not the living
                   // series.
@@ -1581,35 +1563,30 @@ export function EditTaskDialog({
                 </svg>
               </button>
             )}
-            {mode === DialogMode.View &&
-              pendingIso === null &&
-              (!viewedPast || viewed.series_id !== null) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Seed the form from the viewed instance — it may not
-                    // be the task the dialog opened on.
-                    reset(instanceDefaults);
-                    // The instance scope is off for a past viewed date —
-                    // enter on the series scope, which stays editable.
-                    if (viewedPast) setSaveScope(TaskScope.Series);
-                    setMode(DialogMode.Edit);
-                  }}
-                  aria-label={EDIT_BUTTON_LABEL}
-                  className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+            {mode === DialogMode.View && pendingIso === null && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Seed the form from the viewed instance — it may not
+                  // be the task the dialog opened on.
+                  reset(instanceDefaults);
+                  setMode(DialogMode.Edit);
+                }}
+                aria-label={EDIT_BUTTON_LABEL}
+                className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                  </svg>
-                </button>
-              )}
+                  <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -1676,7 +1653,6 @@ export function EditTaskDialog({
             form={form}
             task={task}
             viewedDate={viewed.scheduled_date}
-            viewedPast={viewedPast}
             categories={categories}
             saveScope={saveScope}
             seriesRow={seriesRow}
