@@ -751,10 +751,6 @@ mod tests {
 
     #[tokio::test]
     async fn list_week_materializes_and_filters_the_displayed_week() {
-        const WEEK_DATE: &str = "2026-10-21"; // a Wednesday
-        const SERIES_START: &str = "2026-10-19"; // the week's Monday
-        const NEXT_WEEK: &str = "2026-10-26";
-
         let (pool, pid) = seeded_pool().await;
         create(
             &pool,
@@ -767,7 +763,7 @@ mod tests {
                         "interval_weeks": 1,
                         "weekdays": ["monday"],
                     }),
-                    start_date: SERIES_START.to_string(),
+                    start_date: DAILY_START.to_string(),
                     end_date: None,
                 }),
                 ..Default::default()
@@ -792,13 +788,13 @@ mod tests {
 
         // The Monday instance materializes on view and is returned
         // alongside the weekly backlog; the out-of-week task is not.
-        let tasks = list_week(&pool, pid, WEEK_DATE).await.unwrap();
+        let tasks = list_week(&pool, pid, WEDNESDAY).await.unwrap();
         let titles: Vec<&str> = tasks.iter().map(|t| t.title.as_str()).collect();
         assert!(titles.contains(&TITLE_A));
         assert!(titles.contains(&TITLE_B));
         assert!(!titles.contains(&TITLE_C));
         let instance = tasks.iter().find(|t| t.title == TITLE_A).unwrap();
-        assert_eq!(instance.scheduled_date.as_deref(), Some(SERIES_START));
+        assert_eq!(instance.scheduled_date.as_deref(), Some(DAILY_START));
 
         // A later week materializes that week's instance instead.
         let next = list_week(&pool, pid, NEXT_WEEK).await.unwrap();
@@ -835,7 +831,15 @@ mod tests {
         .unwrap()
     }
 
+    // Dates inside the Oct 19–25 week shared by the board tests, plus
+    // the neighbouring days just outside it.
+    const TUESDAY: &str = "2026-10-20";
     const WEDNESDAY: &str = "2026-10-21";
+    const THURSDAY: &str = "2026-10-22";
+    const SATURDAY: &str = "2026-10-24";
+    const SUNDAY: &str = "2026-10-25";
+    const NEXT_WEEK: &str = "2026-10-26"; // the next week's Monday
+    const BEFORE_WEEK: &str = "2026-10-18"; // the previous week's Sunday
 
     #[tokio::test]
     async fn a_deleted_instance_is_not_resurrected_by_the_board() {
@@ -883,9 +887,6 @@ mod tests {
 
     #[tokio::test]
     async fn list_week_materializes_earlier_segment_occurrences() {
-        const THURSDAY: &str = "2026-10-22";
-        const TUESDAY: &str = "2026-10-20";
-
         let (pool, pid) = seeded_pool().await;
         let anchor = daily_task(&pool, pid).await; // persists only Monday
         // A this-and-future cut needs a persisted instance at the
@@ -956,9 +957,6 @@ mod tests {
 
     #[tokio::test]
     async fn list_week_anchors_bounds_on_the_configured_week_start() {
-        const SUNDAY: &str = "2026-10-25";
-        const SATURDAY: &str = "2026-10-24";
-
         let (pool, pid) = seeded_pool().await;
         // Wednesday week start: Oct 25 sits in the Oct 21–27 week, so a
         // task on Sat Oct 24 is in range…
@@ -979,12 +977,7 @@ mod tests {
         crate::profiles::set_week_start(&pool, pid, crate::series::Weekday::Monday)
             .await
             .unwrap();
-        assert!(
-            list_week(&pool, pid, "2026-10-26")
-                .await
-                .unwrap()
-                .is_empty()
-        );
+        assert!(list_week(&pool, pid, NEXT_WEEK).await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -1001,8 +994,6 @@ mod tests {
 
     #[tokio::test]
     async fn list_week_materializes_nothing_past_a_series_end() {
-        const END_DATE: &str = "2026-10-21"; // the week's Wednesday
-
         let (pool, pid) = seeded_pool().await;
         create(
             &pool,
@@ -1012,7 +1003,7 @@ mod tests {
                 series: Some(crate::series::NewSeries {
                     recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
                     start_date: DAILY_START.to_string(),
-                    end_date: Some(END_DATE.to_string()),
+                    end_date: Some(WEDNESDAY.to_string()),
                 }),
                 ..Default::default()
             },
@@ -1029,7 +1020,7 @@ mod tests {
         // The window ends Wednesday — Thursday through Sunday stay empty.
         assert_eq!(
             dates,
-            vec![Some(DAILY_START), Some("2026-10-20"), Some(END_DATE)]
+            vec![Some(DAILY_START), Some(TUESDAY), Some(WEDNESDAY)]
         );
     }
 
@@ -1038,10 +1029,10 @@ mod tests {
         const FOURTH: &str = "D";
         let (pool, pid) = seeded_pool().await;
         let fixtures = [
-            (TITLE_A, "2026-10-19", true),  // Monday — week start
-            (TITLE_B, "2026-10-25", true),  // Sunday — week end
-            (TITLE_C, "2026-10-18", false), // day before
-            (FOURTH, "2026-10-26", false),  // day after
+            (TITLE_A, DAILY_START, true), // Monday — week start
+            (TITLE_B, SUNDAY, true),      // Sunday — week end
+            (TITLE_C, BEFORE_WEEK, false),
+            (FOURTH, NEXT_WEEK, false),
         ];
         for (title, date, _) in fixtures {
             let task = create(&pool, pid, &task(title)).await.unwrap();
@@ -1273,8 +1264,6 @@ mod tests {
 
     // A Monday — the weekly fixture starts on a matching weekday so the
     // first instance lands on the start date itself.
-    const SCHEDULE_START: &str = "2026-10-19";
-
     fn weekly_schedule() -> crate::series::NewSeries {
         crate::series::NewSeries {
             recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
@@ -1282,7 +1271,7 @@ mod tests {
                 weekdays: vec![crate::series::Weekday::Monday],
             })
             .unwrap(),
-            start_date: SCHEDULE_START.to_string(),
+            start_date: DAILY_START.to_string(),
             end_date: None,
         }
     }
@@ -1312,7 +1301,7 @@ mod tests {
         assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
         assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
         // The first instance occupies the series start date.
-        assert_eq!(task.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        assert_eq!(task.scheduled_date.as_deref(), Some(DAILY_START));
     }
 
     #[tokio::test]
@@ -1325,7 +1314,7 @@ mod tests {
             weekdays: vec![crate::series::Weekday::Wednesday],
         })
         .unwrap();
-        schedule.end_date = Some(SCHEDULE_START.to_string());
+        schedule.end_date = Some(DAILY_START.to_string());
 
         let err = create(
             &pool,
@@ -1368,7 +1357,7 @@ mod tests {
         let sid = first.series_id.unwrap();
         // A second, later instance of the same series, and an unrelated
         // task that must not leak in. The first instance is dated by create.
-        assert_eq!(first.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        assert_eq!(first.scheduled_date.as_deref(), Some(DAILY_START));
         sqlx::query(
             "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, sort_order) \
              VALUES (?, ?, ?, '2026-10-26', ?)",
@@ -1438,7 +1427,7 @@ mod tests {
         assert_eq!(updated.sort_order, existing.sort_order);
         assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
         // The existing task becomes the start date's instance.
-        assert_eq!(updated.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        assert_eq!(updated.scheduled_date.as_deref(), Some(DAILY_START));
     }
 
     #[tokio::test]
@@ -1538,10 +1527,6 @@ mod tests {
     mod instance_materialization {
         use super::*;
 
-        const SERIES_START: &str = "2026-10-19"; // a Monday
-        const SCHEDULED: &str = "2026-10-26"; // the next Monday
-        const UNSCHEDULED: &str = "2026-10-21"; // a Wednesday
-
         fn weekly_series() -> crate::series::NewSeries {
             crate::series::NewSeries {
                 recurrence: serde_json::json!({
@@ -1549,7 +1534,7 @@ mod tests {
                     "interval_weeks": 1,
                     "weekdays": ["monday"],
                 }),
-                start_date: SERIES_START.to_string(),
+                start_date: DAILY_START.to_string(),
                 end_date: None,
             }
         }
@@ -1582,13 +1567,13 @@ mod tests {
             let first = repeating_task(&pool, pid).await;
             let series_id = first.series_id.unwrap();
 
-            let created = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let created = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
 
             assert_ne!(created.id, first.id);
             assert_eq!(created.series_id, Some(series_id));
-            assert_eq!(created.scheduled_date.as_deref(), Some(SCHEDULED));
+            assert_eq!(created.scheduled_date.as_deref(), Some(NEXT_WEEK));
             // The series' shared fields carry over; per-instance state
             // starts fresh.
             assert_eq!(created.title, TITLE_A);
@@ -1604,10 +1589,10 @@ mod tests {
             let first = repeating_task(&pool, pid).await;
             let series_id = first.series_id.unwrap();
 
-            let a = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let a = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
-            let b = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let b = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
 
@@ -1626,7 +1611,7 @@ mod tests {
 
             // The series' own first occurrence already has a row — the
             // call must hand it back untouched, not duplicate it.
-            let same = get_or_create_instance(&pool, pid, series_id, SERIES_START)
+            let same = get_or_create_instance(&pool, pid, series_id, DAILY_START)
                 .await
                 .unwrap();
 
@@ -1642,7 +1627,7 @@ mod tests {
             let (pool, pid) = seeded_pool().await;
             let first = repeating_task(&pool, pid).await;
 
-            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), UNSCHEDULED)
+            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), WEDNESDAY)
                 .await
                 .unwrap_err();
 
@@ -1665,7 +1650,7 @@ mod tests {
                 &NewTask {
                     title: TITLE_A.to_string(),
                     series: Some(crate::series::NewSeries {
-                        end_date: Some(SCHEDULED.to_string()),
+                        end_date: Some(NEXT_WEEK.to_string()),
                         ..weekly_series()
                     }),
                     ..Default::default()
@@ -1699,7 +1684,7 @@ mod tests {
             let first = repeating_task(&pool, pid).await;
             let other = crate::profiles::create(&pool, "Work").await.unwrap();
 
-            let err = get_or_create_instance(&pool, other.id, first.series_id.unwrap(), SCHEDULED)
+            let err = get_or_create_instance(&pool, other.id, first.series_id.unwrap(), NEXT_WEEK)
                 .await
                 .unwrap_err();
 
@@ -1729,7 +1714,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let created = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let created = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
 
