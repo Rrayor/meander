@@ -29,9 +29,13 @@ const HEALTH = { title: "Health", color: "#FBBF24" };
 const DARK_CUSTOM_COLOR = "#000000";
 
 // jsdom serializes hex colors to rgb() in style attributes.
-const WORK_COLOR_RGB = "96, 165, 250";
-const HEALTH_COLOR_RGB = "251, 191, 36";
-const DEFAULT_COLOR_RGB = "45, 212, 191";
+const rgbOf = (hex: string) =>
+  [1, 3, 5]
+    .map((index) => Number.parseInt(hex.slice(index, index + 2), 16))
+    .join(", ");
+const WORK_COLOR_RGB = rgbOf(WORK.color);
+const HEALTH_COLOR_RGB = rgbOf(HEALTH.color);
+const DEFAULT_COLOR_RGB = rgbOf(DEFAULT_CATEGORY_COLOR);
 
 const category = (
   id: number,
