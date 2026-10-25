@@ -268,6 +268,7 @@ export const CARRY_OVER_HINT =
 export const CARRY_OVER_CARRY_LABEL = "Carry over";
 export const CARRY_OVER_RETURN_LABEL = "Backlog";
 export const CARRY_OVER_APPLY_LABEL = "Apply decisions";
+export const CARRY_OVER_DISMISS_LABEL = "Dismiss";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;
 export const dayTotalsLabel = (estimated: number, spent: number) =>

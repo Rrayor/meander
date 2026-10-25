@@ -6,6 +6,7 @@ import { resolveCarryOver } from "@/api/tasks";
 import type { Task } from "@/api/bindings";
 import {
   CARRY_OVER_APPLY_LABEL,
+  CARRY_OVER_DISMISS_LABEL,
   CARRY_OVER_CARRY_LABEL,
   CARRY_OVER_RETURN_LABEL,
 } from "@/lib/labels";
@@ -117,6 +118,15 @@ describe("CarryOverPrompt", () => {
     );
     await screen.findByRole("alert");
     expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("dismisses without resolving — undecided tasks stay pending", async () => {
+    renderPrompt();
+    fireEvent.click(
+      screen.getByRole("button", { name: CARRY_OVER_DISMISS_LABEL }),
+    );
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(mockedResolve).not.toHaveBeenCalled();
   });
 
   it("marks the picked choice as pressed for screen readers", () => {

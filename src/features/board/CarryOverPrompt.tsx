@@ -7,6 +7,7 @@ import type { CarryOverRule, Task } from "@/api/bindings";
 import {
   CARRY_OVER_APPLY_LABEL,
   CARRY_OVER_CARRY_LABEL,
+  CARRY_OVER_DISMISS_LABEL,
   CARRY_OVER_HINT,
   CARRY_OVER_RETURN_LABEL,
   CARRY_OVER_TITLE,
@@ -99,7 +100,14 @@ export function CarryOverPrompt({
             {apply.error.message}
           </p>
         )}
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-lg px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
+          >
+            {CARRY_OVER_DISMISS_LABEL}
+          </button>
           <button
             type="button"
             disabled={resolved < tasks.length || apply.isPending}
