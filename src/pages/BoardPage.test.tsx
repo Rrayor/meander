@@ -231,4 +231,21 @@ describe("BoardPage", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  it("closes the dialog and returns to the board", async () => {
+    renderBoard();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: editTaskLabel(TASK_TITLE),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The board still shows the task afterwards.
+    expect(
+      screen.getByRole("button", { name: editTaskLabel(TASK_TITLE) }),
+    ).toBeInTheDocument();
+  });
 });
