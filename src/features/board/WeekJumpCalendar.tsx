@@ -36,8 +36,8 @@ export function WeekJumpCalendar({
   const inSelectedWeek = (iso: string) => selectedWeek.includes(iso);
 
   return (
-    <div
-      role="dialog"
+    <dialog
+      open
       aria-label={monthLabel(
         new Date(month).getUTCFullYear(),
         new Date(month).getUTCMonth(),
@@ -83,6 +83,6 @@ export function WeekJumpCalendar({
         })}
       </div>
       <p className="mt-2 text-xs text-text-muted">{BOARD_JUMP_HINT_LABEL}</p>
-    </div>
+    </dialog>
   );
 }
