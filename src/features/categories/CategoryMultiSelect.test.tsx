@@ -24,6 +24,12 @@ const mockedCreate = vi.mocked(createCategory);
 const ERRANDS = categoryFixture();
 const WORK = categoryFixture({ id: 2, title: "Work", color: "#fb923c" });
 const HOBBIES = categoryFixture({ id: 3, title: "Hobbies", color: "#a78bfa" });
+const MIDNIGHT = categoryFixture({
+  id: 4,
+  title: "Midnight",
+  color: "#000000",
+});
+const MIDNIGHT_RGB = "0, 0, 0";
 
 const NEW_TITLE = "Gardening";
 const BACKSPACE = "Backspace";
@@ -94,6 +100,27 @@ describe("CategoryMultiSelect", () => {
         name: removeTaskCategoryLabel(ERRANDS.title),
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps a dark custom color off the chip text", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <CategoryMultiSelect
+          idPrefix="test"
+          selected={[MIDNIGHT]}
+          onChange={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+    const chip = screen.getByText(MIDNIGHT.title);
+    // The hue survives on the surface tint and the dot; the name and the
+    // remove button inherit the text foreground so a dark color cannot
+    // sink the label.
+    expect(chip).toHaveClass("text-text");
+    expect(chip.style.color).toBe("");
+    expect(chip.querySelector("span")).toHaveStyle({
+      backgroundColor: `rgb(${MIDNIGHT_RGB})`,
+    });
   });
 
   it("marks selected options aria-selected and toggles them off", async () => {

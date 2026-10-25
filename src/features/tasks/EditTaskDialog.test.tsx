@@ -634,21 +634,25 @@ describe("EditTaskDialog", () => {
   });
 
   it("shows a recolored category after the association list refetches", async () => {
+    const RECOLORED = "#f87171";
+    const RECOLORED_RGB = "rgb(248, 113, 113)";
     const client = renderDialog();
     await screen.findByRole("button", {
       name: removeTaskCategoryLabel(ERRANDS.title),
     });
-    const recolored = { ...ERRANDS, color: "#f87171" };
+    const recolored = { ...ERRANDS, color: RECOLORED };
     mockedListTaskCategories.mockResolvedValue([recolored]);
     await act(async () => {
       await client.invalidateQueries({
         queryKey: QUERY_KEYS.taskCategories(baseTask.id),
       });
     });
+    // The name keeps the theme foreground — the recolor lands on the
+    // chip's dot.
     await waitFor(() =>
-      expect(screen.getByText(ERRANDS.title)).toHaveStyle({
-        color: "rgb(248, 113, 113)",
-      }),
+      expect(screen.getByText(ERRANDS.title).querySelector("span")).toHaveStyle(
+        { backgroundColor: RECOLORED_RGB },
+      ),
     );
   });
 
