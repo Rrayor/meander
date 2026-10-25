@@ -81,6 +81,15 @@ Feature: Weekly kanban board
     And I view the board for the week 0 weeks ago
     Then the board lists Undecided in the weekly backlog
 
+  Scenario: done tasks never prompt and a return lands in the backlog
+    Given an application state on a temporary seeded database
+    And a done task titled Finished scheduled 7 days ago
+    And a task titled Undecided scheduled 7 days ago with carry-over unset
+    When I view the board for the week 0 weeks ago
+    Then Finished is not pending a carry-over decision
+    When I resolve the carry-over for Undecided as return
+    Then a task titled "Undecided" exists in the backlog
+
   Scenario: a future board shows only dated tasks, never the weekly backlog
     Given an application state on a temporary seeded database
     And a weekly backlog task titled Pending

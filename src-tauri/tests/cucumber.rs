@@ -2836,6 +2836,41 @@ fn resolve_carry_over_step(world: &mut MeanderWorld, title: String, rule: String
     }
 }
 
+#[given(expr = "a done task titled {word} scheduled {int} days ago")]
+fn scheduled_past_done_task(world: &mut MeanderWorld, title: String, days: i64) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', status = 'done', \
+                 scheduled_date = date('now', 'localtime', ? || ' days') \
+                 WHERE profile_id = ? AND title = ?",
+            )
+            .bind(format!("-{days}"))
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("scheduling failed");
+}
+
+#[then(expr = "{word} is not pending a carry-over decision")]
+fn task_not_pending_carry_over(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let pending = world
+        .rt()
+        .block_on(meander_lib::tasks::pending_carry_over(&pool, id))
+        .expect("pending read failed");
+    assert!(
+        !pending.iter().any(|t| t.title == title),
+        "{title} should not be pending: {pending:?}"
+    );
+}
+
 #[then(expr = "{word} is pending a carry-over decision")]
 fn task_pending_carry_over(world: &mut MeanderWorld, title: String) {
     let (pool, id) = active_profile_pool(world);
