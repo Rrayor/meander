@@ -568,8 +568,12 @@ pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result
     // midweek split leaves earlier occurrences on the segment. All
     // inserts share one transaction: a failed board read must not leave
     // a partially materialized week behind.
+    let is_current_week = current_week_contains(pool, &week_start_iso, &week_end_iso).await?;
     let series = crate::series::list(pool, profile_id).await?;
     let mut tx = pool.begin().await?;
+    if is_current_week {
+        apply_carry_over(&mut tx, profile_id, &week_start_iso).await?;
+    }
     for s in &series {
         for offset in 0..7 {
             let iso = crate::series::to_iso(crate::series::civil_from_days(start_z + offset));
@@ -587,11 +591,6 @@ pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result
     // The weekly backlog is a standing container of current state —
     // it renders on the current week's board only, never on past or
     // future weeks (spec §336/§348/§354).
-    let today_iso: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
-        .fetch_one(pool)
-        .await?;
-    let is_current_week = week_start_iso <= today_iso && today_iso <= week_end_iso;
-
     Ok(sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks WHERE profile_id = ? AND \
          ((placement = 'weekly_backlog' AND ?) OR \
@@ -604,6 +603,88 @@ pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result
     .bind(&week_end_iso)
     .fetch_all(pool)
     .await?)
+}
+
+/// Does the queried week contain today? Used to gate current-week-only
+/// behavior (the weekly backlog, carry-over) off past and future boards.
+async fn current_week_contains(
+    pool: &SqlitePool,
+    week_start: &str,
+    week_end: &str,
+) -> Result<bool> {
+    let today_iso: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+        .fetch_one(pool)
+        .await?;
+    Ok(week_start <= today_iso.as_str() && today_iso.as_str() <= week_end)
+}
+
+/// Week-turn processing for a current-week read (spec §342–§346): an
+/// incomplete task dated before the week start follows its carry-over
+/// rule — carry joins the standing weekly backlog, return goes back to
+/// the global backlog; both leave their old date behind. Unset rules
+/// stay put — they surface via `pending_carry_over` for the user
+/// prompt. Series instances keep their dates either way: a "returned"
+/// instance stays as recorded history on the past board rather than
+/// duplicating the anchor's backlog presence.
+async fn apply_carry_over(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    profile_id: i64,
+    week_start_iso: &str,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry'",
+    )
+    .bind(profile_id)
+    .bind(week_start_iso)
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query(
+        "UPDATE tasks SET placement = 'backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'return' AND series_id IS NULL",
+    )
+    .bind(profile_id)
+    .bind(week_start_iso)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Incomplete tasks dated before the current week with no carry-over
+/// rule set — the prompt list (spec §344/§356).
+pub async fn pending_carry_over(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
+    let today_iso: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+        .fetch_one(pool)
+        .await?;
+    Ok(sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? AND carry_over_rule IS NULL          AND scheduled_date IS NOT NULL AND scheduled_date < ? AND status != 'done'          ORDER BY scheduled_date, sort_order, id",
+    )
+    .bind(profile_id)
+    .bind(&today_iso)
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Applies the user's carry-over decision to one pending task
+/// immediately — sets the rule and moves the row per it.
+pub async fn resolve_carry_over(
+    pool: &SqlitePool,
+    profile_id: i64,
+    task_id: i64,
+    rule: CarryOverRule,
+) -> Result<()> {
+    let placement = match rule {
+        CarryOverRule::Carry => "weekly_backlog",
+        CarryOverRule::Return => "backlog",
+    };
+    sqlx::query(
+        "UPDATE tasks SET carry_over_rule = ?, placement = ?, scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
+    )
+    .bind(rule)
+    .bind(placement)
+    .bind(task_id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// Materializes the instance for one scheduled occurrence (spec §230):
@@ -1000,6 +1081,196 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    /// A task left behind on a past week — created undated, then dated
+    /// into last week through SQL so the fixture is time-relative.
+    async fn stray_task(
+        pool: &SqlitePool,
+        pid: i64,
+        title: &str,
+        rule: Option<&str>,
+        done: bool,
+    ) -> Task {
+        let task = create(pool, pid, &task(title)).await.unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = date('now', 'localtime', '-7 days'),              carry_over_rule = ?, status = ? WHERE id = ?",
+        )
+        .bind(rule)
+        .bind(if done { "done" } else { "todo" })
+        .bind(task.id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(task.id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_carried_past_task_joins_the_current_weekly_backlog() {
+        // Spec §346/§353: incomplete tasks with carry-over=true appear
+        // in the current week's weekly backlog.
+        let (pool, pid) = seeded_pool().await;
+        let stray = stray_task(&pool, pid, TITLE_A, Some("carry"), false).await;
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let week = list_week(&pool, pid, &today).await.unwrap();
+        let carried = week.iter().find(|t| t.id == stray.id).unwrap();
+        assert_eq!(carried.placement, TaskPlacement::WeeklyBacklog);
+        assert!(carried.scheduled_date.is_none());
+        // Idempotent: a second read changes nothing further.
+        let second = list_week(&pool, pid, &today).await.unwrap();
+        assert_eq!(week.len(), second.len());
+    }
+
+    #[tokio::test]
+    async fn a_returned_past_task_goes_back_to_the_global_backlog() {
+        let (pool, pid) = seeded_pool().await;
+        let stray = stray_task(&pool, pid, TITLE_A, Some("return"), false).await;
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        list_week(&pool, pid, &today).await.unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(stray.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(row.placement, TaskPlacement::Backlog);
+        assert!(row.scheduled_date.is_none());
+    }
+
+    #[tokio::test]
+    async fn an_unset_rule_stays_dated_and_surfaces_in_the_pending_list() {
+        let (pool, pid) = seeded_pool().await;
+        let stray = stray_task(&pool, pid, TITLE_A, None, false).await;
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        list_week(&pool, pid, &today).await.unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(stray.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(row.scheduled_date.is_some());
+        let pending = pending_carry_over(&pool, pid).await.unwrap();
+        assert_eq!(pending.iter().map(|t| t.id).collect::<Vec<_>>(), [stray.id]);
+        // Resolving applies immediately and clears the pending list.
+        resolve_carry_over(&pool, pid, stray.id, CarryOverRule::Carry)
+            .await
+            .unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(stray.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(row.placement, TaskPlacement::WeeklyBacklog);
+        assert!(row.scheduled_date.is_none());
+        assert!(pending_carry_over(&pool, pid).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn carry_over_leaves_done_and_current_week_tasks_alone() {
+        let (pool, pid) = seeded_pool().await;
+        let done = stray_task(&pool, pid, TITLE_A, Some("carry"), true).await;
+        let open = stray_task(&pool, pid, TITLE_B, Some("carry"), false).await;
+        // An incomplete task dated inside the current week must not move.
+        sqlx::query("UPDATE tasks SET scheduled_date = date('now', 'localtime') WHERE id = ?")
+            .bind(open.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        list_week(&pool, pid, &today).await.unwrap();
+        for id in [done.id, open.id] {
+            let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert!(row.scheduled_date.is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn carry_over_only_runs_on_the_current_week_read() {
+        let (pool, pid) = seeded_pool().await;
+        let stray = stray_task(&pool, pid, TITLE_A, Some("carry"), false).await;
+        // Reading a past or a future week must not apply rules.
+        let (y, m, d) = crate::series::parse_iso(
+            &sqlx::query_scalar::<_, String>("SELECT date('now', 'localtime')")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+        );
+        let z = crate::series::days_from_civil(y, m, d);
+        let iso = |z: i64| crate::series::to_iso(crate::series::civil_from_days(z));
+        list_week(&pool, pid, &iso(z + 14)).await.unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(stray.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(row.scheduled_date.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_returned_series_instance_keeps_its_past_date() {
+        // Instances stay as recorded history on the past board; the
+        // anchor already represents the series in the global backlog.
+        let (pool, pid) = seeded_pool().await;
+        // The series-linked task defaults to the return rule; its
+        // series_id identifies the family.
+        // The daily series starts a month back so a week-ago instance is
+        // a real occurrence regardless of today's date.
+        let start: String = sqlx::query_scalar("SELECT date('now', 'localtime', '-30 days')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                series: Some(crate::series::NewSeries {
+                    recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+                    start_date: start,
+                    end_date: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let past: String = sqlx::query_scalar("SELECT date('now', 'localtime', '-7 days')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let instance = get_or_create_instance(&pool, pid, task.series_id.unwrap(), &past)
+            .await
+            .unwrap();
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        list_week(&pool, pid, &today).await.unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(instance.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(row.scheduled_date.as_deref(), Some(past.as_str()));
     }
 
     #[tokio::test]

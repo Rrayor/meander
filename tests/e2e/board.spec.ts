@@ -360,3 +360,34 @@ test("the calendar jumps the board to a picked future week", async ({
     page.getByText(boardWeekRangeLabel(future[0], future[6])),
   ).toBeVisible();
 });
+
+test("the carry-over prompt lists undecided tasks and applies the choice", async ({
+  page,
+}) => {
+  const stray = { ...mondayTask, id: 9, title: "Leftover" };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listPendingCarryOver]: [stray],
+    [COMMANDS.resolveCarryOver]: null,
+  });
+  await page.goto("/");
+
+  const prompt = page.getByRole("dialog", { name: /week started/i });
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByText("Leftover")).toBeVisible();
+
+  // Apply stays disabled until every listed task has a decision.
+  const apply = prompt.getByRole("button", { name: "Apply decisions" });
+  await expect(apply).toBeDisabled();
+  await prompt.getByRole("button", { name: "Carry over" }).click();
+  await apply.click();
+  await expect(prompt).toBeHidden();
+});

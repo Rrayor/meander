@@ -262,6 +262,12 @@ export const BOARD_PREVIOUS_WEEK_LABEL = "Previous week";
 export const BOARD_NEXT_WEEK_LABEL = "Next week";
 export const BOARD_THIS_WEEK_LABEL = "This week";
 export const BOARD_JUMP_HINT_LABEL = "Pick a day to show that week's board";
+export const CARRY_OVER_TITLE = "Week started — unfinished tasks";
+export const CARRY_OVER_HINT =
+  "Incomplete tasks from past weeks need a carry-over decision.";
+export const CARRY_OVER_CARRY_LABEL = "Carry over";
+export const CARRY_OVER_RETURN_LABEL = "Backlog";
+export const CARRY_OVER_APPLY_LABEL = "Apply decisions";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;
 export const dayTotalsLabel = (estimated: number, spent: number) =>

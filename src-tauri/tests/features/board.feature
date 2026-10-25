@@ -67,6 +67,20 @@ Feature: Weekly kanban board
     When I view the board for the week 2 weeks ago
     Then the board lists 0 tasks
 
+  Scenario: carry-over moves undecided past tasks on the current week's read
+    Given an application state on a temporary seeded database
+    And a task titled Carried scheduled 7 days ago with carry-over carry
+    And a task titled Returned scheduled 7 days ago with carry-over return
+    And a task titled Undecided scheduled 7 days ago with carry-over unset
+    When I view the board for the week 0 weeks ago
+    Then the board lists Carried in the weekly backlog
+    And the board does not list Returned
+    And the board does not list Undecided
+    And Undecided is pending a carry-over decision
+    When I resolve the carry-over for Undecided as carry
+    And I view the board for the week 0 weeks ago
+    Then the board lists Undecided in the weekly backlog
+
   Scenario: a future board shows only dated tasks, never the weekly backlog
     Given an application state on a temporary seeded database
     And a weekly backlog task titled Pending

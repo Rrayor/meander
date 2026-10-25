@@ -10,6 +10,7 @@ export const QUERY_KEYS = {
   // Prefix key: invalidating it refreshes the board whatever week it
   // shows — task mutations (status, edits, deletes) must reach it.
   boardWeeks: ["board-week"],
+  pendingCarryOver: ["pending-carry-over"],
   boardWeek: (start: string) => ["board-week", start],
   categories: ["categories"],
   // Prefix key: invalidating it covers every task's association list, e.g.

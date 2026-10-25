@@ -32,6 +32,8 @@ pub fn run() {
             commands::list_profiles,
             commands::list_tasks,
             commands::list_week_tasks,
+            commands::list_pending_carry_over,
+            commands::resolve_carry_over,
             commands::list_categories,
             commands::create_category,
             commands::update_category,

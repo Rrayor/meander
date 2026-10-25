@@ -36,6 +36,26 @@ pub async fn list_week_tasks(
 }
 
 #[tauri::command]
+pub async fn list_pending_carry_over(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::tasks::Task>, ApiError> {
+    crate::tasks::pending_carry_over(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn resolve_carry_over(
+    state: State<'_, AppState>,
+    task_id: i64,
+    rule: crate::tasks::CarryOverRule,
+) -> Result<(), ApiError> {
+    crate::tasks::resolve_carry_over(&state.pool(), state.active_profile_id(), task_id, rule)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_categories(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::categories::Category>, ApiError> {

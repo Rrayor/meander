@@ -14,6 +14,8 @@ export const COMMANDS = {
   switchProfile: "switch_profile",
   listTasks: "list_tasks",
   listWeekTasks: "list_week_tasks",
+  listPendingCarryOver: "list_pending_carry_over",
+  resolveCarryOver: "resolve_carry_over",
   listCategories: "list_categories",
   createCategory: "create_category",
   updateCategory: "update_category",

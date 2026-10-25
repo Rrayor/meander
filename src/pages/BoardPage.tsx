@@ -6,7 +6,8 @@ import { listTaskCategories } from "@/api/categories";
 import { weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { Task } from "@/api/bindings";
-import { listWeekTasks } from "@/api/tasks";
+import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
+import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { TaskCard } from "@/features/tasks/TaskCard";
@@ -74,6 +75,7 @@ export function BoardPage() {
   });
   const [anchor, setAnchor] = useState(todayIso);
   const [jumpOpen, setJumpOpen] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState(false);
   const rangeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!jumpOpen) return;
@@ -101,6 +103,12 @@ export function BoardPage() {
   // current state — rendered only on the current week's board
   // (spec §336/§348/§354), never on past or future weeks.
   const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
+  // The carry-over prompt only ever opens on the current week's board.
+  const { data: pending } = useQuery({
+    queryKey: QUERY_KEYS.pendingCarryOver,
+    queryFn: listPendingCarryOver,
+    enabled: isCurrentWeek,
+  });
   const columnTasks = (column: string | null) =>
     (tasks ?? []).filter((t) =>
       column === null
@@ -253,6 +261,12 @@ export function BoardPage() {
           </tbody>
         </table>
       </section>
+      {isCurrentWeek && !promptDismissed && (pending?.length ?? 0) > 0 && (
+        <CarryOverPrompt
+          tasks={pending ?? []}
+          onDone={() => setPromptDismissed(true)}
+        />
+      )}
       {editingTask && (
         <EditTaskDialog
           task={editingTask}
