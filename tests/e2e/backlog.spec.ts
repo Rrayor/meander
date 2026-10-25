@@ -29,6 +29,7 @@ import {
   noteEditLabel,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
   CALENDAR_NEXT_LABEL,
+  CALENDAR_PREVIOUS_LABEL,
   REPEAT_DAY_OF_MONTH_LABEL,
   REPEAT_ENDS_BEFORE_START_MESSAGE,
   REPEAT_ENDS_ADD_LABEL,
@@ -913,6 +914,63 @@ test("picking a scheduled date without an instance materializes it", async ({
     seriesId: seriesFixture.id,
     date: SERIES_PICK,
   });
+});
+
+test("picking a past scheduled date materializes it into edit mode", async ({
+  page,
+}) => {
+  // The Monday before the opened instance — a scheduled occurrence
+  // with no persisted row, sitting in the past.
+  const PAST_PICK = shiftIsoDays(SERIES_OPENED, -7);
+  const materialized = {
+    ...seriesInstance,
+    id: 7,
+    title: "fresh past occurrence",
+    scheduled_date: PAST_PICK,
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.getOrCreateInstance]: materialized,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(TITLE_DRAFT_NOTES) })
+    .click();
+  const dialog = page.getByRole("dialog");
+
+  // The previous Monday may sit in the previous grid — navigate back
+  // when it is not on the displayed month.
+  if ((await dialog.getByRole("button", { name: PAST_PICK }).count()) === 0) {
+    await dialog.getByRole("button", { name: CALENDAR_PREVIOUS_LABEL }).click();
+  }
+  await dialog.getByRole("button", { name: PAST_PICK }).click();
+  await expect(
+    dialog.getByText(SCHEDULED_INSTANCE_PENDING_MESSAGE),
+  ).toBeVisible();
+  expect(
+    (await getInvocations(page)).filter(
+      (c) => c.cmd === COMMANDS.getOrCreateInstance,
+    ),
+  ).toHaveLength(0);
+
+  // Edit materializes the row and lands in edit mode — same as a
+  // future pick.
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  const call = (
+    await getInvocations<{ seriesId: number; date: string }>(page)
+  ).find((c) => c.cmd === COMMANDS.getOrCreateInstance);
+  expect(call?.args).toMatchObject({
+    seriesId: seriesFixture.id,
+    date: PAST_PICK,
+  });
+  await expect(dialog.getByLabel(/Title/)).toBeEditable();
 });
 
 test("editing a past series instance at instance scope saves", async ({
