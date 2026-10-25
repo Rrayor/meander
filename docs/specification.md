@@ -76,7 +76,7 @@ The user can also choose to schedule the task (different from scheduling repetit
 
 The user can also set a schedule for repetition here. If they do, a repeating task will be created.
 
-Carry-over rule defines what should happen if the task is incomplete at the turn of weeks. One option is to return it to the backlog, which just means it won't be moved to the new week and waits in the global backlog to be planned again. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week.
+Carry-over rule defines what should happen if the task is incomplete at the turn of weeks. One option is to return it to the backlog, which just means it won't be moved to the new week and waits in the global backlog to be planned again. The other option is to carry over the task to the next week, because it needs to be completed at some point. If left empty, the user should be prompted to choose an option at the start of the next week — the prompt also offers dismissing the task, which deletes it.
 
 In the case of repeating tasks, carry-over rule is set to return to the backlog by default, but it can be changed if the user so chooses.
 
@@ -354,6 +354,7 @@ The weekly backlog is a standing container, not a per-week record: it holds the 
 - Past and future boards do not display a weekly backlog column; the weekly backlog is a standing container shown only on the current week
 - Those incomplete tasks that have the carry over rule set to return to the backlog, aren't added to the weekly backlog of the current board
 - The user is prompted about those incomplete tasks, that don't have a carry over rule set
+- The prompt lets the user carry the task over, return it to the backlog, or dismiss it — dismissing deletes the task
 - Repeating task instances are auto-populated
 
 ### Filtering, searching, sorting and organizing views

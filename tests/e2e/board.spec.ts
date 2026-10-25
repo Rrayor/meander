@@ -401,6 +401,7 @@ test("the carry-over prompt sends a return decision to the backend", async ({
   page,
 }) => {
   const stray = { ...mondayTask, id: 9, title: "Leftover" };
+  const dismissed = { ...mondayTask, id: 10, title: "Dropped" };
   await stubTauriCommands(page, {
     [COMMANDS.listTaskNotes]: [],
     [COMMANDS.listSeriesNotes]: [],
@@ -411,17 +412,31 @@ test("the carry-over prompt sends a return decision to the backend", async ({
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
     [COMMANDS.listTaskCategories]: [],
-    [COMMANDS.listPendingCarryOver]: [stray],
+    [COMMANDS.listPendingCarryOver]: [stray, dismissed],
     [COMMANDS.resolveCarryOver]: null,
+    [COMMANDS.deleteTask]: null,
   });
   await page.goto("/");
 
   const prompt = page.getByRole("dialog", { name: /week started/i });
-  await prompt.getByRole("button", { name: "Backlog" }).click();
+  await prompt
+    .getByRole("listitem")
+    .filter({ hasText: "Leftover" })
+    .getByRole("button", { name: "Backlog" })
+    .click();
+  // Dismiss is a per-task outcome — it deletes the task outright.
+  await prompt
+    .getByRole("listitem")
+    .filter({ hasText: "Dropped" })
+    .getByRole("button", { name: "Dismiss" })
+    .click();
   await prompt.getByRole("button", { name: "Apply decisions" }).click();
   await expect(prompt).toBeHidden();
   const calls = await getInvocations(page);
   expect(
     calls.filter((c) => c.cmd === COMMANDS.resolveCarryOver).map((c) => c.args),
   ).toEqual([{ taskId: 9, rule: "return" }]);
+  expect(
+    calls.filter((c) => c.cmd === COMMANDS.deleteTask).map((c) => c.args),
+  ).toEqual([{ taskId: 10 }]);
 });

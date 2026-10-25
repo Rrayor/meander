@@ -2,10 +2,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveCarryOver } from "@/api/tasks";
+import { deleteTask, resolveCarryOver } from "@/api/tasks";
 import type { Task } from "@/api/bindings";
 import {
   CARRY_OVER_APPLY_LABEL,
+  CARRY_OVER_DEFER_LABEL,
   CARRY_OVER_DISMISS_LABEL,
   CARRY_OVER_CARRY_LABEL,
   CARRY_OVER_RETURN_LABEL,
@@ -17,9 +18,11 @@ import { testQueryClient } from "@/test/queryClient";
 vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
   resolveCarryOver: vi.fn(),
+  deleteTask: vi.fn(),
 }));
 
 const mockedResolve = vi.mocked(resolveCarryOver);
+const mockedDelete = vi.mocked(deleteTask);
 const onDone = vi.fn();
 
 const task = (id: number, title: string): Task => ({
@@ -120,13 +123,31 @@ describe("CarryOverPrompt", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it("dismisses without resolving — undecided tasks stay pending", async () => {
+  it("dismisses a task by deleting it", async () => {
     renderPrompt();
     fireEvent.click(
-      screen.getByRole("button", { name: CARRY_OVER_DISMISS_LABEL }),
+      screen.getAllByRole("button", { name: CARRY_OVER_DISMISS_LABEL })[0],
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[1],
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
+    );
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(mockedDelete).toHaveBeenCalledWith(1);
+    expect(mockedResolve).toHaveBeenCalledWith(2, "carry");
+    expect(mockedResolve).not.toHaveBeenCalledWith(1, expect.anything());
+  });
+
+  it("defers without resolving — undecided tasks stay pending", async () => {
+    renderPrompt();
+    fireEvent.click(
+      screen.getByRole("button", { name: CARRY_OVER_DEFER_LABEL }),
     );
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(mockedResolve).not.toHaveBeenCalled();
+    expect(mockedDelete).not.toHaveBeenCalled();
   });
 
   it("marks the picked choice as pressed for screen readers", () => {

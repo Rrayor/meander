@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { resolveCarryOver } from "@/api/tasks";
+import { deleteTask, resolveCarryOver } from "@/api/tasks";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { CarryOverRule, Task } from "@/api/bindings";
 import {
   CARRY_OVER_APPLY_LABEL,
   CARRY_OVER_CARRY_LABEL,
+  CARRY_OVER_DEFER_LABEL,
   CARRY_OVER_DISMISS_LABEL,
   CARRY_OVER_HINT,
   CARRY_OVER_RETURN_LABEL,
@@ -27,14 +28,18 @@ export function CarryOverPrompt({
 }: Readonly<CarryOverPromptProps>) {
   const queryClient = useQueryClient();
   // Local decision per task — default is unset until the user picks.
-  const [choices, setChoices] = useState<Record<number, CarryOverRule>>({});
+  // 'dismiss' is the per-task delete outcome, not a dialog close.
+  const [choices, setChoices] = useState<
+    Record<number, CarryOverRule | "dismiss">
+  >({});
   const resolved = tasks.filter((t) => choices[t.id]).length;
 
   const apply = useMutation({
     mutationFn: async () => {
       for (const t of tasks) {
         const rule = choices[t.id];
-        if (rule) await resolveCarryOver(t.id, rule);
+        if (rule === "dismiss") await deleteTask(t.id);
+        else if (rule) await resolveCarryOver(t.id, rule);
       }
     },
     onSuccess: () => {
@@ -45,7 +50,7 @@ export function CarryOverPrompt({
     },
   });
 
-  const choose = (id: number, rule: CarryOverRule) =>
+  const choose = (id: number, rule: CarryOverRule | "dismiss") =>
     setChoices((c) => ({ ...c, [id]: rule }));
 
   return (
@@ -75,6 +80,7 @@ export function CarryOverPrompt({
                   [
                     ["carry", CARRY_OVER_CARRY_LABEL],
                     ["return", CARRY_OVER_RETURN_LABEL],
+                    ["dismiss", CARRY_OVER_DISMISS_LABEL],
                   ] as const
                 ).map(([rule, label]) => (
                   <button
@@ -106,7 +112,7 @@ export function CarryOverPrompt({
             onClick={onDone}
             className="rounded-lg px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
           >
-            {CARRY_OVER_DISMISS_LABEL}
+            {CARRY_OVER_DEFER_LABEL}
           </button>
           <button
             type="button"
