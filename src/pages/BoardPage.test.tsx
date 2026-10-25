@@ -371,6 +371,39 @@ describe("BoardPage", () => {
     ).toBeEnabled();
   });
 
+  it("toggles aria-expanded and closes the popover on Escape", async () => {
+    renderBoard();
+    const trigger = await screen.findByRole("button", {
+      name: boardWeekRangeLabel(days[0], days[6]),
+    });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await screen.findByRole("dialog");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes the popover on an outside click", async () => {
+    renderBoard();
+    const trigger = await screen.findByRole("button", {
+      name: boardWeekRangeLabel(days[0], days[6]),
+    });
+    fireEvent.click(trigger);
+    await screen.findByRole("dialog");
+
+    // The invisible backdrop sits between the popover and the page.
+    fireEvent.click(document.querySelector(".fixed.inset-0")!);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
   it("steps forward again and the weekly backlog reappears", async () => {
     renderBoard();
     await screen.findByRole("columnheader", {
