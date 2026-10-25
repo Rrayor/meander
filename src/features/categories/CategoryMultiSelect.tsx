@@ -140,11 +140,11 @@ export function CategoryMultiSelect({
             return (
               <span
                 key={category.id}
-                className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium"
-                style={{
-                  backgroundColor: `${color}26`,
-                  color,
-                }}
+                // Category color only ever tints the chip surface and the
+                // dot — names and the remove button keep the text
+                // foreground so dark custom colors stay legible.
+                className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium text-text"
+                style={{ backgroundColor: `${color}26` }}
               >
                 <span
                   className="h-1.5 w-1.5 rounded-full"
