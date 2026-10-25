@@ -265,10 +265,6 @@ describe("BoardPage", () => {
     await screen.findByRole("columnheader", {
       name: new RegExp(WEEKLY_BACKLOG_LABEL),
     });
-    expect(
-      screen.getByRole("button", { name: BOARD_NEXT_WEEK_LABEL }),
-    ).toBeDisabled();
-
     fireEvent.click(
       screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
     );
@@ -367,10 +363,22 @@ describe("BoardPage", () => {
     const future = weekDates(shiftDays(days[0], 7), Weekday.Monday);
     expect(
       screen.getByRole("button", { name: formatIsoDay(future[0]) }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: formatIsoDay(days[0]) }),
     ).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: formatIsoDay(future[0]) }),
+    );
+
+    // Future boards also drop the weekly backlog (spec §336/§354).
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(boardWeekRangeLabel(future[0], future[6])),
+    ).toBeInTheDocument();
   });
 
   it("toggles aria-expanded and closes the popover on Escape", async () => {

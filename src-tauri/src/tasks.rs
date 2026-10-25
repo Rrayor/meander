@@ -777,8 +777,14 @@ mod tests {
             .await
             .unwrap();
 
+        // BEFORE_WEEK is a fixed past date — permanently non-current.
+        // The forward check derives two weeks ahead of today so it can
+        // never expire into the current week.
+        let (y, m, d) = crate::series::parse_iso(&today);
+        let z = crate::series::days_from_civil(y, m, d);
+        let future = crate::series::to_iso(crate::series::civil_from_days(z + 14));
         assert!(list_week(&pool, pid, BEFORE_WEEK).await.unwrap().is_empty());
-        assert!(list_week(&pool, pid, NEXT_WEEK).await.unwrap().is_empty());
+        assert!(list_week(&pool, pid, &future).await.unwrap().is_empty());
         assert_eq!(
             list_week(&pool, pid, &today)
                 .await

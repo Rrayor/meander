@@ -39,13 +39,13 @@ describe("WeekJumpCalendar", () => {
     expect(onPick).toHaveBeenCalledWith(days[0]);
   });
 
-  it("does not call onPick for a disabled future-week day", () => {
+  it("picks a future-week day and reports its iso date", () => {
     renderCalendar();
     const future = weekDates(shiftDays(todayIso, 7), Weekday.Monday);
-    const cell = screen.getByRole("button", { name: formatIsoDay(future[0]) });
-    expect(cell).toBeDisabled();
-    fireEvent.click(cell);
-    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: formatIsoDay(future[0]) }),
+    );
+    expect(onPick).toHaveBeenCalledWith(future[0]);
   });
 
   it("marks every day of the viewed week as the selected band", () => {
@@ -85,10 +85,11 @@ describe("WeekJumpCalendar", () => {
     ).not.toContain("bg-primary/20");
   });
 
-  it("disables next-month navigation on the current month but allows going back", () => {
+  it("navigates months in both directions", () => {
     renderCalendar();
     const next = screen.getByRole("button", { name: CALENDAR_NEXT_LABEL });
-    expect(next).toBeDisabled();
+    expect(next).toBeEnabled();
+    fireEvent.click(next);
     fireEvent.click(
       screen.getByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
     );
@@ -121,12 +122,13 @@ describe("WeekJumpCalendar", () => {
     expect(headers.slice(0, 7)).toEqual(expected);
   });
 
-  it("gates future days by the configured week, not by the raw date", () => {
-    // With a Saturday week start, this week's "last day" can already
-    // sit on a later weekday than with a Monday start — the day is
-    // still pickable because its week is not a future one.
-    renderCalendar({ weekStart: Weekday.Saturday });
-    const today = screen.getByRole("button", { name: formatIsoDay(todayIso) });
-    expect(today).toBeEnabled();
+  it("highlights a picked future week as a band", () => {
+    const future = weekDates(shiftDays(days[0], 14), Weekday.Monday);
+    renderCalendar({ anchorIso: future[0] });
+    for (const iso of future) {
+      expect(
+        screen.getByRole("button", { name: formatIsoDay(iso) }).className,
+      ).toContain("bg-primary/20");
+    }
   });
 });

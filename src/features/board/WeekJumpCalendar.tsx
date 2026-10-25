@@ -22,17 +22,11 @@ export function WeekJumpCalendar({
   const todayIso = todayLocalIso();
   const weekOrder = weekdaysFrom(weekStart);
   const selectedWeek = weekDates(anchorIso, weekStart);
-  const todayWeekStart = weekDates(todayIso, weekStart)[0];
 
   const [month, setMonth] = useState(() => monthOfIso(anchorIso));
-  const currentMonth = monthOfIso(todayIso);
 
   const cells = useMemo(() => monthCells(month, weekStart), [month, weekStart]);
 
-  // Future boards don't exist yet — any day whose week starts after
-  // the current week's start is disabled.
-  const disabled = (iso: string) =>
-    weekDates(iso, weekStart)[0] > todayWeekStart;
   const inSelectedWeek = (iso: string) => selectedWeek.includes(iso);
 
   return (
@@ -47,7 +41,6 @@ export function WeekJumpCalendar({
       <MonthNav
         month={month}
         onShift={(delta) => setMonth((m) => shiftMonth(m, delta))}
-        nextDisabled={month >= currentMonth}
       />
       <div className="mt-2 grid grid-cols-7 gap-px">
         {weekOrder.map((w) => (
@@ -65,7 +58,6 @@ export function WeekJumpCalendar({
               key={cell.iso}
               type="button"
               aria-label={formatIsoDay(cell.iso)}
-              disabled={disabled(cell.iso)}
               onClick={() => onPick(cell.iso)}
               className={`relative py-1 text-center text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 selected ? "bg-primary/20 text-text" : "hover:bg-surface"
