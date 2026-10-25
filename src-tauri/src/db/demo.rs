@@ -35,12 +35,14 @@ const BACKLOG_TITLES: &[&str] = &[
 ];
 
 /// Days since the Unix epoch — the ordinal `civil_from_days` consumes.
-fn today_ordinal() -> i64 {
-    (std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        / 86_400) as i64
+/// Local time, matching the board's `todayLocalIso` (UTC epoch math
+/// would disagree with the board for hours every day).
+async fn today_ordinal(pool: &SqlitePool) -> Result<i64> {
+    Ok(sqlx::query_scalar::<_, i64>(
+        "SELECT CAST(julianday(date('now', 'localtime')) - 2440587.5 AS INTEGER)",
+    )
+    .fetch_one(pool)
+    .await?)
 }
 
 /// The Monday of the week containing `z`. 1970-01-01 was a Thursday,
@@ -56,17 +58,22 @@ fn iso_of(z: i64) -> String {
 /// Returns the number of rows the seed inserted — 0 when the database
 /// was demo-seeded before.
 pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
+    let today = today_ordinal(pool).await?;
+
+    // Everything — marker included — lands in one transaction: a
+    // failed seed rolls back entirely so a retry can actually run.
+    let mut tx = pool.begin().await?;
     let marked =
         sqlx::query("INSERT OR IGNORE INTO meander_meta (key, value) VALUES ('demo_seeded', '1')")
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     if marked.rows_affected() == 0 {
+        tx.rollback().await?;
         return Ok(0);
     }
     let profile_id: i64 = sqlx::query_scalar("SELECT id FROM profiles ORDER BY id LIMIT 1")
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
-    let today = today_ordinal();
     let week_start = monday_of(today);
     let oldest = week_start - (SEED_WEEKS - 1) * 7;
 
@@ -74,48 +81,67 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
 
     let mut category_ids = Vec::new();
     for (title, color) in DEMO_CATEGORIES {
-        let category = crate::categories::create(
-            pool,
-            profile_id,
-            &crate::categories::NewCategory {
-                title: (*title).to_string(),
-                description: None,
-                color: Some((*color).to_string()),
-            },
-        )
-        .await?;
-        category_ids.push(category.id);
+        let result =
+            sqlx::query("INSERT INTO categories (profile_id, title, color) VALUES (?, ?, ?)")
+                .bind(profile_id)
+                .bind(*title)
+                .bind(*color)
+                .execute(&mut *tx)
+                .await?;
+        category_ids.push(result.last_insert_rowid());
         count += 1;
     }
 
-    // A Friday review series — past occurrences materialized through
-    // the real service path so instances look exactly like live ones.
+    // A Friday review series — past occurrences persisted like real
+    // instances (inherit title, estimate, carry-over, categories) and
+    // finished ones are marked done so historical boards don't show a
+    // backlog of open reviews.
     let first_friday = oldest + 4;
-    let review = crate::tasks::create(
-        pool,
-        profile_id,
-        &crate::tasks::NewTask {
-            title: "Weekly review".to_string(),
-            description: None,
-            estimated_minutes: Some(30),
-            carry_over_rule: Some(crate::tasks::CarryOverRule::Carry),
-            series: Some(crate::series::NewSeries {
-                recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
-                    interval_weeks: 1,
-                    weekdays: vec![crate::series::Weekday::Friday],
-                })
-                .expect("recurrence serializes"),
-                start_date: iso_of(first_friday),
-                end_date: None,
-            }),
-        },
+    let series = sqlx::query(
+        "INSERT INTO task_series (profile_id, title, carry_over_rule, estimated_minutes,          recurrence, start_date) VALUES (?, ?, 'carry', 30, ?, ?)",
     )
+    .bind(profile_id)
+    .bind("Weekly review")
+    .bind(
+        serde_json::to_value(crate::series::Recurrence::Weekly {
+            interval_weeks: 1,
+            weekdays: vec![crate::series::Weekday::Friday],
+        })
+        .expect("recurrence serializes")
+        .to_string(),
+    )
+    .bind(iso_of(first_friday))
+    .execute(&mut *tx)
     .await?;
-    count += 1;
-    let series_id = review.series_id.expect("series task is linked");
-    let mut friday = first_friday + 7;
+    let series_id = series.last_insert_rowid();
+    sqlx::query("INSERT INTO series_categories (series_id, category_id) VALUES (?, ?)")
+        .bind(series_id)
+        .bind(category_ids[0])
+        .execute(&mut *tx)
+        .await?;
+    count += 2;
+
+    let mut friday = first_friday;
     while friday <= today {
-        crate::tasks::get_or_create_instance(pool, profile_id, series_id, &iso_of(friday)).await?;
+        let done = friday < week_start;
+        let result = sqlx::query(
+            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes,              carry_over_rule, series_id, scheduled_date, sort_order)              VALUES (?, 'Weekly review', ?, 30, ?, 'carry', ?, ?,              (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        )
+        .bind(profile_id)
+        .bind(if done { "done" } else { "todo" })
+        .bind(if done { Some(30) } else { None })
+        .bind(series_id)
+        .bind(iso_of(friday))
+        .bind(profile_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "INSERT INTO task_categories (task_id, category_id)              SELECT ?, category_id FROM series_categories WHERE series_id = ?",
+        )
+        .bind(result.last_insert_rowid())
+        .bind(series_id)
+        .execute(&mut *tx)
+        .await?;
         friday += 7;
         count += 1;
     }
@@ -136,9 +162,7 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
             }
         };
         let result = sqlx::query(
-            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes, \
-             placement, scheduled_date, sort_order) VALUES (?, ?, ?, ?, ?, 'scheduled', ?, \
-             (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes,              placement, scheduled_date, sort_order) VALUES (?, ?, ?, ?, ?, 'scheduled', ?,              (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
         )
         .bind(profile_id)
         .bind(TASK_TITLES[idx % TASK_TITLES.len()])
@@ -147,12 +171,12 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
         .bind(spent)
         .bind(iso_of(z))
         .bind(profile_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
         sqlx::query("INSERT INTO task_categories (task_id, category_id) VALUES (?, ?)")
             .bind(result.last_insert_rowid())
             .bind(category_ids[idx % category_ids.len()])
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         count += 1;
     }
@@ -163,7 +187,7 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
         )
         .bind(profile_id)
         .bind(*title)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
         count += 1;
     }
@@ -171,11 +195,12 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
         sqlx::query("INSERT INTO tasks (profile_id, title) VALUES (?, ?)")
             .bind(profile_id)
             .bind(*title)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         count += 1;
     }
 
+    tx.commit().await?;
     Ok(count)
 }
 
@@ -219,12 +244,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn demo_seed_fails_without_a_profile() {
+    async fn demo_seed_fails_without_a_profile_and_the_retry_works() {
         // No bootstrap seed → no profile → nothing to seed into. The
-        // error surfaces instead of silently inserting orphans.
+        // whole run rolls back — marker included — so the retry after
+        // the profile exists actually fills the database.
         let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         assert!(seed_demo(&pool).await.is_err());
+        let marked: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM meander_meta WHERE key = 'demo_seeded'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(marked, 0, "failed seed must not keep the marker");
+
+        crate::db::seed(&pool).await.unwrap();
+        assert!(seed_demo(&pool).await.unwrap() > 0);
     }
 
     #[tokio::test]
