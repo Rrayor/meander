@@ -188,6 +188,9 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
       onClose();
     },
     onError: () => {
@@ -195,6 +198,9 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
       // refresh the list so the backlog shows what was actually saved.
       if (createdId.current !== undefined) {
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+        void queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.boardWeeks,
+        });
       }
     },
   });

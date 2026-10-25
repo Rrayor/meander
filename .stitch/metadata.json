@@ -158,6 +158,14 @@
       "files": ["designs/task-card.html", "designs/task-card.png"],
       "implemented": true,
       "notes": "Task card anatomy: title, muted duration estimate, category chips at bottom; 4px left accent border = category color, gradient when multiple categories. Generated extras omitted from item 33 (board columns, header, quick-add, nav tweaks) \u2014 only the card component itself is implemented now."
+    },
+    {
+      "id": "d630a7f778c7400ca9535328cefc30ce",
+      "title": "Meander \u2014 Weekly Kanban Board",
+      "deviceType": "DESKTOP",
+      "files": ["designs/kanban-board.html", "designs/kanban-board.png"],
+      "implemented": false,
+      "notes": "Weekly kanban board: 8 columns (weekly backlog + 7 weekdays) x 3 state rows, week header with range + totals, per-day totals in column headers"
     }
   ]
 }

@@ -354,6 +354,52 @@ pub async fn move_task(
     Ok(())
 }
 
+/// Series rows sharing a family: the living row plus every segment it
+/// succeeded. `succeeded_by` always points at the living row directly.
+const FAMILY_IDS: &str = "SELECT id FROM task_series WHERE COALESCE(succeeded_by, id) = \
+    COALESCE((SELECT succeeded_by FROM task_series WHERE id = ?), ?)";
+
+/// An instance row exists for this date anywhere in the family —
+/// prevents a segment and the living series materializing a seam date
+/// twice, and matches `list_instances`' segment-aware resolution.
+async fn instance_in_family(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    profile_id: i64,
+    series_id: i64,
+    date: &str,
+) -> Result<bool> {
+    let count: i64 = sqlx::query_scalar(&format!(
+        "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND scheduled_date = ? \
+         AND series_id IN ({FAMILY_IDS})"
+    ))
+    .bind(profile_id)
+    .bind(date)
+    .bind(series_id)
+    .bind(series_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(count > 0)
+}
+
+/// The date was individually deleted somewhere in the family — the
+/// board's materialization must not resurrect it (spec §152).
+async fn skipped_in_family(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    series_id: i64,
+    date: &str,
+) -> Result<bool> {
+    let count: i64 = sqlx::query_scalar(&format!(
+        "SELECT COUNT(*) FROM skipped_instances WHERE scheduled_date = ? \
+         AND series_id IN ({FAMILY_IDS})"
+    ))
+    .bind(date)
+    .bind(series_id)
+    .bind(series_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(count > 0)
+}
+
 /// Full-row update scoped to the owning profile; bumps `updated_at`.
 /// Unknown ids — including another profile's task — are an error.
 pub async fn update(
@@ -441,14 +487,32 @@ pub async fn update(
 /// Deletes a task scoped to its owning profile. Deleting an unknown id — or
 /// another profile's task — is an error, not a silent no-op.
 pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    let task: Option<(Option<i64>, Option<String>)> =
+        sqlx::query_as("SELECT series_id, scheduled_date FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
     let result = sqlx::query("DELETE FROM tasks WHERE id = ? AND profile_id = ?")
         .bind(id)
         .bind(profile_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     if result.rows_affected() == 0 {
         return Err(task_not_found());
     }
+    // A deleted instance stays deleted: the tombstone keeps the board's
+    // materialization from recreating the still-scheduled occurrence.
+    if let Some((Some(series_id), Some(date))) = task {
+        sqlx::query(
+            "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date) VALUES (?, ?)",
+        )
+        .bind(series_id)
+        .bind(date)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -477,6 +541,58 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
          ORDER BY sort_order, id",
     )
     .bind(profile_id)
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Board listing (spec §312–§316): one week's tasks — the standing
+/// weekly backlog plus everything scheduled inside the week bounds.
+/// Reading a week materializes that week's series occurrences (spec
+/// §148/§342: boards prepopulate scheduled instances on view) — living
+/// series only, since segments are history and never produce new rows.
+/// Carry-over into the weekly backlog is a later plan item.
+pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result<Vec<Task>> {
+    crate::series::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
+    let week_start = crate::profiles::week_start(pool, profile_id).await?;
+    let (y, m, d) = crate::series::parse_iso(date);
+    let z = crate::series::days_from_civil(y, m, d);
+    // days_from_civil's epoch (1970-01-01) is a Thursday, so `z % 7`
+    // gives Sunday = 0; Weekday indexes Monday = 0.
+    let day_index = (z + 10).rem_euclid(7);
+    let start_z = z - (day_index - week_start.index()).rem_euclid(7);
+    let week_start_iso = crate::series::to_iso(crate::series::civil_from_days(start_z));
+    let week_end_iso = crate::series::to_iso(crate::series::civil_from_days(start_z + 6));
+
+    // Materialization covers every family row — living series and
+    // segments alike, each bounded by its own schedule window, since a
+    // midweek split leaves earlier occurrences on the segment. All
+    // inserts share one transaction: a failed board read must not leave
+    // a partially materialized week behind.
+    let series = crate::series::list(pool, profile_id).await?;
+    let mut tx = pool.begin().await?;
+    for s in &series {
+        for offset in 0..7 {
+            let iso = crate::series::to_iso(crate::series::civil_from_days(start_z + offset));
+            if !crate::series::occurs_on(&s.recurrence, &s.start_date, s.end_date.as_deref(), &iso)
+                || skipped_in_family(&mut tx, s.id, &iso).await?
+                || instance_in_family(&mut tx, profile_id, s.id, &iso).await?
+            {
+                continue;
+            }
+            insert_instance(&mut tx, profile_id, s, &iso).await?;
+        }
+    }
+    tx.commit().await?;
+
+    Ok(sqlx::query_as::<_, Task>(
+        "SELECT * FROM tasks WHERE profile_id = ? AND \
+         (placement = 'weekly_backlog' OR \
+          (scheduled_date IS NOT NULL AND scheduled_date BETWEEN ? AND ?)) \
+         ORDER BY scheduled_date, sort_order, id",
+    )
+    .bind(profile_id)
+    .bind(&week_start_iso)
+    .bind(&week_end_iso)
     .fetch_all(pool)
     .await?)
 }
@@ -522,6 +638,20 @@ pub async fn get_or_create_instance(
         });
     }
     let mut tx = pool.begin().await?;
+    let task = insert_instance(&mut tx, profile_id, &series, date).await?;
+    tx.commit().await?;
+    Ok(task)
+}
+
+/// Creates one instance row under `series` inside an open transaction —
+/// shared by the deliberate calendar pick above and the board's
+/// per-week materialization.
+async fn insert_instance(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    profile_id: i64,
+    series: &crate::series::TaskSeries,
+    date: &str,
+) -> Result<Task> {
     let result = sqlx::query(
         "INSERT INTO tasks (profile_id, title, description, estimated_minutes, \
          carry_over_rule, series_id, scheduled_date, sort_order) \
@@ -533,10 +663,10 @@ pub async fn get_or_create_instance(
     .bind(&series.description)
     .bind(series.estimated_minutes)
     .bind(series.carry_over_rule)
-    .bind(series_id)
+    .bind(series.id)
     .bind(date)
     .bind(profile_id)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
     let id = result.last_insert_rowid();
     sqlx::query(
@@ -544,11 +674,14 @@ pub async fn get_or_create_instance(
          SELECT ?, category_id FROM series_categories WHERE series_id = ?",
     )
     .bind(id)
-    .bind(series_id)
-    .execute(&mut *tx)
+    .bind(series.id)
+    .execute(&mut **tx)
     .await?;
-    tx.commit().await?;
-    get(pool, id).await
+    sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+        .bind(id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(Into::into)
 }
 
 /// Persisted instances of one series, oldest first — the details view's
@@ -613,6 +746,310 @@ mod tests {
         NewTask {
             title: title.to_string(),
             ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn list_week_materializes_and_filters_the_displayed_week() {
+        let (pool, pid) = seeded_pool().await;
+        create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                series: Some(crate::series::NewSeries {
+                    recurrence: serde_json::json!({
+                        "kind": "weekly",
+                        "interval_weeks": 1,
+                        "weekdays": ["monday"],
+                    }),
+                    start_date: DAILY_START.to_string(),
+                    end_date: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        // A weekly-backlog task and a task scheduled outside the week.
+        let weekly = create(&pool, pid, &task(TITLE_B)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'weekly_backlog' WHERE id = ?")
+            .bind(weekly.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let outside = create(&pool, pid, &task(TITLE_C)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
+            .bind("2026-11-10")
+            .bind(outside.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // The Monday instance materializes on view and is returned
+        // alongside the weekly backlog; the out-of-week task is not.
+        let tasks = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let titles: Vec<&str> = tasks.iter().map(|t| t.title.as_str()).collect();
+        assert!(titles.contains(&TITLE_A));
+        assert!(titles.contains(&TITLE_B));
+        assert!(!titles.contains(&TITLE_C));
+        let instance = tasks.iter().find(|t| t.title == TITLE_A).unwrap();
+        assert_eq!(instance.scheduled_date.as_deref(), Some(DAILY_START));
+
+        // A later week materializes that week's instance instead.
+        let next = list_week(&pool, pid, NEXT_WEEK).await.unwrap();
+        assert_eq!(
+            next.iter()
+                .filter(|t| t.series_id.is_some())
+                .map(|t| t.scheduled_date.as_deref())
+                .collect::<Vec<_>>(),
+            vec![Some(NEXT_WEEK)]
+        );
+    }
+
+    const DAILY_START: &str = "2026-10-19"; // a Monday
+
+    fn daily_series() -> crate::series::NewSeries {
+        crate::series::NewSeries {
+            recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+            start_date: DAILY_START.to_string(),
+            end_date: None,
+        }
+    }
+
+    async fn daily_task(pool: &SqlitePool, pid: i64) -> Task {
+        create(
+            pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                series: Some(daily_series()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap()
+    }
+
+    // Dates inside the Oct 19–25 week shared by the board tests, plus
+    // the neighbouring days just outside it.
+    const TUESDAY: &str = "2026-10-20";
+    const WEDNESDAY: &str = "2026-10-21";
+    const THURSDAY: &str = "2026-10-22";
+    const SATURDAY: &str = "2026-10-24";
+    const SUNDAY: &str = "2026-10-25";
+    const NEXT_WEEK: &str = "2026-10-26"; // the next week's Monday
+    const BEFORE_WEEK: &str = "2026-10-18"; // the previous week's Sunday
+
+    #[tokio::test]
+    async fn a_deleted_instance_is_not_resurrected_by_the_board() {
+        let (pool, pid) = seeded_pool().await;
+        daily_task(&pool, pid).await;
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        assert_eq!(week.iter().filter(|t| t.series_id.is_some()).count(), 7);
+        let victim = week
+            .iter()
+            .find(|t| t.scheduled_date.as_deref() == Some(WEDNESDAY))
+            .unwrap();
+
+        delete(&pool, pid, victim.id).await.unwrap();
+
+        // The occurrence is still scheduled but the deletion sticks.
+        let again = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let series_dates: Vec<Option<&str>> = again
+            .iter()
+            .filter(|t| t.series_id.is_some())
+            .map(|t| t.scheduled_date.as_deref())
+            .collect();
+        assert_eq!(series_dates.len(), 6);
+        assert!(!series_dates.contains(&Some(WEDNESDAY)));
+    }
+
+    #[tokio::test]
+    async fn a_deliberate_pick_can_recreate_a_deleted_instance() {
+        let (pool, pid) = seeded_pool().await;
+        let anchor = daily_task(&pool, pid).await;
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let victim = week
+            .iter()
+            .find(|t| t.scheduled_date.as_deref() == Some(WEDNESDAY))
+            .unwrap();
+        delete(&pool, pid, victim.id).await.unwrap();
+
+        // Picking the date again in the calendar is a deliberate
+        // re-creation — the tombstone only blocks passive board
+        // materialization.
+        let recreated = get_or_create_instance(&pool, pid, anchor.series_id.unwrap(), WEDNESDAY)
+            .await
+            .unwrap();
+        assert_eq!(recreated.scheduled_date.as_deref(), Some(WEDNESDAY));
+    }
+
+    #[tokio::test]
+    async fn list_week_materializes_earlier_segment_occurrences() {
+        let (pool, pid) = seeded_pool().await;
+        let anchor = daily_task(&pool, pid).await; // persists only Monday
+        // A this-and-future cut needs a persisted instance at the
+        // cutoff — materialize Wednesday first.
+        get_or_create_instance(&pool, pid, anchor.series_id.unwrap(), WEDNESDAY)
+            .await
+            .unwrap();
+        let series = crate::series::list(&pool, pid).await.unwrap();
+        // A midweek "this and future" cut: the living row owns
+        // Wednesday on, the segment keeps Monday–Tuesday.
+        crate::series::update_from(
+            &pool,
+            pid,
+            series[0].id,
+            WEDNESDAY,
+            &crate::series::UpdateSeries {
+                title: TITLE_A.to_string(),
+                description: None,
+                carry_over_rule: None,
+                estimated_minutes: None,
+                recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+                start_date: WEDNESDAY.to_string(),
+                end_date: None,
+                category_ids: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        let week = list_week(&pool, pid, THURSDAY).await.unwrap();
+        let dates: Vec<Option<&str>> = week
+            .iter()
+            .filter(|t| t.series_id.is_some())
+            .map(|t| t.scheduled_date.as_deref())
+            .collect();
+        // The unpersisted Tuesday materializes under the segment —
+        // without family-wide materialization it stays missing.
+        assert!(dates.contains(&Some(TUESDAY)));
+        assert_eq!(dates.len(), 7);
+    }
+
+    #[tokio::test]
+    async fn list_week_rejects_a_malformed_date() {
+        let (pool, pid) = seeded_pool().await;
+        let result = list_week(&pool, pid, "not-a-date").await;
+        assert!(matches!(
+            result,
+            Err(crate::db::DbError::Validation {
+                code: ErrorCode::InstanceDateInvalid,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn list_week_is_idempotent() {
+        let (pool, pid) = seeded_pool().await;
+        daily_task(&pool, pid).await;
+        let first = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let second = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        // Re-reading the week must not create duplicate instances.
+        assert_eq!(first.len(), second.len());
+        let ids: Vec<i64> = second.iter().map(|t| t.id).collect();
+        let mut dedup = ids.clone();
+        dedup.dedup();
+        assert_eq!(ids.len(), dedup.len());
+    }
+
+    #[tokio::test]
+    async fn list_week_anchors_bounds_on_the_configured_week_start() {
+        let (pool, pid) = seeded_pool().await;
+        // Wednesday week start: Oct 25 sits in the Oct 21–27 week, so a
+        // task on Sat Oct 24 is in range…
+        crate::profiles::set_week_start(&pool, pid, crate::series::Weekday::Wednesday)
+            .await
+            .unwrap();
+        let task = create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
+            .bind(SATURDAY)
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let week = list_week(&pool, pid, SUNDAY).await.unwrap();
+        assert!(week.iter().any(|t| t.id == task.id));
+        // …but a Monday-start view of the same date puts Oct 24 in the
+        // previous week and lists nothing.
+        crate::profiles::set_week_start(&pool, pid, crate::series::Weekday::Monday)
+            .await
+            .unwrap();
+        assert!(list_week(&pool, pid, NEXT_WEEK).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_non_series_task_writes_no_tombstone() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        delete(&pool, pid, task.id).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM skipped_instances")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn list_week_materializes_nothing_past_a_series_end() {
+        let (pool, pid) = seeded_pool().await;
+        create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                series: Some(crate::series::NewSeries {
+                    recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+                    start_date: DAILY_START.to_string(),
+                    end_date: Some(WEDNESDAY.to_string()),
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let dates: Vec<Option<&str>> = week
+            .iter()
+            .filter(|t| t.series_id.is_some())
+            .map(|t| t.scheduled_date.as_deref())
+            .collect();
+        // The window ends Wednesday — Thursday through Sunday stay empty.
+        assert_eq!(
+            dates,
+            vec![Some(DAILY_START), Some(TUESDAY), Some(WEDNESDAY)]
+        );
+    }
+
+    #[tokio::test]
+    async fn list_week_includes_the_week_edges_and_not_the_neighbours() {
+        const FOURTH: &str = "D";
+        let (pool, pid) = seeded_pool().await;
+        let fixtures = [
+            (TITLE_A, DAILY_START, true), // Monday — week start
+            (TITLE_B, SUNDAY, true),      // Sunday — week end
+            (TITLE_C, BEFORE_WEEK, false),
+            (FOURTH, NEXT_WEEK, false),
+        ];
+        for (title, date, _) in fixtures {
+            let task = create(&pool, pid, &task(title)).await.unwrap();
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?",
+            )
+            .bind(date)
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let dates: Vec<Option<&str>> = week.iter().map(|t| t.scheduled_date.as_deref()).collect();
+        for (_, date, expected) in fixtures {
+            assert_eq!(dates.contains(&Some(date)), expected, "date {date}");
         }
     }
 
@@ -827,8 +1264,6 @@ mod tests {
 
     // A Monday — the weekly fixture starts on a matching weekday so the
     // first instance lands on the start date itself.
-    const SCHEDULE_START: &str = "2026-10-19";
-
     fn weekly_schedule() -> crate::series::NewSeries {
         crate::series::NewSeries {
             recurrence: serde_json::to_value(crate::series::Recurrence::Weekly {
@@ -836,7 +1271,7 @@ mod tests {
                 weekdays: vec![crate::series::Weekday::Monday],
             })
             .unwrap(),
-            start_date: SCHEDULE_START.to_string(),
+            start_date: DAILY_START.to_string(),
             end_date: None,
         }
     }
@@ -866,7 +1301,7 @@ mod tests {
         assert_eq!(task.carry_over_rule, Some(CarryOverRule::Return));
         assert_eq!(series_list[0].carry_over_rule, CarryOverRule::Return);
         // The first instance occupies the series start date.
-        assert_eq!(task.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        assert_eq!(task.scheduled_date.as_deref(), Some(DAILY_START));
     }
 
     #[tokio::test]
@@ -879,7 +1314,7 @@ mod tests {
             weekdays: vec![crate::series::Weekday::Wednesday],
         })
         .unwrap();
-        schedule.end_date = Some(SCHEDULE_START.to_string());
+        schedule.end_date = Some(DAILY_START.to_string());
 
         let err = create(
             &pool,
@@ -922,7 +1357,7 @@ mod tests {
         let sid = first.series_id.unwrap();
         // A second, later instance of the same series, and an unrelated
         // task that must not leak in. The first instance is dated by create.
-        assert_eq!(first.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        assert_eq!(first.scheduled_date.as_deref(), Some(DAILY_START));
         sqlx::query(
             "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, sort_order) \
              VALUES (?, ?, ?, '2026-10-26', ?)",
@@ -992,7 +1427,7 @@ mod tests {
         assert_eq!(updated.sort_order, existing.sort_order);
         assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
         // The existing task becomes the start date's instance.
-        assert_eq!(updated.scheduled_date.as_deref(), Some(SCHEDULE_START));
+        assert_eq!(updated.scheduled_date.as_deref(), Some(DAILY_START));
     }
 
     #[tokio::test]
@@ -1092,10 +1527,6 @@ mod tests {
     mod instance_materialization {
         use super::*;
 
-        const SERIES_START: &str = "2026-10-19"; // a Monday
-        const SCHEDULED: &str = "2026-10-26"; // the next Monday
-        const UNSCHEDULED: &str = "2026-10-21"; // a Wednesday
-
         fn weekly_series() -> crate::series::NewSeries {
             crate::series::NewSeries {
                 recurrence: serde_json::json!({
@@ -1103,7 +1534,7 @@ mod tests {
                     "interval_weeks": 1,
                     "weekdays": ["monday"],
                 }),
-                start_date: SERIES_START.to_string(),
+                start_date: DAILY_START.to_string(),
                 end_date: None,
             }
         }
@@ -1136,13 +1567,13 @@ mod tests {
             let first = repeating_task(&pool, pid).await;
             let series_id = first.series_id.unwrap();
 
-            let created = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let created = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
 
             assert_ne!(created.id, first.id);
             assert_eq!(created.series_id, Some(series_id));
-            assert_eq!(created.scheduled_date.as_deref(), Some(SCHEDULED));
+            assert_eq!(created.scheduled_date.as_deref(), Some(NEXT_WEEK));
             // The series' shared fields carry over; per-instance state
             // starts fresh.
             assert_eq!(created.title, TITLE_A);
@@ -1158,10 +1589,10 @@ mod tests {
             let first = repeating_task(&pool, pid).await;
             let series_id = first.series_id.unwrap();
 
-            let a = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let a = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
-            let b = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let b = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
 
@@ -1180,7 +1611,7 @@ mod tests {
 
             // The series' own first occurrence already has a row — the
             // call must hand it back untouched, not duplicate it.
-            let same = get_or_create_instance(&pool, pid, series_id, SERIES_START)
+            let same = get_or_create_instance(&pool, pid, series_id, DAILY_START)
                 .await
                 .unwrap();
 
@@ -1196,7 +1627,7 @@ mod tests {
             let (pool, pid) = seeded_pool().await;
             let first = repeating_task(&pool, pid).await;
 
-            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), UNSCHEDULED)
+            let err = get_or_create_instance(&pool, pid, first.series_id.unwrap(), WEDNESDAY)
                 .await
                 .unwrap_err();
 
@@ -1219,7 +1650,7 @@ mod tests {
                 &NewTask {
                     title: TITLE_A.to_string(),
                     series: Some(crate::series::NewSeries {
-                        end_date: Some(SCHEDULED.to_string()),
+                        end_date: Some(NEXT_WEEK.to_string()),
                         ..weekly_series()
                     }),
                     ..Default::default()
@@ -1253,7 +1684,7 @@ mod tests {
             let first = repeating_task(&pool, pid).await;
             let other = crate::profiles::create(&pool, "Work").await.unwrap();
 
-            let err = get_or_create_instance(&pool, other.id, first.series_id.unwrap(), SCHEDULED)
+            let err = get_or_create_instance(&pool, other.id, first.series_id.unwrap(), NEXT_WEEK)
                 .await
                 .unwrap_err();
 
@@ -1283,7 +1714,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let created = get_or_create_instance(&pool, pid, series_id, SCHEDULED)
+            let created = get_or_create_instance(&pool, pid, series_id, NEXT_WEEK)
                 .await
                 .unwrap();
 

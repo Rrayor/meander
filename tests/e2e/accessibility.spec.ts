@@ -79,6 +79,8 @@ test("the board page has no WCAG AA violations", async ({ page }) => {
     [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
     [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [],
   });
   await page.goto("/");
 

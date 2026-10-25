@@ -196,7 +196,7 @@ fn is_leap_year(year: u32) -> bool {
 
 // Civil-calendar arithmetic (Hinnant's algorithms) — enough to walk dates
 // without pulling in chrono. Inputs are dates `iso_date` already accepted.
-fn parse_iso(raw: &str) -> (u32, u32, u32) {
+pub(crate) fn parse_iso(raw: &str) -> (u32, u32, u32) {
     (
         raw[0..4].parse().unwrap_or(0),
         raw[5..7].parse().unwrap_or(0),
@@ -204,11 +204,11 @@ fn parse_iso(raw: &str) -> (u32, u32, u32) {
     )
 }
 
-fn to_iso((y, m, d): (u32, u32, u32)) -> String {
+pub(crate) fn to_iso((y, m, d): (u32, u32, u32)) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-fn days_from_civil(y: u32, m: u32, d: u32) -> i64 {
+pub(crate) fn days_from_civil(y: u32, m: u32, d: u32) -> i64 {
     let y = i64::from(y) - i64::from(m <= 2);
     let era = y.div_euclid(400);
     let yoe = y.rem_euclid(400);
@@ -218,7 +218,7 @@ fn days_from_civil(y: u32, m: u32, d: u32) -> i64 {
     era * 146097 + doe - 719468
 }
 
-fn civil_from_days(z: i64) -> (u32, u32, u32) {
+pub(crate) fn civil_from_days(z: i64) -> (u32, u32, u32) {
     let z = z + 719468;
     let era = z.div_euclid(146097);
     let doe = z.rem_euclid(146097);

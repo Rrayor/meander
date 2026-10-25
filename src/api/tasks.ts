@@ -7,6 +7,9 @@ export type { NewTask, Task, UpdateTask };
 
 export const listTasks = () => transport.invoke<Task[]>(COMMANDS.listTasks);
 
+export const listWeekTasks = (date: string) =>
+  transport.invoke<Task[]>(COMMANDS.listWeekTasks, { date });
+
 export const MAX_TASK_TITLE_LENGTH = 200;
 
 // Spec: an estimate is optional, but when present it is a positive value of at

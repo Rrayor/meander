@@ -160,6 +160,9 @@ export function BacklogPage() {
     }) => moveTask(taskId, beforeId, afterId),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
     },
   });
 
@@ -167,6 +170,9 @@ export function BacklogPage() {
     mutationFn: deleteTask,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
     },
   });
   const { data: profile } = useQuery({

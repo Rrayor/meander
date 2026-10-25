@@ -257,5 +257,21 @@ export const INSTANCE_MATERIALIZING_MESSAGE = "Opening this instance…";
 
 export const TASK_CARD_LABEL = (title: string) => `Task: ${title}`;
 export const BOARD_HEADING = "Board";
-export const BOARD_PREVIEW_NOTE =
-  "Your weekly board will appear here — this card previews its task card.";
+export const WEEKLY_BACKLOG_LABEL = "Weekly backlog";
+export const taskCountLabel = (count: number) =>
+  `${count} ${count === 1 ? "task" : "tasks"}`;
+export const dayTotalsLabel = (estimated: number, spent: number) =>
+  `${formatMinutes(estimated)} est · ${formatMinutes(spent)} spent`;
+// Short date like "Oct 20" — board column headers and the week range.
+export const shortDateLabel = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+export const boardWeekRangeLabel = (start: string, end: string) =>
+  `${shortDateLabel(start)} – ${shortDateLabel(end)}`;
+// Short weekday like "Mon" — board column headers.
+export const shortWeekdayLabel = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "short",
+  });

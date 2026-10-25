@@ -31,6 +31,7 @@ pub fn run() {
             commands::select_database_file,
             commands::list_profiles,
             commands::list_tasks,
+            commands::list_week_tasks,
             commands::list_categories,
             commands::create_category,
             commands::update_category,
