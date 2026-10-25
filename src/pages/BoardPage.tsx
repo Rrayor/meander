@@ -102,6 +102,9 @@ export function BoardPage() {
         <table className="w-full min-w-[1200px] border-separate border-spacing-2">
           <thead>
             <tr>
+              {/* Corner cell — keeps the day headers aligned with the
+                  rowheader + 8 data cells of the body rows. */}
+              <td className="w-12" />
               {columns.map((column) => {
                 const day = totals(columnTasks(column));
                 return (
@@ -129,7 +132,7 @@ export function BoardPage() {
               <tr key={status}>
                 <th
                   scope="row"
-                  className="w-12 align-top text-xs font-medium uppercase tracking-wide text-text-muted"
+                  className="w-12 rounded-md bg-surface/40 align-middle text-xs font-medium uppercase tracking-wide text-text-muted"
                 >
                   {STATUS_LABELS[status]}
                 </th>
@@ -138,7 +141,10 @@ export function BoardPage() {
                     (t) => t.status === status,
                   );
                   return (
-                    <td key={column ?? "weekly-backlog"} className="align-top">
+                    <td
+                      key={column ?? "weekly-backlog"}
+                      className="rounded-md bg-surface/40 align-top"
+                    >
                       {cell.length > 0 && (
                         <ul className="flex flex-col gap-2">
                           {cell.map((task) => (

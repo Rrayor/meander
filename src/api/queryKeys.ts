@@ -7,6 +7,9 @@ export const QUERY_KEYS = {
   workDays: ["work-days"],
   dbPath: ["db-path"],
   tasks: ["tasks"],
+  // Prefix key: invalidating it refreshes the board whatever week it
+  // shows — task mutations (status, edits, deletes) must reach it.
+  boardWeeks: ["board-week"],
   boardWeek: (start: string) => ["board-week", start],
   categories: ["categories"],
   // Prefix key: invalidating it covers every task's association list, e.g.

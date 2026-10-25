@@ -667,6 +667,7 @@ function invalidateSeriesQueries(
 ) {
   for (const key of [
     QUERY_KEYS.tasks,
+    QUERY_KEYS.boardWeeks,
     QUERY_KEYS.taskSeries,
     QUERY_KEYS.seriesInstances(viewedSeriesId!),
     QUERY_KEYS.seriesCategories(livingSeriesId!),
@@ -1388,6 +1389,9 @@ export function EditTaskDialog({
       // Also on failure: update_task may have committed before a category
       // association rejected, so the list must reflect what was saved.
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.taskCategories(viewed.id),
       });

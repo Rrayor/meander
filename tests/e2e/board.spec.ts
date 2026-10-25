@@ -2,18 +2,21 @@ import { COMMANDS } from "@/api/commands";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
+  EDIT_BUTTON_LABEL,
+  SAVE_BUTTON_LABEL,
   WEEKLY_BACKLOG_LABEL,
   STATUS_LABELS,
   boardWeekRangeLabel,
   dayTotalsLabel,
   editTaskLabel,
+  shortDateLabel,
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
 import { todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
-import { stubTauriCommands } from "./stubs";
+import { stubSequence, stubTauriCommands } from "./stubs";
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
@@ -101,6 +104,87 @@ test("the board renders the weekly backlog, day columns, and state rows", async 
   ).toBeVisible();
   await expect(
     page.getByText(`${taskCountLabel(2)} · ${dayTotalsLabel(120, 30)}`),
+  ).toBeVisible();
+});
+
+// The header row has a corner cell so each day header sits over its own
+// data column — a card must render in the cell under the header naming
+// its scheduled day, not the adjacent one.
+test("a card renders in the cell under its day's column header", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toBeVisible();
+  const dayLabel = `${shortWeekdayLabel(days[0])} ${shortDateLabel(days[0])}`;
+  const alignment = await page.evaluate(
+    ({ dayLabel, cardLabel }) => {
+      const header = [
+        ...document.querySelectorAll<HTMLTableCellElement>("thead tr th"),
+      ].find((th) => th.textContent?.includes(dayLabel));
+      const cell = document
+        .querySelector<HTMLButtonElement>(`button[aria-label="${cardLabel}"]`)
+        ?.closest("td");
+      return { headerIndex: header?.cellIndex, cellIndex: cell?.cellIndex };
+    },
+    { dayLabel, cardLabel: editTaskLabel(mondayTask.title) },
+  );
+  expect(alignment.cellIndex).toBe(alignment.headerIndex);
+});
+
+// A status change through the details view must refresh the board —
+// the card moves rows without leaving the page.
+test("a status edit moves the card to the matching row", async ({ page }) => {
+  const boardTask = { ...mondayTask, status: TaskStatus.Todo };
+  const progressed = { ...mondayTask, status: TaskStatus.Done };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: stubSequence([
+      [backlogTask, boardTask],
+      [backlogTask, progressed],
+    ]),
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.updateTask]: progressed,
+  });
+  await page.goto("/");
+
+  const todoRow = page.getByRole("row").filter({
+    has: page.getByRole("rowheader", {
+      name: STATUS_LABELS[TaskStatus.Todo],
+    }),
+  });
+  await expect(
+    todoRow.getByRole("button", {
+      name: editTaskLabel(boardTask.title),
+    }),
+  ).toBeVisible();
+
+  const dialog = page.getByRole("dialog");
+  await page
+    .getByRole("button", { name: editTaskLabel(boardTask.title) })
+    .click();
+  await dialog.getByRole("button", { name: EDIT_BUTTON_LABEL }).click();
+  await dialog
+    .getByRole("radio", { name: STATUS_LABELS[TaskStatus.Done] })
+    .click();
+  await dialog.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const doneRow = page.getByRole("row").filter({
+    has: page.getByRole("rowheader", {
+      name: STATUS_LABELS[TaskStatus.Done],
+    }),
+  });
+  await expect(
+    doneRow.getByRole("button", { name: editTaskLabel(boardTask.title) }),
   ).toBeVisible();
 });
 
