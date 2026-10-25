@@ -4,6 +4,7 @@ import {
   BOARD_HEADING,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_THIS_WEEK_LABEL,
   EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   WEEKLY_BACKLOG_LABEL,
@@ -270,4 +271,24 @@ test("the previous-week arrow shows a past board without the weekly backlog", as
     page.getByText(boardWeekRangeLabel(prior[0], prior[6])),
   ).toBeVisible();
   await expect(next).toBeEnabled();
+});
+
+test("This week jumps straight back to the current board", async ({ page }) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const backlog = page.getByRole("columnheader", {
+    name: new RegExp(WEEKLY_BACKLOG_LABEL),
+  });
+  const thisWeek = page.getByRole("button", { name: BOARD_THIS_WEEK_LABEL });
+  await expect(backlog).toBeVisible();
+  await expect(thisWeek).toBeDisabled();
+
+  await page.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }).click();
+  await expect(backlog).toBeHidden();
+  await expect(thisWeek).toBeEnabled();
+
+  await thisWeek.click();
+  await expect(backlog).toBeVisible();
+  await expect(thisWeek).toBeDisabled();
 });

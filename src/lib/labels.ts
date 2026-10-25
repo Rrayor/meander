@@ -260,6 +260,7 @@ export const BOARD_HEADING = "Board";
 export const WEEKLY_BACKLOG_LABEL = "Weekly backlog";
 export const BOARD_PREVIOUS_WEEK_LABEL = "Previous week";
 export const BOARD_NEXT_WEEK_LABEL = "Next week";
+export const BOARD_THIS_WEEK_LABEL = "This week";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;
 export const dayTotalsLabel = (estimated: number, spent: number) =>

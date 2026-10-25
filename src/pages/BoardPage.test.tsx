@@ -10,6 +10,7 @@ import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_THIS_WEEK_LABEL,
   STATUS_LABELS,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -288,6 +289,36 @@ describe("BoardPage", () => {
     expect(
       screen.getByText(boardWeekRangeLabel(prior[0], prior[6])),
     ).toBeInTheDocument();
+  });
+
+  it("jumps straight back to the current week via This week", async () => {
+    renderBoard();
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+    const thisWeek = screen.getByRole("button", {
+      name: BOARD_THIS_WEEK_LABEL,
+    });
+    expect(thisWeek).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: BOARD_PREVIOUS_WEEK_LABEL }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("columnheader", {
+          name: new RegExp(WEEKLY_BACKLOG_LABEL),
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(thisWeek).toBeEnabled();
+
+    fireEvent.click(thisWeek);
+
+    await screen.findByRole("columnheader", {
+      name: new RegExp(WEEKLY_BACKLOG_LABEL),
+    });
+    expect(thisWeek).toBeDisabled();
   });
 
   it("steps forward again and the weekly backlog reappears", async () => {

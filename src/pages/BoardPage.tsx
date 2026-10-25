@@ -15,6 +15,7 @@ import {
   STATUS_LABELS,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_THIS_WEEK_LABEL,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
   dayTotalsLabel,
@@ -118,6 +119,14 @@ export function BoardPage() {
             className="flex h-7 w-7 items-center justify-center rounded text-text-muted transition-colors hover:bg-surface-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ChevronRight size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnchor(todayIso)}
+            disabled={isCurrentWeek}
+            className="rounded px-space-md py-1 text-sm font-medium text-text transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {BOARD_THIS_WEEK_LABEL}
           </button>
         </div>
         <p className="text-sm text-text-muted">
