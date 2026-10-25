@@ -2744,6 +2744,70 @@ fn scheduled_task(world: &mut MeanderWorld, title: String, date: String) {
         .expect("scheduling failed");
 }
 
+#[given(expr = "a task titled {word} scheduled for today")]
+fn scheduled_task_today(world: &mut MeanderWorld, title: String) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', \
+                 scheduled_date = date('now', 'localtime') \
+                 WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("scheduling failed");
+}
+
+#[given(expr = "a task titled {word} scheduled {int} days from today")]
+fn scheduled_task_days_from_today(world: &mut MeanderWorld, title: String, days: i64) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', \
+                 scheduled_date = date('now', 'localtime', ? || ' days') \
+                 WHERE profile_id = ? AND title = ?",
+            )
+            .bind(format!("+{days}"))
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("scheduling failed");
+}
+
+#[then(expr = "the board lists {word} on today")]
+fn board_lists_on_today(world: &mut MeanderWorld, title: String) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    let scheduled = tasks
+        .iter()
+        .find(|t| t.title == title)
+        .unwrap_or_else(|| panic!("task {title} not on the board"))
+        .scheduled_date
+        .clone();
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let today: String = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar("SELECT date('now', 'localtime')")
+                .fetch_one(&pool)
+                .await
+        })
+        .expect("today lookup failed");
+    assert_eq!(scheduled.as_deref(), Some(today.as_str()));
+}
+
 #[when(expr = "I view the board for the week containing {string}")]
 fn view_board_week(world: &mut MeanderWorld, date: String) {
     let (pool, id) = active_profile_pool(world);

@@ -793,6 +793,17 @@ mod tests {
     #[tokio::test]
     async fn list_week_materializes_and_filters_the_displayed_week() {
         let (pool, pid) = seeded_pool().await;
+        // Dates relative to the real current week — the weekly backlog
+        // only renders on the current board (spec §348), so fixed
+        // fixture dates would expire at the week boundary.
+        let today_z: i64 = sqlx::query_scalar(
+            "SELECT CAST(julianday(date('now', 'localtime')) - 2440587.5 AS INTEGER)",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let monday = today_z - (today_z + 3).rem_euclid(7);
+        let iso = |z: i64| crate::series::to_iso(crate::series::civil_from_days(z));
         create(
             &pool,
             pid,
@@ -804,7 +815,7 @@ mod tests {
                         "interval_weeks": 1,
                         "weekdays": ["monday"],
                     }),
-                    start_date: DAILY_START.to_string(),
+                    start_date: iso(monday),
                     end_date: None,
                 }),
                 ..Default::default()
@@ -821,7 +832,7 @@ mod tests {
             .unwrap();
         let outside = create(&pool, pid, &task(TITLE_C)).await.unwrap();
         sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
-            .bind("2026-11-10")
+            .bind(iso(monday + 7))
             .bind(outside.id)
             .execute(&pool)
             .await
@@ -829,22 +840,25 @@ mod tests {
 
         // The Monday instance materializes on view and is returned
         // alongside the weekly backlog; the out-of-week task is not.
-        let tasks = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let tasks = list_week(&pool, pid, &iso(today_z)).await.unwrap();
         let titles: Vec<&str> = tasks.iter().map(|t| t.title.as_str()).collect();
         assert!(titles.contains(&TITLE_A));
         assert!(titles.contains(&TITLE_B));
         assert!(!titles.contains(&TITLE_C));
         let instance = tasks.iter().find(|t| t.title == TITLE_A).unwrap();
-        assert_eq!(instance.scheduled_date.as_deref(), Some(DAILY_START));
+        assert_eq!(
+            instance.scheduled_date.as_deref(),
+            Some(iso(monday).as_str())
+        );
 
         // A later week materializes that week's instance instead.
-        let next = list_week(&pool, pid, NEXT_WEEK).await.unwrap();
+        let next = list_week(&pool, pid, &iso(monday + 7)).await.unwrap();
         assert_eq!(
             next.iter()
                 .filter(|t| t.series_id.is_some())
                 .map(|t| t.scheduled_date.as_deref())
                 .collect::<Vec<_>>(),
-            vec![Some(NEXT_WEEK)]
+            vec![Some(iso(monday + 7).as_str())]
         );
     }
 
