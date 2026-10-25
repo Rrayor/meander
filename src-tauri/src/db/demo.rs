@@ -56,6 +56,11 @@ fn week_start_of(z: i64, week_start: i64) -> i64 {
     z - ((z + 3).rem_euclid(7) - week_start).rem_euclid(7)
 }
 
+/// The first `weekday` (Monday = 0) on or after ordinal `z`.
+fn next_weekday(z: i64, weekday: i64) -> i64 {
+    z + (weekday - (z + 3).rem_euclid(7)).rem_euclid(7)
+}
+
 fn iso_of(z: i64) -> String {
     crate::series::to_iso(crate::series::civil_from_days(z))
 }
@@ -102,7 +107,7 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
     // instances (inherit title, estimate, carry-over, categories) and
     // finished ones are marked done so historical boards don't show a
     // backlog of open reviews.
-    let first_friday = oldest + 4;
+    let first_friday = next_weekday(oldest, crate::series::Weekday::Friday.index());
     let series = sqlx::query(
         "INSERT INTO task_series (profile_id, title, carry_over_rule, estimated_minutes,          recurrence, start_date) VALUES (?, ?, ?, ?, ?, ?)",
     )
@@ -265,6 +270,18 @@ mod tests {
         assert_eq!(week_start_of(friday, 1), monday - 6);
         // Saturday start → Friday belongs to the previous week.
         assert_eq!(week_start_of(friday, 5), monday - 9);
+    }
+
+    #[test]
+    fn first_seeded_review_lands_on_a_real_friday() {
+        // Whatever the configured week start is, the first review must
+        // be an actual Friday (weekday index 4), or the board's Friday
+        // materialization would duplicate it.
+        let monday = crate::series::days_from_civil(2026, 10, 26);
+        for week_start in 0..7 {
+            let first = next_weekday(week_start_of(monday, week_start) - 11 * 7, 4);
+            assert_eq!((first + 3) % 7, 4, "week_start {week_start}");
+        }
     }
 
     #[tokio::test]
