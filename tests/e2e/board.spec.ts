@@ -16,7 +16,7 @@ import {
 import { todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
-import { stubSequence, stubTauriCommands } from "./stubs";
+import { stubError, stubSequence, stubTauriCommands } from "./stubs";
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
@@ -227,4 +227,20 @@ test("the board orders columns from the configured week start", async ({
   await expect(headers.nth(7)).toContainText(
     shortWeekdayLabel(wednesdayDays[6]),
   );
+});
+
+test("a failed board read surfaces an error alert", async ({ page }) => {
+  const message = "the week listing failed";
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.listWeekTasks]: stubError(message),
+    [COMMANDS.listTaskCategories]: [],
+  });
+  await page.goto("/");
+
+  await expect(page.getByRole("alert")).toContainText(message);
 });

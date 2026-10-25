@@ -2755,7 +2755,7 @@ fn view_board_week(world: &mut MeanderWorld, date: String) {
     }
 }
 
-#[then(expr = "the board lists {int} tasks")]
+#[then(expr = "the board lists {int} task(s)")]
 fn board_lists_n(world: &mut MeanderWorld, n: i32) {
     let tasks = world.board_tasks.as_ref().expect("no board read in world");
     assert_eq!(tasks.len() as i32, n, "board tasks: {tasks:?}");
@@ -2814,4 +2814,26 @@ fn delete_instance(world: &mut MeanderWorld, date: String, title: String) {
 #[then("the board read fails")]
 fn board_read_failed(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "board read unexpectedly succeeded");
+}
+
+#[given(expr = "a task scheduled for {string} exists on a second profile")]
+fn scheduled_task_on_second_profile(world: &mut MeanderWorld, date: String) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let other = world
+        .rt()
+        .block_on(meander_lib::profiles::create(&pool, SECOND_PROFILE_NAME))
+        .expect("create profile failed");
+    world.profile_id = Some(other.id);
+    world
+        .rt()
+        .block_on(
+            sqlx::query(
+                "INSERT INTO tasks (profile_id, title, placement, scheduled_date) \
+                 VALUES (?, 'Other task', 'scheduled', ?)",
+            )
+            .bind(other.id)
+            .bind(&date)
+            .execute(&pool),
+        )
+        .expect("insert scheduled task failed");
 }

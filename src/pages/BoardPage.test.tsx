@@ -220,6 +220,14 @@ describe("BoardPage", () => {
     ).toHaveLength(2);
   });
 
+  it("surfaces the board read error in an alert", async () => {
+    const message = "the week listing failed";
+    mockedListWeekTasks.mockRejectedValue(new Error(message));
+    renderBoard();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  });
+
   it("opens the task details dialog from a card", async () => {
     renderBoard();
 

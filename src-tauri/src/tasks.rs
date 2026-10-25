@@ -1054,6 +1054,102 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_week_never_leaks_or_materializes_for_another_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other = crate::profiles::create(&pool, "second").await.unwrap().id;
+        daily_task(&pool, other).await; // foreign series
+        let foreign = create(&pool, other, &task(TITLE_A)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
+            .bind(WEDNESDAY)
+            .bind(foreign.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // The board only lists the active profile's tasks — and reading
+        // it must not materialize instances for the other profile.
+        assert!(list_week(&pool, pid, WEDNESDAY).await.unwrap().is_empty());
+        let foreign_tasks: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND series_id IS NOT NULL",
+        )
+        .bind(other)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(foreign_tasks, 1, "foreign series materialized anyway");
+    }
+
+    #[tokio::test]
+    async fn a_deleted_segment_instance_stays_deleted() {
+        let (pool, pid) = seeded_pool().await;
+        let anchor = daily_task(&pool, pid).await;
+        get_or_create_instance(&pool, pid, anchor.series_id.unwrap(), WEDNESDAY)
+            .await
+            .unwrap();
+        let series = crate::series::list(&pool, pid).await.unwrap();
+        crate::series::update_from(
+            &pool,
+            pid,
+            series[0].id,
+            WEDNESDAY,
+            &crate::series::UpdateSeries {
+                title: TITLE_A.to_string(),
+                description: None,
+                carry_over_rule: None,
+                estimated_minutes: None,
+                recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+                start_date: WEDNESDAY.to_string(),
+                end_date: None,
+                category_ids: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        // Deleting the segment's Tuesday instance tombstones it —
+        // family-wide, so the board cannot recreate it from either row.
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let victim = week
+            .iter()
+            .find(|t| t.scheduled_date.as_deref() == Some(TUESDAY))
+            .unwrap();
+        assert_ne!(victim.series_id, anchor.series_id);
+        delete(&pool, pid, victim.id).await.unwrap();
+
+        let again = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        assert!(
+            !again
+                .iter()
+                .any(|t| t.scheduled_date.as_deref() == Some(TUESDAY))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_recreated_instance_shows_on_the_board_again() {
+        let (pool, pid) = seeded_pool().await;
+        let anchor = daily_task(&pool, pid).await;
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let victim = week
+            .iter()
+            .find(|t| t.scheduled_date.as_deref() == Some(WEDNESDAY))
+            .unwrap();
+        delete(&pool, pid, victim.id).await.unwrap();
+
+        get_or_create_instance(&pool, pid, anchor.series_id.unwrap(), WEDNESDAY)
+            .await
+            .unwrap();
+
+        let again = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        // The persisted row wins over the tombstone — the deliberate
+        // re-pick is visible again.
+        assert!(
+            again
+                .iter()
+                .any(|t| t.scheduled_date.as_deref() == Some(WEDNESDAY))
+        );
+    }
+
+    #[tokio::test]
     async fn move_without_anchors_keeps_position() {
         let (pool, pid) = seeded_pool().await;
         create(&pool, pid, &task(TITLE_A)).await.unwrap();

@@ -42,3 +42,9 @@ Feature: Weekly kanban board
     Given an application state on a temporary seeded database
     When I view the board for the week containing "not-a-date"
     Then the board read fails
+
+  Scenario: the board never lists another profile's tasks
+    Given an application state on a temporary seeded database
+    And a task scheduled for "2026-10-21" exists on a second profile
+    When I view the board for the week containing "2026-10-21"
+    Then the board lists 0 tasks
