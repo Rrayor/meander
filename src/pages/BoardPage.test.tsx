@@ -18,6 +18,8 @@ import {
 } from "@/api/tasks";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
+  CARRY_OVER_APPLY_LABEL,
+  CARRY_OVER_CARRY_LABEL,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
@@ -406,9 +408,11 @@ describe("BoardPage", () => {
     });
     expect(within(prompt).getByText("Leftover")).toBeInTheDocument();
 
-    fireEvent.click(within(prompt).getByRole("button", { name: "Carry over" }));
     fireEvent.click(
-      within(prompt).getByRole("button", { name: "Apply decisions" }),
+      within(prompt).getByRole("button", { name: CARRY_OVER_CARRY_LABEL }),
+    );
+    fireEvent.click(
+      within(prompt).getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
     );
     await waitFor(() =>
       expect(mockedResolveCarryOver).toHaveBeenCalledWith(stray.id, "carry"),
@@ -436,9 +440,11 @@ describe("BoardPage", () => {
     const prompt = await screen.findByRole("dialog", {
       name: /week started/i,
     });
-    fireEvent.click(within(prompt).getByRole("button", { name: "Carry over" }));
     fireEvent.click(
-      within(prompt).getByRole("button", { name: "Apply decisions" }),
+      within(prompt).getByRole("button", { name: CARRY_OVER_CARRY_LABEL }),
+    );
+    fireEvent.click(
+      within(prompt).getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
     );
     // The refetched board shows the carried card under Weekly backlog.
     await waitFor(() =>

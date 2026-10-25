@@ -639,16 +639,25 @@ async fn current_week_contains(
 /// rule — carry joins the standing weekly backlog, return goes back to
 /// the global backlog; both leave their old date behind. Unset rules
 /// stay put — they surface via `pending_carry_over` for the user
-/// prompt. Series instances keep their dates either way: a "returned"
-/// instance stays as recorded history on the past board rather than
-/// duplicating the anchor's backlog presence.
+/// prompt. A carried series instance moves like a standalone task but
+/// first tombstones its old occurrence — otherwise the past board's
+/// materialization would recreate a duplicate with none of its
+/// progress. A returned instance keeps its date instead: recorded
+/// history on the past board, while the anchor owns the backlog.
 async fn apply_carry_over(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     profile_id: i64,
     week_start_iso: &str,
 ) -> Result<()> {
     sqlx::query(
-        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry' AND series_id IS NULL",
+        "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date)          SELECT series_id, scheduled_date FROM tasks          WHERE profile_id = ? AND series_id IS NOT NULL          AND scheduled_date < ? AND status != 'done' AND carry_over_rule = 'carry'",
+    )
+    .bind(profile_id)
+    .bind(week_start_iso)
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query(
+        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE profile_id = ? AND scheduled_date < ?          AND status != 'done' AND carry_over_rule = 'carry'",
     )
     .bind(profile_id)
     .bind(week_start_iso)
@@ -1376,10 +1385,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_carried_series_instance_keeps_its_past_date_too() {
-        // Instances are never carry-over subjects — clearing a carried
-        // instance's date would make the past board re-materialize that
-        // occurrence as a fresh duplicate.
+    async fn a_carried_series_instance_moves_with_a_tombstone() {
+        // Carry moves the instance to the weekly backlog — progress and
+        // notes travel with the row — and tombstones the old occurrence
+        // so the past board never re-materializes a duplicate.
         let (pool, pid) = seeded_pool().await;
         let start: String = sqlx::query_scalar("SELECT date('now', 'localtime', '-30 days')")
             .fetch_one(&pool)
@@ -1412,24 +1421,18 @@ mod tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        list_week(&pool, pid, &today).await.unwrap();
-        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
-            .bind(instance.id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(row.scheduled_date.as_deref(), Some(past.as_str()));
-        // …and the past board still shows exactly that instance on its
-        // date — no rematerialized duplicate.
-        let week = list_week(&pool, pid, &past).await.unwrap();
-        let at_date: Vec<&Task> = week
-            .iter()
-            .filter(|t| {
-                t.series_id == row.series_id && t.scheduled_date.as_deref() == Some(past.as_str())
-            })
-            .collect();
-        assert_eq!(at_date.len(), 1);
-        assert_eq!(at_date[0].id, row.id);
+        let week = list_week(&pool, pid, &today).await.unwrap();
+        let carried = week.iter().find(|t| t.id == instance.id).unwrap();
+        assert_eq!(carried.placement, TaskPlacement::WeeklyBacklog);
+        assert!(carried.scheduled_date.is_none());
+        // The past board shows no row at that date — the tombstone keeps
+        // materialization from recreating the moved occurrence.
+        let past_week = list_week(&pool, pid, &past).await.unwrap();
+        assert!(
+            !past_week.iter().any(|t| t.series_id == carried.series_id
+                && t.scheduled_date.as_deref() == Some(past.as_str())),
+            "carried occurrence reappeared on the past board"
+        );
     }
 
     #[tokio::test]
