@@ -1,4 +1,6 @@
-import type { Category, Task } from "@/api/bindings";
+import { DEFAULT_CATEGORY_COLOR } from "@/api/categories";
+import type { Category } from "@/api/categories";
+import type { Task } from "@/api/bindings";
 import { TaskCard } from "@/features/tasks/TaskCard";
 import { BOARD_HEADING, BOARD_PREVIEW_NOTE } from "@/lib/labels";
 
@@ -26,7 +28,7 @@ const exampleCategories: Category[] = [
     profile_id: 0,
     title: "Work",
     description: null,
-    color: "#2DD4BF",
+    color: DEFAULT_CATEGORY_COLOR,
     created_at: "2026-10-01 08:00:00",
     updated_at: "2026-10-01 08:00:00",
   },
