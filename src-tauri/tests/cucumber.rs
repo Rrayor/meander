@@ -2810,3 +2810,8 @@ fn delete_instance(world: &mut MeanderWorld, date: String, title: String) {
         world.error = Some(e.to_string());
     }
 }
+
+#[then("the board read fails")]
+fn board_read_failed(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "board read unexpectedly succeeded");
+}

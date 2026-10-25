@@ -37,3 +37,8 @@ Feature: Weekly kanban board
     Then the board lists 0 tasks
     When I view the board for the week containing "2026-10-20"
     Then the board lists 1 task
+
+  Scenario: a malformed date fails the board read
+    Given an application state on a temporary seeded database
+    When I view the board for the week containing "not-a-date"
+    Then the board read fails

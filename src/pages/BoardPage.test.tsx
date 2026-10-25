@@ -172,6 +172,54 @@ describe("BoardPage", () => {
     );
   });
 
+  it("places a card in the row matching its status", async () => {
+    mockedListWeekTasks.mockResolvedValue([
+      { ...baseTask, status: TaskStatus.Done },
+    ]);
+    renderBoard();
+
+    const card = await screen.findByRole("button", {
+      name: editTaskLabel(TASK_TITLE),
+    });
+    const rowHeader = card.closest("tr")!.querySelector("th");
+    expect(rowHeader?.textContent).toBe(STATUS_LABELS[TaskStatus.Done]);
+  });
+
+  it("aligns a weekly backlog card with the backlog columnheader", async () => {
+    mockedListWeekTasks.mockResolvedValue([weeklyTask]);
+    renderBoard();
+
+    const card = await screen.findByRole("button", {
+      name: editTaskLabel(BACKLOG_TITLE),
+    });
+    const cell = card.closest("td")!;
+    const headers =
+      document.querySelectorAll<HTMLTableCellElement>("thead tr th");
+    expect(
+      [...headers].find((th) => th.cellIndex === cell.cellIndex)?.textContent,
+    ).toContain(WEEKLY_BACKLOG_LABEL);
+  });
+
+  it("totals tasks with missing estimate and spent values as zero", async () => {
+    mockedListWeekTasks.mockResolvedValue([
+      {
+        ...baseTask,
+        estimated_minutes: null,
+        spent_minutes: null,
+      },
+    ]);
+    renderBoard();
+
+    // 1 task with nothing counted — the string appears once for the
+    // page header and once for its day's columnheader.
+    await screen.findByRole("button", {
+      name: editTaskLabel(TASK_TITLE),
+    });
+    expect(
+      screen.getAllByText(`${taskCountLabel(1)} · ${dayTotalsLabel(0, 0)}`),
+    ).toHaveLength(2);
+  });
+
   it("opens the task details dialog from a card", async () => {
     renderBoard();
 

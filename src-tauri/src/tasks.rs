@@ -988,6 +988,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn deleting_a_non_series_task_writes_no_tombstone() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        delete(&pool, pid, task.id).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM skipped_instances")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn list_week_materializes_nothing_past_a_series_end() {
+        const END_DATE: &str = "2026-10-21"; // the week's Wednesday
+
+        let (pool, pid) = seeded_pool().await;
+        create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                series: Some(crate::series::NewSeries {
+                    recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+                    start_date: DAILY_START.to_string(),
+                    end_date: Some(END_DATE.to_string()),
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let dates: Vec<Option<&str>> = week
+            .iter()
+            .filter(|t| t.series_id.is_some())
+            .map(|t| t.scheduled_date.as_deref())
+            .collect();
+        // The window ends Wednesday — Thursday through Sunday stay empty.
+        assert_eq!(
+            dates,
+            vec![Some(DAILY_START), Some("2026-10-20"), Some(END_DATE)]
+        );
+    }
+
+    #[tokio::test]
+    async fn list_week_includes_the_week_edges_and_not_the_neighbours() {
+        const FOURTH: &str = "D";
+        let (pool, pid) = seeded_pool().await;
+        let fixtures = [
+            (TITLE_A, "2026-10-19", true),  // Monday — week start
+            (TITLE_B, "2026-10-25", true),  // Sunday — week end
+            (TITLE_C, "2026-10-18", false), // day before
+            (FOURTH, "2026-10-26", false),  // day after
+        ];
+        for (title, date, _) in fixtures {
+            let task = create(&pool, pid, &task(title)).await.unwrap();
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?",
+            )
+            .bind(date)
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let week = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let dates: Vec<Option<&str>> = week.iter().map(|t| t.scheduled_date.as_deref()).collect();
+        for (_, date, expected) in fixtures {
+            assert_eq!(dates.contains(&Some(date)), expected, "date {date}");
+        }
+    }
+
+    #[tokio::test]
     async fn move_without_anchors_keeps_position() {
         let (pool, pid) = seeded_pool().await;
         create(&pool, pid, &task(TITLE_A)).await.unwrap();
