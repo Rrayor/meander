@@ -675,7 +675,7 @@ pub async fn resolve_carry_over(
         CarryOverRule::Carry => "weekly_backlog",
         CarryOverRule::Return => "backlog",
     };
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE tasks SET carry_over_rule = ?, placement = ?, scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
     )
     .bind(rule)
@@ -684,6 +684,9 @@ pub async fn resolve_carry_over(
     .bind(profile_id)
     .execute(pool)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(task_not_found());
+    }
     Ok(())
 }
 
@@ -1271,6 +1274,124 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(row.scheduled_date.as_deref(), Some(past.as_str()));
+    }
+
+    #[tokio::test]
+    async fn resolve_carry_over_rejects_unknown_and_foreign_tasks() {
+        // Same profile scoping as update/delete — a bare UPDATE that
+        // touched nothing is TaskNotFound, not a silent no-op.
+        let (pool, pid) = seeded_pool().await;
+        let stray = stray_task(&pool, pid, TITLE_A, None, false).await;
+        let err = resolve_carry_over(&pool, pid, stray.id + 999, CarryOverRule::Carry)
+            .await
+            .unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+        // Foreign profile: another profile's task cannot be resolved.
+        let other_id: i64 =
+            sqlx::query_scalar("INSERT INTO profiles (name) VALUES ('other') RETURNING id")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let err = resolve_carry_over(&pool, other_id, stray.id, CarryOverRule::Return)
+            .await
+            .unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+        // …and the stray stays pending and untouched.
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(stray.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(row.scheduled_date.is_some());
+        assert!(row.carry_over_rule.is_none());
+    }
+
+    #[tokio::test]
+    async fn resolving_as_return_sends_the_task_to_the_global_backlog() {
+        let (pool, pid) = seeded_pool().await;
+        let stray = stray_task(&pool, pid, TITLE_A, None, false).await;
+        resolve_carry_over(&pool, pid, stray.id, CarryOverRule::Return)
+            .await
+            .unwrap();
+        let row = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(stray.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(row.placement, TaskPlacement::Backlog);
+        assert_eq!(row.carry_over_rule, Some(CarryOverRule::Return));
+        assert!(row.scheduled_date.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_carried_series_instance_joins_the_current_weekly_backlog() {
+        // carry on the series moves the instance — that IS the task the
+        // user still needs to finish.
+        let (pool, pid) = seeded_pool().await;
+        let start: String = sqlx::query_scalar("SELECT date('now', 'localtime', '-30 days')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                title: TITLE_A.to_string(),
+                carry_over_rule: Some(CarryOverRule::Carry),
+                series: Some(crate::series::NewSeries {
+                    recurrence: serde_json::json!({"kind": "daily", "interval_days": 1}),
+                    start_date: start,
+                    end_date: None,
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let past: String = sqlx::query_scalar("SELECT date('now', 'localtime', '-7 days')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let instance = get_or_create_instance(&pool, pid, task.series_id.unwrap(), &past)
+            .await
+            .unwrap();
+        let today: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let week = list_week(&pool, pid, &today).await.unwrap();
+        let carried = week.iter().find(|t| t.id == instance.id).unwrap();
+        assert_eq!(carried.placement, TaskPlacement::WeeklyBacklog);
+        assert!(carried.scheduled_date.is_none());
+    }
+
+    #[tokio::test]
+    async fn pending_carry_over_lists_only_undecided_past_incompletes() {
+        let (pool, pid) = seeded_pool().await;
+        // Undecided + past + incomplete — the only combination listed.
+        let listed = stray_task(&pool, pid, TITLE_A, None, false).await;
+        // Done tasks never prompt; decided rules never prompt; dates in
+        // the current week are not carry-over candidates.
+        stray_task(&pool, pid, TITLE_B, None, true).await;
+        stray_task(&pool, pid, TITLE_C, Some("carry"), false).await;
+        let current = stray_task(&pool, pid, "Current", None, false).await;
+        sqlx::query("UPDATE tasks SET scheduled_date = date('now', 'localtime') WHERE id = ?")
+            .bind(current.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        // A foreign-profile stray never shows up.
+        let other_id: i64 =
+            sqlx::query_scalar("INSERT INTO profiles (name) VALUES ('other') RETURNING id")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        stray_task(&pool, other_id, "Foreign", None, false).await;
+        let pending = pending_carry_over(&pool, pid).await.unwrap();
+        assert_eq!(
+            pending.iter().map(|t| t.id).collect::<Vec<_>>(),
+            [listed.id]
+        );
     }
 
     #[tokio::test]

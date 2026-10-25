@@ -19,7 +19,12 @@ import {
 import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
-import { stubError, stubSequence, stubTauriCommands } from "./stubs";
+import {
+  getInvocations,
+  stubError,
+  stubSequence,
+  stubTauriCommands,
+} from "./stubs";
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
@@ -390,4 +395,33 @@ test("the carry-over prompt lists undecided tasks and applies the choice", async
   await prompt.getByRole("button", { name: "Carry over" }).click();
   await apply.click();
   await expect(prompt).toBeHidden();
+});
+
+test("the carry-over prompt sends a return decision to the backend", async ({
+  page,
+}) => {
+  const stray = { ...mondayTask, id: 9, title: "Leftover" };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listPendingCarryOver]: [stray],
+    [COMMANDS.resolveCarryOver]: null,
+  });
+  await page.goto("/");
+
+  const prompt = page.getByRole("dialog", { name: /week started/i });
+  await prompt.getByRole("button", { name: "Backlog" }).click();
+  await prompt.getByRole("button", { name: "Apply decisions" }).click();
+  await expect(prompt).toBeHidden();
+  const calls = await getInvocations(page);
+  expect(
+    calls.filter((c) => c.cmd === COMMANDS.resolveCarryOver).map((c) => c.args),
+  ).toEqual([{ taskId: 9, rule: "return" }]);
 });

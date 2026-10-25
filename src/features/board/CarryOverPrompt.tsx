@@ -94,6 +94,11 @@ export function CarryOverPrompt({
             </li>
           ))}
         </ul>
+        {apply.isError && (
+          <p role="alert" className="mt-3 text-sm text-error">
+            {apply.error.message}
+          </p>
+        )}
         <div className="mt-5 flex justify-end">
           <button
             type="button"
