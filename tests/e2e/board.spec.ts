@@ -201,3 +201,30 @@ test("clicking a board card opens the task details view", async ({ page }) => {
     dialog.getByRole("heading", { name: backlogTask.title }),
   ).toBeVisible();
 });
+
+test("the board orders columns from the configured week start", async ({
+  page,
+}) => {
+  const wednesdayDays = weekDates(todayIso, Weekday.Wednesday);
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.currentProfile]: { ...current, week_start: "wednesday" },
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "wednesday",
+    [COMMANDS.listWeekTasks]: [],
+    [COMMANDS.listTaskCategories]: [],
+  });
+  await page.goto("/");
+
+  await expect(
+    page.getByText(boardWeekRangeLabel(wednesdayDays[0], wednesdayDays[6])),
+  ).toBeVisible();
+  const headers = page.getByRole("columnheader");
+  await expect(headers.nth(1)).toContainText(
+    shortWeekdayLabel(wednesdayDays[0]),
+  );
+  await expect(headers.nth(7)).toContainText(
+    shortWeekdayLabel(wednesdayDays[6]),
+  );
+});

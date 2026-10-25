@@ -140,6 +140,33 @@ describe("BoardPage", () => {
     expect(screen.getByText(WEEKLY_BACKLOG_LABEL)).toBeInTheDocument();
   });
 
+  it("renders an empty week with zeroed totals", async () => {
+    mockedListWeekTasks.mockResolvedValue([]);
+    renderBoard();
+
+    // Page header plus one line per column, all zeroed.
+    expect(
+      await screen.findAllByText(
+        `${taskCountLabel(0)} · ${dayTotalsLabel(0, 0)}`,
+      ),
+    ).toHaveLength(9);
+  });
+
+  it("orders day columns from the configured week start", async () => {
+    const wednesdayDays = weekDates(todayIso, Weekday.Wednesday);
+    mockedWeekStart.mockResolvedValue(Weekday.Wednesday);
+    renderBoard();
+
+    expect(
+      await screen.findByText(
+        boardWeekRangeLabel(wednesdayDays[0], wednesdayDays[6]),
+      ),
+    ).toBeInTheDocument();
+    const headers = screen.getAllByRole("columnheader").slice(1);
+    expect(headers[0].textContent).toContain("Wed");
+    expect(headers[6].textContent).toContain("Tue");
+  });
+
   it("opens the task details dialog from a card", async () => {
     renderBoard();
 

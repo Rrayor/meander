@@ -13,6 +13,7 @@ struct MeanderWorld {
     previous_active: Option<i64>,
     task_id: Option<i64>,
     remembered_updated_at: Option<String>,
+    board_tasks: Option<Vec<meander_lib::tasks::Task>>,
     error: Option<String>,
 }
 
@@ -2698,4 +2699,114 @@ fn set_work_days_monday(world: &mut MeanderWorld) {
 #[then("the active profile's work days are Monday only")]
 fn work_days_monday(world: &mut MeanderWorld) {
     assert_active_work_days(world, vec![meander_lib::series::Weekday::Monday]);
+}
+
+// ---- Weekly board (spec §312–§316) ---------------------------------------
+
+#[given(expr = "a weekly backlog task titled {word}")]
+fn weekly_backlog_task(world: &mut MeanderWorld, title: String) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'weekly_backlog' WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("weekly backlog placement failed");
+}
+
+#[given(expr = "a task titled {word} scheduled for {string}")]
+fn scheduled_task(world: &mut MeanderWorld, title: String, date: String) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', scheduled_date = ? \
+                 WHERE profile_id = ? AND title = ?",
+            )
+            .bind(&date)
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("scheduling failed");
+}
+
+#[when(expr = "I view the board for the week containing {string}")]
+fn view_board_week(world: &mut MeanderWorld, date: String) {
+    let (pool, id) = active_profile_pool(world);
+    match world
+        .rt()
+        .block_on(meander_lib::tasks::list_week(&pool, id, &date))
+    {
+        Ok(tasks) => world.board_tasks = Some(tasks),
+        Err(e) => world.error = Some(e.to_string()),
+    }
+}
+
+#[then(expr = "the board lists {int} tasks")]
+fn board_lists_n(world: &mut MeanderWorld, n: i32) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    assert_eq!(tasks.len() as i32, n, "board tasks: {tasks:?}");
+}
+
+#[then(expr = "the board lists {word} on {string}")]
+fn board_lists_on(world: &mut MeanderWorld, title: String, date: String) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    assert!(
+        tasks
+            .iter()
+            .any(|t| t.title == title && t.scheduled_date.as_deref() == Some(&*date)),
+        "no {title} on {date} in board tasks: {tasks:?}"
+    );
+}
+
+#[then(expr = "the board does not list {word}")]
+fn board_lacks(world: &mut MeanderWorld, title: String) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    assert!(
+        !tasks.iter().any(|t| t.title == title),
+        "{title} unexpectedly on board: {tasks:?}"
+    );
+}
+
+#[then(expr = "the board does not list {word} on {string}")]
+fn board_lacks_on(world: &mut MeanderWorld, title: String, date: String) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    assert!(
+        !tasks
+            .iter()
+            .any(|t| t.title == title && t.scheduled_date.as_deref() == Some(&*date)),
+        "{title} unexpectedly on board at {date}: {tasks:?}"
+    );
+}
+
+#[when(expr = "I delete the {string} instance of {word}")]
+fn delete_instance(world: &mut MeanderWorld, date: String, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let task_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list_week(&pool, id, &date))
+        .expect("board read failed")
+        .iter()
+        .find(|t| t.title == title && t.scheduled_date.as_deref() == Some(&*date))
+        .expect("instance missing")
+        .id;
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::delete(&pool, id, task_id))
+    {
+        world.error = Some(e.to_string());
+    }
 }

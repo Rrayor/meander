@@ -928,6 +928,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_week_rejects_a_malformed_date() {
+        let (pool, pid) = seeded_pool().await;
+        let result = list_week(&pool, pid, "not-a-date").await;
+        assert!(matches!(
+            result,
+            Err(crate::db::DbError::Validation {
+                code: ErrorCode::InstanceDateInvalid,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn list_week_is_idempotent() {
+        let (pool, pid) = seeded_pool().await;
+        daily_task(&pool, pid).await;
+        let first = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        let second = list_week(&pool, pid, WEDNESDAY).await.unwrap();
+        // Re-reading the week must not create duplicate instances.
+        assert_eq!(first.len(), second.len());
+        let ids: Vec<i64> = second.iter().map(|t| t.id).collect();
+        let mut dedup = ids.clone();
+        dedup.dedup();
+        assert_eq!(ids.len(), dedup.len());
+    }
+
+    #[tokio::test]
+    async fn list_week_anchors_bounds_on_the_configured_week_start() {
+        const SUNDAY: &str = "2026-10-25";
+        const SATURDAY: &str = "2026-10-24";
+
+        let (pool, pid) = seeded_pool().await;
+        // Wednesday week start: Oct 25 sits in the Oct 21–27 week, so a
+        // task on Sat Oct 24 is in range…
+        crate::profiles::set_week_start(&pool, pid, crate::series::Weekday::Wednesday)
+            .await
+            .unwrap();
+        let task = create(&pool, pid, &task(TITLE_A)).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
+            .bind(SATURDAY)
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let week = list_week(&pool, pid, SUNDAY).await.unwrap();
+        assert!(week.iter().any(|t| t.id == task.id));
+        // …but a Monday-start view of the same date puts Oct 24 in the
+        // previous week and lists nothing.
+        crate::profiles::set_week_start(&pool, pid, crate::series::Weekday::Monday)
+            .await
+            .unwrap();
+        assert!(
+            list_week(&pool, pid, "2026-10-26")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
     async fn move_without_anchors_keeps_position() {
         let (pool, pid) = seeded_pool().await;
         create(&pool, pid, &task(TITLE_A)).await.unwrap();
