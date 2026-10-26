@@ -35,6 +35,16 @@ Feature: Profiles
     Then the creation fails
     And the profile list contains only the default profile
 
+  Scenario: the global threshold persists, clears, and validates
+    Given an application state on a temporary seeded database
+    Then the active profile has no global threshold
+    When I set the active profile's global threshold to 480 minutes
+    Then the active profile's global threshold is 480 minutes
+    When I clear the active profile's global threshold
+    Then the active profile has no global threshold
+    When I set the active profile's global threshold to 0 minutes
+    Then the threshold save fails
+
   Scenario: the week start is a per-profile display setting
     Given an application state on a temporary seeded database
     Then the active profile's week start is Monday

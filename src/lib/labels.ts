@@ -270,6 +270,16 @@ export const CARRY_OVER_RETURN_LABEL = "Backlog";
 export const CARRY_OVER_APPLY_LABEL = "Apply decisions";
 export const CARRY_OVER_DISMISS_LABEL = "Dismiss";
 export const CARRY_OVER_DEFER_LABEL = "Decide later";
+export const THRESHOLD_HEADING = "Planning threshold";
+export const THRESHOLD_HEADING_ID = "threshold-heading";
+export const THRESHOLD_FIELD_LABEL = "Minutes per day";
+export const THRESHOLD_COLOR_LABEL = "Threshold color";
+export const THRESHOLD_HINT =
+  "When a day's estimated total reaches the threshold, the board column gets a background tint.";
+export const THRESHOLD_CLEAR_LABEL = "Clear threshold";
+// The design system's threshold-red, lowercased to match native
+// <input type="color"> normalization.
+export const THRESHOLD_COLOR_DEFAULT = "#f87171";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;
 export const dayTotalsLabel = (estimated: number, spent: number) =>

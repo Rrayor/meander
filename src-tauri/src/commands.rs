@@ -36,6 +36,26 @@ pub async fn list_week_tasks(
 }
 
 #[tauri::command]
+pub async fn global_threshold(
+    state: State<'_, AppState>,
+) -> Result<crate::profiles::GlobalThreshold, ApiError> {
+    crate::profiles::global_threshold(&state.pool(), state.active_profile_id())
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn set_global_threshold(
+    state: State<'_, AppState>,
+    minutes: Option<i64>,
+    color: Option<String>,
+) -> Result<(), ApiError> {
+    crate::profiles::set_global_threshold(&state.pool(), state.active_profile_id(), minutes, color)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_pending_carry_over(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::tasks::Task>, ApiError> {

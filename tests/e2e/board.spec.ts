@@ -1,6 +1,8 @@
 import { COMMANDS } from "@/api/commands";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
+  CALENDAR_NEXT_LABEL,
+  CARRY_OVER_DISMISS_LABEL,
   BOARD_HEADING,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
@@ -16,7 +18,7 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { CARRY_OVER_DISMISS_LABEL } from "@/lib/labels";
+
 import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
@@ -358,7 +360,13 @@ test("the calendar jumps the board to a picked future week", async ({
     .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
     .click();
   const future = weekDates(shiftDays(days[0], 14), Weekday.Monday);
-  await page.getByRole("button", { name: formatIsoDay(future[0]) }).click();
+  // +14 days can land in a later month — navigate the calendar until
+  // the target day is rendered before picking it.
+  const target = page.getByRole("button", { name: formatIsoDay(future[0]) });
+  for (let i = 0; i < 6 && !(await target.isVisible()); i++) {
+    await page.getByRole("button", { name: CALENDAR_NEXT_LABEL }).click();
+  }
+  await target.click();
 
   // Future boards show day columns only (spec §336/§354).
   await expect(backlog).toBeHidden();

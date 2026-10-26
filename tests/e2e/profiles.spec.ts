@@ -8,6 +8,8 @@ import {
   PROFILE_NAME_REQUIRED_MESSAGE,
   RENAME_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
+  THRESHOLD_FIELD_LABEL,
+  THRESHOLD_HEADING,
   WEEKDAY_OPTIONS,
   WEEK_START_HEADING,
   WEEK_START_LABEL,
@@ -316,4 +318,25 @@ test("a failed work-days save surfaces the error", async ({ page }) => {
   await section.getByRole("button", { name: saturday.label }).click();
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
   await expect(section.getByRole("alert")).toHaveText(message);
+});
+
+test("saving a global threshold sends it on the wire", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: { minutes: null, color: null },
+    [COMMANDS.setGlobalThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  await section.getByLabel(THRESHOLD_FIELD_LABEL).fill("240");
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const calls = await getInvocations<{ minutes: number; color: string }>(page);
+  const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
+  expect(saveCall?.args).toEqual({ minutes: 240, color: "#f87171" });
 });

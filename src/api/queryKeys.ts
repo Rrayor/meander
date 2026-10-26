@@ -5,6 +5,7 @@ export const QUERY_KEYS = {
   currentProfile: ["current-profile"],
   weekStart: ["week-start"],
   workDays: ["work-days"],
+  globalThreshold: ["global-threshold"],
   dbPath: ["db-path"],
   tasks: ["tasks"],
   // Prefix key: invalidating it refreshes the board whatever week it
