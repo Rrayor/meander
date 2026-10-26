@@ -274,6 +274,7 @@ export const THRESHOLD_HEADING = "Planning threshold";
 export const THRESHOLD_HEADING_ID = "threshold-heading";
 export const THRESHOLD_FIELD_LABEL = "Minutes per day";
 export const THRESHOLD_COLOR_LABEL = "Threshold color";
+export const THRESHOLD_CUSTOM_COLOR_LABEL = "Custom color";
 export const THRESHOLD_HINT =
   "When a day's estimated total reaches the threshold, the board column gets a background tint.";
 export const THRESHOLD_CLEAR_LABEL = "Clear threshold";

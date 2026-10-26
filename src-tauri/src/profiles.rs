@@ -150,6 +150,9 @@ pub async fn set_work_days(pool: &SqlitePool, profile_id: i64, days: &[Weekday])
     Ok(())
 }
 
+/// The default threshold color (spec §297): red.
+const DEFAULT_THRESHOLD_COLOR: &str = "#f87171";
+
 /// The global per-day estimate threshold (spec §295/§297): minutes + a
 /// `#rrggbb` color, both absent when the user never set one.
 pub async fn global_threshold(pool: &SqlitePool, profile_id: i64) -> Result<GlobalThreshold> {
@@ -191,6 +194,9 @@ pub async fn set_global_threshold(
         crate::errors::ErrorCode::ThresholdColorInvalid,
         "threshold color must be a #rrggbb hex value",
     )?;
+    // §297: a threshold without a picked color defaults to red.
+    let parsed_color =
+        parsed_color.or_else(|| validated.map(|_| DEFAULT_THRESHOLD_COLOR.to_string()));
     sqlx::query(
         "UPDATE profiles SET global_threshold_minutes = ?, global_threshold_color = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
