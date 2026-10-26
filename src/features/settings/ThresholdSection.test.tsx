@@ -6,7 +6,7 @@ import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import {
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
-  THRESHOLD_CUSTOM_COLOR_LABEL,
+  CUSTOM_COLOR_PICKER_LABEL,
   THRESHOLD_FIELD_LABEL,
 } from "@/lib/labels";
 import { ThresholdSection } from "@/features/settings/ThresholdSection";
@@ -50,12 +50,9 @@ describe("ThresholdSection", () => {
     fireEvent.change(await screen.findByLabelText(THRESHOLD_FIELD_LABEL), {
       target: { value: "60" },
     });
-    fireEvent.change(
-      await screen.findByLabelText(THRESHOLD_CUSTOM_COLOR_LABEL),
-      {
-        target: { value: "#60a5fa" },
-      },
-    );
+    fireEvent.change(await screen.findByLabelText(CUSTOM_COLOR_PICKER_LABEL), {
+      target: { value: "#60a5fa" },
+    });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(60, "#60a5fa"));
   });

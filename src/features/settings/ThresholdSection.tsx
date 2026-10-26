@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 
 import { CATEGORY_COLORS } from "@/api/categories";
@@ -8,10 +8,12 @@ import { QUERY_KEYS } from "@/api/queryKeys";
 import { MAX_DURATION_MINUTES } from "@/api/tasks";
 import {
   SAVE_BUTTON_LABEL,
+  CUSTOM_COLOR_LABEL,
+  CUSTOM_COLOR_PICKER_LABEL,
   THRESHOLD_CLEAR_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   THRESHOLD_COLOR_LABEL,
-  THRESHOLD_CUSTOM_COLOR_LABEL,
+  categorySwatchLabel,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING,
   THRESHOLD_HEADING_ID,
@@ -37,9 +39,13 @@ export function ThresholdSection() {
   const [draftMinutes, setDraftMinutes] = useState<number | null>();
   const [draftColor, setDraftColor] = useState<string>();
   const [touched, setTouched] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const minutes =
     draftMinutes === undefined ? (stored?.minutes ?? null) : draftMinutes;
   const color = draftColor ?? stored?.color ?? THRESHOLD_COLOR_DEFAULT;
+  const customSelected = !(CATEGORY_COLORS as readonly string[]).includes(
+    color,
+  );
   const invalid = minutes != null && !minutesSchema.safeParse(minutes).success;
 
   const save = useMutation({
@@ -119,7 +125,7 @@ export function ThresholdSection() {
                 type="button"
                 role="radio"
                 aria-checked={color === c}
-                aria-label={c}
+                aria-label={categorySwatchLabel(c)}
                 onClick={() => setDraftColor(c)}
                 style={{ backgroundColor: c }}
                 className={`h-6 w-6 rounded-full transition-transform ${
@@ -129,21 +135,39 @@ export function ThresholdSection() {
                 }`}
               />
             ))}
-            <input
-              type="color"
-              value={color}
-              role="radio"
-              aria-checked={
-                !(CATEGORY_COLORS as readonly string[]).includes(color)
-              }
-              aria-label={THRESHOLD_CUSTOM_COLOR_LABEL}
-              onChange={(e) => setDraftColor(e.target.value)}
-              className={`ml-2 h-7 w-7 cursor-pointer rounded border bg-transparent ${
-                (CATEGORY_COLORS as readonly string[]).includes(color)
-                  ? "border-border"
-                  : "ring-2 ring-text ring-offset-2 ring-offset-surface"
-              }`}
-            />
+            {/* The button is the radiogroup member so the custom pick
+                reports aria-checked to AT; the color input overlays it
+                for pointer interaction and keeps its native semantics. */}
+            <div className="group relative ml-2">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={customSelected}
+                aria-label={CUSTOM_COLOR_LABEL}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget)
+                    colorInputRef.current?.click();
+                }}
+                className={`h-6 w-6 rounded-full transition-transform ${
+                  customSelected
+                    ? "ring-2 ring-text ring-offset-2 ring-offset-surface"
+                    : "group-hover:scale-110"
+                }`}
+                style={{
+                  background: customSelected
+                    ? color
+                    : "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)",
+                }}
+              />
+              <input
+                ref={colorInputRef}
+                type="color"
+                aria-label={CUSTOM_COLOR_PICKER_LABEL}
+                value={customSelected ? color : THRESHOLD_COLOR_DEFAULT}
+                onChange={(e) => setDraftColor(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </div>
           </div>
         </fieldset>
       </div>
