@@ -15,6 +15,7 @@ import {
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING,
   THRESHOLD_HEADING_ID,
+  THRESHOLD_MINUTES_ERROR_ID,
   THRESHOLD_HINT,
   formatMinutes,
 } from "@/lib/labels";
@@ -79,7 +80,7 @@ export function ThresholdSection() {
               value={minutes ?? ""}
               aria-invalid={touched && invalid}
               aria-describedby={
-                touched && invalid ? "threshold-minutes-error" : undefined
+                touched && invalid ? THRESHOLD_MINUTES_ERROR_ID : undefined
               }
               onChange={(e) =>
                 setDraftMinutes(
@@ -98,7 +99,7 @@ export function ThresholdSection() {
         </div>
         {touched && invalid && (
           <p
-            id="threshold-minutes-error"
+            id={THRESHOLD_MINUTES_ERROR_ID}
             role="alert"
             className="mt-2 text-sm text-error"
           >
@@ -131,9 +132,17 @@ export function ThresholdSection() {
             <input
               type="color"
               value={color}
+              role="radio"
+              aria-checked={
+                !(CATEGORY_COLORS as readonly string[]).includes(color)
+              }
               aria-label={THRESHOLD_CUSTOM_COLOR_LABEL}
               onChange={(e) => setDraftColor(e.target.value)}
-              className="ml-2 h-7 w-7 cursor-pointer rounded border border-border bg-transparent"
+              className={`ml-2 h-7 w-7 cursor-pointer rounded border bg-transparent ${
+                (CATEGORY_COLORS as readonly string[]).includes(color)
+                  ? "border-border"
+                  : "ring-2 ring-text ring-offset-2 ring-offset-surface"
+              }`}
             />
           </div>
         </fieldset>
