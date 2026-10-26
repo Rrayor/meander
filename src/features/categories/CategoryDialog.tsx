@@ -27,6 +27,7 @@ import {
   CLOSE_LABEL,
   COLOR_FIELD_LABEL,
   CUSTOM_COLOR_LABEL,
+  CUSTOM_COLOR_GRADIENT,
   CUSTOM_COLOR_PICKER_LABEL,
   DEFAULT_COLOR_LABEL,
   CREATE_CATEGORY_LABEL,
@@ -293,7 +294,7 @@ export function CategoryDialog({
                           if (e.target === e.currentTarget)
                             colorInputRef.current?.click();
                         }}
-                        className={`h-6 w-6 rounded-full transition-all ${
+                        className={`h-6 w-6 rounded-full transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                           customSelected
                             ? "ring-2 ring-primary ring-offset-2 ring-offset-surface"
                             : "group-hover:scale-110"
@@ -301,12 +302,13 @@ export function CategoryDialog({
                         style={{
                           background: customSelected
                             ? value
-                            : "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)",
+                            : CUSTOM_COLOR_GRADIENT,
                         }}
                       />
                       <input
                         ref={colorInputRef}
                         type="color"
+                        tabIndex={-1}
                         aria-label={CUSTOM_COLOR_PICKER_LABEL}
                         value={customSelected ? value : DEFAULT_CATEGORY_COLOR}
                         onChange={(e) => onChange(e.target.value)}

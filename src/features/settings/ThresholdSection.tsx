@@ -13,6 +13,7 @@ import {
   THRESHOLD_CLEAR_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   THRESHOLD_COLOR_LABEL,
+  CUSTOM_COLOR_GRADIENT,
   categorySwatchLabel,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING,
@@ -148,20 +149,19 @@ export function ThresholdSection() {
                   if (e.target === e.currentTarget)
                     colorInputRef.current?.click();
                 }}
-                className={`h-6 w-6 rounded-full transition-transform ${
+                className={`h-6 w-6 rounded-full transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                   customSelected
                     ? "ring-2 ring-text ring-offset-2 ring-offset-surface"
                     : "group-hover:scale-110"
                 }`}
                 style={{
-                  background: customSelected
-                    ? color
-                    : "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)",
+                  background: customSelected ? color : CUSTOM_COLOR_GRADIENT,
                 }}
               />
               <input
                 ref={colorInputRef}
                 type="color"
+                tabIndex={-1}
                 aria-label={CUSTOM_COLOR_PICKER_LABEL}
                 value={customSelected ? color : THRESHOLD_COLOR_DEFAULT}
                 onChange={(e) => setDraftColor(e.target.value)}

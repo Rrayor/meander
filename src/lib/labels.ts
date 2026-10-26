@@ -89,6 +89,10 @@ export const COLOR_FIELD_LABEL = "Color";
 export const DEFAULT_COLOR_LABEL = "Default color";
 export const CUSTOM_COLOR_LABEL = "Custom color";
 export const CUSTOM_COLOR_PICKER_LABEL = "Pick a custom color";
+// Rainbow swatch previewing the "custom" option across palette and
+// threshold pickers alike.
+export const CUSTOM_COLOR_GRADIENT =
+  "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)";
 export const CATEGORY_TITLE_REQUIRED_MESSAGE = "Category title is required";
 export const categorySwatchLabel = (color: string) => `Color ${color}`;
 export const CATEGORIES_FIELD_LABEL = "Categories";
