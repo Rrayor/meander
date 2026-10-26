@@ -178,18 +178,20 @@ pub async fn set_global_threshold(
 ) -> Result<()> {
     let validated = minutes
         .map(|m| {
-            crate::tasks::PositiveDuration::try_new(m).map_err(|_| crate::db::DbError::Validation {
-                code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
-                message: format!(
-                    "threshold must be between 1 and {} minutes",
-                    crate::tasks::MAX_DURATION_MINUTES
-                ),
+            crate::validation::PositiveDuration::try_new(m).map_err(|_| {
+                crate::db::DbError::Validation {
+                    code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
+                    message: format!(
+                        "threshold must be between 1 and {} minutes",
+                        crate::validation::MAX_DURATION_MINUTES
+                    ),
+                }
             })
         })
         .transpose()?
         .map(|d| d.into_inner());
     // Category colors use the same #rrggbb vocabulary — reuse the parse.
-    let parsed_color = crate::categories::parse_color(
+    let parsed_color = crate::validation::parse_hex_color(
         color.as_deref(),
         crate::errors::ErrorCode::ThresholdColorInvalid,
         "threshold color must be a #rrggbb hex value",

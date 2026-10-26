@@ -11,6 +11,7 @@ pub mod profiles;
 pub mod series;
 pub mod state;
 pub mod tasks;
+pub mod validation;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

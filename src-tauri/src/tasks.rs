@@ -28,16 +28,7 @@ pub const TASK_DESCRIPTION_MAX_LEN: usize = 20_000;
 )]
 pub struct TaskDescription(String);
 
-/// Spec: durations are optional, but when present they are positive and at
-/// most 24 hours — the schema enforces the same 1–1440 CHECK on both
-/// estimated and spent minutes.
-pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
-
-#[nutype::nutype(
-    validate(greater = 0, less_or_equal = MAX_DURATION_MINUTES),
-    derive(Debug, PartialEq)
-)]
-pub struct PositiveDuration(i64);
+pub use crate::validation::{MAX_DURATION_MINUTES, PositiveDuration};
 
 impl TaskTitle {
     /// Validates `name`; the error variants are mapped to our own vocabulary.
