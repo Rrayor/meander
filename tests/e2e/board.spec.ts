@@ -16,10 +16,16 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
+import { CARRY_OVER_DISMISS_LABEL } from "@/lib/labels";
 import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
-import { stubError, stubSequence, stubTauriCommands } from "./stubs";
+import {
+  getInvocations,
+  stubError,
+  stubSequence,
+  stubTauriCommands,
+} from "./stubs";
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
@@ -359,4 +365,79 @@ test("the calendar jumps the board to a picked future week", async ({
   await expect(
     page.getByText(boardWeekRangeLabel(future[0], future[6])),
   ).toBeVisible();
+});
+
+test("the carry-over prompt lists undecided tasks and applies the choice", async ({
+  page,
+}) => {
+  const stray = { ...mondayTask, id: 9, title: "Leftover" };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listPendingCarryOver]: [stray],
+    [COMMANDS.resolveCarryOver]: null,
+  });
+  await page.goto("/");
+
+  const prompt = page.getByRole("dialog", { name: /week started/i });
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByText("Leftover")).toBeVisible();
+
+  // Apply stays disabled until every listed task has a decision.
+  const apply = prompt.getByRole("button", { name: "Apply decisions" });
+  await expect(apply).toBeDisabled();
+  await prompt.getByRole("button", { name: "Carry over" }).click();
+  await apply.click();
+  await expect(prompt).toBeHidden();
+});
+
+test("the carry-over prompt sends a return decision to the backend", async ({
+  page,
+}) => {
+  const stray = { ...mondayTask, id: 9, title: "Leftover" };
+  const dismissed = { ...mondayTask, id: 10, title: "Dropped" };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listPendingCarryOver]: [stray, dismissed],
+    [COMMANDS.resolveCarryOver]: null,
+    [COMMANDS.deleteTask]: null,
+  });
+  await page.goto("/");
+
+  const prompt = page.getByRole("dialog", { name: /week started/i });
+  await prompt
+    .getByRole("listitem")
+    .filter({ hasText: "Leftover" })
+    .getByRole("button", { name: "Backlog" })
+    .click();
+  // Dismiss is a per-task outcome — it deletes the task outright.
+  await prompt
+    .getByRole("listitem")
+    .filter({ hasText: "Dropped" })
+    .getByRole("button", { name: CARRY_OVER_DISMISS_LABEL })
+    .click();
+  await prompt.getByRole("button", { name: "Apply decisions" }).click();
+  await expect(prompt).toBeHidden();
+  const calls = await getInvocations(page);
+  expect(
+    calls.filter((c) => c.cmd === COMMANDS.resolveCarryOver).map((c) => c.args),
+  ).toEqual([{ taskId: 9, rule: "return" }]);
+  expect(
+    calls.filter((c) => c.cmd === COMMANDS.deleteTask).map((c) => c.args),
+  ).toEqual([{ taskId: 10 }]);
 });

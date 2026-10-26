@@ -2787,6 +2787,117 @@ fn scheduled_task_days_from_today(world: &mut MeanderWorld, title: String, days:
         .expect("scheduling failed");
 }
 
+#[given(expr = "a task titled {word} scheduled {int} days ago with carry-over {word}")]
+fn scheduled_past_task_with_rule(world: &mut MeanderWorld, title: String, days: i64, rule: String) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    let rule = match rule.as_str() {
+        "unset" => None,
+        "carry" | "return" => Some(rule),
+        other => panic!("unknown carry-over rule {other}"),
+    };
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', carry_over_rule = ?,                  scheduled_date = date('now', 'localtime', ? || ' days')                  WHERE profile_id = ? AND title = ?",
+            )
+            .bind(rule)
+            .bind(format!("-{days}"))
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("scheduling failed");
+}
+
+#[when(expr = "I resolve the carry-over for {word} as {word}")]
+fn resolve_carry_over_step(world: &mut MeanderWorld, title: String, rule: String) {
+    let (pool, id) = active_profile_pool(world);
+    let task_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, id))
+        .expect("list failed")
+        .iter()
+        .find(|t| t.title == title)
+        .expect("task missing")
+        .id;
+    let rule = match rule.as_str() {
+        "carry" => meander_lib::tasks::CarryOverRule::Carry,
+        "return" => meander_lib::tasks::CarryOverRule::Return,
+        other => panic!("unknown carry-over rule {other}"),
+    };
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::resolve_carry_over(
+        &pool, id, task_id, rule,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[given(expr = "a done task titled {word} scheduled {int} days ago")]
+fn scheduled_past_done_task(world: &mut MeanderWorld, title: String, days: i64) {
+    create_task(world, &title);
+    assert!(world.error.is_none(), "seed create failed");
+    let (pool, id) = active_profile_pool(world);
+    world
+        .rt()
+        .block_on(async {
+            sqlx::query(
+                "UPDATE tasks SET placement = 'scheduled', status = 'done', \
+                 scheduled_date = date('now', 'localtime', ? || ' days') \
+                 WHERE profile_id = ? AND title = ?",
+            )
+            .bind(format!("-{days}"))
+            .bind(id)
+            .bind(&title)
+            .execute(&pool)
+            .await
+        })
+        .expect("scheduling failed");
+}
+
+#[then(expr = "{word} is not pending a carry-over decision")]
+fn task_not_pending_carry_over(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let pending = world
+        .rt()
+        .block_on(meander_lib::tasks::pending_carry_over(&pool, id))
+        .expect("pending read failed");
+    assert!(
+        !pending.iter().any(|t| t.title == title),
+        "{title} should not be pending: {pending:?}"
+    );
+}
+
+#[then(expr = "{word} is pending a carry-over decision")]
+fn task_pending_carry_over(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let pending = world
+        .rt()
+        .block_on(meander_lib::tasks::pending_carry_over(&pool, id))
+        .expect("pending read failed");
+    assert!(
+        pending.iter().any(|t| t.title == title),
+        "{title} not pending: {pending:?}"
+    );
+}
+
+#[then(expr = "the board lists {word} in the weekly backlog")]
+fn board_lists_in_weekly_backlog(world: &mut MeanderWorld, title: String) {
+    let tasks = world.board_tasks.as_ref().expect("no board read in world");
+    let task = tasks
+        .iter()
+        .find(|t| t.title == title)
+        .unwrap_or_else(|| panic!("{title} not on the board"));
+    assert_eq!(
+        task.placement,
+        meander_lib::tasks::TaskPlacement::WeeklyBacklog,
+        "{title} is not in the weekly backlog"
+    );
+}
+
 #[then(expr = "the board lists {word} on today")]
 fn board_lists_on_today(world: &mut MeanderWorld, title: String) {
     let tasks = world.board_tasks.as_ref().expect("no board read in world");

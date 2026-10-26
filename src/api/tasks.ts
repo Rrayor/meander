@@ -1,7 +1,7 @@
 import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
-import type { NewTask, Task, UpdateTask } from "./bindings";
+import type { CarryOverRule, NewTask, Task, UpdateTask } from "./bindings";
 
 export type { NewTask, Task, UpdateTask };
 
@@ -9,6 +9,12 @@ export const listTasks = () => transport.invoke<Task[]>(COMMANDS.listTasks);
 
 export const listWeekTasks = (date: string) =>
   transport.invoke<Task[]>(COMMANDS.listWeekTasks, { date });
+
+export const listPendingCarryOver = () =>
+  transport.invoke<Task[]>(COMMANDS.listPendingCarryOver);
+
+export const resolveCarryOver = (taskId: number, rule: CarryOverRule) =>
+  transport.invoke<void>(COMMANDS.resolveCarryOver, { taskId, rule });
 
 export const MAX_TASK_TITLE_LENGTH = 200;
 
