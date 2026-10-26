@@ -78,6 +78,9 @@ export function ThresholdSection() {
               max={MAX_DURATION_MINUTES}
               value={minutes ?? ""}
               aria-invalid={touched && invalid}
+              aria-describedby={
+                touched && invalid ? "threshold-minutes-error" : undefined
+              }
               onChange={(e) =>
                 setDraftMinutes(
                   e.target.value === "" ? null : Number(e.target.value),
@@ -94,7 +97,11 @@ export function ThresholdSection() {
           )}
         </div>
         {touched && invalid && (
-          <p role="alert" className="mt-2 text-sm text-error">
+          <p
+            id="threshold-minutes-error"
+            role="alert"
+            className="mt-2 text-sm text-error"
+          >
             {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
           </p>
         )}

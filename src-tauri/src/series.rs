@@ -766,7 +766,7 @@ pub async fn update(
     let carry_over = input.carry_over_rule.unwrap_or(CarryOverRule::Return);
     // Same estimate boundary as task writes — without it, invalid values
     // surface as a generic CHECK failure on instance rows.
-    let estimated = crate::tasks::parse_estimate(input.estimated_minutes)?;
+    let estimated = crate::validation::parse_estimate(input.estimated_minutes)?;
     let result = sqlx::query(
         "UPDATE task_series SET title = ?, description = ?, carry_over_rule = ?, \
          estimated_minutes = ?, recurrence = ?, start_date = ?, end_date = ?, \
@@ -1041,7 +1041,7 @@ async fn apply_edit_from(
         input.end_date.as_deref(),
     )?;
     let carry_over = input.carry_over_rule.unwrap_or(CarryOverRule::Return);
-    let estimated = crate::tasks::parse_estimate(input.estimated_minutes)?;
+    let estimated = crate::validation::parse_estimate(input.estimated_minutes)?;
     sqlx::query(
         "UPDATE task_series SET title = ?, description = ?, carry_over_rule = ?, \
          estimated_minutes = ?, recurrence = ?, start_date = ?, end_date = ?, \

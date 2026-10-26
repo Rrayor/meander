@@ -45,3 +45,19 @@ pub fn parse_hex_color(
             }),
     }
 }
+
+/// Parses an optional duration estimate, mapping out-of-range input to
+/// the `EstimatedTimeOutOfRange` vocabulary.
+pub fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
+    Ok(raw
+        .map(PositiveDuration::try_new)
+        .transpose()
+        .map_err(|_| crate::db::DbError::Validation {
+            code: ErrorCode::EstimatedTimeOutOfRange,
+            message: format!(
+                "estimated time must be between 1 minute and {} hours",
+                MAX_DURATION_MINUTES / 60
+            ),
+        })?
+        .map(PositiveDuration::into_inner))
+}
