@@ -2683,6 +2683,42 @@ fn threshold_is(world: &mut MeanderWorld, minutes: i64) {
     assert_eq!(t.minutes, Some(minutes));
 }
 
+#[when(expr = "I set the active profile's global threshold to {int} minutes with color {word}")]
+fn set_threshold_colored(world: &mut MeanderWorld, minutes: i64, color: String) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_global_threshold(
+            &pool,
+            id,
+            Some(minutes),
+            Some(color),
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the active profile's global threshold color is {word}")]
+fn threshold_color_is(world: &mut MeanderWorld, color: String) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert_eq!(t.color.as_deref(), Some(color.as_str()));
+}
+
+#[then("the active profile's global threshold color is the default red")]
+fn threshold_color_is_default(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert_eq!(t.color.as_deref(), Some("#f87171"));
+}
+
 #[then("the threshold save fails")]
 fn threshold_save_fails(world: &mut MeanderWorld) {
     assert!(

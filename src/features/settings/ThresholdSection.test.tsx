@@ -6,6 +6,7 @@ import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import {
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
+  CUSTOM_COLOR_LABEL,
   CUSTOM_COLOR_PICKER_LABEL,
   THRESHOLD_FIELD_LABEL,
 } from "@/lib/labels";
@@ -73,6 +74,48 @@ describe("ThresholdSection", () => {
     await waitFor(() => expect(clear[1]).toBeEnabled());
     fireEvent.click(clear[1]);
     await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(null, null));
+  });
+
+  it("keeps a cleared field empty instead of restoring the stored value", async () => {
+    mockedThreshold.mockResolvedValue({ minutes: 480, color: "#f87171" });
+    renderSection();
+    const input = await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
+    await waitFor(() => expect(input).toHaveValue(480));
+    // Clearing the input must NOT revive the stored 480, and a threshold
+    // with no minutes is not saveable — clearing goes through the Clear
+    // button instead.
+    fireEvent.change(input, { target: { value: "" } });
+    expect(input).toHaveValue(null);
+    expect(
+      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+    ).toBeDisabled();
+  });
+
+  it("checks the custom radio when the stored color is off-palette", async () => {
+    mockedThreshold.mockResolvedValue({ minutes: 120, color: "#123456" });
+    renderSection();
+    const custom = await screen.findByRole("radio", {
+      name: CUSTOM_COLOR_LABEL,
+    });
+    // The off-palette stored color lands after the query resolves.
+    await waitFor(() => expect(custom).toHaveAttribute("aria-checked", "true"));
+    // No palette swatch claims selection for an off-palette color.
+    for (const swatch of screen.getAllByRole("radio")) {
+      if (swatch !== custom) {
+        expect(swatch).toHaveAttribute("aria-checked", "false");
+      }
+    }
+  });
+
+  it("leaves Save disabled while nothing changed", async () => {
+    mockedThreshold.mockResolvedValue({ minutes: 120, color: "#60a5fa" });
+    renderSection();
+    await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+      ).toBeDisabled(),
+    );
   });
 
   it("surfaces a rejected save", async () => {

@@ -8,6 +8,7 @@ import {
   PROFILE_NAME_REQUIRED_MESSAGE,
   RENAME_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
+  THRESHOLD_CLEAR_LABEL,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING,
   WEEKDAY_OPTIONS,
@@ -339,4 +340,77 @@ test("saving a global threshold sends it on the wire", async ({ page }) => {
   const calls = await getInvocations<{ minutes: number; color: string }>(page);
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
   expect(saveCall?.args).toEqual({ minutes: 240, color: "#f87171" });
+});
+
+test("a palette pick sends the chosen color on the wire", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: { minutes: 240, color: "#f87171" },
+    [COMMANDS.setGlobalThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  await section.getByRole("radio", { name: "Color #60a5fa" }).click();
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const calls = await getInvocations<{ minutes: number; color: string }>(page);
+  const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
+  expect(saveCall?.args).toEqual({ minutes: 240, color: "#60a5fa" });
+});
+
+test("clearing a stored threshold sends nulls on the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: { minutes: 240, color: "#f87171" },
+    [COMMANDS.setGlobalThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  await section.getByRole("button", { name: THRESHOLD_CLEAR_LABEL }).click();
+
+  const calls = await getInvocations<{
+    minutes: number | null;
+    color: string | null;
+  }>(page);
+  const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
+  expect(saveCall?.args).toEqual({ minutes: null, color: null });
+});
+
+test("out-of-range minutes never reach the wire", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: { minutes: null, color: null },
+    [COMMANDS.setGlobalThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  const input = section.getByLabel(THRESHOLD_FIELD_LABEL);
+  await input.fill("1441");
+  await input.blur();
+
+  await expect(section.getByRole("alert")).toBeVisible();
+  await expect(
+    section.getByRole("button", { name: SAVE_BUTTON_LABEL }),
+  ).toBeDisabled();
+  const calls = await getInvocations(page);
+  expect(
+    calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold),
+  ).toBeUndefined();
 });

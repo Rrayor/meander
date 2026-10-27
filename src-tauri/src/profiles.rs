@@ -256,6 +256,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn global_threshold_defaults_color_to_red_when_omitted() {
+        // §297: minutes saved without a pick get the default red.
+        let (pool, pid) = seeded_pool().await;
+        set_global_threshold(&pool, pid, Some(120), None)
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(t.color.as_deref(), Some("#f87171"));
+    }
+
+    #[tokio::test]
+    async fn global_threshold_is_scoped_to_each_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other: i64 =
+            sqlx::query_scalar("INSERT INTO profiles (name) VALUES ('Other') RETURNING id")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        set_global_threshold(&pool, pid, Some(300), Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        let own = global_threshold(&pool, pid).await.unwrap();
+        let foreign = global_threshold(&pool, other).await.unwrap();
+        assert_eq!(own.minutes, Some(300));
+        assert!(foreign.minutes.is_none());
+    }
+
+    #[tokio::test]
     async fn global_threshold_rejects_out_of_range_minutes() {
         let (pool, pid) = seeded_pool().await;
         for bad in [0, 1441, -5] {
