@@ -50,11 +50,16 @@ describe("Settings smoke", () => {
     const nav = await $(`aria/${NAV_LABEL}`);
     await nav.$(`=${settingsRoute.label}`).click();
 
+    const sundayOption = WEEKDAY_OPTIONS.find(
+      (o) => o.value === Weekday.Sunday,
+    )!;
+    const globalMinutes = "240";
+    const sundayMinutes = "720";
     const section = await $(`aria/${THRESHOLD_HEADING}`);
     const minutes = await section.$(`aria/${THRESHOLD_FIELD_LABEL}`);
-    await minutes.setValue("240");
-    const sunday = await section.$(`aria/Sunday`);
-    await sunday.setValue("720");
+    await minutes.setValue(globalMinutes);
+    const sunday = await section.$(`aria/${sundayOption.label}`);
+    await sunday.setValue(sundayMinutes);
     await (await section.$(`button=${SAVE_BUTTON_LABEL}`)).click();
 
     // A real round-trip: navigate away and back, the stored values reload.
@@ -67,7 +72,7 @@ describe("Settings smoke", () => {
           await $(`aria/${THRESHOLD_HEADING}`).$(
             `aria/${THRESHOLD_FIELD_LABEL}`,
           )
-        ).getValue()) === "240",
+        ).getValue()) === globalMinutes,
     );
     expect(
       await (await $(`aria/${THRESHOLD_HEADING}`).$(`aria/Sunday`)).getValue(),
@@ -77,7 +82,9 @@ describe("Settings smoke", () => {
     await (
       await $(`aria/${THRESHOLD_HEADING}`).$(`aria/${THRESHOLD_FIELD_LABEL}`)
     ).setValue("");
-    await (await $(`aria/${THRESHOLD_HEADING}`).$(`aria/Sunday`)).setValue("");
+    await (
+      await $(`aria/${THRESHOLD_HEADING}`).$(`aria/${sundayOption.label}`)
+    ).setValue("");
     await (
       await $(`aria/${THRESHOLD_HEADING}`).$(`button=${SAVE_BUTTON_LABEL}`)
     ).click();
