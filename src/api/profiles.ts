@@ -1,7 +1,7 @@
 import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
-import type { Profile } from "./bindings";
+import type { GlobalThreshold, Profile } from "./bindings";
 import { Weekday } from "@/lib/enums";
 
 export type { Profile };
@@ -32,3 +32,11 @@ export const workDays = () => transport.invoke<Weekday[]>(COMMANDS.workDays);
 
 export const setWorkDays = (days: Weekday[]) =>
   transport.invoke<void>(COMMANDS.setWorkDays, { days });
+
+export const globalThreshold = () =>
+  transport.invoke<GlobalThreshold>(COMMANDS.globalThreshold);
+
+export const setGlobalThreshold = (
+  minutes: number | null,
+  color: string | null,
+) => transport.invoke<void>(COMMANDS.setGlobalThreshold, { minutes, color });

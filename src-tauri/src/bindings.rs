@@ -1,5 +1,5 @@
 use crate::errors::{ApiError, ErrorCode, ErrorKind};
-use crate::profiles::Profile;
+use crate::profiles::{GlobalThreshold, Profile};
 use crate::tasks::{CarryOverRule, NewTask, Task, TaskPlacement, TaskStatus, UpdateTask};
 
 /// Renders the contents of `src/api/bindings.ts` from every IPC-facing type.
@@ -11,6 +11,7 @@ pub fn typescript() -> String {
     // IPC-facing types — extend as new entities cross the boundary.
     let types = [
         specta::ts::export::<Profile>(&conf).expect("export Profile"),
+        specta::ts::export::<GlobalThreshold>(&conf).expect("export GlobalThreshold"),
         specta::ts::export::<Task>(&conf).expect("export Task"),
         specta::ts::export::<crate::categories::Category>(&conf).expect("export Category"),
         specta::ts::export::<crate::categories::NewCategory>(&conf).expect("export NewCategory"),

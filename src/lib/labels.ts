@@ -89,6 +89,10 @@ export const COLOR_FIELD_LABEL = "Color";
 export const DEFAULT_COLOR_LABEL = "Default color";
 export const CUSTOM_COLOR_LABEL = "Custom color";
 export const CUSTOM_COLOR_PICKER_LABEL = "Pick a custom color";
+// Rainbow swatch previewing the "custom" option across palette and
+// threshold pickers alike.
+export const CUSTOM_COLOR_GRADIENT =
+  "conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #a78bfa, #f472b6, #f87171)";
 export const CATEGORY_TITLE_REQUIRED_MESSAGE = "Category title is required";
 export const categorySwatchLabel = (color: string) => `Color ${color}`;
 export const CATEGORIES_FIELD_LABEL = "Categories";
@@ -270,6 +274,18 @@ export const CARRY_OVER_RETURN_LABEL = "Backlog";
 export const CARRY_OVER_APPLY_LABEL = "Apply decisions";
 export const CARRY_OVER_DISMISS_LABEL = "Dismiss";
 export const CARRY_OVER_DEFER_LABEL = "Decide later";
+export const THRESHOLD_HEADING = "Planning threshold";
+export const THRESHOLD_HEADING_ID = "threshold-heading";
+export const THRESHOLD_FIELD_LABEL = "Minutes per day";
+export const THRESHOLD_COLOR_LABEL = "Threshold color";
+export const THRESHOLD_CUSTOM_COLOR_LABEL = "Custom color";
+export const THRESHOLD_MINUTES_ERROR_ID = "threshold-minutes-error";
+export const THRESHOLD_HINT =
+  "When a day's estimated total reaches the threshold, the board column gets a background tint.";
+export const THRESHOLD_CLEAR_LABEL = "Clear threshold";
+// The design system's threshold-red, lowercased to match native
+// <input type="color"> normalization.
+export const THRESHOLD_COLOR_DEFAULT = "#f87171";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;
 export const dayTotalsLabel = (estimated: number, spent: number) =>

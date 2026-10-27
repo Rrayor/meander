@@ -2644,6 +2644,102 @@ fn weekend() -> Vec<meander_lib::series::Weekday> {
     ]
 }
 
+#[when(expr = "I set the active profile's global threshold to {int} minutes")]
+fn set_threshold(world: &mut MeanderWorld, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_global_threshold(
+            &pool,
+            id,
+            Some(minutes),
+            None,
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I clear the active profile's global threshold")]
+fn clear_threshold(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_global_threshold(
+            &pool, id, None, None,
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the active profile's global threshold is {int} minutes")]
+fn threshold_is(world: &mut MeanderWorld, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert_eq!(t.minutes, Some(minutes));
+}
+
+#[when(expr = "I set the active profile's global threshold to {int} minutes with color {word}")]
+fn set_threshold_colored(world: &mut MeanderWorld, minutes: i64, color: String) {
+    let (pool, id) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_global_threshold(
+            &pool,
+            id,
+            Some(minutes),
+            Some(color),
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the active profile's global threshold color is {word}")]
+fn threshold_color_is(world: &mut MeanderWorld, color: String) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert_eq!(t.color.as_deref(), Some(color.as_str()));
+}
+
+#[then("the active profile's global threshold color is the default red")]
+fn threshold_color_is_default(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert_eq!(
+        t.color.as_deref(),
+        Some(meander_lib::profiles::DEFAULT_THRESHOLD_COLOR)
+    );
+}
+
+#[then("the threshold save fails")]
+fn threshold_save_fails(world: &mut MeanderWorld) {
+    assert!(
+        world.error.is_some(),
+        "threshold save unexpectedly succeeded"
+    );
+}
+
+#[then("the active profile has no global threshold")]
+fn threshold_absent(world: &mut MeanderWorld) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert!(t.minutes.is_none());
+}
+
 #[when("I set the active profile's work days to the weekend")]
 fn set_active_work_days(world: &mut MeanderWorld) {
     let (pool, id) = active_profile_pool(world);

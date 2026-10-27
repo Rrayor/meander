@@ -19,6 +19,7 @@ pub enum ErrorCode {
     CategoryTitleInvalidCharacters,
     CategoryDescriptionTooLong,
     CategoryColorInvalid,
+    ThresholdColorInvalid,
     ReorderAnchorsNotAdjacent,
     SeriesNotFound,
     RecurrenceInvalid,

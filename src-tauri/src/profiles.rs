@@ -5,6 +5,12 @@ use crate::series::Weekday;
 
 use crate::db::Result;
 
+#[derive(Debug, Serialize, specta::Type)]
+pub struct GlobalThreshold {
+    pub minutes: Option<i64>,
+    pub color: Option<String>,
+}
+
 #[derive(Debug, Serialize, specta::Type, sqlx::FromRow)]
 pub struct Profile {
     pub id: i64,
@@ -144,6 +150,67 @@ pub async fn set_work_days(pool: &SqlitePool, profile_id: i64, days: &[Weekday])
     Ok(())
 }
 
+/// The default threshold color (spec §297): red.
+pub const DEFAULT_THRESHOLD_COLOR: &str = "#f87171";
+
+/// The global per-day estimate threshold (spec §295/§297): minutes + a
+/// `#rrggbb` color, both absent when the user never set one.
+pub async fn global_threshold(pool: &SqlitePool, profile_id: i64) -> Result<GlobalThreshold> {
+    let row: (Option<i64>, Option<String>) = sqlx::query_as(
+        "SELECT global_threshold_minutes, global_threshold_color FROM profiles WHERE id = ?",
+    )
+    .bind(profile_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(GlobalThreshold {
+        minutes: row.0,
+        color: row.1,
+    })
+}
+
+/// Sets — or clears, with `None` minutes — the global threshold. The color
+/// is user-picked and validated as `#rrggbb` like category colors.
+pub async fn set_global_threshold(
+    pool: &SqlitePool,
+    profile_id: i64,
+    minutes: Option<i64>,
+    color: Option<String>,
+) -> Result<()> {
+    let validated = minutes
+        .map(|m| {
+            crate::validation::PositiveDuration::try_new(m).map_err(|_| {
+                crate::db::DbError::Validation {
+                    code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
+                    message: format!(
+                        "threshold must be between 1 and {} minutes",
+                        crate::validation::MAX_DURATION_MINUTES
+                    ),
+                }
+            })
+        })
+        .transpose()?
+        .map(|d| d.into_inner());
+    // Category colors use the same #rrggbb vocabulary — reuse the parse.
+    let parsed_color = crate::validation::parse_hex_color(
+        color.as_deref(),
+        crate::errors::ErrorCode::ThresholdColorInvalid,
+        "threshold color must be a #rrggbb hex value",
+    )?;
+    // §297: a set threshold defaults to red when no color is picked;
+    // an unset threshold leaves no orphaned color behind.
+    let parsed_color =
+        validated.and_then(|_| parsed_color.or_else(|| Some(DEFAULT_THRESHOLD_COLOR.to_string())));
+    sqlx::query(
+        "UPDATE profiles SET global_threshold_minutes = ?, global_threshold_color = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(validated)
+    .bind(parsed_color)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +236,87 @@ mod tests {
         assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Monday);
         set_week_start(&pool, pid, Weekday::Sunday).await.unwrap();
         assert_eq!(week_start(&pool, pid).await.unwrap(), Weekday::Sunday);
+    }
+
+    #[tokio::test]
+    async fn global_threshold_is_unset_then_persists_and_clears() {
+        let (pool, pid) = seeded_pool().await;
+        let initial = global_threshold(&pool, pid).await.unwrap();
+        assert!(initial.minutes.is_none());
+        assert!(initial.color.is_none());
+        set_global_threshold(&pool, pid, Some(240), Some("#F87171".into()))
+            .await
+            .unwrap();
+        let set = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(set.minutes, Some(240));
+        assert_eq!(set.color.as_deref(), Some("#f87171"));
+        set_global_threshold(&pool, pid, None, None).await.unwrap();
+        let cleared = global_threshold(&pool, pid).await.unwrap();
+        assert!(cleared.minutes.is_none());
+        assert!(cleared.color.is_none());
+    }
+
+    #[tokio::test]
+    async fn clearing_the_threshold_drops_any_color() {
+        let (pool, pid) = seeded_pool().await;
+        set_global_threshold(&pool, pid, Some(120), Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        // Clearing with a stray color argument must not persist one.
+        set_global_threshold(&pool, pid, None, Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.minutes.is_none());
+        assert!(t.color.is_none());
+    }
+
+    #[tokio::test]
+    async fn global_threshold_defaults_color_to_red_when_omitted() {
+        // §297: minutes saved without a pick get the default red.
+        let (pool, pid) = seeded_pool().await;
+        set_global_threshold(&pool, pid, Some(120), None)
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(t.color.as_deref(), Some("#f87171"));
+    }
+
+    #[tokio::test]
+    async fn global_threshold_is_scoped_to_each_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other: i64 =
+            sqlx::query_scalar("INSERT INTO profiles (name) VALUES ('Other') RETURNING id")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        set_global_threshold(&pool, pid, Some(300), Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        let own = global_threshold(&pool, pid).await.unwrap();
+        let foreign = global_threshold(&pool, other).await.unwrap();
+        assert_eq!(own.minutes, Some(300));
+        assert!(foreign.minutes.is_none());
+    }
+
+    #[tokio::test]
+    async fn global_threshold_rejects_out_of_range_minutes() {
+        let (pool, pid) = seeded_pool().await;
+        for bad in [0, 1441, -5] {
+            let err = set_global_threshold(&pool, pid, Some(bad), None)
+                .await
+                .unwrap_err();
+            assert!(format!("{err:?}").contains("EstimatedTimeOutOfRange"));
+        }
+    }
+
+    #[tokio::test]
+    async fn global_threshold_rejects_a_non_hex_color() {
+        let (pool, pid) = seeded_pool().await;
+        let err = set_global_threshold(&pool, pid, Some(60), Some("red".into()))
+            .await
+            .unwrap_err();
+        assert!(format!("{err:?}").contains("ThresholdColorInvalid"));
     }
 
     #[tokio::test]

@@ -28,16 +28,7 @@ pub const TASK_DESCRIPTION_MAX_LEN: usize = 20_000;
 )]
 pub struct TaskDescription(String);
 
-/// Spec: durations are optional, but when present they are positive and at
-/// most 24 hours — the schema enforces the same 1–1440 CHECK on both
-/// estimated and spent minutes.
-pub const MAX_DURATION_MINUTES: i64 = 24 * 60;
-
-#[nutype::nutype(
-    validate(greater = 0, less_or_equal = MAX_DURATION_MINUTES),
-    derive(Debug, PartialEq)
-)]
-pub struct PositiveDuration(i64);
+pub use crate::validation::{MAX_DURATION_MINUTES, PositiveDuration};
 
 impl TaskTitle {
     /// Validates `name`; the error variants are mapped to our own vocabulary.
@@ -150,19 +141,9 @@ fn parse_description(raw: Option<&str>) -> Result<Option<String>> {
         .map(TaskDescription::into_inner))
 }
 
-pub(crate) fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
-    Ok(raw
-        .map(PositiveDuration::try_new)
-        .transpose()
-        .map_err(|_| crate::db::DbError::Validation {
-            code: ErrorCode::EstimatedTimeOutOfRange,
-            message: format!(
-                "estimated time must be between 1 minute and {} hours",
-                MAX_DURATION_MINUTES / 60
-            ),
-        })?
-        .map(PositiveDuration::into_inner))
-}
+// Canonical home is validation; re-exported so internal call sites
+// stay short.
+pub(crate) use crate::validation::parse_estimate;
 
 fn parse_spent(raw: Option<i64>) -> Result<Option<i64>> {
     Ok(raw
@@ -276,9 +257,10 @@ fn task_not_found() -> crate::db::DbError {
     }
 }
 
-/// Validates that `id` is an existing task owned by `profile_id` — shared
-/// by every operation that targets a single task (update, delete, category
-/// association).
+/// Public task-domain service: validates that `id` is an existing task
+/// owned by `profile_id`. Other feature modules legitimately consume it
+/// to verify association targets (e.g. categories attaching to a task);
+/// it is not an internal detail to bypass or duplicate.
 pub(crate) async fn ensure_exists(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
     sort_order_of(pool, profile_id, id).await.map(|_| ())
 }

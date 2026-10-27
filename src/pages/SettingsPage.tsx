@@ -7,6 +7,7 @@ import { DatabaseSection } from "@/features/settings/DatabaseSection";
 import { WeekStartSection } from "@/features/settings/WeekStartSection";
 import { WorkDaysSection } from "@/features/settings/WorkDaysSection";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
+import { ThresholdSection } from "@/features/settings/ThresholdSection";
 
 export function SettingsPage() {
   // Profile-scoped sections hold unsaved drafts in local state — keying
@@ -34,6 +35,7 @@ export function SettingsPage() {
           <ProfilesSection />
           <WeekStartSection key={`week-start-${contextKey}`} />
           <WorkDaysSection key={`work-days-${contextKey}`} />
+          <ThresholdSection key={`threshold-${contextKey}`} />
           <DatabaseSection />
         </div>
       </div>

@@ -69,6 +69,13 @@ For any UI task, create the design with Stitch before implementing:
   `message`), not stringly-typed rejects. Add a variant to `ErrorCode` rather
   than inventing a new message, and map server errors in the frontend by
   `ErrorCode` — never by matching message text.
+- Feature modules must never reach into another feature module's internals.
+  If two modules need the same helper, validator, or primitive, extract it
+  into the shared layer instead — `src-tauri/src/validation.rs` on the
+  backend (see `parse_hex_color`, `PositiveDuration`, `MAX_DURATION_MINUTES`,
+  `HexColor`), `src/lib/` on the frontend. Domain types a second module
+  legitimately produces or consumes (e.g. a series materializing `TaskTitle`s)
+  may be shared directly; private helpers and implementation details may not.
 
 ## Validation
 

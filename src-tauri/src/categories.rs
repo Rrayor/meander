@@ -26,30 +26,6 @@ pub const CATEGORY_PALETTE: [&str; 12] = [
 ];
 pub const DEFAULT_CATEGORY_COLOR: &str = "#2dd4bf";
 
-/// Spec: a category color, when given, is a `#rrggbb` hex value. Whitespace
-/// is trimmed and the hex normalized to lowercase before validation.
-#[nutype::nutype(
-    sanitize(trim, lowercase),
-    validate(predicate = |s: &str| {
-        let Some(hex) = s.strip_prefix('#') else { return false };
-        hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit())
-    }),
-    derive(Debug, PartialEq)
-)]
-struct CategoryColor(String);
-
-fn parse_color(raw: Option<&str>) -> Result<Option<String>> {
-    match raw.map(str::trim).filter(|c| !c.is_empty()) {
-        None => Ok(None),
-        Some(c) => CategoryColor::try_new(c)
-            .map(|c| Some(c.into_inner()))
-            .map_err(|_| crate::db::DbError::Validation {
-                code: ErrorCode::CategoryColorInvalid,
-                message: "category color must be a #rrggbb hex value".into(),
-            }),
-    }
-}
-
 #[nutype::nutype(
     sanitize(trim),
     validate(
@@ -122,8 +98,12 @@ pub struct NewCategory {
 pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewCategory) -> Result<Category> {
     let title = CategoryTitle::parse(&input.title)?.into_inner();
     let description = parse_category_description(input.description.as_deref())?;
-    let color =
-        parse_color(input.color.as_deref())?.unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
+    let color = crate::validation::parse_hex_color(
+        input.color.as_deref(),
+        ErrorCode::CategoryColorInvalid,
+        "category color must be a #rrggbb hex value",
+    )?
+    .unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
     let result = sqlx::query(
         "INSERT INTO categories (profile_id, title, description, color) VALUES (?, ?, ?, ?)",
     )
@@ -186,8 +166,12 @@ pub async fn update(
 ) -> Result<Category> {
     let title = CategoryTitle::parse(&input.title)?.into_inner();
     let description = parse_category_description(input.description.as_deref())?;
-    let color =
-        parse_color(input.color.as_deref())?.unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
+    let color = crate::validation::parse_hex_color(
+        input.color.as_deref(),
+        ErrorCode::CategoryColorInvalid,
+        "category color must be a #rrggbb hex value",
+    )?
+    .unwrap_or_else(|| DEFAULT_CATEGORY_COLOR.to_string());
     let result = sqlx::query(
         "UPDATE categories SET title = ?, description = ?, color = ?,
          updated_at = CURRENT_TIMESTAMP

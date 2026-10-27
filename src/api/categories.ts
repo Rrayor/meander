@@ -17,20 +17,7 @@ export const DEFAULT_CATEGORY_COLOR = "#2dd4bf";
 
 // Spec: a category color is optional; the palette mirrors the threshold
 // tints in index.css. No pick defaults to the primary accent server-side.
-export const CATEGORY_COLORS = [
-  "#f87171",
-  "#fb923c",
-  "#fbbf24",
-  "#a3e635",
-  "#4ade80",
-  "#34d399",
-  "#22d3ee",
-  "#60a5fa",
-  "#818cf8",
-  "#a78bfa",
-  "#e879f9",
-  "#f472b6",
-] as const;
+export { CATEGORY_COLORS } from "@/lib/constants";
 
 export const listCategories = () =>
   transport.invoke<Category[]>(COMMANDS.listCategories);

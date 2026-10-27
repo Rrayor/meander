@@ -11,6 +11,7 @@ pub mod profiles;
 pub mod series;
 pub mod state;
 pub mod tasks;
+pub mod validation;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,6 +33,8 @@ pub fn run() {
             commands::list_profiles,
             commands::list_tasks,
             commands::list_week_tasks,
+            commands::global_threshold,
+            commands::set_global_threshold,
             commands::list_pending_carry_over,
             commands::resolve_carry_over,
             commands::list_categories,

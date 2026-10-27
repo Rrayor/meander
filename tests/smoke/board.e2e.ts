@@ -52,8 +52,10 @@ describe("Board smoke", () => {
     await (await $(`aria/${CREATE_TASK_LABEL}`)).click();
 
     await nav.$(`=${boardRoute.label}`).then((l) => l.click());
-    await browser.waitUntil(async () =>
-      (await $(`aria/${editTaskLabel(title)}`)).isExisting(),
+    // A daily series materializes one card per day column — assert at
+    // least one is present rather than matching a single element.
+    await browser.waitUntil(
+      async () => (await $$(`aria/${editTaskLabel(title)}`)).length > 0,
     );
   });
 

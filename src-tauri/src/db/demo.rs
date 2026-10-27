@@ -160,17 +160,19 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
     }
 
     // One standalone scheduled task per day across the window. Past
-    // weeks are done; the current week mixes statuses so the board
-    // shows all three rows.
-    for z in oldest..=today {
+    // weeks are done; the current week mixes statuses by the day's
+    // position in the week so all three rows show — even when seeded
+    // on the week's first day, the remaining days fill todo/upcoming.
+    let week_end = week_start + 6;
+    for z in oldest..=week_end {
         let idx = (z - oldest) as usize;
         let est = 30 + (idx % 3) as i64 * 30;
         let (status, spent) = if z < week_start {
             ("done", Some(est))
         } else {
-            match idx % 3 {
-                0 => ("todo", None),
-                1 => ("in_progress", Some(est / 2)),
+            match (z - week_start) % 3 {
+                0 => ("in_progress", Some(est / 2)),
+                1 => ("todo", None),
                 _ => ("done", Some(est)),
             }
         };
@@ -308,13 +310,15 @@ mod tests {
     async fn demo_seed_respects_the_window_bounds() {
         let pool = seeded_pool().await;
         seed_demo(&pool).await.unwrap();
-        // Nothing is scheduled in the future — the seed only fills the
-        // past twelve weeks, today included.
-        let future: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE scheduled_date > date('now')")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        // The window ends at the current week's last day — the current
+        // week fills through its end so every status shows regardless
+        // of the weekday the seed runs on.
+        let future: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE scheduled_date > date('now', 'localtime', 'weekday 0', '+6 days')",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(future, 0);
         let out_of_window: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM tasks WHERE scheduled_date < date('now', '-84 days')",
