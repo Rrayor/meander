@@ -2654,6 +2654,7 @@ fn set_threshold(world: &mut MeanderWorld, minutes: i64) {
             id,
             Some(minutes),
             None,
+            std::collections::BTreeMap::new(),
         ))
     {
         world.error = Some(e.to_string());
@@ -2666,7 +2667,11 @@ fn clear_threshold(world: &mut MeanderWorld) {
     if let Err(e) = world
         .rt()
         .block_on(meander_lib::profiles::set_global_threshold(
-            &pool, id, None, None,
+            &pool,
+            id,
+            None,
+            None,
+            std::collections::BTreeMap::new(),
         ))
     {
         world.error = Some(e.to_string());
@@ -2693,6 +2698,7 @@ fn set_threshold_colored(world: &mut MeanderWorld, minutes: i64, color: String) 
             id,
             Some(minutes),
             Some(color),
+            std::collections::BTreeMap::new(),
         ))
     {
         world.error = Some(e.to_string());
@@ -2752,8 +2758,8 @@ fn set_day_threshold(world: &mut MeanderWorld, day: String, minutes: i64) {
     m.insert(weekday, minutes);
     if let Err(e) = world
         .rt()
-        .block_on(meander_lib::profiles::set_global_threshold_day_minutes(
-            &pool, id, m,
+        .block_on(meander_lib::profiles::set_global_threshold(
+            &pool, id, None, None, m,
         ))
     {
         world.error = Some(e.to_string());

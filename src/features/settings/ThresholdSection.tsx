@@ -4,11 +4,7 @@ import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import {
-  globalThreshold,
-  setGlobalThreshold,
-  setGlobalThresholdDayMinutes,
-} from "@/api/profiles";
+import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { Weekday } from "@/lib/enums";
 import { CATEGORY_COLORS, MAX_DURATION_MINUTES } from "@/lib/constants";
@@ -87,10 +83,7 @@ export function ThresholdSection() {
       minutes: number | null;
       color: string | null;
       dayMinutes: Partial<Record<Weekday, number>>;
-    }) => {
-      await setGlobalThreshold(v.minutes, v.color);
-      await setGlobalThresholdDayMinutes(v.dayMinutes);
-    },
+    }) => setGlobalThreshold(v.minutes, v.color, v.dayMinutes),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.globalThreshold,
@@ -162,6 +155,7 @@ export function ThresholdSection() {
                   max={MAX_DURATION_MINUTES}
                   placeholder={minutes != null ? String(minutes) : ""}
                   aria-label={o.label}
+                  aria-invalid={errors.day_minutes?.[o.value] != null}
                   {...register(`day_minutes.${o.value}`, {
                     setValueAs: (v: string) => (v === "" ? null : Number(v)),
                   })}
@@ -170,6 +164,11 @@ export function ThresholdSection() {
               </label>
             ))}
           </div>
+          {errors.day_minutes && (
+            <p role="alert" className="mt-2 text-sm text-error">
+              {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
+            </p>
+          )}
         </fieldset>
         <fieldset className="mt-4 text-sm text-text-muted">
           <legend className="sr-only">{THRESHOLD_COLOR_LABEL}</legend>
@@ -229,6 +228,11 @@ export function ThresholdSection() {
               />
             </div>
           </div>
+          {errors.day_minutes && (
+            <p role="alert" className="mt-2 text-sm text-error">
+              {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
+            </p>
+          )}
         </fieldset>
       </div>
       {save.isError && (
@@ -249,7 +253,7 @@ export function ThresholdSection() {
         </button>
         <button
           type="button"
-          disabled={!isDirty || minutes == null || save.isPending}
+          disabled={!isDirty || save.isPending}
           // handleSubmit revalidates on click even for untouched fields —
           // invalid minutes surface the alert instead of reaching the wire.
           onClick={() =>

@@ -2,11 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  globalThreshold,
-  setGlobalThreshold,
-  setGlobalThresholdDayMinutes,
-} from "@/api/profiles";
+import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import {
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
@@ -22,12 +18,10 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
   globalThreshold: vi.fn(),
   setGlobalThreshold: vi.fn(),
-  setGlobalThresholdDayMinutes: vi.fn(),
 }));
 
 const mockedThreshold = vi.mocked(globalThreshold);
 const mockedSet = vi.mocked(setGlobalThreshold);
-const mockedSetDays = vi.mocked(setGlobalThresholdDayMinutes);
 
 const renderSection = () =>
   render(
@@ -53,7 +47,9 @@ describe("ThresholdSection", () => {
     const input = await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
     fireEvent.change(input, { target: { value: "240" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
-    await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(240, "#f87171"));
+    await waitFor(() =>
+      expect(mockedSet).toHaveBeenCalledWith(240, "#f87171", {}),
+    );
   });
 
   it("saves a picked color alongside the minutes", async () => {
@@ -70,7 +66,9 @@ describe("ThresholdSection", () => {
       target: { value: "#60a5fa" },
     });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
-    await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(60, "#60a5fa"));
+    await waitFor(() =>
+      expect(mockedSet).toHaveBeenCalledWith(60, "#60a5fa", {}),
+    );
   });
 
   it("clearing an unset threshold stays disabled; clearing a set one saves nulls", async () => {
@@ -96,7 +94,7 @@ describe("ThresholdSection", () => {
     // The second render's button enables once the stored query lands.
     await waitFor(() => expect(clear[1]).toBeEnabled());
     fireEvent.click(clear[1]);
-    await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(null, null));
+    await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(null, null, {}));
   });
 
   it("keeps a cleared field empty instead of restoring the stored value", async () => {
@@ -108,14 +106,14 @@ describe("ThresholdSection", () => {
     renderSection();
     const input = await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
     await waitFor(() => expect(input).toHaveValue(480));
-    // Clearing the input must NOT revive the stored 480, and a threshold
-    // with no minutes is not saveable — clearing goes through the Clear
-    // button instead.
+    // Clearing the input must NOT revive the stored 480 — saving the
+    // empty field clears the threshold (same as the Clear button).
     fireEvent.change(input, { target: { value: "" } });
     expect(input).toHaveValue(null);
-    expect(
-      screen.getByRole("button", { name: SAVE_BUTTON_LABEL }),
-    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(mockedSet).toHaveBeenCalledWith(null, THRESHOLD_COLOR_DEFAULT, {}),
+    );
   });
 
   it("checks the custom radio when the stored color is off-palette", async () => {
@@ -165,7 +163,9 @@ describe("ThresholdSection", () => {
     fireEvent.change(sunday, { target: { value: "720" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
-      expect(mockedSetDays).toHaveBeenCalledWith({ sunday: 720 }),
+      expect(mockedSet).toHaveBeenCalledWith(240, THRESHOLD_COLOR_DEFAULT, {
+        sunday: 720,
+      }),
     );
   });
 

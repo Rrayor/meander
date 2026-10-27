@@ -45,28 +45,21 @@ pub async fn global_threshold(
 }
 
 #[tauri::command]
-pub async fn set_global_threshold_day_minutes(
-    state: State<'_, AppState>,
-    day_minutes: std::collections::BTreeMap<crate::series::Weekday, i64>,
-) -> Result<(), ApiError> {
-    crate::profiles::set_global_threshold_day_minutes(
-        &state.pool(),
-        state.active_profile_id(),
-        day_minutes,
-    )
-    .await
-    .map_err(Into::into)
-}
-
-#[tauri::command]
 pub async fn set_global_threshold(
     state: State<'_, AppState>,
     minutes: Option<i64>,
     color: Option<String>,
+    day_minutes: std::collections::BTreeMap<crate::series::Weekday, i64>,
 ) -> Result<(), ApiError> {
-    crate::profiles::set_global_threshold(&state.pool(), state.active_profile_id(), minutes, color)
-        .await
-        .map_err(ApiError::from)
+    crate::profiles::set_global_threshold(
+        &state.pool(),
+        state.active_profile_id(),
+        minutes,
+        color,
+        day_minutes,
+    )
+    .await
+    .map_err(ApiError::from)
 }
 
 #[tauri::command]

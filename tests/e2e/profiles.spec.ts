@@ -344,6 +344,7 @@ test("saving a global threshold sends it on the wire", async ({ page }) => {
   expect(saveCall?.args).toEqual({
     minutes: 240,
     color: THRESHOLD_COLOR_DEFAULT,
+    dayMinutes: {},
   });
 });
 
@@ -373,6 +374,7 @@ test("a palette pick sends the chosen color on the wire", async ({ page }) => {
   expect(saveCall?.args).toEqual({
     minutes: 240,
     color: "#60a5fa",
+    dayMinutes: {},
   });
 });
 
@@ -404,6 +406,7 @@ test("clearing a stored threshold sends nulls on the wire", async ({
   expect(saveCall?.args).toEqual({
     minutes: null,
     color: null,
+    dayMinutes: {},
   });
 });
 
@@ -446,7 +449,6 @@ test("a weekday override sends the day map on the wire", async ({ page }) => {
       day_minutes: {},
     },
     [COMMANDS.setGlobalThreshold]: null,
-    [COMMANDS.setGlobalThresholdDayMinutes]: null,
   });
   await page.goto(`/#${settingsPath}`);
 
@@ -457,8 +459,6 @@ test("a weekday override sends the day map on the wire", async ({ page }) => {
   const calls = await getInvocations<{
     dayMinutes: { sunday?: number };
   }>(page);
-  const dayCall = calls.find(
-    (c) => c.cmd === COMMANDS.setGlobalThresholdDayMinutes,
-  );
+  const dayCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
   expect(dayCall?.args.dayMinutes).toEqual({ sunday: 720 });
 });

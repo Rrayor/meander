@@ -185,6 +185,7 @@ pub async fn set_global_threshold(
     profile_id: i64,
     minutes: Option<i64>,
     color: Option<String>,
+    day_minutes: BTreeMap<Weekday, i64>,
 ) -> Result<()> {
     let validated = minutes
         .map(|m| {
@@ -206,29 +207,7 @@ pub async fn set_global_threshold(
         crate::errors::ErrorCode::ThresholdColorInvalid,
         "threshold color must be a #rrggbb hex value",
     )?;
-    // §297: a set threshold defaults to red when no color is picked;
-    // an unset threshold leaves no orphaned color behind.
-    let parsed_color =
-        validated.and_then(|_| parsed_color.or_else(|| Some(DEFAULT_THRESHOLD_COLOR.to_string())));
-    sqlx::query(
-        "UPDATE profiles SET global_threshold_minutes = ?, global_threshold_color = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    )
-    .bind(validated)
-    .bind(parsed_color)
-    .bind(profile_id)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-/// Replaces the per-weekday overrides for the global threshold (§291):
-/// absent days inherit the global minutes; an empty map clears to NULL.
-pub async fn set_global_threshold_day_minutes(
-    pool: &SqlitePool,
-    profile_id: i64,
-    day_minutes: BTreeMap<Weekday, i64>,
-) -> Result<()> {
-    let mut validated = BTreeMap::new();
+    let mut days = BTreeMap::new();
     for (day, m) in day_minutes {
         let m = PositiveDuration::try_new(m).map_err(|_| crate::db::DbError::Validation {
             code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
@@ -237,18 +216,23 @@ pub async fn set_global_threshold_day_minutes(
                 crate::validation::MAX_DURATION_MINUTES
             ),
         })?;
-        validated.insert(day, m.into_inner());
+        days.insert(day, m.into_inner());
     }
-    let json = if validated.is_empty() {
-        None
-    } else {
-        Some(serde_json::to_string(&validated).expect("weekday keys serialize"))
-    };
-    sqlx::query("UPDATE profiles SET global_threshold_day_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .bind(json)
-        .bind(profile_id)
-        .execute(pool)
-        .await?;
+    let days_json =
+        (!days.is_empty()).then(|| serde_json::to_string(&days).expect("weekday keys serialize"));
+    // §297: a set threshold defaults to red when no color is picked;
+    // an unset threshold leaves no orphaned color behind.
+    let parsed_color =
+        validated.and_then(|_| parsed_color.or_else(|| Some(DEFAULT_THRESHOLD_COLOR.to_string())));
+    sqlx::query(
+        "UPDATE profiles SET global_threshold_minutes = ?, global_threshold_color = ?, global_threshold_day_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(validated)
+    .bind(parsed_color)
+    .bind(days_json)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -285,13 +269,21 @@ mod tests {
         let initial = global_threshold(&pool, pid).await.unwrap();
         assert!(initial.minutes.is_none());
         assert!(initial.color.is_none());
-        set_global_threshold(&pool, pid, Some(240), Some("#F87171".into()))
-            .await
-            .unwrap();
+        set_global_threshold(
+            &pool,
+            pid,
+            Some(240),
+            Some("#F87171".into()),
+            BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         let set = global_threshold(&pool, pid).await.unwrap();
         assert_eq!(set.minutes, Some(240));
         assert_eq!(set.color.as_deref(), Some("#f87171"));
-        set_global_threshold(&pool, pid, None, None).await.unwrap();
+        set_global_threshold(&pool, pid, None, None, BTreeMap::new())
+            .await
+            .unwrap();
         let cleared = global_threshold(&pool, pid).await.unwrap();
         assert!(cleared.minutes.is_none());
         assert!(cleared.color.is_none());
@@ -300,11 +292,17 @@ mod tests {
     #[tokio::test]
     async fn clearing_the_threshold_drops_any_color() {
         let (pool, pid) = seeded_pool().await;
-        set_global_threshold(&pool, pid, Some(120), Some("#60a5fa".into()))
-            .await
-            .unwrap();
+        set_global_threshold(
+            &pool,
+            pid,
+            Some(120),
+            Some("#60a5fa".into()),
+            BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         // Clearing with a stray color argument must not persist one.
-        set_global_threshold(&pool, pid, None, Some("#60a5fa".into()))
+        set_global_threshold(&pool, pid, None, Some("#60a5fa".into()), BTreeMap::new())
             .await
             .unwrap();
         let t = global_threshold(&pool, pid).await.unwrap();
@@ -322,7 +320,7 @@ mod tests {
         let mut m = BTreeMap::new();
         m.insert(Weekday::Monday, 480);
         m.insert(Weekday::Sunday, 720);
-        set_global_threshold_day_minutes(&pool, pid, m)
+        set_global_threshold(&pool, pid, None, None, m)
             .await
             .unwrap();
         let t = global_threshold(&pool, pid).await.unwrap();
@@ -332,14 +330,14 @@ mod tests {
         // Boundary: 1440 accepted.
         let mut m = BTreeMap::new();
         m.insert(Weekday::Saturday, 1440);
-        set_global_threshold_day_minutes(&pool, pid, m)
+        set_global_threshold(&pool, pid, None, None, m)
             .await
             .unwrap();
         let t = global_threshold(&pool, pid).await.unwrap();
         assert_eq!(t.day_minutes.get("saturday"), Some(&1440));
         assert_eq!(t.day_minutes.len(), 1);
         // Empty map clears to NULL.
-        set_global_threshold_day_minutes(&pool, pid, BTreeMap::new())
+        set_global_threshold(&pool, pid, None, None, BTreeMap::new())
             .await
             .unwrap();
         let t = global_threshold(&pool, pid).await.unwrap();
@@ -349,7 +347,7 @@ mod tests {
             let mut m = BTreeMap::new();
             m.insert(Weekday::Monday, bad);
             assert!(
-                set_global_threshold_day_minutes(&pool, pid, m)
+                set_global_threshold(&pool, pid, None, None, m)
                     .await
                     .is_err()
             );
@@ -362,7 +360,7 @@ mod tests {
     async fn global_threshold_defaults_color_to_red_when_omitted() {
         // §297: minutes saved without a pick get the default red.
         let (pool, pid) = seeded_pool().await;
-        set_global_threshold(&pool, pid, Some(120), None)
+        set_global_threshold(&pool, pid, Some(120), None, BTreeMap::new())
             .await
             .unwrap();
         let t = global_threshold(&pool, pid).await.unwrap();
@@ -377,9 +375,15 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        set_global_threshold(&pool, pid, Some(300), Some("#60a5fa".into()))
-            .await
-            .unwrap();
+        set_global_threshold(
+            &pool,
+            pid,
+            Some(300),
+            Some("#60a5fa".into()),
+            BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         let own = global_threshold(&pool, pid).await.unwrap();
         let foreign = global_threshold(&pool, other).await.unwrap();
         assert_eq!(own.minutes, Some(300));
@@ -390,7 +394,7 @@ mod tests {
     async fn global_threshold_rejects_out_of_range_minutes() {
         let (pool, pid) = seeded_pool().await;
         for bad in [0, 1441, -5] {
-            let err = set_global_threshold(&pool, pid, Some(bad), None)
+            let err = set_global_threshold(&pool, pid, Some(bad), None, BTreeMap::new())
                 .await
                 .unwrap_err();
             assert!(format!("{err:?}").contains("EstimatedTimeOutOfRange"));
@@ -400,7 +404,7 @@ mod tests {
     #[tokio::test]
     async fn global_threshold_rejects_a_non_hex_color() {
         let (pool, pid) = seeded_pool().await;
-        let err = set_global_threshold(&pool, pid, Some(60), Some("red".into()))
+        let err = set_global_threshold(&pool, pid, Some(60), Some("red".into()), BTreeMap::new())
             .await
             .unwrap_err();
         assert!(format!("{err:?}").contains("ThresholdColorInvalid"));
