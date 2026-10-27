@@ -220,10 +220,14 @@ pub async fn set_global_threshold(
     }
     let days_json =
         (!days.is_empty()).then(|| serde_json::to_string(&days).expect("weekday keys serialize"));
-    // §297: a set threshold defaults to red when no color is picked;
-    // an unset threshold leaves no orphaned color behind.
-    let parsed_color =
-        validated.and_then(|_| parsed_color.or_else(|| Some(DEFAULT_THRESHOLD_COLOR.to_string())));
+    // §297: any stored threshold — global or day-only — defaults to
+    // red when no color is picked; a fully unset one drops the color.
+    let any_threshold = validated.is_some() || days_json.is_some();
+    let parsed_color = if any_threshold {
+        parsed_color.or_else(|| Some(DEFAULT_THRESHOLD_COLOR.to_string()))
+    } else {
+        None
+    };
     sqlx::query(
         "UPDATE profiles SET global_threshold_minutes = ?, global_threshold_color = ?, global_threshold_day_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )

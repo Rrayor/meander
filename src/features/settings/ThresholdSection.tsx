@@ -21,6 +21,7 @@ import {
   THRESHOLD_HEADING_ID,
   THRESHOLD_HINT,
   THRESHOLD_MINUTES_ERROR_ID,
+  THRESHOLD_DAYS_ERROR_ID,
   THRESHOLD_DAYS_FIELDSET_LABEL,
   WEEKDAY_OPTIONS,
   categorySwatchLabel,
@@ -156,6 +157,11 @@ export function ThresholdSection() {
                   placeholder={minutes != null ? String(minutes) : ""}
                   aria-label={o.label}
                   aria-invalid={errors.day_minutes?.[o.value] != null}
+                  aria-describedby={
+                    errors.day_minutes?.[o.value] != null
+                      ? THRESHOLD_DAYS_ERROR_ID
+                      : undefined
+                  }
                   {...register(`day_minutes.${o.value}`, {
                     setValueAs: (v: string) => (v === "" ? null : Number(v)),
                   })}
@@ -165,7 +171,11 @@ export function ThresholdSection() {
             ))}
           </div>
           {errors.day_minutes && (
-            <p role="alert" className="mt-2 text-sm text-error">
+            <p
+              id={THRESHOLD_DAYS_ERROR_ID}
+              role="alert"
+              className="mt-2 text-sm text-error"
+            >
               {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
             </p>
           )}
@@ -229,7 +239,11 @@ export function ThresholdSection() {
             </div>
           </div>
           {errors.day_minutes && (
-            <p role="alert" className="mt-2 text-sm text-error">
+            <p
+              id={THRESHOLD_DAYS_ERROR_ID}
+              role="alert"
+              className="mt-2 text-sm text-error"
+            >
               {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
             </p>
           )}
