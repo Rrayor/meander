@@ -196,9 +196,10 @@ pub async fn set_global_threshold(
         crate::errors::ErrorCode::ThresholdColorInvalid,
         "threshold color must be a #rrggbb hex value",
     )?;
-    // §297: a threshold without a picked color defaults to red.
+    // §297: a set threshold defaults to red when no color is picked;
+    // an unset threshold leaves no orphaned color behind.
     let parsed_color =
-        parsed_color.or_else(|| validated.map(|_| DEFAULT_THRESHOLD_COLOR.to_string()));
+        validated.and_then(|_| parsed_color.or_else(|| Some(DEFAULT_THRESHOLD_COLOR.to_string())));
     sqlx::query(
         "UPDATE profiles SET global_threshold_minutes = ?, global_threshold_color = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     )
@@ -253,6 +254,21 @@ mod tests {
         let cleared = global_threshold(&pool, pid).await.unwrap();
         assert!(cleared.minutes.is_none());
         assert!(cleared.color.is_none());
+    }
+
+    #[tokio::test]
+    async fn clearing_the_threshold_drops_any_color() {
+        let (pool, pid) = seeded_pool().await;
+        set_global_threshold(&pool, pid, Some(120), Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        // Clearing with a stray color argument must not persist one.
+        set_global_threshold(&pool, pid, None, Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.minutes.is_none());
+        assert!(t.color.is_none());
     }
 
     #[tokio::test]
