@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
-import { weekStart } from "@/api/profiles";
+import { globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { Task } from "@/api/bindings";
 import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
@@ -26,7 +26,13 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { errorMessage, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import {
+  errorMessage,
+  shiftDays,
+  thresholdTint,
+  todayLocalIso,
+  weekDates,
+} from "@/lib/utils";
 
 const STATUS_ROWS = [
   TaskStatus.Todo,
@@ -91,30 +97,50 @@ export function BoardPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, [jumpOpen]);
   const days = weekDates(anchor, start ?? Weekday.Monday);
+  const { data: threshold, error: thresholdError } = useQuery({
+    queryKey: QUERY_KEYS.globalThreshold,
+    queryFn: globalThreshold,
+  });
   const { data: tasks, error: weekError } = useQuery({
     queryKey: QUERY_KEYS.boardWeek(days[0]),
     queryFn: () => listWeekTasks(days[0]),
   });
-  const error = startError ?? weekError;
+  const error = startError ?? weekError ?? thresholdError;
   const isCurrentWeek =
     days[0] === weekDates(todayIso, start ?? Weekday.Monday)[0];
 
   // null column = the weekly backlog bucket, a standing container of
   // current state — rendered only on the current week's board
   // (spec §336/§348/§354), never on past or future weeks.
-  const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
   // The carry-over prompt only ever opens on the current week's board.
   const { data: pending } = useQuery({
     queryKey: QUERY_KEYS.pendingCarryOver,
     queryFn: listPendingCarryOver,
     enabled: isCurrentWeek,
   });
+  const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
   const columnTasks = (column: string | null) =>
     (tasks ?? []).filter((t) =>
       column === null
         ? t.placement === TaskPlacement.WeeklyBacklog
         : t.scheduled_date === column,
     );
+
+  // Spec §281: a day column tints when its estimate total reaches the
+  // profile's threshold; the weekly backlog column never does.
+  const tintColor = threshold?.minutes != null ? threshold.color : null;
+  const reached = new Set(
+    columns.filter(
+      (c) =>
+        c !== null &&
+        tintColor !== null &&
+        totals(columnTasks(c)).estimated >= (threshold?.minutes ?? 0),
+    ),
+  );
+  const tint = tintColor
+    ? { backgroundColor: thresholdTint(tintColor) }
+    : undefined;
+
   const weekTotals = totals(tasks ?? []);
 
   return (
@@ -207,6 +233,7 @@ export function BoardPage() {
                   <th
                     key={column ?? "weekly-backlog"}
                     scope="col"
+                    style={reached.has(column) ? tint : undefined}
                     className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
                   >
                     <p className="text-sm font-medium text-text">
@@ -239,6 +266,7 @@ export function BoardPage() {
                   return (
                     <td
                       key={column ?? "weekly-backlog"}
+                      style={reached.has(column) ? tint : undefined}
                       className="rounded-md bg-surface/40 align-top"
                     >
                       {cell.length > 0 && (

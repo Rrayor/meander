@@ -9,7 +9,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { listTaskCategories } from "@/api/categories";
-import { weekStart } from "@/api/profiles";
+import { globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
   listPendingCarryOver,
@@ -24,6 +24,7 @@ import {
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
   STATUS_LABELS,
+  THRESHOLD_COLOR_DEFAULT,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
   dayTotalsLabel,
@@ -31,7 +32,13 @@ import {
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
-import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
+import {
+  formatIsoDay,
+  shiftDays,
+  thresholdTint,
+  todayLocalIso,
+  weekDates,
+} from "@/lib/utils";
 import { BoardPage } from "@/pages/BoardPage";
 import { testQueryClient } from "@/test/queryClient";
 
@@ -44,6 +51,7 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
 vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
   weekStart: vi.fn(),
+  globalThreshold: vi.fn(),
 }));
 vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
@@ -65,6 +73,7 @@ const mockedListWeekTasks = vi.mocked(listWeekTasks);
 const mockedPendingCarryOver = vi.mocked(listPendingCarryOver);
 const mockedResolveCarryOver = vi.mocked(resolveCarryOver);
 const mockedWeekStart = vi.mocked(weekStart);
+const mockedGlobalThreshold = vi.mocked(globalThreshold);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
 
 const todayIso = todayLocalIso();
@@ -109,6 +118,7 @@ beforeEach(() => {
   mockedListWeekTasks.mockResolvedValue([baseTask, weeklyTask]);
   mockedPendingCarryOver.mockResolvedValue([]);
   mockedWeekStart.mockResolvedValue(Weekday.Monday);
+  mockedGlobalThreshold.mockResolvedValue({ minutes: null, color: null });
   mockedListTaskCategories.mockResolvedValue([]);
 });
 
@@ -514,6 +524,40 @@ describe("BoardPage", () => {
     fireEvent.click(document.querySelector(".fixed.inset-0")!);
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("tints a day column whose estimate total reaches the threshold", async () => {
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: 60,
+      color: THRESHOLD_COLOR_DEFAULT,
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    // Column 0 is the weekly backlog; column 1 holds days[0]'s 60m task.
+    // The tint lands once the threshold query resolves.
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
+    );
+    expect(headers[0]).not.toHaveStyle({
+      backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+    });
+  });
+
+  it("does not tint a column under the threshold or when unset", async () => {
+    // 61 > the day's 60m total.
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: 61,
+      color: THRESHOLD_COLOR_DEFAULT,
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).not.toHaveStyle({
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
     );
   });
 

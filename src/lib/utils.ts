@@ -126,3 +126,9 @@ export const WEEKDAYS_BY_JS_DAY = [
 // Weekday of a "YYYY-MM-DD" date, read at noon to stay clear of DST edges.
 export const weekdayOfIso = (iso: string) =>
   WEEKDAYS_BY_JS_DAY[new Date(`${iso}T12:00:00`).getDay()];
+
+/// A muted, low-opacity overlay of a #rrggbb threshold color (spec §287:
+/// tints, never saturated fills). Appends a ~12% alpha byte.
+export function thresholdTint(color: string): string {
+  return `${color}1f`;
+}
