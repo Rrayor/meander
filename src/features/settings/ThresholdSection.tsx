@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -51,6 +51,21 @@ export function ThresholdSection() {
   });
   // `values` keeps the persisted row as the baseline: when the query
   // refetches after a save, the form resets its dirty tracking to it.
+  // It must be memoized — a fresh object each render makes RHF reset
+  // the form on every state change, wiping errors and edits.
+  const persisted = useMemo<FormValues>(
+    () => ({
+      minutes: stored?.minutes ?? null,
+      color: stored?.color ?? THRESHOLD_COLOR_DEFAULT,
+      day_minutes: Object.fromEntries(
+        WEEKDAY_OPTIONS.map((o) => [
+          o.value,
+          stored?.day_minutes?.[o.value] ?? null,
+        ]),
+      ),
+    }),
+    [stored],
+  );
   const {
     register,
     setValue,
@@ -60,16 +75,7 @@ export function ThresholdSection() {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
-    values: {
-      minutes: stored?.minutes ?? null,
-      color: stored?.color ?? THRESHOLD_COLOR_DEFAULT,
-      day_minutes: Object.fromEntries(
-        WEEKDAY_OPTIONS.map((o) => [
-          o.value,
-          stored?.day_minutes?.[o.value] ?? null,
-        ]),
-      ),
-    },
+    values: persisted,
   });
   const minutes = watch("minutes");
   const color = watch("color");

@@ -361,6 +361,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn day_only_threshold_keeps_its_color_and_defaults_red() {
+        let (pool, pid) = seeded_pool().await;
+        let mut m = BTreeMap::new();
+        m.insert(Weekday::Sunday, 720);
+        // No global minutes — the override still defaults the color red.
+        set_global_threshold(&pool, pid, None, None, m.clone())
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.minutes.is_none());
+        assert_eq!(t.color.as_deref(), Some(DEFAULT_THRESHOLD_COLOR));
+        assert_eq!(t.day_minutes.get("sunday"), Some(&720));
+        // A picked color survives a day-only save too.
+        set_global_threshold(&pool, pid, None, Some("#60a5fa".into()), m)
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(t.color.as_deref(), Some("#60a5fa"));
+        // Clearing everything wipes all three columns.
+        set_global_threshold(&pool, pid, None, None, BTreeMap::new())
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.minutes.is_none());
+        assert!(t.color.is_none());
+        assert!(t.day_minutes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn threshold_day_overrides_are_scoped_to_the_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let mut m = BTreeMap::new();
+        m.insert(Weekday::Monday, 480);
+        set_global_threshold(&pool, pid, None, None, m)
+            .await
+            .unwrap();
+        let other: i64 = sqlx::query_scalar(
+            "INSERT INTO profiles (name, week_start, work_days) VALUES ('other', 0, 31) RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let foreign = global_threshold(&pool, other).await.unwrap();
+        assert!(foreign.day_minutes.is_empty());
+    }
+
+    #[tokio::test]
     async fn global_threshold_defaults_color_to_red_when_omitted() {
         // §297: minutes saved without a pick get the default red.
         let (pool, pid) = seeded_pool().await;

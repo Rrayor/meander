@@ -1,6 +1,8 @@
 import {
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
+  THRESHOLD_FIELD_LABEL,
+  THRESHOLD_HEADING,
   WEEKDAY_OPTIONS,
   WORK_DAYS_HEADING_ID,
 } from "@/lib/labels";
@@ -40,6 +42,52 @@ describe("Settings smoke", () => {
     await (await section.$(`button=${SAVE_BUTTON_LABEL}`)).click();
     await browser.waitUntil(
       async () => (await chip.getAttribute("aria-pressed")) === "false",
+    );
+  });
+
+  it("persists a per-weekday threshold override through the real backend", async () => {
+    const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
+    const nav = await $(`aria/${NAV_LABEL}`);
+    await nav.$(`=${settingsRoute.label}`).click();
+
+    const section = await $(`aria/${THRESHOLD_HEADING}`);
+    const minutes = await section.$(`aria/${THRESHOLD_FIELD_LABEL}`);
+    await minutes.setValue("240");
+    const sunday = await section.$(`aria/Sunday`);
+    await sunday.setValue("720");
+    await (await section.$(`button=${SAVE_BUTTON_LABEL}`)).click();
+
+    // A real round-trip: navigate away and back, the stored values reload.
+    const boardRoute = ROUTES.find(({ label }) => label === "Board")!;
+    await nav.$(`=${boardRoute.label}`).click();
+    await nav.$(`=${settingsRoute.label}`).click();
+    await browser.waitUntil(
+      async () =>
+        (await (
+          await $(`aria/${THRESHOLD_HEADING}`).$(
+            `aria/${THRESHOLD_FIELD_LABEL}`,
+          )
+        ).getValue()) === "240",
+    );
+    expect(
+      await (await $(`aria/${THRESHOLD_HEADING}`).$(`aria/Sunday`)).getValue(),
+    ).toBe("720");
+
+    // Restore: clear the fields back to unset.
+    await (
+      await $(`aria/${THRESHOLD_HEADING}`).$(`aria/${THRESHOLD_FIELD_LABEL}`)
+    ).setValue("");
+    await (await $(`aria/${THRESHOLD_HEADING}`).$(`aria/Sunday`)).setValue("");
+    await (
+      await $(`aria/${THRESHOLD_HEADING}`).$(`button=${SAVE_BUTTON_LABEL}`)
+    ).click();
+    await browser.waitUntil(
+      async () =>
+        (await (
+          await $(`aria/${THRESHOLD_HEADING}`).$(
+            `aria/${THRESHOLD_FIELD_LABEL}`,
+          )
+        ).getValue()) === "",
     );
   });
 });

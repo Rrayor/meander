@@ -462,3 +462,65 @@ test("a weekday override sends the day map on the wire", async ({ page }) => {
   const dayCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
   expect(dayCall?.args.dayMinutes).toEqual({ sunday: 720 });
 });
+
+test("an out-of-range weekday value never reaches the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: {
+      minutes: 240,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: {},
+    },
+    [COMMANDS.setGlobalThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  const sunday = section.getByLabel("Sunday");
+  await sunday.fill("1441");
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  await expect(section.getByRole("alert")).toBeVisible();
+  await expect(sunday).toHaveAttribute("aria-invalid", "true");
+  const calls = await getInvocations(page);
+  expect(
+    calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold),
+  ).toBeUndefined();
+});
+
+test("a day-only threshold sends null minutes with the day map", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: {
+      minutes: null,
+      color: null,
+      day_minutes: {},
+    },
+    [COMMANDS.setGlobalThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  await section.getByLabel("Sunday").fill("720");
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const calls = await getInvocations<{
+    minutes: number | null;
+    dayMinutes: { sunday?: number };
+  }>(page);
+  const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
+  expect(saveCall?.args.minutes).toBeNull();
+  expect(saveCall?.args.dayMinutes).toEqual({ sunday: 720 });
+});
