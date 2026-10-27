@@ -2722,6 +2722,64 @@ fn threshold_color_is_default(world: &mut MeanderWorld) {
     );
 }
 
+#[when(expr = "I set the active profile's threshold for {word} to {int} minutes")]
+fn set_day_threshold(world: &mut MeanderWorld, day: String, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let weekday = match day.as_str() {
+        "monday" => meander_lib::series::Weekday::Monday,
+        "sunday" => meander_lib::series::Weekday::Sunday,
+        "saturday" => meander_lib::series::Weekday::Saturday,
+        _ => panic!("unsupported weekday {day}"),
+    };
+    // Merge into the stored map — the command itself is whole-map
+    // replace, but "set X for day D" reads additively in Gherkin.
+    let mut m = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed")
+        .day_minutes
+        .iter()
+        .filter_map(|(k, v)| {
+            let d = match k.as_str() {
+                "monday" => meander_lib::series::Weekday::Monday,
+                "sunday" => meander_lib::series::Weekday::Sunday,
+                "saturday" => meander_lib::series::Weekday::Saturday,
+                _ => return None,
+            };
+            Some((d, *v))
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    m.insert(weekday, minutes);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::set_global_threshold_day_minutes(
+            &pool, id, m,
+        ))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the active profile's threshold for {word} is {int} minutes")]
+fn day_threshold_is(world: &mut MeanderWorld, day: String, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert_eq!(t.day_minutes.get(&day), Some(&minutes));
+}
+
+#[then(expr = "the active profile has no threshold for {word}")]
+fn day_threshold_absent(world: &mut MeanderWorld, day: String) {
+    let (pool, id) = active_profile_pool(world);
+    let t = world
+        .rt()
+        .block_on(meander_lib::profiles::global_threshold(&pool, id))
+        .expect("threshold query failed");
+    assert!(!t.day_minutes.contains_key(&day));
+}
+
 #[then("the threshold save fails")]
 fn threshold_save_fails(world: &mut MeanderWorld) {
     assert!(

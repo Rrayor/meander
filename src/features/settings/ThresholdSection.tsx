@@ -4,8 +4,13 @@ import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
+import {
+  globalThreshold,
+  setGlobalThreshold,
+  setGlobalThresholdDayMinutes,
+} from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import { Weekday } from "@/lib/enums";
 import { CATEGORY_COLORS, MAX_DURATION_MINUTES } from "@/lib/constants";
 import {
   CUSTOM_COLOR_GRADIENT,
@@ -20,6 +25,8 @@ import {
   THRESHOLD_HEADING_ID,
   THRESHOLD_HINT,
   THRESHOLD_MINUTES_ERROR_ID,
+  THRESHOLD_DAYS_FIELDSET_LABEL,
+  WEEKDAY_OPTIONS,
   categorySwatchLabel,
   formatMinutes,
 } from "@/lib/labels";
@@ -28,6 +35,10 @@ import { errorMessage } from "@/lib/utils";
 const schema = z.object({
   minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
   color: z.string(),
+  day_minutes: z.record(
+    z.string(),
+    z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
+  ),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -55,6 +66,12 @@ export function ThresholdSection() {
     values: {
       minutes: stored?.minutes ?? null,
       color: stored?.color ?? THRESHOLD_COLOR_DEFAULT,
+      day_minutes: Object.fromEntries(
+        WEEKDAY_OPTIONS.map((o) => [
+          o.value,
+          stored?.day_minutes?.[o.value] ?? null,
+        ]),
+      ),
     },
   });
   const minutes = watch("minutes");
@@ -66,8 +83,14 @@ export function ThresholdSection() {
   );
 
   const save = useMutation({
-    mutationFn: (v: { minutes: number | null; color: string | null }) =>
-      setGlobalThreshold(v.minutes, v.color),
+    mutationFn: async (v: {
+      minutes: number | null;
+      color: string | null;
+      dayMinutes: Partial<Record<Weekday, number>>;
+    }) => {
+      await setGlobalThreshold(v.minutes, v.color);
+      await setGlobalThresholdDayMinutes(v.dayMinutes);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.globalThreshold,
@@ -120,6 +143,34 @@ export function ThresholdSection() {
             {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
           </p>
         )}
+        {/* §291 — per-weekday overrides; an empty field inherits the
+            global minutes shown as the placeholder. */}
+        <fieldset className="mt-4">
+          <legend className="text-sm text-text-muted">
+            {THRESHOLD_DAYS_FIELDSET_LABEL}
+          </legend>
+          <div className="mt-2 flex gap-2">
+            {WEEKDAY_OPTIONS.map((o) => (
+              <label
+                key={o.value}
+                className="text-center text-xs text-text-muted"
+              >
+                {o.short}
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_DURATION_MINUTES}
+                  placeholder={minutes != null ? String(minutes) : ""}
+                  aria-label={o.label}
+                  {...register(`day_minutes.${o.value}`, {
+                    setValueAs: (v: string) => (v === "" ? null : Number(v)),
+                  })}
+                  className="mt-1 block w-16 rounded-md border border-border bg-surface-raised px-2 py-1 text-sm text-text placeholder:text-text-muted"
+                />
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <fieldset className="mt-4 text-sm text-text-muted">
           <legend className="sr-only">{THRESHOLD_COLOR_LABEL}</legend>
           <div
@@ -189,7 +240,9 @@ export function ThresholdSection() {
         <button
           type="button"
           disabled={stored?.minutes == null}
-          onClick={() => save.mutate({ minutes: null, color: null })}
+          onClick={() =>
+            save.mutate({ minutes: null, color: null, dayMinutes: {} })
+          }
           className="rounded-lg px-3 py-2 text-sm text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
         >
           {THRESHOLD_CLEAR_LABEL}
@@ -200,9 +253,19 @@ export function ThresholdSection() {
           // handleSubmit revalidates on click even for untouched fields —
           // invalid minutes surface the alert instead of reaching the wire.
           onClick={() =>
-            void handleSubmit((v) =>
-              save.mutate({ minutes: v.minutes, color: v.color }),
-            )()
+            void handleSubmit((v) => {
+              const days = Object.fromEntries(
+                Object.entries(v.day_minutes).filter(([, m]) => m != null) as [
+                  string,
+                  number,
+                ][],
+              ) as Partial<Record<Weekday, number>>;
+              save.mutate({
+                minutes: v.minutes,
+                color: v.color,
+                dayMinutes: days,
+              });
+            })()
           }
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >

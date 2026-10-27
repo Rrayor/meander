@@ -1,12 +1,18 @@
 use serde::Serialize;
 use sqlx::SqlitePool;
+use std::collections::BTreeMap;
 
 use crate::series::Weekday;
 
 use crate::db::Result;
+use crate::validation::PositiveDuration;
 
 #[derive(Debug, Serialize, specta::Type)]
 pub struct GlobalThreshold {
+    /// Per-weekday overrides — a missing day inherits `minutes` (§291).
+    /// Keys are the weekday wire names ("monday"…); the specta map type
+    /// can't index by an enum, so the boundary carries plain strings.
+    pub day_minutes: BTreeMap<String, i64>,
     pub minutes: Option<i64>,
     pub color: Option<String>,
 }
@@ -156,8 +162,8 @@ pub const DEFAULT_THRESHOLD_COLOR: &str = "#f87171";
 /// The global per-day estimate threshold (spec §295/§297): minutes + a
 /// `#rrggbb` color, both absent when the user never set one.
 pub async fn global_threshold(pool: &SqlitePool, profile_id: i64) -> Result<GlobalThreshold> {
-    let row: (Option<i64>, Option<String>) = sqlx::query_as(
-        "SELECT global_threshold_minutes, global_threshold_color FROM profiles WHERE id = ?",
+    let row: (Option<i64>, Option<String>, Option<String>) = sqlx::query_as(
+        "SELECT global_threshold_minutes, global_threshold_color, global_threshold_day_minutes FROM profiles WHERE id = ?",
     )
     .bind(profile_id)
     .fetch_one(pool)
@@ -165,6 +171,10 @@ pub async fn global_threshold(pool: &SqlitePool, profile_id: i64) -> Result<Glob
     Ok(GlobalThreshold {
         minutes: row.0,
         color: row.1,
+        day_minutes: row
+            .2
+            .and_then(|j| serde_json::from_str(&j).ok())
+            .unwrap_or_default(),
     })
 }
 
@@ -208,6 +218,37 @@ pub async fn set_global_threshold(
     .bind(profile_id)
     .execute(pool)
     .await?;
+    Ok(())
+}
+
+/// Replaces the per-weekday overrides for the global threshold (§291):
+/// absent days inherit the global minutes; an empty map clears to NULL.
+pub async fn set_global_threshold_day_minutes(
+    pool: &SqlitePool,
+    profile_id: i64,
+    day_minutes: BTreeMap<Weekday, i64>,
+) -> Result<()> {
+    let mut validated = BTreeMap::new();
+    for (day, m) in day_minutes {
+        let m = PositiveDuration::try_new(m).map_err(|_| crate::db::DbError::Validation {
+            code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
+            message: format!(
+                "threshold must be between 1 and {} minutes",
+                crate::validation::MAX_DURATION_MINUTES
+            ),
+        })?;
+        validated.insert(day, m.into_inner());
+    }
+    let json = if validated.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&validated).expect("weekday keys serialize"))
+    };
+    sqlx::query("UPDATE profiles SET global_threshold_day_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(json)
+        .bind(profile_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -269,6 +310,52 @@ mod tests {
         let t = global_threshold(&pool, pid).await.unwrap();
         assert!(t.minutes.is_none());
         assert!(t.color.is_none());
+    }
+
+    #[tokio::test]
+    async fn threshold_day_overrides_persist_clear_and_validate() {
+        let (pool, pid) = seeded_pool().await;
+        // Unset → empty map.
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.day_minutes.is_empty());
+        // Overrides persist and round-trip.
+        let mut m = BTreeMap::new();
+        m.insert(Weekday::Monday, 480);
+        m.insert(Weekday::Sunday, 720);
+        set_global_threshold_day_minutes(&pool, pid, m)
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(t.day_minutes.get("monday"), Some(&480));
+        assert_eq!(t.day_minutes.get("sunday"), Some(&720));
+        assert_eq!(t.day_minutes.len(), 2);
+        // Boundary: 1440 accepted.
+        let mut m = BTreeMap::new();
+        m.insert(Weekday::Saturday, 1440);
+        set_global_threshold_day_minutes(&pool, pid, m)
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(t.day_minutes.get("saturday"), Some(&1440));
+        assert_eq!(t.day_minutes.len(), 1);
+        // Empty map clears to NULL.
+        set_global_threshold_day_minutes(&pool, pid, BTreeMap::new())
+            .await
+            .unwrap();
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.day_minutes.is_empty());
+        // Out-of-range values are rejected and don't mutate.
+        for bad in [0, 1441, -5] {
+            let mut m = BTreeMap::new();
+            m.insert(Weekday::Monday, bad);
+            assert!(
+                set_global_threshold_day_minutes(&pool, pid, m)
+                    .await
+                    .is_err()
+            );
+        }
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert!(t.day_minutes.is_empty());
     }
 
     #[tokio::test]

@@ -2,10 +2,15 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
+import {
+  globalThreshold,
+  setGlobalThreshold,
+  setGlobalThresholdDayMinutes,
+} from "@/api/profiles";
 import {
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
+  THRESHOLD_COLOR_DEFAULT,
   CUSTOM_COLOR_LABEL,
   CUSTOM_COLOR_PICKER_LABEL,
   THRESHOLD_FIELD_LABEL,
@@ -17,10 +22,12 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
   globalThreshold: vi.fn(),
   setGlobalThreshold: vi.fn(),
+  setGlobalThresholdDayMinutes: vi.fn(),
 }));
 
 const mockedThreshold = vi.mocked(globalThreshold);
 const mockedSet = vi.mocked(setGlobalThreshold);
+const mockedSetDays = vi.mocked(setGlobalThresholdDayMinutes);
 
 const renderSection = () =>
   render(
@@ -37,7 +44,11 @@ beforeEach(() => {
 
 describe("ThresholdSection", () => {
   it("saves a picked minutes value with the default color", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: null, color: null });
+    mockedThreshold.mockResolvedValue({
+      minutes: null,
+      color: null,
+      day_minutes: {},
+    });
     renderSection();
     const input = await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
     fireEvent.change(input, { target: { value: "240" } });
@@ -46,7 +57,11 @@ describe("ThresholdSection", () => {
   });
 
   it("saves a picked color alongside the minutes", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: null, color: null });
+    mockedThreshold.mockResolvedValue({
+      minutes: null,
+      color: null,
+      day_minutes: {},
+    });
     renderSection();
     fireEvent.change(await screen.findByLabelText(THRESHOLD_FIELD_LABEL), {
       target: { value: "60" },
@@ -59,13 +74,21 @@ describe("ThresholdSection", () => {
   });
 
   it("clearing an unset threshold stays disabled; clearing a set one saves nulls", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: null, color: null });
+    mockedThreshold.mockResolvedValue({
+      minutes: null,
+      color: null,
+      day_minutes: {},
+    });
     renderSection();
     expect(
       await screen.findByRole("button", { name: THRESHOLD_CLEAR_LABEL }),
     ).toBeDisabled();
 
-    mockedThreshold.mockResolvedValue({ minutes: 120, color: "#f87171" });
+    mockedThreshold.mockResolvedValue({
+      minutes: 120,
+      color: "#f87171",
+      day_minutes: {},
+    });
     renderSection();
     const clear = await screen.findAllByRole("button", {
       name: THRESHOLD_CLEAR_LABEL,
@@ -77,7 +100,11 @@ describe("ThresholdSection", () => {
   });
 
   it("keeps a cleared field empty instead of restoring the stored value", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: 480, color: "#f87171" });
+    mockedThreshold.mockResolvedValue({
+      minutes: 480,
+      color: "#f87171",
+      day_minutes: {},
+    });
     renderSection();
     const input = await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
     await waitFor(() => expect(input).toHaveValue(480));
@@ -92,7 +119,11 @@ describe("ThresholdSection", () => {
   });
 
   it("checks the custom radio when the stored color is off-palette", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: 120, color: "#123456" });
+    mockedThreshold.mockResolvedValue({
+      minutes: 120,
+      color: "#123456",
+      day_minutes: {},
+    });
     renderSection();
     const custom = await screen.findByRole("radio", {
       name: CUSTOM_COLOR_LABEL,
@@ -108,7 +139,11 @@ describe("ThresholdSection", () => {
   });
 
   it("leaves Save disabled while nothing changed", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: 120, color: "#60a5fa" });
+    mockedThreshold.mockResolvedValue({
+      minutes: 120,
+      color: "#60a5fa",
+      day_minutes: {},
+    });
     renderSection();
     await screen.findByLabelText(THRESHOLD_FIELD_LABEL);
     await waitFor(() =>
@@ -118,8 +153,28 @@ describe("ThresholdSection", () => {
     );
   });
 
+  it("sends a typed weekday override with the save", async () => {
+    mockedThreshold.mockResolvedValue({
+      minutes: 240,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: {},
+    });
+    renderSection();
+    const sunday = await screen.findByLabelText("Sunday");
+    await waitFor(() => expect(sunday).toHaveAttribute("placeholder", "240"));
+    fireEvent.change(sunday, { target: { value: "720" } });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(mockedSetDays).toHaveBeenCalledWith({ sunday: 720 }),
+    );
+  });
+
   it("surfaces a rejected save", async () => {
-    mockedThreshold.mockResolvedValue({ minutes: null, color: null });
+    mockedThreshold.mockResolvedValue({
+      minutes: null,
+      color: null,
+      day_minutes: {},
+    });
     mockedSet.mockRejectedValue(new Error("backend refused"));
     renderSection();
     fireEvent.change(await screen.findByLabelText(THRESHOLD_FIELD_LABEL), {

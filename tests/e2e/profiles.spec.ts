@@ -330,7 +330,7 @@ test("saving a global threshold sends it on the wire", async ({ page }) => {
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.workDays]: [],
-    [COMMANDS.globalThreshold]: { minutes: null, color: null },
+    [COMMANDS.globalThreshold]: { minutes: null, color: null, day_minutes: {} },
     [COMMANDS.setGlobalThreshold]: null,
   });
   await page.goto(`/#${settingsPath}`);
@@ -370,7 +370,10 @@ test("a palette pick sends the chosen color on the wire", async ({ page }) => {
 
   const calls = await getInvocations<{ minutes: number; color: string }>(page);
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
-  expect(saveCall?.args).toEqual({ minutes: 240, color: "#60a5fa" });
+  expect(saveCall?.args).toEqual({
+    minutes: 240,
+    color: "#60a5fa",
+  });
 });
 
 test("clearing a stored threshold sends nulls on the wire", async ({
@@ -398,7 +401,10 @@ test("clearing a stored threshold sends nulls on the wire", async ({
     color: string | null;
   }>(page);
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
-  expect(saveCall?.args).toEqual({ minutes: null, color: null });
+  expect(saveCall?.args).toEqual({
+    minutes: null,
+    color: null,
+  });
 });
 
 test("out-of-range minutes never reach the wire", async ({ page }) => {
@@ -408,7 +414,7 @@ test("out-of-range minutes never reach the wire", async ({ page }) => {
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.workDays]: [],
-    [COMMANDS.globalThreshold]: { minutes: null, color: null },
+    [COMMANDS.globalThreshold]: { minutes: null, color: null, day_minutes: {} },
     [COMMANDS.setGlobalThreshold]: null,
   });
   await page.goto(`/#${settingsPath}`);
@@ -425,4 +431,34 @@ test("out-of-range minutes never reach the wire", async ({ page }) => {
   expect(
     calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold),
   ).toBeUndefined();
+});
+
+test("a weekday override sends the day map on the wire", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.globalThreshold]: {
+      minutes: 240,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: {},
+    },
+    [COMMANDS.setGlobalThreshold]: null,
+    [COMMANDS.setGlobalThresholdDayMinutes]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  const section = page.getByRole("region", { name: THRESHOLD_HEADING });
+  await section.getByLabel("Sunday").fill("720");
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
+
+  const calls = await getInvocations<{
+    dayMinutes: { sunday?: number };
+  }>(page);
+  const dayCall = calls.find(
+    (c) => c.cmd === COMMANDS.setGlobalThresholdDayMinutes,
+  );
+  expect(dayCall?.args.dayMinutes).toEqual({ sunday: 720 });
 });

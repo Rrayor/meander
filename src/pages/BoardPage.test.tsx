@@ -118,7 +118,11 @@ beforeEach(() => {
   mockedListWeekTasks.mockResolvedValue([baseTask, weeklyTask]);
   mockedPendingCarryOver.mockResolvedValue([]);
   mockedWeekStart.mockResolvedValue(Weekday.Monday);
-  mockedGlobalThreshold.mockResolvedValue({ minutes: null, color: null });
+  mockedGlobalThreshold.mockResolvedValue({
+    minutes: null,
+    color: null,
+    day_minutes: {},
+  });
   mockedListTaskCategories.mockResolvedValue([]);
 });
 
@@ -531,6 +535,7 @@ describe("BoardPage", () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: 60,
       color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: {},
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");
@@ -551,6 +556,7 @@ describe("BoardPage", () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: 61,
       color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: {},
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");

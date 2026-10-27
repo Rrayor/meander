@@ -280,6 +280,7 @@ export const THRESHOLD_FIELD_LABEL = "Minutes per day";
 export const THRESHOLD_COLOR_LABEL = "Threshold color";
 export const THRESHOLD_CUSTOM_COLOR_LABEL = "Custom color";
 export const THRESHOLD_MINUTES_ERROR_ID = "threshold-minutes-error";
+export const THRESHOLD_DAYS_FIELDSET_LABEL = "Per-day overrides";
 export const THRESHOLD_HINT =
   "When a day's estimated total reaches the threshold, the board column gets a background tint.";
 export const THRESHOLD_CLEAR_LABEL = "Clear threshold";
