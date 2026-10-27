@@ -9,6 +9,7 @@ import {
   RENAME_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
+  THRESHOLD_COLOR_DEFAULT,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING,
   WEEKDAY_OPTIONS,
@@ -340,7 +341,10 @@ test("saving a global threshold sends it on the wire", async ({ page }) => {
 
   const calls = await getInvocations<{ minutes: number; color: string }>(page);
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
-  expect(saveCall?.args).toEqual({ minutes: 240, color: "#f87171" });
+  expect(saveCall?.args).toEqual({
+    minutes: 240,
+    color: THRESHOLD_COLOR_DEFAULT,
+  });
 });
 
 test("a palette pick sends the chosen color on the wire", async ({ page }) => {
@@ -350,7 +354,10 @@ test("a palette pick sends the chosen color on the wire", async ({ page }) => {
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.workDays]: [],
-    [COMMANDS.globalThreshold]: { minutes: 240, color: "#f87171" },
+    [COMMANDS.globalThreshold]: {
+      minutes: 240,
+      color: THRESHOLD_COLOR_DEFAULT,
+    },
     [COMMANDS.setGlobalThreshold]: null,
   });
   await page.goto(`/#${settingsPath}`);
@@ -375,7 +382,10 @@ test("clearing a stored threshold sends nulls on the wire", async ({
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.workDays]: [],
-    [COMMANDS.globalThreshold]: { minutes: 240, color: "#f87171" },
+    [COMMANDS.globalThreshold]: {
+      minutes: 240,
+      color: THRESHOLD_COLOR_DEFAULT,
+    },
     [COMMANDS.setGlobalThreshold]: null,
   });
   await page.goto(`/#${settingsPath}`);

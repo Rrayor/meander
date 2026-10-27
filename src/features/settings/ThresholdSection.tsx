@@ -1,71 +1,79 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { CATEGORY_COLORS } from "@/api/categories";
 import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { MAX_DURATION_MINUTES } from "@/api/tasks";
+import { CATEGORY_COLORS, MAX_DURATION_MINUTES } from "@/lib/constants";
 import {
-  SAVE_BUTTON_LABEL,
+  CUSTOM_COLOR_GRADIENT,
   CUSTOM_COLOR_LABEL,
   CUSTOM_COLOR_PICKER_LABEL,
+  SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   THRESHOLD_COLOR_LABEL,
-  CUSTOM_COLOR_GRADIENT,
-  categorySwatchLabel,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING,
   THRESHOLD_HEADING_ID,
-  THRESHOLD_MINUTES_ERROR_ID,
   THRESHOLD_HINT,
+  THRESHOLD_MINUTES_ERROR_ID,
+  categorySwatchLabel,
   formatMinutes,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 
-const minutesSchema = z.number().int().min(1).max(MAX_DURATION_MINUTES);
+const schema = z.object({
+  minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
+  color: z.string(),
+});
+type FormValues = z.infer<typeof schema>;
 
 /// The global per-day estimate threshold (spec §295–§298): the user sets
 /// a daily minutes budget and a tint color; unset means no tint. The
 /// color can be a palette swatch or a fully custom pick (spec §283).
 export function ThresholdSection() {
   const queryClient = useQueryClient();
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const { data: stored } = useQuery({
     queryKey: QUERY_KEYS.globalThreshold,
     queryFn: globalThreshold,
   });
-  // Draft fields — undefined means "mirror the stored value"; a cleared
-  // input is null, which must NOT fall back to the stored minutes.
-  const [draftMinutes, setDraftMinutes] = useState<number | null>();
-  const [draftColor, setDraftColor] = useState<string>();
-  const [touched, setTouched] = useState(false);
-  const colorInputRef = useRef<HTMLInputElement>(null);
-  const minutes =
-    draftMinutes === undefined ? (stored?.minutes ?? null) : draftMinutes;
-  const color = draftColor ?? stored?.color ?? THRESHOLD_COLOR_DEFAULT;
+  // `values` keeps the persisted row as the baseline: when the query
+  // refetches after a save, the form resets its dirty tracking to it.
+  const {
+    register,
+    setValue,
+    watch,
+    formState: { errors, isDirty, touchedFields },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    mode: "onTouched",
+    values: {
+      minutes: stored?.minutes ?? null,
+      color: stored?.color ?? THRESHOLD_COLOR_DEFAULT,
+    },
+  });
+  const minutes = watch("minutes");
+  const color = watch("color");
+  const minutesTouched = touchedFields.minutes === true;
+  const invalid = errors.minutes != null;
   const customSelected = !(CATEGORY_COLORS as readonly string[]).includes(
     color,
   );
-  const invalid = minutes != null && !minutesSchema.safeParse(minutes).success;
 
   const save = useMutation({
     mutationFn: (v: { minutes: number | null; color: string | null }) =>
       setGlobalThreshold(v.minutes, v.color),
     onSuccess: () => {
-      setDraftMinutes(undefined);
-      setDraftColor(undefined);
-      setTouched(false);
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.globalThreshold,
       });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
     },
   });
-
-  const dirty =
-    minutes !== (stored?.minutes ?? null) ||
-    color !== (stored?.color ?? THRESHOLD_COLOR_DEFAULT);
 
   return (
     <section aria-labelledby={THRESHOLD_HEADING_ID}>
@@ -84,17 +92,15 @@ export function ThresholdSection() {
               type="number"
               min={1}
               max={MAX_DURATION_MINUTES}
-              value={minutes ?? ""}
-              aria-invalid={touched && invalid}
+              aria-invalid={minutesTouched && invalid}
               aria-describedby={
-                touched && invalid ? THRESHOLD_MINUTES_ERROR_ID : undefined
+                minutesTouched && invalid
+                  ? THRESHOLD_MINUTES_ERROR_ID
+                  : undefined
               }
-              onChange={(e) =>
-                setDraftMinutes(
-                  e.target.value === "" ? null : Number(e.target.value),
-                )
-              }
-              onBlur={() => setTouched(true)}
+              {...register("minutes", {
+                setValueAs: (v: string) => (v === "" ? null : Number(v)),
+              })}
               className="mt-1 block w-28 rounded-md border border-border bg-surface-raised px-3 py-1.5 text-sm text-text aria-invalid:border-error"
             />
           </label>
@@ -104,7 +110,7 @@ export function ThresholdSection() {
             </span>
           )}
         </div>
-        {touched && invalid && (
+        {minutesTouched && invalid && (
           <p
             id={THRESHOLD_MINUTES_ERROR_ID}
             role="alert"
@@ -127,7 +133,7 @@ export function ThresholdSection() {
                 role="radio"
                 aria-checked={color === c}
                 aria-label={categorySwatchLabel(c)}
-                onClick={() => setDraftColor(c)}
+                onClick={() => setValue("color", c, { shouldDirty: true })}
                 style={{ backgroundColor: c }}
                 className={`h-6 w-6 rounded-full transition-transform ${
                   color === c
@@ -164,7 +170,9 @@ export function ThresholdSection() {
                 tabIndex={-1}
                 aria-label={CUSTOM_COLOR_PICKER_LABEL}
                 value={customSelected ? color : THRESHOLD_COLOR_DEFAULT}
-                onChange={(e) => setDraftColor(e.target.value)}
+                onChange={(e) =>
+                  setValue("color", e.target.value, { shouldDirty: true })
+                }
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
             </div>
@@ -187,7 +195,7 @@ export function ThresholdSection() {
         </button>
         <button
           type="button"
-          disabled={!dirty || minutes == null || invalid || save.isPending}
+          disabled={!isDirty || minutes == null || invalid || save.isPending}
           onClick={() => save.mutate({ minutes, color })}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
