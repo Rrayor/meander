@@ -449,3 +449,31 @@ test("the carry-over prompt sends a return decision to the backend", async ({
     calls.filter((c) => c.cmd === COMMANDS.deleteTask).map((c) => c.args),
   ).toEqual([{ taskId: 10 }]);
 });
+
+test("a day column tints when its estimates reach the threshold", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    // 60m threshold vs the day's 60m total — reached, tinted per §287.
+    [COMMANDS.globalThreshold]: { minutes: 60, color: "#f87171" },
+  });
+  await page.goto("/");
+
+  const monday = page.getByRole("columnheader", {
+    name: new RegExp(shortWeekdayLabel(days[0])),
+  });
+  await expect(monday).toHaveCSS("background-color", /rgba\(248, 113, 113/);
+  // The backlog column and under-threshold days stay untinted.
+  await expect(
+    page.getByRole("columnheader", { name: new RegExp(WEEKLY_BACKLOG_LABEL) }),
+  ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
+});
