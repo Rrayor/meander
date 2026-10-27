@@ -238,15 +238,6 @@ export function ThresholdSection() {
               />
             </div>
           </div>
-          {errors.day_minutes && (
-            <p
-              id={THRESHOLD_DAYS_ERROR_ID}
-              role="alert"
-              className="mt-2 text-sm text-error"
-            >
-              {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
-            </p>
-          )}
         </fieldset>
       </div>
       {save.isError && (
