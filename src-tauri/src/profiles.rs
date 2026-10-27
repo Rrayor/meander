@@ -151,7 +151,7 @@ pub async fn set_work_days(pool: &SqlitePool, profile_id: i64, days: &[Weekday])
 }
 
 /// The default threshold color (spec §297): red.
-const DEFAULT_THRESHOLD_COLOR: &str = "#f87171";
+pub const DEFAULT_THRESHOLD_COLOR: &str = "#f87171";
 
 /// The global per-day estimate threshold (spec §295/§297): minutes + a
 /// `#rrggbb` color, both absent when the user never set one.

@@ -2716,7 +2716,10 @@ fn threshold_color_is_default(world: &mut MeanderWorld) {
         .rt()
         .block_on(meander_lib::profiles::global_threshold(&pool, id))
         .expect("threshold query failed");
-    assert_eq!(t.color.as_deref(), Some("#f87171"));
+    assert_eq!(
+        t.color.as_deref(),
+        Some(meander_lib::profiles::DEFAULT_THRESHOLD_COLOR)
+    );
 }
 
 #[then("the threshold save fails")]

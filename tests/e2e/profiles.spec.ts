@@ -15,6 +15,7 @@ import {
   WEEK_START_HEADING,
   WEEK_START_LABEL,
   WORK_DAYS_HEADING,
+  categorySwatchLabel,
   renameProfileLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
@@ -355,7 +356,9 @@ test("a palette pick sends the chosen color on the wire", async ({ page }) => {
   await page.goto(`/#${settingsPath}`);
 
   const section = page.getByRole("region", { name: THRESHOLD_HEADING });
-  await section.getByRole("radio", { name: "Color #60a5fa" }).click();
+  await section
+    .getByRole("radio", { name: categorySwatchLabel("#60a5fa") })
+    .click();
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
   const calls = await getInvocations<{ minutes: number; color: string }>(page);
