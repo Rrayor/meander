@@ -3,8 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
-import { weekStart } from "@/api/profiles";
-import { globalThreshold } from "@/api/profiles";
+import { globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { Task } from "@/api/bindings";
 import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
@@ -98,7 +97,7 @@ export function BoardPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, [jumpOpen]);
   const days = weekDates(anchor, start ?? Weekday.Monday);
-  const { data: threshold } = useQuery({
+  const { data: threshold, error: thresholdError } = useQuery({
     queryKey: QUERY_KEYS.globalThreshold,
     queryFn: globalThreshold,
   });
@@ -106,7 +105,7 @@ export function BoardPage() {
     queryKey: QUERY_KEYS.boardWeek(days[0]),
     queryFn: () => listWeekTasks(days[0]),
   });
-  const error = startError ?? weekError;
+  const error = startError ?? weekError ?? thresholdError;
   const isCurrentWeek =
     days[0] === weekDates(todayIso, start ?? Weekday.Monday)[0];
 

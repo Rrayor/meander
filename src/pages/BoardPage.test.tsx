@@ -24,6 +24,7 @@ import {
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
   STATUS_LABELS,
+  THRESHOLD_COLOR_DEFAULT,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
   dayTotalsLabel,
@@ -529,7 +530,7 @@ describe("BoardPage", () => {
   it("tints a day column whose estimate total reaches the threshold", async () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: 60,
-      color: "#f87171",
+      color: THRESHOLD_COLOR_DEFAULT,
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");
@@ -537,11 +538,11 @@ describe("BoardPage", () => {
     // The tint lands once the threshold query resolves.
     await waitFor(() =>
       expect(headers[1]).toHaveStyle({
-        backgroundColor: thresholdTint("#f87171"),
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
       }),
     );
     expect(headers[0]).not.toHaveStyle({
-      backgroundColor: thresholdTint("#f87171"),
+      backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
     });
   });
 
@@ -549,13 +550,13 @@ describe("BoardPage", () => {
     // 61 > the day's 60m total.
     mockedGlobalThreshold.mockResolvedValue({
       minutes: 61,
-      color: "#f87171",
+      color: THRESHOLD_COLOR_DEFAULT,
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");
     await waitFor(() =>
       expect(headers[1]).not.toHaveStyle({
-        backgroundColor: thresholdTint("#f87171"),
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
       }),
     );
   });
