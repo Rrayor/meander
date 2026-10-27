@@ -47,6 +47,7 @@ export function ThresholdSection() {
     register,
     setValue,
     watch,
+    handleSubmit,
     formState: { errors, isDirty, touchedFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -195,8 +196,14 @@ export function ThresholdSection() {
         </button>
         <button
           type="button"
-          disabled={!isDirty || minutes == null || invalid || save.isPending}
-          onClick={() => save.mutate({ minutes, color })}
+          disabled={!isDirty || minutes == null || save.isPending}
+          // handleSubmit revalidates on click even for untouched fields —
+          // invalid minutes surface the alert instead of reaching the wire.
+          onClick={() =>
+            void handleSubmit((v) =>
+              save.mutate({ minutes: v.minutes, color: v.color }),
+            )()
+          }
           className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {SAVE_BUTTON_LABEL}

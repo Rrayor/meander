@@ -415,13 +415,12 @@ test("out-of-range minutes never reach the wire", async ({ page }) => {
 
   const section = page.getByRole("region", { name: THRESHOLD_HEADING });
   const input = section.getByLabel(THRESHOLD_FIELD_LABEL);
+  // Fill and save without blurring — the resolver must still gate the
+  // wire call even though onTouched never marked the field.
   await input.fill("1441");
-  await input.blur();
+  await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
   await expect(section.getByRole("alert")).toBeVisible();
-  await expect(
-    section.getByRole("button", { name: SAVE_BUTTON_LABEL }),
-  ).toBeDisabled();
   const calls = await getInvocations(page);
   expect(
     calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold),
