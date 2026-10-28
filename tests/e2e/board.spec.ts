@@ -477,3 +477,37 @@ test("a day column tints when its estimates reach the threshold", async ({
     page.getByRole("columnheader", { name: new RegExp(WEEKLY_BACKLOG_LABEL) }),
   ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
 });
+
+test("a weekday override tints its own day only", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    // Day-only threshold: monday has a 30m override — its 60m total
+    // tints; every other day has no effective limit at all.
+    [COMMANDS.globalThreshold]: {
+      minutes: null,
+      color: "#f87171",
+      day_minutes: { monday: 30 },
+    },
+  });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("columnheader", {
+      name: new RegExp(shortWeekdayLabel(days[0])),
+    }),
+  ).toHaveCSS("background-color", /rgba\(248, 113, 113/);
+  // The next day has no override and no global — untinted.
+  await expect(
+    page.getByRole("columnheader", {
+      name: new RegExp(shortWeekdayLabel(days[1])),
+    }),
+  ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
+});

@@ -1,4 +1,5 @@
 import { Weekday } from "@/lib/enums";
+import { WEEKDAY_OPTIONS } from "@/lib/labels";
 
 export { cn } from "cn";
 
@@ -82,6 +83,13 @@ export const WEEKDAY_INDEX: Record<Weekday, number> = {
   [Weekday.Friday]: 4,
   [Weekday.Saturday]: 5,
   [Weekday.Sunday]: 6,
+};
+
+/// The Weekday wire name for an ISO date — day_minutes maps key on it.
+export const weekdayNameOf = (iso: string): Weekday => {
+  const [y, m, d] = iso.split("-").map(Number);
+  const js = new Date(y, m - 1, d).getDay(); // 0 = Sunday
+  return WEEKDAY_OPTIONS[(js + 6) % 7].value;
 };
 
 const localIso = (date: Date) => {

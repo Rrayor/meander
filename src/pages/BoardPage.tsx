@@ -30,6 +30,7 @@ import {
   errorMessage,
   shiftDays,
   thresholdTint,
+  weekdayNameOf,
   todayLocalIso,
   weekDates,
 } from "@/lib/utils";
@@ -126,16 +127,19 @@ export function BoardPage() {
         : t.scheduled_date === column,
     );
 
-  // Spec §281: a day column tints when its estimate total reaches the
-  // profile's threshold; the weekly backlog column never does.
-  const tintColor = threshold?.minutes != null ? threshold.color : null;
+  // Spec §281/§291: a day column tints when its estimate total reaches
+  // the effective limit — its weekday override or the global fallback;
+  // the weekly backlog column never does, and a day with neither value
+  // has no threshold at all.
+  const tintColor = threshold?.color ?? null;
+  const dayLimit = (iso: string) =>
+    threshold?.day_minutes?.[weekdayNameOf(iso)] ?? threshold?.minutes ?? null;
   const reached = new Set(
-    columns.filter(
-      (c) =>
-        c !== null &&
-        tintColor !== null &&
-        totals(columnTasks(c)).estimated >= (threshold?.minutes ?? 0),
-    ),
+    columns.filter((c) => {
+      if (c === null || tintColor === null) return false;
+      const limit = dayLimit(c);
+      return limit != null && totals(columnTasks(c)).estimated >= limit;
+    }),
   );
   const tint = tintColor
     ? { backgroundColor: thresholdTint(tintColor) }
