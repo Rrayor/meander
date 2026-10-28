@@ -572,7 +572,7 @@ describe("BoardPage", () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: 240,
       color: THRESHOLD_COLOR_DEFAULT,
-      day_minutes: { monday: 30 },
+      day_minutes: { [Weekday.Monday]: 30 },
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");
@@ -588,7 +588,7 @@ describe("BoardPage", () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: 60,
       color: THRESHOLD_COLOR_DEFAULT,
-      day_minutes: { monday: 300 },
+      day_minutes: { [Weekday.Monday]: 300 },
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");
@@ -604,7 +604,7 @@ describe("BoardPage", () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: null,
       color: THRESHOLD_COLOR_DEFAULT,
-      day_minutes: { monday: 30 },
+      day_minutes: { [Weekday.Monday]: 30 },
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");
@@ -623,7 +623,7 @@ describe("BoardPage", () => {
     mockedGlobalThreshold.mockResolvedValue({
       minutes: null,
       color: THRESHOLD_COLOR_DEFAULT,
-      day_minutes: { tuesday: 30 },
+      day_minutes: { [Weekday.Tuesday]: 30 },
     });
     renderBoard();
     const headers = await screen.findAllByRole("columnheader");

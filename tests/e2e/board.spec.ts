@@ -9,8 +9,9 @@ import {
   BOARD_THIS_WEEK_LABEL,
   EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
-  WEEKLY_BACKLOG_LABEL,
   STATUS_LABELS,
+  THRESHOLD_COLOR_DEFAULT,
+  WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
   dayTotalsLabel,
   editTaskLabel,
@@ -464,7 +465,7 @@ test("a day column tints when its estimates reach the threshold", async ({
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
     [COMMANDS.listTaskCategories]: [],
     // 60m threshold vs the day's 60m total — reached, tinted per §287.
-    [COMMANDS.globalThreshold]: { minutes: 60, color: "#f87171" },
+    [COMMANDS.globalThreshold]: { minutes: 60, color: THRESHOLD_COLOR_DEFAULT },
   });
   await page.goto("/");
 
@@ -493,8 +494,8 @@ test("a weekday override tints its own day only", async ({ page }) => {
     // tints; every other day has no effective limit at all.
     [COMMANDS.globalThreshold]: {
       minutes: null,
-      color: "#f87171",
-      day_minutes: { monday: 30 },
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: { [Weekday.Monday]: 30 },
     },
   });
   await page.goto("/");
