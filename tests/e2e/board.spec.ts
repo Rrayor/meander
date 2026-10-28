@@ -9,8 +9,9 @@ import {
   BOARD_THIS_WEEK_LABEL,
   EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
-  WEEKLY_BACKLOG_LABEL,
   STATUS_LABELS,
+  THRESHOLD_COLOR_DEFAULT,
+  WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
   dayTotalsLabel,
   editTaskLabel,
@@ -464,7 +465,7 @@ test("a day column tints when its estimates reach the threshold", async ({
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
     [COMMANDS.listTaskCategories]: [],
     // 60m threshold vs the day's 60m total — reached, tinted per §287.
-    [COMMANDS.globalThreshold]: { minutes: 60, color: "#f87171" },
+    [COMMANDS.globalThreshold]: { minutes: 60, color: THRESHOLD_COLOR_DEFAULT },
   });
   await page.goto("/");
 
@@ -475,5 +476,39 @@ test("a day column tints when its estimates reach the threshold", async ({
   // The backlog column and under-threshold days stay untinted.
   await expect(
     page.getByRole("columnheader", { name: new RegExp(WEEKLY_BACKLOG_LABEL) }),
+  ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
+});
+
+test("a weekday override tints its own day only", async ({ page }) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    // Day-only threshold: monday has a 30m override — its 60m total
+    // tints; every other day has no effective limit at all.
+    [COMMANDS.globalThreshold]: {
+      minutes: null,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: { [Weekday.Monday]: 30 },
+    },
+  });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("columnheader", {
+      name: new RegExp(shortWeekdayLabel(days[0])),
+    }),
+  ).toHaveCSS("background-color", /rgba\(248, 113, 113/);
+  // The next day has no override and no global — untinted.
+  await expect(
+    page.getByRole("columnheader", {
+      name: new RegExp(shortWeekdayLabel(days[1])),
+    }),
   ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
 });

@@ -567,6 +567,73 @@ describe("BoardPage", () => {
     );
   });
 
+  it("tints at a weekday override below the global threshold", async () => {
+    // 60m on days[0] (monday): under the 240 global but over its 30 override.
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: 240,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: { [Weekday.Monday]: 30 },
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
+    );
+  });
+
+  it("does not tint when the weekday override is above the total", async () => {
+    // The override replaces the global — 60m is under monday's 300.
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: 60,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: { [Weekday.Monday]: 300 },
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).not.toHaveStyle({
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
+    );
+  });
+
+  it("tints a day-only threshold and leaves other days untinted", async () => {
+    // No global minutes — only monday has a limit; it is reached.
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: null,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: { [Weekday.Monday]: 30 },
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
+    );
+    expect(headers[2]).not.toHaveStyle({
+      backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+    });
+  });
+
+  it("does not tint a day without an effective limit on a day-only threshold", async () => {
+    // tuesday has the override — monday has no limit at all.
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: null,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: { [Weekday.Tuesday]: 30 },
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).not.toHaveStyle({
+        backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
+    );
+  });
+
   it("steps forward again and the weekly backlog reappears", async () => {
     renderBoard();
     await screen.findByRole("columnheader", {
