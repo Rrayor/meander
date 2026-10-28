@@ -34,7 +34,7 @@ type FormValues = z.infer<typeof schema>;
 /// Per-category per-day thresholds (spec §285): each category may get
 /// its own minutes limit and color; unset means no threshold for it.
 export function CategoryThresholdsSection() {
-  const { data: categories } = useQuery({
+  const { data: categories, error: categoriesError } = useQuery({
     queryKey: QUERY_KEYS.categories,
     queryFn: listCategories,
   });
@@ -84,13 +84,24 @@ export function CategoryThresholdsSection() {
         );
       }
     },
-    onSuccess: () => {
+    onSettled: () => {
+      // Refetch even on a partial batch — earlier rows may have saved
+      // before a later one failed, and the stored values must resync.
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.categories,
       });
     },
   });
 
+  if (categoriesError) {
+    return (
+      <section aria-labelledby={CATEGORY_THRESHOLDS_HEADING_ID}>
+        <p role="alert" className="text-sm text-error">
+          {errorMessage(categoriesError)}
+        </p>
+      </section>
+    );
+  }
   if ((categories ?? []).length === 0) return null;
   return (
     <section aria-labelledby={CATEGORY_THRESHOLDS_HEADING_ID}>
@@ -139,13 +150,17 @@ export function CategoryThresholdsSection() {
                   </p>
                 )}
               </div>
-              <ColorRadios
-                label={`${THRESHOLD_COLOR_LABEL}: ${c.title}`}
-                value={color}
-                onChange={(v) =>
-                  setValue(`rows.${c.id}.color`, v, { shouldDirty: true })
-                }
-              />
+              {/* A category without a threshold has no color to pick —
+                  an unset row must not read as a custom selection. */}
+              {rows?.[c.id]?.minutes != null && (
+                <ColorRadios
+                  label={`${THRESHOLD_COLOR_LABEL}: ${c.title}`}
+                  value={color}
+                  onChange={(v) =>
+                    setValue(`rows.${c.id}.color`, v, { shouldDirty: true })
+                  }
+                />
+              )}
             </div>
           );
         })}

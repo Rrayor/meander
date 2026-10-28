@@ -51,6 +51,20 @@ describe("CategoryThresholdsSection", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  it("shows the loading error instead of the section", async () => {
+    mockedList.mockRejectedValue(new Error("db gone"));
+    renderSection();
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+  });
+
+  it("offers no color pick for an unset category", async () => {
+    mockedList.mockResolvedValue([ERRANDS]);
+    renderSection();
+    await screen.findByLabelText(thresholdColorLabel("Errands"));
+    // With no minutes, a threshold has no color — no radios at all.
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
   it("lists categories and saves a threshold", async () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();

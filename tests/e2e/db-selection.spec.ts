@@ -36,6 +36,7 @@ test("a failed selection shows an error and keeps the current path", async ({
 }) => {
   await stubTauriCommands(page, {
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.dialogOpen]: STUB_OTHER_DB_PATH,
     [COMMANDS.selectDatabaseFile]: stubError(SELECTION_ERROR_MESSAGE),
   });

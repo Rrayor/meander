@@ -177,16 +177,21 @@ pub async fn set_threshold(
         match parsed_color {
             Some(c) => Some(c),
             None => {
-                // Palette hue by list position (§285 "distinct hues").
-                let pos: i64 = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM categories WHERE profile_id = ? AND (title < (SELECT title FROM categories WHERE id = ?) OR id < ?)",
+                // §285 "distinct hues for distinct categories": the first
+                // palette color no other category claims — stable under
+                // renames and duplicate titles.
+                let used: Vec<String> = sqlx::query_scalar(
+                    "SELECT threshold_color FROM categories WHERE profile_id = ? AND threshold_color IS NOT NULL AND id != ?",
                 )
                 .bind(profile_id)
                 .bind(category_id)
-                .bind(category_id)
-                .fetch_one(pool)
+                .fetch_all(pool)
                 .await?;
-                Some(CATEGORY_PALETTE[pos as usize % CATEGORY_PALETTE.len()].to_string())
+                let hue = CATEGORY_PALETTE
+                    .iter()
+                    .find(|h| !used.contains(&h.to_string()))
+                    .unwrap_or(&CATEGORY_PALETTE[category_id as usize % CATEGORY_PALETTE.len()]);
+                Some(hue.to_string())
             }
         }
     } else {
