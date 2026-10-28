@@ -84,9 +84,9 @@ export function CategoryThresholdsSection() {
         );
       }
     },
-    onSettled: () => {
-      // Refetch even on a partial batch — earlier rows may have saved
-      // before a later one failed, and the stored values must resync.
+    onSuccess: () => {
+      // Only refetch on success — a failed batch must not discard
+      // unsaved edits on the other rows.
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.categories,
       });

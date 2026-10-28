@@ -177,21 +177,35 @@ pub async fn set_threshold(
         match parsed_color {
             Some(c) => Some(c),
             None => {
-                // §285 "distinct hues for distinct categories": the first
-                // palette color no other category claims — stable under
-                // renames and duplicate titles.
-                let used: Vec<String> = sqlx::query_scalar(
-                    "SELECT threshold_color FROM categories WHERE profile_id = ? AND threshold_color IS NOT NULL AND id != ?",
+                // Keep a stored color when the edit only touches minutes;
+                // otherwise pick the first palette hue no other category
+                // claims (§285 "distinct hues for distinct categories").
+                let stored: Option<String> = sqlx::query_scalar(
+                    "SELECT threshold_color FROM categories WHERE id = ? AND profile_id = ?",
                 )
-                .bind(profile_id)
                 .bind(category_id)
-                .fetch_all(pool)
+                .bind(profile_id)
+                .fetch_one(pool)
                 .await?;
-                let hue = CATEGORY_PALETTE
-                    .iter()
-                    .find(|h| !used.contains(&h.to_string()))
-                    .unwrap_or(&CATEGORY_PALETTE[category_id as usize % CATEGORY_PALETTE.len()]);
-                Some(hue.to_string())
+                match stored {
+                    Some(c) => Some(c),
+                    None => {
+                        let used: Vec<String> = sqlx::query_scalar(
+                            "SELECT threshold_color FROM categories WHERE profile_id = ? AND threshold_color IS NOT NULL AND id != ?",
+                        )
+                        .bind(profile_id)
+                        .bind(category_id)
+                        .fetch_all(pool)
+                        .await?;
+                        let hue = CATEGORY_PALETTE
+                            .iter()
+                            .find(|h| !used.contains(&h.to_string()))
+                            .unwrap_or(
+                                &CATEGORY_PALETTE[category_id as usize % CATEGORY_PALETTE.len()],
+                            );
+                        Some(hue.to_string())
+                    }
+                }
             }
         }
     } else {
