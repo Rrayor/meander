@@ -89,12 +89,12 @@ describe("Settings smoke", () => {
       await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
         `aria/${THRESHOLD_FIELD_LABEL}`,
       )
-    ).setValue("");
+    ).clearValue();
     await (
       await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
         `aria/${sundayOption.label}`,
       )
-    ).setValue("");
+    ).clearValue();
     await (
       await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
         `button=${SAVE_BUTTON_LABEL}`,
