@@ -10,7 +10,9 @@ use crate::db::{DbError, Result};
 use crate::errors::ErrorCode;
 use crate::tasks::{CarryOverRule, TaskDescription, TaskTitle};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, specta::Type,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Weekday {
     Monday,

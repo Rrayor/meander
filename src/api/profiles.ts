@@ -39,4 +39,10 @@ export const globalThreshold = () =>
 export const setGlobalThreshold = (
   minutes: number | null,
   color: string | null,
-) => transport.invoke<void>(COMMANDS.setGlobalThreshold, { minutes, color });
+  dayMinutes: Partial<Record<Weekday, number>>,
+) =>
+  transport.invoke<void>(COMMANDS.setGlobalThreshold, {
+    minutes,
+    color,
+    dayMinutes,
+  });

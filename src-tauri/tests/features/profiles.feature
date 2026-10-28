@@ -100,3 +100,27 @@ Feature: Profiles
     Given an application state on a temporary seeded database
     When I set the active profile's work days to Monday only
     Then the active profile's work days are Monday only
+
+  Scenario: per-weekday threshold overrides persist independently
+    Given an application state on a temporary seeded database
+    When I set the active profile's threshold for monday to 480 minutes
+    Then the active profile's threshold for monday is 480 minutes
+    And the active profile has no threshold for tuesday
+    When I set the active profile's threshold for sunday to 720 minutes
+    Then the active profile's threshold for sunday is 720 minutes
+    And the active profile's threshold for monday is 480 minutes
+    When I set the active profile's threshold for monday to 0 minutes
+    Then the threshold save fails
+    When I set the active profile's threshold for monday to 1441 minutes
+    Then the threshold save fails
+    When I set the active profile's threshold for monday to 1440 minutes
+    Then the active profile's threshold for monday is 1440 minutes
+
+  Scenario: a day-only threshold keeps a color and clearing wipes overrides
+    Given an application state on a temporary seeded database
+    When I set the active profile's threshold for sunday to 720 minutes
+    Then the active profile's global threshold color is the default red
+    And the active profile's threshold for sunday is 720 minutes
+    Given a second profile exists
+    When the application switches to the second profile
+    Then the active profile has no threshold for sunday
