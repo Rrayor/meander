@@ -2,7 +2,7 @@ import {
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
   THRESHOLD_FIELD_LABEL,
-  THRESHOLD_HEADING,
+  THRESHOLD_HEADING_ID,
   WEEKDAY_OPTIONS,
   WORK_DAYS_HEADING_ID,
 } from "@/lib/labels";
@@ -55,7 +55,9 @@ describe("Settings smoke", () => {
     )!;
     const globalMinutes = "240";
     const sundayMinutes = "720";
-    const section = await $(`aria/${THRESHOLD_HEADING}`);
+    const section = await $(
+      `section[aria-labelledby='${THRESHOLD_HEADING_ID}']`,
+    );
     const minutes = await section.$(`aria/${THRESHOLD_FIELD_LABEL}`);
     await minutes.setValue(globalMinutes);
     const sunday = await section.$(`aria/${sundayOption.label}`);
@@ -69,29 +71,39 @@ describe("Settings smoke", () => {
     await browser.waitUntil(
       async () =>
         (await (
-          await $(`aria/${THRESHOLD_HEADING}`).$(
+          await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
             `aria/${THRESHOLD_FIELD_LABEL}`,
           )
         ).getValue()) === globalMinutes,
     );
     expect(
-      await (await $(`aria/${THRESHOLD_HEADING}`).$(`aria/Sunday`)).getValue(),
+      await (
+        await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
+          `aria/Sunday`,
+        )
+      ).getValue(),
     ).toBe("720");
 
     // Restore: clear the fields back to unset.
     await (
-      await $(`aria/${THRESHOLD_HEADING}`).$(`aria/${THRESHOLD_FIELD_LABEL}`)
+      await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
+        `aria/${THRESHOLD_FIELD_LABEL}`,
+      )
     ).setValue("");
     await (
-      await $(`aria/${THRESHOLD_HEADING}`).$(`aria/${sundayOption.label}`)
+      await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
+        `aria/${sundayOption.label}`,
+      )
     ).setValue("");
     await (
-      await $(`aria/${THRESHOLD_HEADING}`).$(`button=${SAVE_BUTTON_LABEL}`)
+      await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
+        `button=${SAVE_BUTTON_LABEL}`,
+      )
     ).click();
     await browser.waitUntil(
       async () =>
         (await (
-          await $(`aria/${THRESHOLD_HEADING}`).$(
+          await $(`section[aria-labelledby='${THRESHOLD_HEADING_ID}']`).$(
             `aria/${THRESHOLD_FIELD_LABEL}`,
           )
         ).getValue()) === "",

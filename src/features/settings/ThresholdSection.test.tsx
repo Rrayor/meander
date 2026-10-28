@@ -184,7 +184,9 @@ describe("ThresholdSection", () => {
     });
     renderSection();
     const sunday = await screen.findByLabelText("Sunday");
-    await act(async () => {});
+    // Wait until the stored row lands — otherwise the first edit races the
+    // values-driven reset and is wiped.
+    await waitFor(() => expect(sunday).toHaveAttribute("placeholder", "240"));
     fireEvent.change(sunday, { target: { value: "1441" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() => expect(sunday).toHaveAttribute("aria-invalid", "true"));
@@ -201,7 +203,7 @@ describe("ThresholdSection", () => {
     });
     renderSection();
     const monday = await screen.findByLabelText("Monday");
-    await act(async () => {});
+    await waitFor(() => expect(monday).toHaveValue(300));
     const sunday = screen.getByLabelText("Sunday");
     const friday = screen.getByLabelText("Friday");
     // monday overridden, sunday cleared, friday added.
@@ -225,6 +227,7 @@ describe("ThresholdSection", () => {
     });
     renderSection();
     const sunday = await screen.findByLabelText("Sunday");
+    await waitFor(() => expect(mockedThreshold).toHaveBeenCalledTimes(1));
     await act(async () => {});
     fireEvent.change(sunday, { target: { value: "720" } });
     const save = screen.getByRole("button", { name: SAVE_BUTTON_LABEL });
