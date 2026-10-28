@@ -115,7 +115,7 @@ export function CategoryThresholdsSection() {
                     type="number"
                     min={1}
                     max={MAX_DURATION_MINUTES}
-                    placeholder={formatMinutes(MAX_DURATION_MINUTES)}
+                    placeholder={String(MAX_DURATION_MINUTES)}
                     aria-label={thresholdColorLabel(c.title)}
                     aria-invalid={rowError != null}
                     aria-describedby={
