@@ -16,6 +16,7 @@ export const COMMANDS = {
   listWeekTasks: "list_week_tasks",
   globalThreshold: "global_threshold",
   setGlobalThreshold: "set_global_threshold",
+  setCategoryThreshold: "set_category_threshold",
   listPendingCarryOver: "list_pending_carry_over",
   resolveCarryOver: "resolve_carry_over",
   listCategories: "list_categories",

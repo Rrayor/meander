@@ -56,6 +56,7 @@ const profiles = [
 test("settings lists profiles and marks the current one", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
   });
@@ -99,6 +100,7 @@ test("a blank name shows validation without calling the backend", async ({
 }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     // createProfile intentionally unstubbed: a call would throw.
@@ -142,6 +144,7 @@ test("renaming a profile updates the list and the footer", async ({ page }) => {
 test("cancelling a rename leaves the name unchanged", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     // renameProfile intentionally unstubbed: a call would throw.
@@ -166,6 +169,7 @@ test("cancelling a rename leaves the name unchanged", async ({ page }) => {
 test("the nav footer switches the active profile", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: stubSequence([profiles[0], profiles[1]]),
     [COMMANDS.switchProfile]: null,
   });
@@ -186,6 +190,7 @@ test("the nav footer switches the active profile", async ({ page }) => {
 test("saving a week start sends it on the wire", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: stubSequence([
@@ -213,6 +218,7 @@ test("a failed week-start save surfaces the error", async ({ page }) => {
   const message = "db write failed";
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -232,6 +238,7 @@ const mondayFriday = WEEKDAY_OPTIONS.slice(0, 5).map((o) => o.value);
 test("saving work days sends them on the wire", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -258,6 +265,7 @@ test("a saved work-days set refetches into the chips", async ({ page }) => {
   const weekend = [Weekday.Saturday, Weekday.Sunday];
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -304,6 +312,7 @@ test("a failed work-days save surfaces the error", async ({ page }) => {
   const message = "work days write failed";
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -326,6 +335,7 @@ test("a failed work-days save surfaces the error", async ({ page }) => {
 test("saving a global threshold sends it on the wire", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -351,6 +361,7 @@ test("saving a global threshold sends it on the wire", async ({ page }) => {
 test("a palette pick sends the chosen color on the wire", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -383,6 +394,7 @@ test("clearing a stored threshold sends nulls on the wire", async ({
 }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -413,6 +425,7 @@ test("clearing a stored threshold sends nulls on the wire", async ({
 test("out-of-range minutes never reach the wire", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -439,6 +452,7 @@ test("out-of-range minutes never reach the wire", async ({ page }) => {
 test("a weekday override sends the day map on the wire", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -468,6 +482,7 @@ test("an out-of-range weekday value never reaches the wire", async ({
 }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -499,6 +514,7 @@ test("a day-only threshold sends null minutes with the day map", async ({
 }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.listCategories]: [],
     [COMMANDS.currentProfile]: profiles[0],
     [COMMANDS.currentDbPath]: STUB_DB_PATH,
     [COMMANDS.weekStart]: Weekday.Monday,
@@ -523,4 +539,41 @@ test("a day-only threshold sends null minutes with the day map", async ({
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setGlobalThreshold);
   expect(saveCall?.args.minutes).toBeNull();
   expect(saveCall?.args.dayMinutes).toEqual({ sunday: 720 });
+});
+
+test("a category threshold sends setCategoryThreshold on the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [
+      {
+        id: 1,
+        profile_id: 1,
+        title: "Errands",
+        description: null,
+        color: "#4ade80",
+        threshold_minutes: null,
+        threshold_color: null,
+        created_at: "2026-01-01",
+        updated_at: "2026-01-01",
+      },
+    ],
+    [COMMANDS.setCategoryThreshold]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page.getByLabel("Threshold minutes for Errands").fill("240");
+  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).last().click();
+
+  const calls = await getInvocations<{
+    categoryId: number;
+    minutes: number;
+  }>(page);
+  const call = calls.find((c) => c.cmd === COMMANDS.setCategoryThreshold);
+  expect(call?.args).toMatchObject({ categoryId: 1, minutes: 240 });
 });

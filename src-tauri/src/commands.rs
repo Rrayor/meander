@@ -63,6 +63,24 @@ pub async fn set_global_threshold(
 }
 
 #[tauri::command]
+pub async fn set_category_threshold(
+    state: State<'_, AppState>,
+    category_id: i64,
+    minutes: Option<i64>,
+    color: Option<String>,
+) -> Result<(), ApiError> {
+    crate::categories::set_threshold(
+        &state.pool(),
+        state.active_profile_id(),
+        category_id,
+        minutes,
+        color,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn list_pending_carry_over(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::tasks::Task>, ApiError> {

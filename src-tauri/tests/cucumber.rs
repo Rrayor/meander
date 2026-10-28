@@ -3226,3 +3226,91 @@ fn board_not_empty(world: &mut MeanderWorld) {
 fn demo_seed_inserted_nothing(world: &mut MeanderWorld) {
     assert_eq!(world.demo_inserted, Some(0));
 }
+
+#[when(expr = "I set the category {word} threshold to {int} minutes")]
+fn set_category_threshold(world: &mut MeanderWorld, title: String, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let cid = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM categories WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("category lookup failed");
+    if let Err(e) = world.rt().block_on(meander_lib::categories::set_threshold(
+        &pool,
+        id,
+        cid,
+        Some(minutes),
+        None,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the category {word} threshold is {int} minutes")]
+fn category_threshold_is(world: &mut MeanderWorld, title: String, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let m = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT threshold_minutes FROM categories WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("threshold query failed");
+    assert_eq!(m, Some(minutes));
+}
+
+#[then(expr = "the category {word} has no threshold")]
+fn category_has_no_threshold(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let m = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT threshold_minutes FROM categories WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("threshold query failed");
+    assert!(m.is_none());
+}
+
+#[then(expr = "the category {word} threshold color comes from the palette")]
+fn category_threshold_color_is_palette(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let c = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar::<_, Option<String>>(
+                "SELECT threshold_color FROM categories WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("color query failed");
+    assert!(
+        meander_lib::categories::CATEGORY_PALETTE.contains(&c.as_deref().unwrap()),
+        "expected a palette color, got {c:?}"
+    );
+}
+
+#[then(expr = "the category threshold save fails")]
+fn category_threshold_save_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "expected a save failure");
+}

@@ -138,3 +138,23 @@ Feature: Categories
     When I create a category with an overlong description
     Then the category creation fails
     And the category list is empty
+
+  Scenario: a category threshold persists, clears, and validates
+    Given an application state on a temporary seeded database
+    And a category named Errands exists on the active profile
+    Then the category Errands has no threshold
+    When I set the category Errands threshold to 240 minutes
+    Then the category Errands threshold is 240 minutes
+    And the category Errands threshold color comes from the palette
+    When I set the category Errands threshold to 0 minutes
+    Then the category threshold save fails
+    When I set the category Errands threshold to 1441 minutes
+    Then the category threshold save fails
+    When I set the category Errands threshold to 1440 minutes
+    Then the category Errands threshold is 1440 minutes
+
+  Scenario: category thresholds are scoped to their owning profile
+    Given an application state on a temporary seeded database
+    And a category named Foreign exists on a second profile
+    When the application switches to the second profile
+    Then the category Foreign has no threshold

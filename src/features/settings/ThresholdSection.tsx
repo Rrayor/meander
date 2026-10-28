@@ -1,17 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { Weekday } from "@/lib/enums";
-import { CATEGORY_COLORS, MAX_DURATION_MINUTES } from "@/lib/constants";
+import { MAX_DURATION_MINUTES } from "@/lib/constants";
 import {
-  CUSTOM_COLOR_GRADIENT,
-  CUSTOM_COLOR_LABEL,
-  CUSTOM_COLOR_PICKER_LABEL,
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
   THRESHOLD_COLOR_DEFAULT,
@@ -24,10 +21,10 @@ import {
   THRESHOLD_DAYS_ERROR_ID,
   THRESHOLD_DAYS_FIELDSET_LABEL,
   WEEKDAY_OPTIONS,
-  categorySwatchLabel,
   formatMinutes,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
+import { ColorRadios } from "@/features/settings/ColorRadios";
 
 const schema = z.object({
   minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
@@ -44,7 +41,6 @@ type FormValues = z.infer<typeof schema>;
 /// color can be a palette swatch or a fully custom pick (spec §283).
 export function ThresholdSection() {
   const queryClient = useQueryClient();
-  const colorInputRef = useRef<HTMLInputElement>(null);
   const { data: stored } = useQuery({
     queryKey: QUERY_KEYS.globalThreshold,
     queryFn: globalThreshold,
@@ -81,9 +77,6 @@ export function ThresholdSection() {
   const color = watch("color");
   const minutesTouched = touchedFields.minutes === true;
   const invalid = errors.minutes != null;
-  const customSelected = !(CATEGORY_COLORS as readonly string[]).includes(
-    color,
-  );
 
   const save = useMutation({
     mutationFn: async (v: {
@@ -186,65 +179,11 @@ export function ThresholdSection() {
             </p>
           )}
         </fieldset>
-        <fieldset className="mt-4 text-sm text-text-muted">
-          <legend className="sr-only">{THRESHOLD_COLOR_LABEL}</legend>
-          <div
-            className="flex items-center gap-1.5"
-            role="radiogroup"
-            aria-label={THRESHOLD_COLOR_LABEL}
-          >
-            {CATEGORY_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                role="radio"
-                aria-checked={color === c}
-                aria-label={categorySwatchLabel(c)}
-                onClick={() => setValue("color", c, { shouldDirty: true })}
-                style={{ backgroundColor: c }}
-                className={`h-6 w-6 rounded-full transition-transform ${
-                  color === c
-                    ? "ring-2 ring-text ring-offset-2 ring-offset-surface"
-                    : "hover:scale-110"
-                }`}
-              />
-            ))}
-            {/* The button is the radiogroup member so the custom pick
-                reports aria-checked to AT; the color input overlays it
-                for pointer interaction and keeps its native semantics. */}
-            <div className="group relative ml-2">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={customSelected}
-                aria-label={CUSTOM_COLOR_LABEL}
-                onClick={(e) => {
-                  if (e.target === e.currentTarget)
-                    colorInputRef.current?.click();
-                }}
-                className={`h-6 w-6 rounded-full transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                  customSelected
-                    ? "ring-2 ring-text ring-offset-2 ring-offset-surface"
-                    : "group-hover:scale-110"
-                }`}
-                style={{
-                  background: customSelected ? color : CUSTOM_COLOR_GRADIENT,
-                }}
-              />
-              <input
-                ref={colorInputRef}
-                type="color"
-                tabIndex={-1}
-                aria-label={CUSTOM_COLOR_PICKER_LABEL}
-                value={customSelected ? color : THRESHOLD_COLOR_DEFAULT}
-                onChange={(e) =>
-                  setValue("color", e.target.value, { shouldDirty: true })
-                }
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              />
-            </div>
-          </div>
-        </fieldset>
+        <ColorRadios
+          label={THRESHOLD_COLOR_LABEL}
+          value={color}
+          onChange={(c) => setValue("color", c, { shouldDirty: true })}
+        />
       </div>
       {save.isError && (
         <p role="alert" className="mt-3 text-sm text-error">

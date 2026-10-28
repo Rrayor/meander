@@ -127,6 +127,9 @@ pub struct Category {
     pub title: String,
     pub description: Option<String>,
     pub color: Option<String>,
+    /// §285: per-category per-day threshold — NULL when unset.
+    pub threshold_minutes: Option<i64>,
+    pub threshold_color: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -138,6 +141,71 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Category>> {
     .bind(profile_id)
     .fetch_all(pool)
     .await?)
+}
+
+/// Sets or clears a category's per-day threshold (§285). A set
+/// threshold with no picked color defaults to a palette hue chosen by
+/// the category's position — distinct hues for distinct categories.
+/// Clearing the minutes clears the color with it.
+pub async fn set_threshold(
+    pool: &SqlitePool,
+    profile_id: i64,
+    category_id: i64,
+    minutes: Option<i64>,
+    color: Option<String>,
+) -> Result<()> {
+    let validated = minutes
+        .map(|m| {
+            crate::validation::PositiveDuration::try_new(m).map_err(|_| {
+                crate::db::DbError::Validation {
+                    code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
+                    message: format!(
+                        "threshold must be between 1 and {} minutes",
+                        crate::validation::MAX_DURATION_MINUTES
+                    ),
+                }
+            })
+        })
+        .transpose()?
+        .map(|d| d.into_inner());
+    let parsed_color = crate::validation::parse_hex_color(
+        color.as_deref(),
+        crate::errors::ErrorCode::ThresholdColorInvalid,
+        "threshold color must be a #rrggbb hex value",
+    )?;
+    let parsed_color = if validated.is_some() {
+        match parsed_color {
+            Some(c) => Some(c),
+            None => {
+                // Palette hue by list position (§285 "distinct hues").
+                let pos: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM categories WHERE profile_id = ? AND (title < (SELECT title FROM categories WHERE id = ?) OR id < ?)",
+                )
+                .bind(profile_id)
+                .bind(category_id)
+                .bind(category_id)
+                .fetch_one(pool)
+                .await?;
+                Some(CATEGORY_PALETTE[pos as usize % CATEGORY_PALETTE.len()].to_string())
+            }
+        }
+    } else {
+        None
+    };
+    let changed = sqlx::query(
+        "UPDATE categories SET threshold_minutes = ?, threshold_color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
+    )
+    .bind(validated)
+    .bind(parsed_color)
+    .bind(category_id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if changed == 0 {
+        return Err(category_not_found());
+    }
+    Ok(())
 }
 
 /// Deletes a category scoped to its owning profile. task_categories rows
@@ -750,5 +818,104 @@ mod tests {
                 .await;
             assert!(result.is_err(), "title {title:?} should be rejected");
         }
+    }
+
+    #[tokio::test]
+    async fn set_threshold_persists_validates_and_clears() {
+        let (pool, pid) = seeded_pool().await;
+        let cid = new_category(&pool, pid, TITLE_A).await;
+        // Set with an explicit color.
+        set_threshold(&pool, pid, cid, Some(240), Some("#60a5fa".into()))
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_minutes, Some(240));
+        assert_eq!(c.threshold_color.as_deref(), Some("#60a5fa"));
+        // Boundary accepted.
+        set_threshold(&pool, pid, cid, Some(1440), None)
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_minutes, Some(1440));
+        // Out-of-range and negative rejected without mutating.
+        for bad in [0, 1441, -5] {
+            assert!(
+                set_threshold(&pool, pid, cid, Some(bad), None)
+                    .await
+                    .is_err()
+            );
+        }
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_minutes, Some(1440));
+        // Clearing the minutes clears the color too.
+        set_threshold(&pool, pid, cid, None, None).await.unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert!(c.threshold_minutes.is_none());
+        assert!(c.threshold_color.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_threshold_defaults_a_distinct_palette_hue() {
+        let (pool, pid) = seeded_pool().await;
+        let first = new_category(&pool, pid, "AAA").await;
+        let second = new_category(&pool, pid, "ZZZ").await;
+        set_threshold(&pool, pid, first, Some(120), None)
+            .await
+            .unwrap();
+        set_threshold(&pool, pid, second, Some(60), None)
+            .await
+            .unwrap();
+        let all = list(&pool, pid).await.unwrap();
+        let c1 = all.iter().find(|c| c.id == first).unwrap();
+        let c2 = all.iter().find(|c| c.id == second).unwrap();
+        // §285: distinct categories get distinct palette hues.
+        assert!(CATEGORY_PALETTE.contains(&c1.threshold_color.as_deref().unwrap()));
+        assert!(CATEGORY_PALETTE.contains(&c2.threshold_color.as_deref().unwrap()));
+        assert_ne!(c1.threshold_color, c2.threshold_color);
+    }
+
+    #[tokio::test]
+    async fn set_threshold_is_scoped_and_errors_on_foreign_category() {
+        let (pool, pid) = seeded_pool().await;
+        let other: i64 = sqlx::query_scalar(
+            "INSERT INTO profiles (name, week_start, work_days) VALUES ('other', 0, 31) RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let foreign = new_category(&pool, other, TITLE_B).await;
+        assert!(
+            set_threshold(&pool, pid, foreign, Some(60), None)
+                .await
+                .is_err()
+        );
+        // And the foreign category keeps no threshold.
+        let c = list(&pool, other)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == foreign)
+            .unwrap();
+        assert!(c.threshold_minutes.is_none());
     }
 }
