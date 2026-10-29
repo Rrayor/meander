@@ -637,13 +637,13 @@ describe("BoardPage", () => {
     );
   });
 
+  const CAT_COLOR = "#60a5fa";
   const WORK_CAT = categoryFixture({
     id: 11,
     title: "Work",
     threshold_minutes: 60,
-    threshold_color: "#60a5fa",
+    threshold_color: CAT_COLOR,
   });
-  const CAT_COLOR = "#60a5fa";
   const OTHER_COLOR = "#f472b6";
 
   it("tints a column in the category threshold color when reached", async () => {

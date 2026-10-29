@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
+import type { Category } from "@/api/bindings";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { Task } from "@/api/bindings";
@@ -67,6 +68,76 @@ function BoardCard({
     </button>
   );
 }
+
+/// Spec §281/§285/§291: for every column, the colors of the thresholds
+/// it reaches — the global one (its weekday override or the minutes
+/// fallback) plus each category whose estimate total meets its own
+/// effective limit. Several reached thresholds blend into a gradient;
+/// the weekly backlog column never tints. Also returns the reached
+/// category id → color map so cards can carry their category's tint.
+const columnThresholds = (
+  columns: (string | null)[],
+  columnTasks: (column: string | null) => Task[],
+  threshold:
+    | {
+        minutes: number | null;
+        color: string | null;
+        day_minutes: Record<string, number>;
+      }
+    | undefined,
+  taskCategories: Map<number, Category[]>,
+): {
+  tintColors: Map<string | null, string[]>;
+  reachedCats: Map<string | null, Map<number, string>>;
+} => {
+  const tintColor = threshold?.color ?? null;
+  const tintColors = new Map<string | null, string[]>();
+  const reachedCats = new Map<string | null, Map<number, string>>();
+  for (const c of columns) {
+    const colors: string[] = [];
+    const cats = new Map<number, string>();
+    if (c !== null) {
+      const limit =
+        threshold?.day_minutes?.[weekdayNameOf(c)] ??
+        threshold?.minutes ??
+        null;
+      if (
+        tintColor !== null &&
+        limit != null &&
+        totals(columnTasks(c)).estimated >= limit
+      ) {
+        colors.push(tintColor);
+      }
+      const sums = new Map<
+        number,
+        { est: number; color: string; limit: number | null }
+      >();
+      for (const t of columnTasks(c)) {
+        for (const cat of taskCategories.get(t.id) ?? []) {
+          if (cat.threshold_color == null) continue;
+          const cur = sums.get(cat.id) ?? {
+            est: 0,
+            color: cat.threshold_color,
+            limit:
+              cat.threshold_day_minutes?.[weekdayNameOf(c)] ??
+              cat.threshold_minutes,
+          };
+          cur.est += t.estimated_minutes ?? 0;
+          sums.set(cat.id, cur);
+        }
+      }
+      for (const [id, s] of sums) {
+        if (s.limit != null && s.est >= s.limit) {
+          cats.set(id, s.color);
+          colors.push(s.color);
+        }
+      }
+    }
+    tintColors.set(c, colors);
+    reachedCats.set(c, cats);
+  }
+  return { tintColors, reachedCats };
+};
 
 const totals = (tasks: Task[]) => ({
   count: tasks.length,
@@ -143,57 +214,15 @@ export function BoardPage() {
   const taskCategories = new Map(
     (tasks ?? []).map((t, i) => [t.id, categoryQueries[i]?.data ?? []]),
   );
+  const categoryError = categoryQueries.find((q) => q.error)?.error;
+  const boardError = error ?? categoryError ?? null;
 
-  // Spec §281/§285/§291: a day column tints with the colors of every
-  // threshold it reaches — the global one plus each category whose
-  // estimate total meets its own limit (weekday override first, its
-  // per-day minutes as fallback). Several reached thresholds blend
-  // into a gradient; the weekly backlog column never tints.
-  const tintColor = threshold?.color ?? null;
-  const dayLimit = (iso: string) =>
-    threshold?.day_minutes?.[weekdayNameOf(iso)] ?? threshold?.minutes ?? null;
-  const reachedCats = new Map<string | null, Map<number, string>>();
-  const columnTintColors = new Map<string | null, string[]>();
-  for (const c of columns) {
-    const colors: string[] = [];
-    const cats = new Map<number, string>();
-    if (c !== null) {
-      const limit = dayLimit(c);
-      if (
-        tintColor !== null &&
-        limit != null &&
-        totals(columnTasks(c)).estimated >= limit
-      ) {
-        colors.push(tintColor);
-      }
-      const sums = new Map<
-        number,
-        { est: number; color: string; limit: number | null }
-      >();
-      for (const t of columnTasks(c)) {
-        for (const cat of taskCategories.get(t.id) ?? []) {
-          if (cat.threshold_color == null) continue;
-          const cur = sums.get(cat.id) ?? {
-            est: 0,
-            color: cat.threshold_color,
-            limit:
-              cat.threshold_day_minutes?.[weekdayNameOf(c)] ??
-              cat.threshold_minutes,
-          };
-          cur.est += t.estimated_minutes ?? 0;
-          sums.set(cat.id, cur);
-        }
-      }
-      for (const [id, s] of sums) {
-        if (s.limit != null && s.est >= s.limit) {
-          cats.set(id, s.color);
-          colors.push(s.color);
-        }
-      }
-    }
-    reachedCats.set(c, cats);
-    columnTintColors.set(c, colors);
-  }
+  const { tintColors: columnTintColors, reachedCats } = columnThresholds(
+    columns,
+    columnTasks,
+    threshold,
+    taskCategories,
+  );
   const tint = (column: string | null) =>
     thresholdTintStyle(columnTintColors.get(column) ?? []);
 
@@ -272,7 +301,7 @@ export function BoardPage() {
       </header>
       {error && (
         <p role="alert" className="px-6 pt-4 text-sm text-danger">
-          {errorMessage(error)}
+          {errorMessage(boardError)}
         </p>
       )}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
