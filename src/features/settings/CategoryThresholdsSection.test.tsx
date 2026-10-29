@@ -8,6 +8,7 @@ import { testQueryClient } from "@/test/queryClient";
 import { Weekday } from "@/lib/enums";
 import {
   CATEGORY_THRESHOLDS_HEADING,
+  WEEKDAY_OPTIONS,
   SAVE_BUTTON_LABEL,
   categorySwatchLabel,
   categoryThresholdDayLabel,
@@ -38,6 +39,12 @@ const ERRANDS = categoryFixture({
   threshold_day_minutes: {},
 });
 
+const dayLabel = (w: Weekday) =>
+  WEEKDAY_OPTIONS.find((o) => o.value === w)!.label;
+const SUNDAY_MINUTES = "720";
+const MONDAY_MINUTES = "60";
+const FRIDAY_MINUTES = "45";
+
 beforeEach(() => {
   mockedList.mockReset();
   mockedSet.mockReset();
@@ -63,7 +70,7 @@ describe("CategoryThresholdsSection", () => {
   it("offers no color pick for an unset category", async () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();
-    await screen.findByLabelText(thresholdColorLabel("Errands"));
+    await screen.findByLabelText(thresholdColorLabel(ERRANDS.title));
     // With no minutes, a threshold has no color — no radios at all.
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
@@ -71,7 +78,9 @@ describe("CategoryThresholdsSection", () => {
   it("lists categories and saves a threshold", async () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();
-    const input = await screen.findByLabelText(thresholdColorLabel("Errands"));
+    const input = await screen.findByLabelText(
+      thresholdColorLabel(ERRANDS.title),
+    );
     fireEvent.change(input, { target: { value: "240" } });
     // pick a palette color
     fireEvent.click(
@@ -88,7 +97,9 @@ describe("CategoryThresholdsSection", () => {
   it("blocks an out-of-range value and flags the field", async () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();
-    const input = await screen.findByLabelText(thresholdColorLabel("Errands"));
+    const input = await screen.findByLabelText(
+      thresholdColorLabel(ERRANDS.title),
+    );
     fireEvent.change(input, { target: { value: "1441" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() => expect(input).toHaveAttribute("aria-invalid", "true"));
@@ -131,7 +142,9 @@ describe("CategoryThresholdsSection", () => {
     ]);
     mockedSet.mockRejectedValueOnce(new Error("db read-only"));
     renderSection();
-    const input = await screen.findByLabelText(thresholdColorLabel("Errands"));
+    const input = await screen.findByLabelText(
+      thresholdColorLabel(ERRANDS.title),
+    );
     fireEvent.change(input, { target: { value: "90" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
@@ -146,9 +159,9 @@ describe("CategoryThresholdsSection", () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();
     const sunday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Sunday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Sunday)),
     );
-    fireEvent.change(sunday, { target: { value: "720" } });
+    fireEvent.change(sunday, { target: { value: SUNDAY_MINUTES } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
       expect(mockedSet).toHaveBeenCalledWith([
@@ -156,7 +169,7 @@ describe("CategoryThresholdsSection", () => {
           category_id: 1,
           minutes: null,
           color: null,
-          day_minutes: { [Weekday.Sunday]: 720 },
+          day_minutes: { [Weekday.Sunday]: Number(SUNDAY_MINUTES) },
         },
       ]),
     );
@@ -169,22 +182,25 @@ describe("CategoryThresholdsSection", () => {
         title: ERRANDS.title,
         threshold_minutes: 240,
         threshold_color: "#60a5fa",
-        threshold_day_minutes: { [Weekday.Sunday]: 720, [Weekday.Monday]: 60 },
+        threshold_day_minutes: {
+          [Weekday.Sunday]: Number(SUNDAY_MINUTES),
+          [Weekday.Monday]: Number(MONDAY_MINUTES),
+        },
       }),
     ]);
     renderSection();
     const sunday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Sunday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Sunday)),
     );
     const monday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Monday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Monday)),
     );
     const tuesday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Tuesday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Tuesday)),
     );
     await waitFor(() => {
-      expect(sunday).toHaveValue(720);
-      expect(monday).toHaveValue(60);
+      expect(sunday).toHaveValue(Number(SUNDAY_MINUTES));
+      expect(monday).toHaveValue(Number(MONDAY_MINUTES));
       expect(tuesday).toHaveValue(null);
     });
   });
@@ -196,12 +212,15 @@ describe("CategoryThresholdsSection", () => {
         title: ERRANDS.title,
         threshold_minutes: 240,
         threshold_color: "#60a5fa",
-        threshold_day_minutes: { [Weekday.Sunday]: 720, [Weekday.Monday]: 60 },
+        threshold_day_minutes: {
+          [Weekday.Sunday]: Number(SUNDAY_MINUTES),
+          [Weekday.Monday]: Number(MONDAY_MINUTES),
+        },
       }),
     ]);
     renderSection();
     const sunday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Sunday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Sunday)),
     );
     await waitFor(() => expect(sunday).toHaveValue(720));
     fireEvent.change(sunday, { target: { value: "" } });
@@ -212,7 +231,7 @@ describe("CategoryThresholdsSection", () => {
           category_id: 1,
           minutes: 240,
           color: "#60a5fa",
-          day_minutes: { [Weekday.Monday]: 60 },
+          day_minutes: { [Weekday.Monday]: Number(MONDAY_MINUTES) },
         },
       ]),
     );
@@ -223,19 +242,19 @@ describe("CategoryThresholdsSection", () => {
     mockedSet.mockRejectedValueOnce(new Error("db read-only"));
     renderSection();
     const friday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Friday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Friday)),
     );
-    fireEvent.change(friday, { target: { value: "45" } });
+    fireEvent.change(friday, { target: { value: FRIDAY_MINUTES } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     // The failed batch must not reset the form — the edit survives.
-    expect(friday).toHaveValue(45);
+    expect(friday).toHaveValue(Number(FRIDAY_MINUTES));
     expect(mockedSet).toHaveBeenCalledWith([
       {
         category_id: 1,
         minutes: null,
         color: null,
-        day_minutes: { [Weekday.Friday]: 45 },
+        day_minutes: { [Weekday.Friday]: Number(FRIDAY_MINUTES) },
       },
     ]);
   });
@@ -244,12 +263,12 @@ describe("CategoryThresholdsSection", () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();
     const friday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Friday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Friday)),
     );
     // No base minutes, but a day override is still a threshold —
     // the color control must not vanish (spec §285/§297).
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
-    fireEvent.change(friday, { target: { value: "45" } });
+    fireEvent.change(friday, { target: { value: FRIDAY_MINUTES } });
     await waitFor(() =>
       expect(screen.getAllByRole("radio").length).toBeGreaterThan(0),
     );
@@ -259,7 +278,7 @@ describe("CategoryThresholdsSection", () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();
     const monday = await screen.findByLabelText(
-      categoryThresholdDayLabel(ERRANDS.title, "Monday"),
+      categoryThresholdDayLabel(ERRANDS.title, dayLabel(Weekday.Monday)),
     );
     fireEvent.change(monday, { target: { value: "1441" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
