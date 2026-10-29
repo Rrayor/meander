@@ -130,8 +130,29 @@ pub struct Category {
     /// §285: per-category per-day threshold — NULL when unset.
     pub threshold_minutes: Option<i64>,
     pub threshold_color: Option<String>,
+    /// §285: per-weekday overrides on the category threshold; days not
+    /// in the map inherit threshold_minutes.
+    #[sqlx(try_from = "Option<String>")]
+    pub threshold_day_minutes: WeekdayMinutes,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// §285: a category's per-weekday threshold overrides — stored as a
+/// JSON map {"weekday": minutes}, crosses the wire as the map itself.
+/// An empty map means every day inherits the category threshold.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct WeekdayMinutes(pub std::collections::BTreeMap<String, i64>);
+
+impl TryFrom<Option<String>> for WeekdayMinutes {
+    type Error = crate::db::DbError;
+    fn try_from(json: Option<String>) -> Result<Self> {
+        Ok(Self(
+            json.and_then(|j| serde_json::from_str(&j).ok())
+                .unwrap_or_default(),
+        ))
+    }
 }
 
 pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Category>> {
@@ -147,15 +168,36 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Category>> {
 /// threshold with no picked color defaults to a palette hue chosen by
 /// the category's position — distinct hues for distinct categories.
 /// Clearing the minutes clears the color with it.
+/// One row of a category-threshold batch update (spec §285): the
+/// per-day minutes, the row color, and per-weekday overrides.
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
+pub struct CategoryThresholdUpdate {
+    pub category_id: i64,
+    pub minutes: Option<i64>,
+    pub color: Option<String>,
+    #[serde(default)]
+    #[specta(type = std::collections::BTreeMap<String, i64>)]
+    pub day_minutes: std::collections::BTreeMap<crate::series::Weekday, i64>,
+}
+
 pub async fn set_threshold(
     pool: &SqlitePool,
     profile_id: i64,
     category_id: i64,
     minutes: Option<i64>,
     color: Option<String>,
+    day_minutes: std::collections::BTreeMap<crate::series::Weekday, i64>,
 ) -> Result<()> {
     let mut tx = pool.begin().await?;
-    set_threshold_tx(&mut tx, profile_id, category_id, minutes, color).await?;
+    set_threshold_tx(
+        &mut tx,
+        profile_id,
+        category_id,
+        minutes,
+        color,
+        &day_minutes,
+    )
+    .await?;
     tx.commit().await?;
     Ok(())
 }
@@ -165,11 +207,19 @@ pub async fn set_threshold(
 pub async fn set_thresholds(
     pool: &SqlitePool,
     profile_id: i64,
-    updates: &[(i64, Option<i64>, Option<String>)],
+    updates: &[CategoryThresholdUpdate],
 ) -> Result<()> {
     let mut tx = pool.begin().await?;
-    for (id, minutes, color) in updates {
-        set_threshold_tx(&mut tx, profile_id, *id, *minutes, color.clone()).await?;
+    for u in updates {
+        set_threshold_tx(
+            &mut tx,
+            profile_id,
+            u.category_id,
+            u.minutes,
+            u.color.clone(),
+            &u.day_minutes,
+        )
+        .await?;
     }
     tx.commit().await?;
     Ok(())
@@ -181,27 +231,36 @@ async fn set_threshold_tx(
     category_id: i64,
     minutes: Option<i64>,
     color: Option<String>,
+    day_minutes: &std::collections::BTreeMap<crate::series::Weekday, i64>,
 ) -> Result<()> {
+    let duration_err = || crate::db::DbError::Validation {
+        code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
+        message: format!(
+            "threshold must be between 1 and {} minutes",
+            crate::validation::MAX_DURATION_MINUTES
+        ),
+    };
     let validated = minutes
-        .map(|m| {
-            crate::validation::PositiveDuration::try_new(m).map_err(|_| {
-                crate::db::DbError::Validation {
-                    code: crate::errors::ErrorCode::EstimatedTimeOutOfRange,
-                    message: format!(
-                        "threshold must be between 1 and {} minutes",
-                        crate::validation::MAX_DURATION_MINUTES
-                    ),
-                }
-            })
-        })
+        .map(|m| crate::validation::PositiveDuration::try_new(m).map_err(|_| duration_err()))
         .transpose()?
         .map(|d| d.into_inner());
+    let mut days = std::collections::BTreeMap::new();
+    for (day, m) in day_minutes {
+        days.insert(
+            day,
+            crate::validation::PositiveDuration::try_new(*m)
+                .map_err(|_| duration_err())?
+                .into_inner(),
+        );
+    }
+    let days_json =
+        (!days.is_empty()).then(|| serde_json::to_string(&days).expect("weekday keys serialize"));
     let parsed_color = crate::validation::parse_hex_color(
         color.as_deref(),
         crate::errors::ErrorCode::ThresholdColorInvalid,
         "threshold color must be a #rrggbb hex value",
     )?;
-    let parsed_color = if validated.is_some() {
+    let parsed_color = if validated.is_some() || days_json.is_some() {
         match parsed_color {
             Some(c) => Some(c),
             None => {
@@ -240,10 +299,11 @@ async fn set_threshold_tx(
         None
     };
     let changed = sqlx::query(
-        "UPDATE categories SET threshold_minutes = ?, threshold_color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
+        "UPDATE categories SET threshold_minutes = ?, threshold_color = ?, threshold_day_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
     )
     .bind(validated)
     .bind(parsed_color)
+    .bind(days_json)
     .bind(category_id)
     .bind(profile_id)
     .execute(&mut **conn)
@@ -872,9 +932,16 @@ mod tests {
         let (pool, pid) = seeded_pool().await;
         let cid = new_category(&pool, pid, TITLE_A).await;
         // Set with an explicit color.
-        set_threshold(&pool, pid, cid, Some(240), Some("#60a5fa".into()))
-            .await
-            .unwrap();
+        set_threshold(
+            &pool,
+            pid,
+            cid,
+            Some(240),
+            Some("#60a5fa".into()),
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         let c = list(&pool, pid)
             .await
             .unwrap()
@@ -884,9 +951,16 @@ mod tests {
         assert_eq!(c.threshold_minutes, Some(240));
         assert_eq!(c.threshold_color.as_deref(), Some("#60a5fa"));
         // Boundary accepted.
-        set_threshold(&pool, pid, cid, Some(1440), None)
-            .await
-            .unwrap();
+        set_threshold(
+            &pool,
+            pid,
+            cid,
+            Some(1440),
+            None,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         let c = list(&pool, pid)
             .await
             .unwrap()
@@ -897,9 +971,16 @@ mod tests {
         // Out-of-range and negative rejected without mutating.
         for bad in [0, 1441, -5] {
             assert!(
-                set_threshold(&pool, pid, cid, Some(bad), None)
-                    .await
-                    .is_err()
+                set_threshold(
+                    &pool,
+                    pid,
+                    cid,
+                    Some(bad),
+                    None,
+                    std::collections::BTreeMap::new()
+                )
+                .await
+                .is_err()
             );
         }
         let c = list(&pool, pid)
@@ -910,7 +991,16 @@ mod tests {
             .unwrap();
         assert_eq!(c.threshold_minutes, Some(1440));
         // Clearing the minutes clears the color too.
-        set_threshold(&pool, pid, cid, None, None).await.unwrap();
+        set_threshold(
+            &pool,
+            pid,
+            cid,
+            None,
+            None,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         let c = list(&pool, pid)
             .await
             .unwrap()
@@ -926,12 +1016,26 @@ mod tests {
         let (pool, pid) = seeded_pool().await;
         let first = new_category(&pool, pid, "AAA").await;
         let second = new_category(&pool, pid, "ZZZ").await;
-        set_threshold(&pool, pid, first, Some(120), None)
-            .await
-            .unwrap();
-        set_threshold(&pool, pid, second, Some(60), None)
-            .await
-            .unwrap();
+        set_threshold(
+            &pool,
+            pid,
+            first,
+            Some(120),
+            None,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+        set_threshold(
+            &pool,
+            pid,
+            second,
+            Some(60),
+            None,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
         let all = list(&pool, pid).await.unwrap();
         let c1 = all.iter().find(|c| c.id == first).unwrap();
         let c2 = all.iter().find(|c| c.id == second).unwrap();
@@ -939,6 +1043,137 @@ mod tests {
         assert!(CATEGORY_PALETTE.contains(&c1.threshold_color.as_deref().unwrap()));
         assert!(CATEGORY_PALETTE.contains(&c2.threshold_color.as_deref().unwrap()));
         assert_ne!(c1.threshold_color, c2.threshold_color);
+    }
+
+    #[tokio::test]
+    async fn set_threshold_persists_day_overrides_and_clears_them() {
+        let (pool, pid) = seeded_pool().await;
+        let cid = new_category(&pool, pid, TITLE_A).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Sunday, 720);
+        days.insert(crate::series::Weekday::Monday, 300);
+        set_threshold(&pool, pid, cid, Some(240), None, days)
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_day_minutes.0.get("sunday"), Some(&720));
+        assert_eq!(c.threshold_day_minutes.0.get("monday"), Some(&300));
+        assert_eq!(c.threshold_day_minutes.0.len(), 2);
+        // Clearing the map persists NULL — no stale day survives.
+        set_threshold(
+            &pool,
+            pid,
+            cid,
+            Some(240),
+            None,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert!(c.threshold_day_minutes.0.is_empty());
+        assert_eq!(c.threshold_minutes, Some(240));
+    }
+
+    #[tokio::test]
+    async fn set_threshold_rejects_out_of_range_day_values() {
+        let (pool, pid) = seeded_pool().await;
+        let cid = new_category(&pool, pid, TITLE_A).await;
+        for bad in [0, -60, crate::validation::MAX_DURATION_MINUTES + 1] {
+            let mut days = std::collections::BTreeMap::new();
+            days.insert(crate::series::Weekday::Tuesday, bad);
+            assert!(
+                set_threshold(&pool, pid, cid, Some(240), None, days)
+                    .await
+                    .is_err()
+            );
+        }
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert!(c.threshold_minutes.is_none());
+        assert!(c.threshold_day_minutes.0.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_day_only_threshold_keeps_a_color_and_survives_minutes_edits() {
+        let (pool, pid) = seeded_pool().await;
+        let cid = new_category(&pool, pid, TITLE_A).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Friday, 90);
+        set_threshold(&pool, pid, cid, None, None, days.clone())
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        // §285/§297: a day-only threshold still counts — keeps a hue.
+        assert!(CATEGORY_PALETTE.contains(&c.threshold_color.as_deref().unwrap()));
+        assert_eq!(c.threshold_day_minutes.0.get("friday"), Some(&90));
+        // An explicit color survives a minutes-only edit.
+        set_threshold(
+            &pool,
+            pid,
+            cid,
+            Some(60),
+            None,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_minutes, Some(60));
+        assert!(c.threshold_color.is_some());
+    }
+
+    #[tokio::test]
+    async fn set_thresholds_commits_all_or_rolls_back() {
+        let (pool, pid) = seeded_pool().await;
+        let first = new_category(&pool, pid, TITLE_A).await;
+        let second = new_category(&pool, pid, TITLE_B).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Wednesday, 180);
+        let updates = vec![
+            CategoryThresholdUpdate {
+                category_id: first,
+                minutes: Some(30),
+                color: None,
+                day_minutes: days.clone(),
+            },
+            CategoryThresholdUpdate {
+                category_id: second,
+                minutes: Some(99999),
+                color: None,
+                day_minutes: std::collections::BTreeMap::new(),
+            },
+        ];
+        assert!(set_thresholds(&pool, pid, &updates).await.is_err());
+        let all = list(&pool, pid).await.unwrap();
+        let c1 = all.iter().find(|c| c.id == first).unwrap();
+        // The invalid second row rolled the whole batch back.
+        assert!(c1.threshold_minutes.is_none());
+        assert!(c1.threshold_day_minutes.0.is_empty());
     }
 
     #[tokio::test]
@@ -952,9 +1187,16 @@ mod tests {
         .unwrap();
         let foreign = new_category(&pool, other, TITLE_B).await;
         assert!(
-            set_threshold(&pool, pid, foreign, Some(60), None)
-                .await
-                .is_err()
+            set_threshold(
+                &pool,
+                pid,
+                foreign,
+                Some(60),
+                None,
+                std::collections::BTreeMap::new()
+            )
+            .await
+            .is_err()
         );
         // And the foreign category keeps no threshold.
         let c = list(&pool, other)

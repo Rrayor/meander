@@ -280,6 +280,8 @@ export const CATEGORY_THRESHOLDS_HINT =
   "Each category may carry its own per-day minutes limit and color.";
 export const thresholdColorLabel = (title: string) =>
   `Threshold minutes for ${title}`;
+export const categoryThresholdDayLabel = (title: string, day: string) =>
+  `${day} threshold minutes for ${title}`;
 export const THRESHOLD_HEADING = "Planning threshold";
 export const THRESHOLD_HEADING_ID = "threshold-heading";
 export const THRESHOLD_FIELD_LABEL = "Minutes per day";

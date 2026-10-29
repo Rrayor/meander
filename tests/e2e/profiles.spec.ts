@@ -17,7 +17,9 @@ import {
   WEEK_START_LABEL,
   WORK_DAYS_HEADING,
   categorySwatchLabel,
+  categoryThresholdDayLabel,
   renameProfileLabel,
+  thresholdColorLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
@@ -559,6 +561,7 @@ test("a category threshold sends setCategoryThresholds on the wire", async ({
         color: "#4ade80",
         threshold_minutes: null,
         threshold_color: null,
+        threshold_day_minutes: {},
         created_at: "2026-01-01",
         updated_at: "2026-01-01",
       },
@@ -567,12 +570,32 @@ test("a category threshold sends setCategoryThresholds on the wire", async ({
   });
   await page.goto(`/#${settingsPath}`);
 
-  await page.getByLabel("Threshold minutes for Errands").fill("240");
+  const categoryTitle = "Errands";
+  await page
+    .getByLabel(thresholdColorLabel(categoryTitle), { exact: true })
+    .fill("240");
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+  await page
+    .getByLabel(categoryThresholdDayLabel(categoryTitle, sunday.label))
+    .fill("720");
   await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).last().click();
 
   const calls = await getInvocations<{
-    updates: [number, number | null, string | null][];
+    updates: {
+      category_id: number;
+      minutes: number | null;
+      color: string | null;
+      day_minutes?: Record<string, number>;
+    }[];
   }>(page);
   const call = calls.find((c) => c.cmd === COMMANDS.setCategoryThresholds);
-  expect(call?.args).toMatchObject({ updates: [[1, 240, null]] });
+  expect(call?.args).toMatchObject({
+    updates: [
+      {
+        category_id: 1,
+        minutes: 240,
+        day_minutes: { [Weekday.Sunday]: 720 },
+      },
+    ],
+  });
 });

@@ -241,6 +241,7 @@ const EXISTING: Category = {
   color: CATEGORY_COLORS[4],
   threshold_minutes: null,
   threshold_color: null,
+  threshold_day_minutes: {},
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
 };

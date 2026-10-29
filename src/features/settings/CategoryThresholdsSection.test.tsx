@@ -5,10 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import { listCategories, setCategoryThresholds } from "@/api/categories";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
+import { Weekday } from "@/lib/enums";
 import {
   CATEGORY_THRESHOLDS_HEADING,
   SAVE_BUTTON_LABEL,
   categorySwatchLabel,
+  categoryThresholdDayLabel,
   thresholdColorLabel,
 } from "@/lib/labels";
 import { CategoryThresholdsSection } from "./CategoryThresholdsSection";
@@ -33,6 +35,7 @@ const ERRANDS = categoryFixture({
   title: "Errands",
   threshold_minutes: null,
   threshold_color: null,
+  threshold_day_minutes: {},
 });
 
 beforeEach(() => {
@@ -76,7 +79,9 @@ describe("CategoryThresholdsSection", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
-      expect(mockedSet).toHaveBeenCalledWith([[1, 240, "#60a5fa"]]),
+      expect(mockedSet).toHaveBeenCalledWith([
+        { category_id: 1, minutes: 240, color: "#60a5fa", day_minutes: {} },
+      ]),
     );
   });
 
@@ -98,6 +103,7 @@ describe("CategoryThresholdsSection", () => {
         title: "Home",
         threshold_minutes: 120,
         threshold_color: "#f87171",
+        threshold_day_minutes: {},
       }),
     ]);
     renderSection();
@@ -106,7 +112,9 @@ describe("CategoryThresholdsSection", () => {
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
-      expect(mockedSet).toHaveBeenCalledWith([[2, null, null]]),
+      expect(mockedSet).toHaveBeenCalledWith([
+        { category_id: 2, minutes: null, color: null, day_minutes: {} },
+      ]),
     );
   });
 
@@ -118,6 +126,7 @@ describe("CategoryThresholdsSection", () => {
         title: "Home",
         threshold_minutes: 120,
         threshold_color: "#f87171",
+        threshold_day_minutes: {},
       }),
     ]);
     mockedSet.mockRejectedValueOnce(new Error("db read-only"));
@@ -128,6 +137,43 @@ describe("CategoryThresholdsSection", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     // Home was unchanged — only Errands was attempted.
     expect(mockedSet).toHaveBeenCalledTimes(1);
-    expect(mockedSet).toHaveBeenCalledWith([[1, 90, null]]);
+    expect(mockedSet).toHaveBeenCalledWith([
+      { category_id: 1, minutes: 90, color: null, day_minutes: {} },
+    ]);
+  });
+
+  it("saves a per-weekday override with the row", async () => {
+    mockedList.mockResolvedValue([ERRANDS]);
+    renderSection();
+    const sunday = await screen.findByLabelText(
+      categoryThresholdDayLabel(ERRANDS.title, "Sunday"),
+    );
+    fireEvent.change(sunday, { target: { value: "720" } });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(mockedSet).toHaveBeenCalledWith([
+        {
+          category_id: 1,
+          minutes: null,
+          color: null,
+          day_minutes: { [Weekday.Sunday]: 720 },
+        },
+      ]),
+    );
+  });
+
+  it("blocks an out-of-range weekday value and flags the input", async () => {
+    mockedList.mockResolvedValue([ERRANDS]);
+    renderSection();
+    const monday = await screen.findByLabelText(
+      categoryThresholdDayLabel(ERRANDS.title, "Monday"),
+    );
+    fireEvent.change(monday, { target: { value: "1441" } });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0),
+    );
+    expect(mockedSet).not.toHaveBeenCalled();
+    expect(monday).toHaveAttribute("aria-invalid", "true");
   });
 });
