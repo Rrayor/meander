@@ -3,10 +3,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
-import type { Category } from "@/api/bindings";
+import type { Category, Task } from "@/api/bindings";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import type { Task } from "@/api/bindings";
 import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
 import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
@@ -70,11 +69,40 @@ function BoardCard({
 }
 
 /// Spec §281/§285/§291: for every column, the colors of the thresholds
-/// it reaches — the global one (its weekday override or the minutes
-/// fallback) plus each category whose estimate total meets its own
-/// effective limit. Several reached thresholds blend into a gradient;
-/// the weekly backlog column never tints. Also returns the reached
-/// category id → color map so cards can carry their category's tint.
+/// it reaches — the global one plus each category whose estimate
+/// total meets its own effective limit (weekday override first, its
+/// per-day minutes as fallback). Several reached thresholds blend
+/// into a gradient; the weekly backlog column never tints.
+const reachedCategoryColors = (
+  column: string,
+  tasks: Task[],
+  taskCategories: Map<number, Category[]>,
+): Map<number, string> => {
+  const sums = new Map<
+    number,
+    { est: number; color: string; limit: number | null }
+  >();
+  for (const t of tasks) {
+    for (const cat of taskCategories.get(t.id) ?? []) {
+      if (cat.threshold_color == null) continue;
+      const cur = sums.get(cat.id) ?? {
+        est: 0,
+        color: cat.threshold_color,
+        limit:
+          cat.threshold_day_minutes?.[weekdayNameOf(column)] ??
+          cat.threshold_minutes,
+      };
+      cur.est += t.estimated_minutes ?? 0;
+      sums.set(cat.id, cur);
+    }
+  }
+  return new Map(
+    [...sums.entries()]
+      .filter(([, s]) => s.limit != null && s.est >= s.limit)
+      .map(([id, s]) => [id, s.color]),
+  );
+};
+
 const columnThresholds = (
   columns: (string | null)[],
   columnTasks: (column: string | null) => Task[],
@@ -90,49 +118,27 @@ const columnThresholds = (
   tintColors: Map<string | null, string[]>;
   reachedCats: Map<string | null, Map<number, string>>;
 } => {
-  const tintColor = threshold?.color ?? null;
   const tintColors = new Map<string | null, string[]>();
   const reachedCats = new Map<string | null, Map<number, string>>();
   for (const c of columns) {
-    const colors: string[] = [];
-    const cats = new Map<number, string>();
-    if (c !== null) {
-      const limit =
-        threshold?.day_minutes?.[weekdayNameOf(c)] ??
-        threshold?.minutes ??
-        null;
-      if (
-        tintColor !== null &&
-        limit != null &&
-        totals(columnTasks(c)).estimated >= limit
-      ) {
-        colors.push(tintColor);
-      }
-      const sums = new Map<
-        number,
-        { est: number; color: string; limit: number | null }
-      >();
-      for (const t of columnTasks(c)) {
-        for (const cat of taskCategories.get(t.id) ?? []) {
-          if (cat.threshold_color == null) continue;
-          const cur = sums.get(cat.id) ?? {
-            est: 0,
-            color: cat.threshold_color,
-            limit:
-              cat.threshold_day_minutes?.[weekdayNameOf(c)] ??
-              cat.threshold_minutes,
-          };
-          cur.est += t.estimated_minutes ?? 0;
-          sums.set(cat.id, cur);
-        }
-      }
-      for (const [id, s] of sums) {
-        if (s.limit != null && s.est >= s.limit) {
-          cats.set(id, s.color);
-          colors.push(s.color);
-        }
-      }
-    }
+    const cats =
+      c === null
+        ? new Map<number, string>()
+        : reachedCategoryColors(c, columnTasks(c), taskCategories);
+    const globalLimit =
+      c === null
+        ? null
+        : (threshold?.day_minutes?.[weekdayNameOf(c)] ??
+          threshold?.minutes ??
+          null);
+    const colors = [
+      ...(threshold?.color != null &&
+      globalLimit != null &&
+      totals(columnTasks(c)).estimated >= globalLimit
+        ? [threshold.color]
+        : []),
+      ...cats.values(),
+    ];
     tintColors.set(c, colors);
     reachedCats.set(c, cats);
   }
