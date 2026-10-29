@@ -16,6 +16,7 @@ import {
   WEEK_START_HEADING,
   WEEK_START_LABEL,
   WORK_DAYS_HEADING,
+  IMPORT_SETTINGS_LABEL,
   categorySwatchLabel,
   categoryThresholdDayLabel,
   renameProfileLabel,
@@ -684,4 +685,28 @@ test("clearing a stored category weekday sends the emptied map", async ({
   expect(call?.args).toMatchObject({
     updates: [{ category_id: 1, minutes: 240, day_minutes: {} }],
   });
+});
+
+test("profile edit offers a settings import that hits the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [],
+    [COMMANDS.importProfileSettings]: profiles[1],
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page.getByRole("button", { name: RENAME_BUTTON_LABEL }).first().click();
+  await page
+    .getByRole("combobox", { name: IMPORT_SETTINGS_LABEL })
+    .selectOption(String(profiles[1].id));
+
+  const calls = await getInvocations<{ id: number; sourceId: number }>(page);
+  const call = calls.find((c) => c.cmd === COMMANDS.importProfileSettings);
+  expect(call?.args).toEqual({ id: profiles[0].id, sourceId: profiles[1].id });
 });

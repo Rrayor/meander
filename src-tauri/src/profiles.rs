@@ -85,6 +85,39 @@ pub async fn rename(pool: &SqlitePool, id: i64, name: &str) -> Result<Profile> {
     get(pool, id).await
 }
 
+/// §404: copy another profile's settings — week start, work days, and
+/// the global threshold (minutes, color, per-day overrides) — onto the
+/// edited profile in one statement. Tasks and categories are data,
+/// not settings, and stay untouched.
+pub async fn import_settings(pool: &SqlitePool, id: i64, source_id: i64) -> Result<Profile> {
+    if id == source_id {
+        return Err(crate::db::DbError::Validation {
+            code: crate::errors::ErrorCode::ProfileImportSelf,
+            message: "cannot import settings from the same profile".into(),
+        });
+    }
+    let changed = sqlx::query(
+        "UPDATE profiles SET week_start = (SELECT week_start FROM profiles WHERE id = ?),          work_days = (SELECT work_days FROM profiles WHERE id = ?),          global_threshold_minutes = (SELECT global_threshold_minutes FROM profiles WHERE id = ?),          global_threshold_color = (SELECT global_threshold_color FROM profiles WHERE id = ?),          global_threshold_day_minutes = (SELECT global_threshold_day_minutes FROM profiles WHERE id = ?),          updated_at = CURRENT_TIMESTAMP          WHERE id = ? AND EXISTS (SELECT 1 FROM profiles WHERE id = ?)",
+    )
+    .bind(source_id)
+    .bind(source_id)
+    .bind(source_id)
+    .bind(source_id)
+    .bind(source_id)
+    .bind(id)
+    .bind(source_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if changed == 0 {
+        return Err(crate::db::DbError::Validation {
+            code: crate::errors::ErrorCode::ProfileNotFound,
+            message: "profile not found".into(),
+        });
+    }
+    get(pool, id).await
+}
+
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Profile> {
     Ok(sqlx::query_as::<_, Profile>(
         "SELECT id, name, created_at, updated_at FROM profiles WHERE id = ?",
@@ -538,6 +571,45 @@ mod tests {
             work_days(&pool, pid).await.unwrap(),
             vec![Weekday::Monday, Weekday::Friday]
         );
+    }
+
+    #[tokio::test]
+    async fn import_settings_copies_all_settings_atomically() {
+        let (pool, pid) = seeded_pool().await;
+        let src: i64 = sqlx::query_scalar(
+            "INSERT INTO profiles (name, week_start, work_days) VALUES ('src', 2, 127) RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Sunday, 720);
+        set_global_threshold(&pool, src, Some(240), Some("#60a5fa".into()), days)
+            .await
+            .unwrap();
+        import_settings(&pool, pid, src).await.unwrap();
+        assert_eq!(
+            week_start(&pool, pid).await.unwrap(),
+            crate::series::Weekday::Wednesday
+        );
+        assert_eq!(work_days(&pool, pid).await.unwrap().len(), 7);
+        let t = global_threshold(&pool, pid).await.unwrap();
+        assert_eq!(t.minutes, Some(240));
+        assert_eq!(t.color.as_deref(), Some("#60a5fa"));
+        assert_eq!(t.day_minutes.get("sunday"), Some(&720));
+        // The source keeps its own settings — it is a copy, not a move.
+        assert_eq!(
+            global_threshold(&pool, src).await.unwrap().minutes,
+            Some(240)
+        );
+    }
+
+    #[tokio::test]
+    async fn import_settings_rejects_self_and_missing_profiles() {
+        let (pool, pid) = seeded_pool().await;
+        assert!(import_settings(&pool, pid, pid).await.is_err());
+        assert!(import_settings(&pool, pid, 999).await.is_err());
+        assert!(import_settings(&pool, 999, pid).await.is_err());
     }
 
     #[tokio::test]

@@ -20,6 +20,12 @@ export const createProfile = (name: string) =>
 export const renameProfile = (id: number, name: string) =>
   transport.invoke<Profile>(COMMANDS.renameProfile, { id, name });
 
+export const importProfileSettings = (id: number, sourceId: number) =>
+  transport.invoke<Profile>(COMMANDS.importProfileSettings, {
+    id,
+    sourceId,
+  });
+
 export const switchProfile = (id: number) =>
   transport.invoke<void>(COMMANDS.switchProfile, { id });
 

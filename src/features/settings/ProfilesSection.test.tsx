@@ -6,10 +6,12 @@ import {
   currentProfile,
   listProfiles,
   renameProfile,
+  importProfileSettings,
 } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
 import {
+  IMPORT_SETTINGS_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
   renameProfileLabel,
 } from "@/lib/labels";
@@ -21,6 +23,7 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   currentProfile: vi.fn(),
   createProfile: vi.fn(),
   renameProfile: vi.fn(),
+  importProfileSettings: vi.fn(),
 }));
 
 const DEFAULT_PROFILE_NAME = "Default";
@@ -138,5 +141,36 @@ describe("ProfilesSection", () => {
       screen.getByRole("button", { name: CREATE_PROFILE_BUTTON }),
     );
     expect(await screen.findByText(BACKEND_ERROR_MESSAGE)).toBeInTheDocument();
+  });
+
+  it("imports settings from another profile on selection", async () => {
+    const source: Profile = {
+      id: 2,
+      name: "Second",
+      created_at: "2026-01-01 10:00:00",
+      updated_at: "2026-01-02 10:00:00",
+    };
+    vi.mocked(listProfiles).mockResolvedValue([...profiles, source]);
+    vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+    vi.mocked(importProfileSettings).mockResolvedValue(source);
+    renderSection();
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: RENAME_BUTTON }))[0],
+    );
+    const select = await screen.findByRole("combobox", {
+      name: IMPORT_SETTINGS_LABEL,
+    });
+    fireEvent.change(select, { target: { value: String(source.id) } });
+    await waitFor(() =>
+      expect(
+        vi.mocked(importProfileSettings).mock.calls[0].slice(0, 2),
+      ).toEqual([profiles[0].id, source.id]),
+    );
+    // The edited profile itself is not offered as a source.
+    const options = Array.from(select.querySelectorAll("option")).map(
+      (o) => o.textContent,
+    );
+    expect(options).toContain(source.name);
+    expect(options.filter((t) => t === profiles[0].name)).toHaveLength(0);
   });
 });

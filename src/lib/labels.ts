@@ -54,6 +54,7 @@ export const CARRY_OVER_OPTIONS = [
 export const auditTimestampsLabel = (created: string, updated: string) =>
   `Created ${created} · Last updated ${updated}`;
 
+export const IMPORT_SETTINGS_LABEL = "Import settings from…";
 export const renameProfileLabel = (name: string) => `Rename ${name}`;
 
 export const ADD_TASK_LABEL = "Add task";

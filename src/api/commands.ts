@@ -11,6 +11,7 @@ export const COMMANDS = {
   currentProfile: "current_profile",
   createProfile: "create_profile",
   renameProfile: "rename_profile",
+  importProfileSettings: "import_profile_settings",
   switchProfile: "switch_profile",
   listTasks: "list_tasks",
   listWeekTasks: "list_week_tasks",

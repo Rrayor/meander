@@ -70,6 +70,7 @@ pub fn run() {
             commands::set_work_days,
             commands::create_profile,
             commands::rename_profile,
+            commands::import_profile_settings,
             commands::switch_profile
         ])
         .run(tauri::generate_context!())

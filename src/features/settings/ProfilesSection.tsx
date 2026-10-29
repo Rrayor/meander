@@ -6,6 +6,7 @@ import {
   createProfile,
   currentProfile,
   listProfiles,
+  importProfileSettings,
   renameProfile,
 } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
@@ -13,6 +14,7 @@ import {
   CANCEL_BUTTON_LABEL,
   CREATE_PROFILE_LABEL,
   CURRENT_PROFILE_LABEL,
+  IMPORT_SETTINGS_LABEL,
   PROFILES_HEADING,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
@@ -42,6 +44,14 @@ export function ProfilesSection() {
     onSuccess: () => {
       setName("");
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
+    },
+  });
+  const importSettings = useMutation({
+    mutationFn: ({ id, sourceId }: { id: number; sourceId: number }) =>
+      importProfileSettings(id, sourceId),
+    onSuccess: () => {
+      // Imported settings touch every profile-scoped query.
+      void queryClient.invalidateQueries();
     },
   });
   const rename = useMutation({
@@ -129,6 +139,28 @@ export function ProfilesSection() {
                   >
                     {SAVE_BUTTON_LABEL}
                   </button>
+                  <select
+                    aria-label={IMPORT_SETTINGS_LABEL}
+                    disabled={importSettings.isPending}
+                    defaultValue=""
+                    onChange={(e) => {
+                      const sourceId = Number(e.target.value);
+                      if (sourceId)
+                        importSettings.mutate({ id: profile.id, sourceId });
+                    }}
+                    className="w-36 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>
+                      {IMPORT_SETTINGS_LABEL}
+                    </option>
+                    {(profiles ?? [])
+                      .filter((p) => p.id !== profile.id)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => setEditingId(undefined)}
