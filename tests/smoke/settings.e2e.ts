@@ -134,6 +134,11 @@ describe("Settings smoke", () => {
           ).$(`aria/Threshold minutes for Work`)
         ).getValue()) === "120",
     );
+    await expect(
+      await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
+        `aria/Threshold minutes for Work`,
+      ),
+    ).toHaveValue("120");
 
     await (
       await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
