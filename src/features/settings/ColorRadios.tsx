@@ -16,11 +16,11 @@ export function ColorRadios({
   label,
   value,
   onChange,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   onChange: (color: string) => void;
-}) {
+}>) {
   const colorInputRef = useRef<HTMLInputElement>(null);
   const customSelected = !(CATEGORY_COLORS as readonly string[]).includes(
     value,
