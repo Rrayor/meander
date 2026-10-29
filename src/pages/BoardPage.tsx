@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -29,7 +29,7 @@ import {
 import {
   errorMessage,
   shiftDays,
-  thresholdTint,
+  thresholdTintStyle,
   weekdayNameOf,
   todayLocalIso,
   weekDates,
@@ -46,7 +46,8 @@ const STATUS_ROWS = [
 function BoardCard({
   task,
   onOpen,
-}: Readonly<{ task: Task; onOpen: () => void }>) {
+  tintColors,
+}: Readonly<{ task: Task; onOpen: () => void; tintColors?: string[] }>) {
   const { data: categories } = useQuery({
     queryKey: QUERY_KEYS.taskCategories(task.id),
     queryFn: () => listTaskCategories(task.id),
@@ -58,7 +59,11 @@ function BoardCard({
       onClick={onOpen}
       className="w-full cursor-pointer text-left"
     >
-      <TaskCard task={task} categories={categories ?? []} />
+      <TaskCard
+        task={task}
+        categories={categories ?? []}
+        tintColors={tintColors}
+      />
     </button>
   );
 }
@@ -127,23 +132,70 @@ export function BoardPage() {
         : t.scheduled_date === column,
     );
 
-  // Spec §281/§291: a day column tints when its estimate total reaches
-  // the effective limit — its weekday override or the global fallback;
-  // the weekly backlog column never does, and a day with neither value
-  // has no threshold at all.
+  // Task→category associations ride the same query keys as the card
+  // chips, so this dedupes against them rather than adding a new read.
+  const categoryQueries = useQueries({
+    queries: (tasks ?? []).map((t) => ({
+      queryKey: QUERY_KEYS.taskCategories(t.id),
+      queryFn: () => listTaskCategories(t.id),
+    })),
+  });
+  const taskCategories = new Map(
+    (tasks ?? []).map((t, i) => [t.id, categoryQueries[i]?.data ?? []]),
+  );
+
+  // Spec §281/§285/§291: a day column tints with the colors of every
+  // threshold it reaches — the global one plus each category whose
+  // estimate total meets its own limit (weekday override first, its
+  // per-day minutes as fallback). Several reached thresholds blend
+  // into a gradient; the weekly backlog column never tints.
   const tintColor = threshold?.color ?? null;
   const dayLimit = (iso: string) =>
     threshold?.day_minutes?.[weekdayNameOf(iso)] ?? threshold?.minutes ?? null;
-  const reached = new Set(
-    columns.filter((c) => {
-      if (c === null || tintColor === null) return false;
+  const reachedCats = new Map<string | null, Map<number, string>>();
+  const columnTintColors = new Map<string | null, string[]>();
+  for (const c of columns) {
+    const colors: string[] = [];
+    const cats = new Map<number, string>();
+    if (c !== null) {
       const limit = dayLimit(c);
-      return limit != null && totals(columnTasks(c)).estimated >= limit;
-    }),
-  );
-  const tint = tintColor
-    ? { backgroundColor: thresholdTint(tintColor) }
-    : undefined;
+      if (
+        tintColor !== null &&
+        limit != null &&
+        totals(columnTasks(c)).estimated >= limit
+      ) {
+        colors.push(tintColor);
+      }
+      const sums = new Map<
+        number,
+        { est: number; color: string; limit: number | null }
+      >();
+      for (const t of columnTasks(c)) {
+        for (const cat of taskCategories.get(t.id) ?? []) {
+          if (cat.threshold_color == null) continue;
+          const cur = sums.get(cat.id) ?? {
+            est: 0,
+            color: cat.threshold_color,
+            limit:
+              cat.threshold_day_minutes?.[weekdayNameOf(c)] ??
+              cat.threshold_minutes,
+          };
+          cur.est += t.estimated_minutes ?? 0;
+          sums.set(cat.id, cur);
+        }
+      }
+      for (const [id, s] of sums) {
+        if (s.limit != null && s.est >= s.limit) {
+          cats.set(id, s.color);
+          colors.push(s.color);
+        }
+      }
+    }
+    reachedCats.set(c, cats);
+    columnTintColors.set(c, colors);
+  }
+  const tint = (column: string | null) =>
+    thresholdTintStyle(columnTintColors.get(column) ?? []);
 
   const weekTotals = totals(tasks ?? []);
 
@@ -237,7 +289,7 @@ export function BoardPage() {
                   <th
                     key={column ?? "weekly-backlog"}
                     scope="col"
-                    style={reached.has(column) ? tint : undefined}
+                    style={tint(column)}
                     className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
                   >
                     <p className="text-sm font-medium text-text">
@@ -270,7 +322,7 @@ export function BoardPage() {
                   return (
                     <td
                       key={column ?? "weekly-backlog"}
-                      style={reached.has(column) ? tint : undefined}
+                      style={tint(column)}
                       className="rounded-md bg-surface/40 align-top"
                     >
                       {cell.length > 0 && (
@@ -280,6 +332,14 @@ export function BoardPage() {
                               <BoardCard
                                 task={task}
                                 onOpen={() => setEditingTask(task)}
+                                // §285: cards of a reached category carry
+                                // that threshold's tint — the global tint
+                                // stays on the column only.
+                                tintColors={(taskCategories.get(task.id) ?? [])
+                                  .map((cat) =>
+                                    reachedCats.get(column)?.get(cat.id),
+                                  )
+                                  .filter((x): x is string => x != null)}
                               />
                             </li>
                           ))}

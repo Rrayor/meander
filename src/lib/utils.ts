@@ -140,3 +140,16 @@ export const weekdayOfIso = (iso: string) =>
 export function thresholdTint(color: string): string {
   return `${color}1f`;
 }
+
+/// §287/§291: one reached threshold tints; several reached thresholds
+/// blend into a gradient of the same muted overlays. Returns a CSS
+/// style for a column or card background.
+export function thresholdTintStyle(
+  colors: string[],
+): React.CSSProperties | undefined {
+  if (colors.length === 0) return undefined;
+  if (colors.length === 1) return { backgroundColor: thresholdTint(colors[0]) };
+  return {
+    backgroundImage: `linear-gradient(to bottom, ${colors.map(thresholdTint).join(", ")})`,
+  };
+}

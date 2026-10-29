@@ -479,6 +479,53 @@ test("a day column tints when its estimates reach the threshold", async ({
   ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
 });
 
+test("a reached category threshold tints the column and its card", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    // §285: the category's own limit colors the column and its cards.
+    [COMMANDS.listTaskCategories]: [
+      {
+        id: 11,
+        profile_id: 1,
+        title: "Work",
+        description: null,
+        color: "#4ade80",
+        threshold_minutes: 60,
+        threshold_color: "#60a5fa",
+        threshold_day_minutes: {},
+        created_at: "2026-01-01",
+        updated_at: "2026-01-01",
+      },
+    ],
+    [COMMANDS.globalThreshold]: { minutes: null, color: null },
+  });
+  await page.goto("/");
+
+  const monday = page.getByRole("columnheader", {
+    name: new RegExp(shortWeekdayLabel(days[0])),
+  });
+  await expect(monday).toHaveCSS("background-color", /rgba\(96, 165, 250/);
+  // The card of the reached category carries the same tint — the tint
+  // lands on the article, not its button wrapper.
+  await expect(page.locator('article[aria-label*="Monday chore"]')).toHaveCSS(
+    "background-color",
+    /rgba\(96, 165, 250/,
+  );
+  // The backlog column never tints from category thresholds.
+  await expect(
+    page.getByRole("columnheader", { name: new RegExp(WEEKLY_BACKLOG_LABEL) }),
+  ).not.toHaveCSS("background-color", /rgba\(96, 165, 250/);
+});
+
 test("a weekday override tints its own day only", async ({ page }) => {
   await stubTauriCommands(page, {
     [COMMANDS.listTaskNotes]: [],
