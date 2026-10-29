@@ -49,6 +49,8 @@ const CATEGORY: Category = {
   title: "Errands",
   description: null,
   color: "#2DD4BF",
+  threshold_minutes: null,
+  threshold_color: null,
   created_at: "2026-10-10 09:00:00",
   updated_at: "2026-10-10 09:00:00",
 };
@@ -58,6 +60,8 @@ const SECOND_CATEGORY: Category = {
   id: 2,
   title: "Admin",
   color: null,
+  threshold_minutes: null,
+  threshold_color: null,
   created_at: "2026-10-12 09:00:00",
 };
 

@@ -46,6 +46,8 @@ const category = (
   profile_id: 1,
   title,
   description: null,
+  threshold_minutes: null,
+  threshold_color: null,
   color,
   created_at: "2026-10-01 08:00:00",
   updated_at: "2026-10-01 08:00:00",

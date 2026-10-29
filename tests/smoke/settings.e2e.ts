@@ -1,10 +1,14 @@
 import {
+  ADD_CATEGORY_LABEL,
+  CATEGORIES_HEADING,
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
+  CATEGORY_THRESHOLDS_HEADING_ID,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING_ID,
   WEEKDAY_OPTIONS,
   WORK_DAYS_HEADING_ID,
+  thresholdColorLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 import { Weekday } from "@/lib/enums";
@@ -108,5 +112,59 @@ describe("Settings smoke", () => {
           )
         ).getValue()) === "",
     );
+  });
+
+  it("persists a category threshold through the real backend", async () => {
+    // The smoke DB starts empty — create a category through the real
+    // backend so the thresholds section has a row to edit.
+    const nav = await $(`aria/${NAV_LABEL}`);
+    const categoriesRoute = ROUTES.find(
+      ({ label }) => label === CATEGORIES_HEADING,
+    )!;
+    await nav.$(`=${categoriesRoute.label}`).click();
+    const title = `Threshold ${Date.now()}`;
+    await (await $(`aria/${ADD_CATEGORY_LABEL}`)).click();
+    await (await $("#category-title-input")).setValue(title);
+    await (await $("button[type='submit']")).click();
+    const row = `aria/${thresholdColorLabel(title)}`;
+
+    const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
+    await nav.$(`=${settingsRoute.label}`).click();
+
+    const section = await $(
+      `section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`,
+    );
+    await browser.waitUntil(async () => (await section.$(row)).isExisting());
+    const input = await section.$(row);
+    await input.setValue("120");
+    await (await section.$(`button=${SAVE_BUTTON_LABEL}`)).click();
+
+    const boardRoute = ROUTES.find(({ label }) => label === "Board")!;
+    await nav.$(`=${boardRoute.label}`).click();
+    await nav.$(`=${settingsRoute.label}`).click();
+    await browser.waitUntil(
+      async () =>
+        (await (
+          await $(
+            `section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`,
+          ).$(row)
+        ).getValue()) === "120",
+    );
+    await expect(
+      await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
+        row,
+      ),
+    ).toHaveValue("120");
+
+    await (
+      await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
+        row,
+      )
+    ).clearValue();
+    await (
+      await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
+        `button=${SAVE_BUTTON_LABEL}`,
+      )
+    ).click();
   });
 });

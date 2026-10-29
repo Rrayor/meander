@@ -28,6 +28,21 @@ export const createCategory = (input: NewCategory) =>
 export const updateCategory = (categoryId: number, input: NewCategory) =>
   transport.invoke<Category>(COMMANDS.updateCategory, { categoryId, input });
 
+export const setCategoryThreshold = (
+  categoryId: number,
+  minutes: number | null,
+  color: string | null,
+) =>
+  transport.invoke<void>(COMMANDS.setCategoryThreshold, {
+    categoryId,
+    minutes,
+    color,
+  });
+
+export const setCategoryThresholds = (
+  updates: [number, number | null, string | null][],
+) => transport.invoke<void>(COMMANDS.setCategoryThresholds, { updates });
+
 export const deleteCategory = (categoryId: number) =>
   transport.invoke<void>(COMMANDS.deleteCategory, { categoryId });
 

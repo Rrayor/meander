@@ -274,6 +274,12 @@ export const CARRY_OVER_RETURN_LABEL = "Backlog";
 export const CARRY_OVER_APPLY_LABEL = "Apply decisions";
 export const CARRY_OVER_DISMISS_LABEL = "Dismiss";
 export const CARRY_OVER_DEFER_LABEL = "Decide later";
+export const CATEGORY_THRESHOLDS_HEADING = "Category thresholds";
+export const CATEGORY_THRESHOLDS_HEADING_ID = "category-thresholds-heading";
+export const CATEGORY_THRESHOLDS_HINT =
+  "Each category may carry its own per-day minutes limit and color.";
+export const thresholdColorLabel = (title: string) =>
+  `Threshold minutes for ${title}`;
 export const THRESHOLD_HEADING = "Planning threshold";
 export const THRESHOLD_HEADING_ID = "threshold-heading";
 export const THRESHOLD_FIELD_LABEL = "Minutes per day";

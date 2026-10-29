@@ -10,6 +10,8 @@ export const categoryFixture = (
   title: "Errands",
   description: null,
   color: "#2dd4bf",
+  threshold_minutes: null,
+  threshold_color: null,
   created_at: FIXTURE_TIMESTAMP,
   updated_at: FIXTURE_TIMESTAMP,
   ...overrides,

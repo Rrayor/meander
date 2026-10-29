@@ -7,6 +7,7 @@ import { DatabaseSection } from "@/features/settings/DatabaseSection";
 import { WeekStartSection } from "@/features/settings/WeekStartSection";
 import { WorkDaysSection } from "@/features/settings/WorkDaysSection";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
+import { CategoryThresholdsSection } from "@/features/settings/CategoryThresholdsSection";
 import { ThresholdSection } from "@/features/settings/ThresholdSection";
 
 export function SettingsPage() {
@@ -36,6 +37,7 @@ export function SettingsPage() {
           <WeekStartSection key={`week-start-${contextKey}`} />
           <WorkDaysSection key={`work-days-${contextKey}`} />
           <ThresholdSection key={`threshold-${contextKey}`} />
+          <CategoryThresholdsSection key={`cat-threshold-${contextKey}`} />
           <DatabaseSection />
         </div>
       </div>

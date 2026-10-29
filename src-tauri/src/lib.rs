@@ -35,6 +35,8 @@ pub fn run() {
             commands::list_week_tasks,
             commands::global_threshold,
             commands::set_global_threshold,
+            commands::set_category_threshold,
+            commands::set_category_thresholds,
             commands::list_pending_carry_over,
             commands::resolve_carry_over,
             commands::list_categories,

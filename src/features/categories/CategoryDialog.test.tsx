@@ -239,6 +239,8 @@ const EXISTING: Category = {
   title: "Errands",
   description: "Weekly shopping",
   color: CATEGORY_COLORS[4],
+  threshold_minutes: null,
+  threshold_color: null,
   created_at: "2026-01-01",
   updated_at: "2026-01-01",
 };
