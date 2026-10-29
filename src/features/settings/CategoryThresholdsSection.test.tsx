@@ -162,6 +162,84 @@ describe("CategoryThresholdsSection", () => {
     );
   });
 
+  it("hydrates stored weekday overrides into the inputs", async () => {
+    mockedList.mockResolvedValue([
+      categoryFixture({
+        id: 1,
+        title: "Errands",
+        threshold_minutes: 240,
+        threshold_color: "#60a5fa",
+        threshold_day_minutes: { [Weekday.Sunday]: 720, [Weekday.Monday]: 60 },
+      }),
+    ]);
+    renderSection();
+    const sunday = await screen.findByLabelText(
+      categoryThresholdDayLabel("Errands", "Sunday"),
+    );
+    const monday = await screen.findByLabelText(
+      categoryThresholdDayLabel("Errands", "Monday"),
+    );
+    const tuesday = await screen.findByLabelText(
+      categoryThresholdDayLabel("Errands", "Tuesday"),
+    );
+    await waitFor(() => {
+      expect(sunday).toHaveValue(720);
+      expect(monday).toHaveValue(60);
+      expect(tuesday).toHaveValue(null);
+    });
+  });
+
+  it("omits a cleared weekday from the payload", async () => {
+    mockedList.mockResolvedValue([
+      categoryFixture({
+        id: 1,
+        title: "Errands",
+        threshold_minutes: 240,
+        threshold_color: "#60a5fa",
+        threshold_day_minutes: { [Weekday.Sunday]: 720, [Weekday.Monday]: 60 },
+      }),
+    ]);
+    renderSection();
+    const sunday = await screen.findByLabelText(
+      categoryThresholdDayLabel("Errands", "Sunday"),
+    );
+    await waitFor(() => expect(sunday).toHaveValue(720));
+    fireEvent.change(sunday, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() =>
+      expect(mockedSet).toHaveBeenCalledWith([
+        {
+          category_id: 1,
+          minutes: 240,
+          color: "#60a5fa",
+          day_minutes: { [Weekday.Monday]: 60 },
+        },
+      ]),
+    );
+  });
+
+  it("marks a row dirty on a day-only edit and keeps it on a failed batch", async () => {
+    mockedList.mockResolvedValue([ERRANDS]);
+    mockedSet.mockRejectedValueOnce(new Error("db read-only"));
+    renderSection();
+    const friday = await screen.findByLabelText(
+      categoryThresholdDayLabel(ERRANDS.title, "Friday"),
+    );
+    fireEvent.change(friday, { target: { value: "45" } });
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    // The failed batch must not reset the form — the edit survives.
+    expect(friday).toHaveValue(45);
+    expect(mockedSet).toHaveBeenCalledWith([
+      {
+        category_id: 1,
+        minutes: null,
+        color: null,
+        day_minutes: { [Weekday.Friday]: 45 },
+      },
+    ]);
+  });
+
   it("blocks an out-of-range weekday value and flags the input", async () => {
     mockedList.mockResolvedValue([ERRANDS]);
     renderSection();

@@ -1148,6 +1148,136 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn day_overrides_replace_the_whole_map_and_accept_boundaries() {
+        let (pool, pid) = seeded_pool().await;
+        let cid = new_category(&pool, pid, TITLE_A).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Sunday, 720);
+        days.insert(crate::series::Weekday::Monday, 1);
+        days.insert(crate::series::Weekday::Tuesday, 1440);
+        set_threshold(&pool, pid, cid, Some(240), None, days)
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_day_minutes.0.get("monday"), Some(&1));
+        assert_eq!(c.threshold_day_minutes.0.get("tuesday"), Some(&1440));
+        assert_eq!(c.threshold_day_minutes.0.get("sunday"), Some(&720));
+        // A second save replaces the map wholesale — only the new
+        // days survive; nothing from the earlier map leaks through.
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Wednesday, 60);
+        set_threshold(&pool, pid, cid, Some(240), None, days)
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert_eq!(c.threshold_day_minutes.0.len(), 1);
+        assert_eq!(c.threshold_day_minutes.0.get("wednesday"), Some(&60));
+    }
+
+    #[tokio::test]
+    async fn day_overrides_survive_clearing_the_minutes() {
+        let (pool, pid) = seeded_pool().await;
+        let cid = new_category(&pool, pid, TITLE_A).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Friday, 90);
+        set_threshold(&pool, pid, cid, Some(240), None, days.clone())
+            .await
+            .unwrap();
+        // Clearing minutes but keeping the day map is a valid
+        // day-only threshold — the override must not be dropped.
+        set_threshold(&pool, pid, cid, None, None, days)
+            .await
+            .unwrap();
+        let c = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == cid)
+            .unwrap();
+        assert!(c.threshold_minutes.is_none());
+        assert_eq!(c.threshold_day_minutes.0.get("friday"), Some(&90));
+    }
+
+    #[tokio::test]
+    async fn category_day_overrides_stay_scoped_to_their_profile() {
+        let (pool, pid) = seeded_pool().await;
+        let other: i64 = sqlx::query_scalar(
+            "INSERT INTO profiles (name, week_start, work_days) VALUES ('other', 0, 31) RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let foreign = new_category(&pool, other, TITLE_B).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Monday, 120);
+        // The write must be rejected, not applied to the foreign row.
+        assert!(
+            set_threshold(&pool, pid, foreign, None, None, days.clone())
+                .await
+                .is_err()
+        );
+        let c = list(&pool, other)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == foreign)
+            .unwrap();
+        assert!(c.threshold_day_minutes.0.is_empty());
+        // And a day map set on the owning profile is invisible to pid.
+        set_threshold(&pool, other, foreign, None, None, days)
+            .await
+            .unwrap();
+        assert!(
+            list(&pool, pid)
+                .await
+                .unwrap()
+                .iter()
+                .all(|c| c.threshold_day_minutes.0.is_empty())
+        );
+    }
+
+    #[tokio::test]
+    async fn set_thresholds_mixes_minutes_and_day_edits_atomically() {
+        let (pool, pid) = seeded_pool().await;
+        let first = new_category(&pool, pid, TITLE_A).await;
+        let second = new_category(&pool, pid, TITLE_B).await;
+        let mut days = std::collections::BTreeMap::new();
+        days.insert(crate::series::Weekday::Thursday, 45);
+        let updates = vec![
+            CategoryThresholdUpdate {
+                category_id: first,
+                minutes: Some(30),
+                color: None,
+                day_minutes: std::collections::BTreeMap::new(),
+            },
+            CategoryThresholdUpdate {
+                category_id: second,
+                minutes: None,
+                color: None,
+                day_minutes: days,
+            },
+        ];
+        set_thresholds(&pool, pid, &updates).await.unwrap();
+        let all = list(&pool, pid).await.unwrap();
+        let c1 = all.iter().find(|c| c.id == first).unwrap();
+        let c2 = all.iter().find(|c| c.id == second).unwrap();
+        assert_eq!(c1.threshold_minutes, Some(30));
+        assert!(c1.threshold_day_minutes.0.is_empty());
+        assert!(c2.threshold_minutes.is_none());
+        assert_eq!(c2.threshold_day_minutes.0.get("thursday"), Some(&45));
+    }
+
+    #[tokio::test]
     async fn set_thresholds_commits_all_or_rolls_back() {
         let (pool, pid) = seeded_pool().await;
         let first = new_category(&pool, pid, TITLE_A).await;

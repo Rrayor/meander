@@ -158,6 +158,7 @@ Feature: Categories
     And a category named Foreign exists on a second profile
     When the application switches to the second profile
     Then the category Foreign has no threshold
+    And the category Foreign has no threshold for sunday
 
   Scenario: a category threshold carries per-weekday overrides
     Given an application state on a temporary seeded database
@@ -172,3 +173,14 @@ Feature: Categories
     Then the category threshold save fails
     When I set the category Errands threshold for tuesday to 1440 minutes
     Then the category Errands threshold for tuesday is 1440 minutes
+
+  Scenario: a day-only category threshold keeps a hue and clearing wipes the map
+    Given an application state on a temporary seeded database
+    And a category named Errands exists on the active profile
+    When I set the category Errands threshold for sunday to 120 minutes
+    Then the category Errands threshold for sunday is 120 minutes
+    And the category Errands has no threshold
+    And the category Errands threshold color comes from the palette
+    When I clear the category Errands threshold
+    Then the category Errands has no threshold
+    And the category Errands has no threshold for sunday

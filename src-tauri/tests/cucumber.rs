@@ -3348,6 +3348,33 @@ fn category_threshold_is(world: &mut MeanderWorld, title: String, minutes: i64) 
     assert_eq!(m, Some(minutes));
 }
 
+#[when(expr = "I clear the category {word} threshold")]
+fn clear_category_threshold(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let cid = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM categories WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("category lookup failed");
+    if let Err(e) = world.rt().block_on(meander_lib::categories::set_threshold(
+        &pool,
+        id,
+        cid,
+        None,
+        None,
+        std::collections::BTreeMap::new(),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
 #[then(expr = "the category {word} has no threshold")]
 fn category_has_no_threshold(world: &mut MeanderWorld, title: String) {
     let (pool, id) = active_profile_pool(world);
