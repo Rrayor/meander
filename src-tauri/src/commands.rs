@@ -63,6 +63,16 @@ pub async fn set_global_threshold(
 }
 
 #[tauri::command]
+pub async fn set_category_thresholds(
+    state: State<'_, AppState>,
+    updates: Vec<(i64, Option<i64>, Option<String>)>,
+) -> Result<(), ApiError> {
+    crate::categories::set_thresholds(&state.pool(), state.active_profile_id(), &updates)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn set_category_threshold(
     state: State<'_, AppState>,
     category_id: i64,

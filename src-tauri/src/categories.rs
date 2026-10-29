@@ -154,6 +154,34 @@ pub async fn set_threshold(
     minutes: Option<i64>,
     color: Option<String>,
 ) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    set_threshold_tx(&mut tx, profile_id, category_id, minutes, color).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Applies a batch of threshold edits in a single transaction —
+/// either every changed row commits or none do.
+pub async fn set_thresholds(
+    pool: &SqlitePool,
+    profile_id: i64,
+    updates: &[(i64, Option<i64>, Option<String>)],
+) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    for (id, minutes, color) in updates {
+        set_threshold_tx(&mut tx, profile_id, *id, *minutes, color.clone()).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn set_threshold_tx(
+    conn: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    profile_id: i64,
+    category_id: i64,
+    minutes: Option<i64>,
+    color: Option<String>,
+) -> Result<()> {
     let validated = minutes
         .map(|m| {
             crate::validation::PositiveDuration::try_new(m).map_err(|_| {
@@ -180,14 +208,14 @@ pub async fn set_threshold(
                 // Keep a stored color when the edit only touches minutes;
                 // otherwise pick the first palette hue no other category
                 // claims (§285 "distinct hues for distinct categories").
-                let stored: Option<String> = sqlx::query_scalar(
+                let stored: Option<Option<String>> = sqlx::query_scalar(
                     "SELECT threshold_color FROM categories WHERE id = ? AND profile_id = ?",
                 )
                 .bind(category_id)
                 .bind(profile_id)
-                .fetch_one(pool)
+                .fetch_optional(&mut **conn)
                 .await?;
-                match stored {
+                match stored.flatten() {
                     Some(c) => Some(c),
                     None => {
                         let used: Vec<String> = sqlx::query_scalar(
@@ -195,7 +223,7 @@ pub async fn set_threshold(
                         )
                         .bind(profile_id)
                         .bind(category_id)
-                        .fetch_all(pool)
+                        .fetch_all(&mut **conn)
                         .await?;
                         let hue = CATEGORY_PALETTE
                             .iter()
@@ -218,7 +246,7 @@ pub async fn set_threshold(
     .bind(parsed_color)
     .bind(category_id)
     .bind(profile_id)
-    .execute(pool)
+    .execute(&mut **conn)
     .await?
     .rows_affected();
     if changed == 0 {

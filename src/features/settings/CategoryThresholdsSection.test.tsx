@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { listCategories, setCategoryThreshold } from "@/api/categories";
+import { listCategories, setCategoryThresholds } from "@/api/categories";
 import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 import {
@@ -16,10 +16,10 @@ import { CategoryThresholdsSection } from "./CategoryThresholdsSection";
 vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
   listCategories: vi.fn(),
-  setCategoryThreshold: vi.fn(),
+  setCategoryThresholds: vi.fn(),
 }));
 const mockedList = vi.mocked(listCategories);
-const mockedSet = vi.mocked(setCategoryThreshold);
+const mockedSet = vi.mocked(setCategoryThresholds);
 
 const renderSection = () =>
   render(
@@ -76,7 +76,7 @@ describe("CategoryThresholdsSection", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
-      expect(mockedSet).toHaveBeenCalledWith(1, 240, "#60a5fa"),
+      expect(mockedSet).toHaveBeenCalledWith([[1, 240, "#60a5fa"]]),
     );
   });
 
@@ -105,7 +105,9 @@ describe("CategoryThresholdsSection", () => {
     await waitFor(() => expect(input).toHaveValue(120));
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
-    await waitFor(() => expect(mockedSet).toHaveBeenCalledWith(2, null, null));
+    await waitFor(() =>
+      expect(mockedSet).toHaveBeenCalledWith([[2, null, null]]),
+    );
   });
 
   it("skips unchanged rows and surfaces a rejected save", async () => {
@@ -126,6 +128,6 @@ describe("CategoryThresholdsSection", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     // Home was unchanged — only Errands was attempted.
     expect(mockedSet).toHaveBeenCalledTimes(1);
-    expect(mockedSet).toHaveBeenCalledWith(1, 90, null);
+    expect(mockedSet).toHaveBeenCalledWith([[1, 90, null]]);
   });
 });

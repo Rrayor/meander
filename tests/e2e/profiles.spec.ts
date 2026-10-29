@@ -541,7 +541,7 @@ test("a day-only threshold sends null minutes with the day map", async ({
   expect(saveCall?.args.dayMinutes).toEqual({ sunday: 720 });
 });
 
-test("a category threshold sends setCategoryThreshold on the wire", async ({
+test("a category threshold sends setCategoryThresholds on the wire", async ({
   page,
 }) => {
   await stubTauriCommands(page, {
@@ -563,7 +563,7 @@ test("a category threshold sends setCategoryThreshold on the wire", async ({
         updated_at: "2026-01-01",
       },
     ],
-    [COMMANDS.setCategoryThreshold]: null,
+    [COMMANDS.setCategoryThresholds]: null,
   });
   await page.goto(`/#${settingsPath}`);
 
@@ -571,9 +571,8 @@ test("a category threshold sends setCategoryThreshold on the wire", async ({
   await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).last().click();
 
   const calls = await getInvocations<{
-    categoryId: number;
-    minutes: number;
+    updates: [number, number | null, string | null][];
   }>(page);
-  const call = calls.find((c) => c.cmd === COMMANDS.setCategoryThreshold);
-  expect(call?.args).toMatchObject({ categoryId: 1, minutes: 240 });
+  const call = calls.find((c) => c.cmd === COMMANDS.setCategoryThresholds);
+  expect(call?.args).toMatchObject({ updates: [[1, 240, null]] });
 });

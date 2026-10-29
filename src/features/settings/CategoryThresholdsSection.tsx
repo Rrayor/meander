@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { listCategories, setCategoryThreshold } from "@/api/categories";
+import { listCategories, setCategoryThresholds } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { MAX_DURATION_MINUTES } from "@/lib/constants";
 import {
@@ -70,19 +70,21 @@ export function CategoryThresholdsSection() {
 
   const save = useMutation({
     mutationFn: async (v: FormValues) => {
-      for (const c of categories ?? []) {
-        const row = v.rows[c.id];
-        if (!row) continue;
-        const storedMinutes = c.threshold_minutes;
-        const storedColor = c.threshold_color ?? "";
-        if (row.minutes === storedMinutes && row.color === storedColor)
-          continue;
-        await setCategoryThreshold(
+      const updates = (categories ?? [])
+        .filter((c) => {
+          const row = v.rows[c.id];
+          if (!row) return false;
+          return (
+            row.minutes !== c.threshold_minutes ||
+            row.color !== (c.threshold_color ?? "")
+          );
+        })
+        .map((c): [number, number | null, string | null] => [
           c.id,
-          row.minutes,
-          row.minutes == null ? null : row.color || null,
-        );
-      }
+          v.rows[c.id]!.minutes,
+          v.rows[c.id]!.minutes == null ? null : v.rows[c.id]!.color || null,
+        ]);
+      if (updates.length > 0) await setCategoryThresholds(updates);
     },
     onSuccess: () => {
       // Only refetch on success — a failed batch must not discard

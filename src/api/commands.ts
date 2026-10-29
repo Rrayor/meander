@@ -17,6 +17,7 @@ export const COMMANDS = {
   globalThreshold: "global_threshold",
   setGlobalThreshold: "set_global_threshold",
   setCategoryThreshold: "set_category_threshold",
+  setCategoryThresholds: "set_category_thresholds",
   listPendingCarryOver: "list_pending_carry_over",
   resolveCarryOver: "resolve_carry_over",
   listCategories: "list_categories",

@@ -131,7 +131,7 @@ test("the repeat schedule fields have no WCAG AA violations", async ({
     .click();
   await dialog.getByRole("button", { name: "months" }).click();
   await dialog.getByRole("radio", { name: REPEAT_ON_THE_LABEL }).click();
-  await dialog.getByRole("button", { name: "Last" }).click();
+  await dialog.getByRole("button", { name: "Last", exact: true }).click();
 
   await expectAccessible(page);
 });

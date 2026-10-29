@@ -39,6 +39,10 @@ export const setCategoryThreshold = (
     color,
   });
 
+export const setCategoryThresholds = (
+  updates: [number, number | null, string | null][],
+) => transport.invoke<void>(COMMANDS.setCategoryThresholds, { updates });
+
 export const deleteCategory = (categoryId: number) =>
   transport.invoke<void>(COMMANDS.deleteCategory, { categoryId });
 
