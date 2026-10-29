@@ -17,7 +17,9 @@ import {
   WEEK_START_LABEL,
   WORK_DAYS_HEADING,
   categorySwatchLabel,
+  categoryThresholdDayLabel,
   renameProfileLabel,
+  thresholdColorLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
@@ -559,6 +561,7 @@ test("a category threshold sends setCategoryThresholds on the wire", async ({
         color: "#4ade80",
         threshold_minutes: null,
         threshold_color: null,
+        threshold_day_minutes: {},
         created_at: "2026-01-01",
         updated_at: "2026-01-01",
       },
@@ -567,12 +570,118 @@ test("a category threshold sends setCategoryThresholds on the wire", async ({
   });
   await page.goto(`/#${settingsPath}`);
 
-  await page.getByLabel("Threshold minutes for Errands").fill("240");
+  const categoryTitle = "Errands";
+  await page
+    .getByLabel(thresholdColorLabel(categoryTitle), { exact: true })
+    .fill("240");
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+  await page
+    .getByLabel(categoryThresholdDayLabel(categoryTitle, sunday.label))
+    .fill("720");
   await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).last().click();
 
   const calls = await getInvocations<{
-    updates: [number, number | null, string | null][];
+    updates: {
+      category_id: number;
+      minutes: number | null;
+      color: string | null;
+      day_minutes?: Record<string, number>;
+    }[];
   }>(page);
   const call = calls.find((c) => c.cmd === COMMANDS.setCategoryThresholds);
-  expect(call?.args).toMatchObject({ updates: [[1, 240, null]] });
+  expect(call?.args).toMatchObject({
+    updates: [
+      {
+        category_id: 1,
+        minutes: 240,
+        day_minutes: { [Weekday.Sunday]: 720 },
+      },
+    ],
+  });
+});
+
+test("an out-of-range category weekday never reaches the wire", async ({
+  page,
+}) => {
+  const categoryTitle = "Errands";
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [
+      {
+        id: 1,
+        profile_id: 1,
+        title: categoryTitle,
+        description: null,
+        color: "#4ade80",
+        threshold_minutes: null,
+        threshold_color: null,
+        threshold_day_minutes: {},
+        created_at: "2026-01-01",
+        updated_at: "2026-01-01",
+      },
+    ],
+    [COMMANDS.setCategoryThresholds]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page
+    .getByLabel(categoryThresholdDayLabel(categoryTitle, "Tuesday"))
+    .fill("1441");
+  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).last().click();
+
+  const calls = await getInvocations<unknown>(page);
+  expect(calls.some((c) => c.cmd === COMMANDS.setCategoryThresholds)).toBe(
+    false,
+  );
+});
+
+test("clearing a stored category weekday sends the emptied map", async ({
+  page,
+}) => {
+  const categoryTitle = "Errands";
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [
+      {
+        id: 1,
+        profile_id: 1,
+        title: categoryTitle,
+        description: null,
+        color: "#4ade80",
+        threshold_minutes: 240,
+        threshold_color: THRESHOLD_COLOR_DEFAULT,
+        threshold_day_minutes: { [Weekday.Sunday]: 720 },
+        created_at: "2026-01-01",
+        updated_at: "2026-01-01",
+      },
+    ],
+    [COMMANDS.setCategoryThresholds]: null,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page
+    .getByLabel(categoryThresholdDayLabel(categoryTitle, "Sunday"))
+    .fill("");
+  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).last().click();
+
+  const calls = await getInvocations<{
+    updates: {
+      category_id: number;
+      minutes: number | null;
+      color: string | null;
+      day_minutes?: Record<string, number>;
+    }[];
+  }>(page);
+  const call = calls.find((c) => c.cmd === COMMANDS.setCategoryThresholds);
+  expect(call?.args).toMatchObject({
+    updates: [{ category_id: 1, minutes: 240, day_minutes: {} }],
+  });
 });

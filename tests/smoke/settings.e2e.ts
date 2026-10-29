@@ -8,6 +8,7 @@ import {
   THRESHOLD_HEADING_ID,
   WEEKDAY_OPTIONS,
   WORK_DAYS_HEADING_ID,
+  categoryThresholdDayLabel,
   thresholdColorLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
@@ -127,6 +128,8 @@ describe("Settings smoke", () => {
     await (await $("#category-title-input")).setValue(title);
     await (await $("button[type='submit']")).click();
     const row = `aria/${thresholdColorLabel(title)}`;
+    const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+    const dayRow = `aria/${categoryThresholdDayLabel(title, sunday.label)}`;
 
     const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
     await nav.$(`=${settingsRoute.label}`).click();
@@ -137,6 +140,7 @@ describe("Settings smoke", () => {
     await browser.waitUntil(async () => (await section.$(row)).isExisting());
     const input = await section.$(row);
     await input.setValue("120");
+    await (await section.$(dayRow)).setValue("30");
     await (await section.$(`button=${SAVE_BUTTON_LABEL}`)).click();
 
     const boardRoute = ROUTES.find(({ label }) => label === "Board")!;
@@ -155,10 +159,20 @@ describe("Settings smoke", () => {
         row,
       ),
     ).toHaveValue("120");
+    await expect(
+      await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
+        dayRow,
+      ),
+    ).toHaveValue("30");
 
     await (
       await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
         row,
+      )
+    ).clearValue();
+    await (
+      await $(`section[aria-labelledby='${CATEGORY_THRESHOLDS_HEADING_ID}']`).$(
+        dayRow,
       )
     ).clearValue();
     await (

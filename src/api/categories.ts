@@ -1,7 +1,11 @@
 import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
-import type { Category, NewCategory } from "./bindings";
+import type {
+  Category,
+  CategoryThresholdUpdate,
+  NewCategory,
+} from "./bindings";
 
 export type { Category, NewCategory };
 
@@ -28,20 +32,8 @@ export const createCategory = (input: NewCategory) =>
 export const updateCategory = (categoryId: number, input: NewCategory) =>
   transport.invoke<Category>(COMMANDS.updateCategory, { categoryId, input });
 
-export const setCategoryThreshold = (
-  categoryId: number,
-  minutes: number | null,
-  color: string | null,
-) =>
-  transport.invoke<void>(COMMANDS.setCategoryThreshold, {
-    categoryId,
-    minutes,
-    color,
-  });
-
-export const setCategoryThresholds = (
-  updates: [number, number | null, string | null][],
-) => transport.invoke<void>(COMMANDS.setCategoryThresholds, { updates });
+export const setCategoryThresholds = (updates: CategoryThresholdUpdate[]) =>
+  transport.invoke<void>(COMMANDS.setCategoryThresholds, { updates });
 
 export const deleteCategory = (categoryId: number) =>
   transport.invoke<void>(COMMANDS.deleteCategory, { categoryId });

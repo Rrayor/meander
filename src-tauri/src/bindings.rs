@@ -15,6 +15,10 @@ pub fn typescript() -> String {
         specta::ts::export::<Task>(&conf).expect("export Task"),
         specta::ts::export::<crate::categories::Category>(&conf).expect("export Category"),
         specta::ts::export::<crate::categories::NewCategory>(&conf).expect("export NewCategory"),
+        specta::ts::export::<crate::categories::WeekdayMinutes>(&conf)
+            .expect("export WeekdayMinutes"),
+        specta::ts::export::<crate::categories::CategoryThresholdUpdate>(&conf)
+            .expect("export CategoryThresholdUpdate"),
         specta::ts::export::<NewTask>(&conf).expect("export NewTask"),
         specta::ts::export::<UpdateTask>(&conf).expect("export UpdateTask"),
         specta::ts::export::<crate::series::TaskSeries>(&conf).expect("export TaskSeries"),

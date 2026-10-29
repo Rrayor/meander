@@ -12,6 +12,7 @@ export const categoryFixture = (
   color: "#2dd4bf",
   threshold_minutes: null,
   threshold_color: null,
+  threshold_day_minutes: {},
   created_at: FIXTURE_TIMESTAMP,
   updated_at: FIXTURE_TIMESTAMP,
   ...overrides,

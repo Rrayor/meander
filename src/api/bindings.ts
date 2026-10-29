@@ -3,8 +3,23 @@
 export type Profile = { id: number; name: string; created_at: string; updated_at: string }
 export type GlobalThreshold = { day_minutes: { [key: string]: number }; minutes: number | null; color: string | null }
 export type Task = { id: number; profile_id: number; title: string; description: string | null; status: TaskStatus; carry_over_rule: CarryOverRule | null; estimated_minutes: number | null; spent_minutes: number | null; placement: TaskPlacement; scheduled_date: string | null; series_id: number | null; sort_order: number; created_at: string; updated_at: string }
-export type Category = { id: number; profile_id: number; title: string; description: string | null; color: string | null; threshold_minutes: number | null; threshold_color: string | null; created_at: string; updated_at: string }
+export type Category = { id: number; profile_id: number; title: string; description: string | null; color: string | null; threshold_minutes: number | null; threshold_color: string | null; threshold_day_minutes: WeekdayMinutes; created_at: string; updated_at: string }
 export type NewCategory = { title: string; description: string | null; color: string | null }
+/**
+ * §285: a category's per-weekday threshold overrides — stored as a
+ * JSON map {"weekday": minutes}, crosses the wire as the map itself.
+ * An empty map means every day inherits the category threshold.
+ */
+export type WeekdayMinutes = { [key: string]: number }
+/**
+ * Sets or clears a category's per-day threshold (§285). A set
+ * threshold with no picked color defaults to a palette hue chosen by
+ * the category's position — distinct hues for distinct categories.
+ * Clearing the minutes clears the color with it.
+ * One row of a category-threshold batch update (spec §285): the
+ * per-day minutes, the row color, and per-weekday overrides.
+ */
+export type CategoryThresholdUpdate = { category_id: number; minutes: number | null; color: string | null; day_minutes?: { [key: string]: number } }
 export type NewTask = { title: string; description: string | null; estimated_minutes: number | null; carry_over_rule: CarryOverRule | null; series: NewSeries | null }
 /**
  * Full-row update payload for the task detail view — every editable field

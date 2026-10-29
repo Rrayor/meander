@@ -5,17 +5,22 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { listCategories, setCategoryThresholds } from "@/api/categories";
+import type { CategoryThresholdUpdate } from "@/api/bindings";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { MAX_DURATION_MINUTES } from "@/lib/constants";
+import { Weekday } from "@/lib/enums";
 import {
+  categoryThresholdDayLabel,
   CATEGORY_THRESHOLDS_HEADING,
   CATEGORY_THRESHOLDS_HEADING_ID,
   CATEGORY_THRESHOLDS_HINT,
   THRESHOLD_COLOR_LABEL,
+  THRESHOLD_DAYS_FIELDSET_LABEL,
   THRESHOLD_FIELD_LABEL,
   SAVE_BUTTON_LABEL,
   formatMinutes,
   thresholdColorLabel,
+  WEEKDAY_OPTIONS,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { ColorRadios } from "@/features/settings/ColorRadios";
@@ -26,6 +31,10 @@ const schema = z.object({
     z.object({
       minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
       color: z.string(),
+      day_minutes: z.record(
+        z.string(),
+        z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
+      ),
     }),
   ),
 });
@@ -49,6 +58,12 @@ export function CategoryThresholdsSection() {
           {
             minutes: c.threshold_minutes,
             color: c.threshold_color ?? "",
+            day_minutes: Object.fromEntries(
+              WEEKDAY_OPTIONS.map((o) => [
+                o.value,
+                c.threshold_day_minutes?.[o.value] ?? null,
+              ]),
+            ),
           },
         ]),
       ),
@@ -70,20 +85,42 @@ export function CategoryThresholdsSection() {
 
   const save = useMutation({
     mutationFn: async (v: FormValues) => {
+      const dayMap = (days: Record<string, number | null | undefined>) =>
+        Object.fromEntries(
+          Object.entries(days).filter(([, m]) => m != null),
+        ) as Partial<Record<Weekday, number>>;
+      // Key order differs between the stored map and the form's
+      // WEEKDAY_OPTIONS-ordered record — compare by content, not
+      // serialization, or untouched rows look dirty.
+      const sameDays = (
+        a: Record<string, number | null | undefined>,
+        b: Record<string, number | null | undefined>,
+      ) => {
+        const da = dayMap(a);
+        const db = dayMap(b);
+        const keys = new Set([...Object.keys(da), ...Object.keys(db)]);
+        return [...keys].every((k) => da[k as Weekday] === db[k as Weekday]);
+      };
       const updates = (categories ?? [])
         .filter((c) => {
           const row = v.rows[c.id];
           if (!row) return false;
           return (
             row.minutes !== c.threshold_minutes ||
-            row.color !== (c.threshold_color ?? "")
+            row.color !== (c.threshold_color ?? "") ||
+            !sameDays(row.day_minutes, c.threshold_day_minutes ?? {})
           );
         })
-        .map((c): [number, number | null, string | null] => [
-          c.id,
-          v.rows[c.id]!.minutes,
-          v.rows[c.id]!.minutes == null ? null : v.rows[c.id]!.color || null,
-        ]);
+        .map((c): CategoryThresholdUpdate => ({
+          category_id: c.id,
+          minutes: v.rows[c.id]!.minutes,
+          color:
+            v.rows[c.id]!.minutes == null &&
+            Object.keys(dayMap(v.rows[c.id]!.day_minutes)).length === 0
+              ? null
+              : v.rows[c.id]!.color || null,
+          day_minutes: dayMap(v.rows[c.id]!.day_minutes),
+        }));
       if (updates.length > 0) await setCategoryThresholds(updates);
     },
     onSuccess: () => {
@@ -152,9 +189,68 @@ export function CategoryThresholdsSection() {
                   </p>
                 )}
               </div>
+              {/* §285 per-weekday overrides: an empty day inherits the
+                  category's own minutes, shown as the placeholder. */}
+              <fieldset className="mt-3">
+                <legend className="text-xs text-text-muted">
+                  {THRESHOLD_DAYS_FIELDSET_LABEL}
+                </legend>
+                <div className="mt-2 flex gap-2">
+                  {WEEKDAY_OPTIONS.map((o) => {
+                    const dayError =
+                      errors.rows?.[c.id]?.day_minutes?.[o.value];
+                    return (
+                      <label
+                        key={o.value}
+                        className="text-center text-xs text-text-muted"
+                      >
+                        {o.short}
+                        <input
+                          type="number"
+                          min={1}
+                          max={MAX_DURATION_MINUTES}
+                          placeholder={
+                            rows?.[c.id]?.minutes != null
+                              ? String(rows[c.id].minutes)
+                              : ""
+                          }
+                          aria-label={categoryThresholdDayLabel(
+                            c.title,
+                            o.label,
+                          )}
+                          aria-invalid={dayError != null}
+                          aria-describedby={
+                            dayError != null
+                              ? `cat-threshold-${c.id}-days-error`
+                              : undefined
+                          }
+                          {...register(`rows.${c.id}.day_minutes.${o.value}`, {
+                            setValueAs: (v: string) =>
+                              v === "" ? null : Number(v),
+                          })}
+                          className="mt-1 block w-16 rounded-md border border-border bg-surface-raised px-2 py-1 text-sm text-text placeholder:text-text-muted"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+                {errors.rows?.[c.id]?.day_minutes && (
+                  <p
+                    id={`cat-threshold-${c.id}-days-error`}
+                    role="alert"
+                    className="mt-2 text-sm text-error"
+                  >
+                    {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
+                  </p>
+                )}
+              </fieldset>
               {/* A category without a threshold has no color to pick —
-                  an unset row must not read as a custom selection. */}
-              {rows?.[c.id]?.minutes != null && (
+                  an unset row must not read as a custom selection. A
+                  day-only threshold still counts as a threshold. */}
+              {(rows?.[c.id]?.minutes != null ||
+                Object.values(rows?.[c.id]?.day_minutes ?? {}).some(
+                  (m) => m != null,
+                )) && (
                 <ColorRadios
                   label={`${THRESHOLD_COLOR_LABEL}: ${c.title}`}
                   value={color}

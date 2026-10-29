@@ -51,6 +51,7 @@ const CATEGORY: Category = {
   color: "#2DD4BF",
   threshold_minutes: null,
   threshold_color: null,
+  threshold_day_minutes: {},
   created_at: "2026-10-10 09:00:00",
   updated_at: "2026-10-10 09:00:00",
 };
@@ -62,6 +63,7 @@ const SECOND_CATEGORY: Category = {
   color: null,
   threshold_minutes: null,
   threshold_color: null,
+  threshold_day_minutes: {},
   created_at: "2026-10-12 09:00:00",
 };
 

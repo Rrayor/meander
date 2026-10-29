@@ -2786,6 +2786,82 @@ fn day_threshold_absent(world: &mut MeanderWorld, day: String) {
     assert!(!t.day_minutes.contains_key(&day));
 }
 
+fn weekday_of(day: &str) -> meander_lib::series::Weekday {
+    use meander_lib::series::Weekday::*;
+    match day {
+        "monday" => Monday,
+        "tuesday" => Tuesday,
+        "wednesday" => Wednesday,
+        "thursday" => Thursday,
+        "friday" => Friday,
+        "saturday" => Saturday,
+        "sunday" => Sunday,
+        _ => panic!("unsupported weekday {day}"),
+    }
+}
+
+#[when(expr = "I set the category {word} threshold for {word} to {int} minutes")]
+fn set_category_day_threshold(world: &mut MeanderWorld, title: String, day: String, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let (cid, cur_min, cur_color, mut days) = world
+        .rt()
+        .block_on(async {
+            meander_lib::categories::list(&pool, id)
+                .await?
+                .into_iter()
+                .find(|c| c.title == title)
+                .map(|c| {
+                    (
+                        c.id,
+                        c.threshold_minutes,
+                        c.threshold_color,
+                        c.threshold_day_minutes.0,
+                    )
+                })
+                .ok_or(meander_lib::db::DbError::Validation {
+                    code: meander_lib::errors::ErrorCode::CategoryNotFound,
+                    message: format!("no category {title}"),
+                })
+        })
+        .expect("category lookup failed");
+    let mut m: std::collections::BTreeMap<meander_lib::series::Weekday, i64> =
+        days.iter().map(|(k, v)| (weekday_of(k), *v)).collect();
+    m.insert(weekday_of(&day), minutes);
+    if let Err(e) = world.rt().block_on(meander_lib::categories::set_threshold(
+        &pool, id, cid, cur_min, cur_color, m,
+    )) {
+        world.error = Some(e.to_string());
+    }
+    // keep clippy quiet about unused mut
+    let _ = &mut days;
+}
+
+#[then(expr = "the category {word} threshold for {word} is {int} minutes")]
+fn category_day_threshold_is(world: &mut MeanderWorld, title: String, day: String, minutes: i64) {
+    let (pool, id) = active_profile_pool(world);
+    let c = world
+        .rt()
+        .block_on(meander_lib::categories::list(&pool, id))
+        .expect("categories query failed")
+        .into_iter()
+        .find(|c| c.title == title)
+        .expect("category missing");
+    assert_eq!(c.threshold_day_minutes.0.get(&day), Some(&minutes));
+}
+
+#[then(expr = "the category {word} has no threshold for {word}")]
+fn category_day_threshold_absent(world: &mut MeanderWorld, title: String, day: String) {
+    let (pool, id) = active_profile_pool(world);
+    let c = world
+        .rt()
+        .block_on(meander_lib::categories::list(&pool, id))
+        .expect("categories query failed")
+        .into_iter()
+        .find(|c| c.title == title)
+        .expect("category missing");
+    assert!(!c.threshold_day_minutes.0.contains_key(&day));
+}
+
 #[then("the threshold save fails")]
 fn threshold_save_fails(world: &mut MeanderWorld) {
     assert!(
@@ -3248,6 +3324,7 @@ fn set_category_threshold(world: &mut MeanderWorld, title: String, minutes: i64)
         cid,
         Some(minutes),
         None,
+        std::collections::BTreeMap::new(),
     )) {
         world.error = Some(e.to_string());
     }
@@ -3269,6 +3346,33 @@ fn category_threshold_is(world: &mut MeanderWorld, title: String, minutes: i64) 
         })
         .expect("threshold query failed");
     assert_eq!(m, Some(minutes));
+}
+
+#[when(expr = "I clear the category {word} threshold")]
+fn clear_category_threshold(world: &mut MeanderWorld, title: String) {
+    let (pool, id) = active_profile_pool(world);
+    let cid = world
+        .rt()
+        .block_on(async {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM categories WHERE profile_id = ? AND title = ?",
+            )
+            .bind(id)
+            .bind(title)
+            .fetch_one(&pool)
+            .await
+        })
+        .expect("category lookup failed");
+    if let Err(e) = world.rt().block_on(meander_lib::categories::set_threshold(
+        &pool,
+        id,
+        cid,
+        None,
+        None,
+        std::collections::BTreeMap::new(),
+    )) {
+        world.error = Some(e.to_string());
+    }
 }
 
 #[then(expr = "the category {word} has no threshold")]
