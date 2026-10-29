@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
+import type { Category, Task } from "@/api/bindings";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import type { Task } from "@/api/bindings";
 import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
 import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
@@ -29,7 +29,7 @@ import {
 import {
   errorMessage,
   shiftDays,
-  thresholdTint,
+  thresholdTintStyle,
   weekdayNameOf,
   todayLocalIso,
   weekDates,
@@ -46,7 +46,8 @@ const STATUS_ROWS = [
 function BoardCard({
   task,
   onOpen,
-}: Readonly<{ task: Task; onOpen: () => void }>) {
+  tintColors,
+}: Readonly<{ task: Task; onOpen: () => void; tintColors?: string[] }>) {
   const { data: categories } = useQuery({
     queryKey: QUERY_KEYS.taskCategories(task.id),
     queryFn: () => listTaskCategories(task.id),
@@ -58,10 +59,91 @@ function BoardCard({
       onClick={onOpen}
       className="w-full cursor-pointer text-left"
     >
-      <TaskCard task={task} categories={categories ?? []} />
+      <TaskCard
+        task={task}
+        categories={categories ?? []}
+        tintColors={tintColors}
+      />
     </button>
   );
 }
+
+/// Spec §281/§285/§291: for every column, the colors of the thresholds
+/// it reaches — the global one plus each category whose estimate
+/// total meets its own effective limit (weekday override first, its
+/// per-day minutes as fallback). Several reached thresholds blend
+/// into a gradient; the weekly backlog column never tints.
+const reachedCategoryColors = (
+  column: string,
+  tasks: Task[],
+  taskCategories: Map<number, Category[]>,
+): Map<number, string> => {
+  const sums = new Map<
+    number,
+    { est: number; color: string; limit: number | null }
+  >();
+  for (const t of tasks) {
+    for (const cat of taskCategories.get(t.id) ?? []) {
+      if (cat.threshold_color == null) continue;
+      const cur = sums.get(cat.id) ?? {
+        est: 0,
+        color: cat.threshold_color,
+        limit:
+          cat.threshold_day_minutes?.[weekdayNameOf(column)] ??
+          cat.threshold_minutes,
+      };
+      cur.est += t.estimated_minutes ?? 0;
+      sums.set(cat.id, cur);
+    }
+  }
+  return new Map(
+    [...sums.entries()]
+      .filter(([, s]) => s.limit != null && s.est >= s.limit)
+      .map(([id, s]) => [id, s.color]),
+  );
+};
+
+const columnThresholds = (
+  columns: (string | null)[],
+  columnTasks: (column: string | null) => Task[],
+  threshold:
+    | {
+        minutes: number | null;
+        color: string | null;
+        day_minutes: Record<string, number>;
+      }
+    | undefined,
+  taskCategories: Map<number, Category[]>,
+): {
+  tintColors: Map<string | null, string[]>;
+  reachedCats: Map<string | null, Map<number, string>>;
+} => {
+  const tintColors = new Map<string | null, string[]>();
+  const reachedCats = new Map<string | null, Map<number, string>>();
+  for (const c of columns) {
+    const cats =
+      c === null
+        ? new Map<number, string>()
+        : reachedCategoryColors(c, columnTasks(c), taskCategories);
+    const globalLimit =
+      c === null
+        ? null
+        : (threshold?.day_minutes?.[weekdayNameOf(c)] ??
+          threshold?.minutes ??
+          null);
+    const colors = [
+      ...(threshold?.color != null &&
+      globalLimit != null &&
+      totals(columnTasks(c)).estimated >= globalLimit
+        ? [threshold.color]
+        : []),
+      ...cats.values(),
+    ];
+    tintColors.set(c, colors);
+    reachedCats.set(c, cats);
+  }
+  return { tintColors, reachedCats };
+};
 
 const totals = (tasks: Task[]) => ({
   count: tasks.length,
@@ -127,23 +209,28 @@ export function BoardPage() {
         : t.scheduled_date === column,
     );
 
-  // Spec §281/§291: a day column tints when its estimate total reaches
-  // the effective limit — its weekday override or the global fallback;
-  // the weekly backlog column never does, and a day with neither value
-  // has no threshold at all.
-  const tintColor = threshold?.color ?? null;
-  const dayLimit = (iso: string) =>
-    threshold?.day_minutes?.[weekdayNameOf(iso)] ?? threshold?.minutes ?? null;
-  const reached = new Set(
-    columns.filter((c) => {
-      if (c === null || tintColor === null) return false;
-      const limit = dayLimit(c);
-      return limit != null && totals(columnTasks(c)).estimated >= limit;
-    }),
+  // Task→category associations ride the same query keys as the card
+  // chips, so this dedupes against them rather than adding a new read.
+  const categoryQueries = useQueries({
+    queries: (tasks ?? []).map((t) => ({
+      queryKey: QUERY_KEYS.taskCategories(t.id),
+      queryFn: () => listTaskCategories(t.id),
+    })),
+  });
+  const taskCategories = new Map(
+    (tasks ?? []).map((t, i) => [t.id, categoryQueries[i]?.data ?? []]),
   );
-  const tint = tintColor
-    ? { backgroundColor: thresholdTint(tintColor) }
-    : undefined;
+  const categoryError = categoryQueries.find((q) => q.error)?.error;
+  const boardError = error ?? categoryError ?? null;
+
+  const { tintColors: columnTintColors, reachedCats } = columnThresholds(
+    columns,
+    columnTasks,
+    threshold,
+    taskCategories,
+  );
+  const tint = (column: string | null) =>
+    thresholdTintStyle(columnTintColors.get(column) ?? []);
 
   const weekTotals = totals(tasks ?? []);
 
@@ -220,7 +307,7 @@ export function BoardPage() {
       </header>
       {error && (
         <p role="alert" className="px-6 pt-4 text-sm text-danger">
-          {errorMessage(error)}
+          {errorMessage(boardError)}
         </p>
       )}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
@@ -237,7 +324,7 @@ export function BoardPage() {
                   <th
                     key={column ?? "weekly-backlog"}
                     scope="col"
-                    style={reached.has(column) ? tint : undefined}
+                    style={tint(column)}
                     className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
                   >
                     <p className="text-sm font-medium text-text">
@@ -270,7 +357,7 @@ export function BoardPage() {
                   return (
                     <td
                       key={column ?? "weekly-backlog"}
-                      style={reached.has(column) ? tint : undefined}
+                      style={tint(column)}
                       className="rounded-md bg-surface/40 align-top"
                     >
                       {cell.length > 0 && (
@@ -280,6 +367,14 @@ export function BoardPage() {
                               <BoardCard
                                 task={task}
                                 onOpen={() => setEditingTask(task)}
+                                // §285: cards of a reached category carry
+                                // that threshold's tint — the global tint
+                                // stays on the column only.
+                                tintColors={(taskCategories.get(task.id) ?? [])
+                                  .map((cat) =>
+                                    reachedCats.get(column)?.get(cat.id),
+                                  )
+                                  .filter((x): x is string => x != null)}
                               />
                             </li>
                           ))}

@@ -9,6 +9,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { listTaskCategories } from "@/api/categories";
+import { TASK_CARD_LABEL } from "@/lib/labels";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
@@ -38,8 +39,10 @@ import {
   thresholdTint,
   todayLocalIso,
   weekDates,
+  weekdayNameOf,
 } from "@/lib/utils";
 import { BoardPage } from "@/pages/BoardPage";
+import { categoryFixture } from "@/test/fixtures";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/tasks", async (importOriginal) => ({
@@ -630,6 +633,144 @@ describe("BoardPage", () => {
     await waitFor(() =>
       expect(headers[1]).not.toHaveStyle({
         backgroundColor: thresholdTint(THRESHOLD_COLOR_DEFAULT),
+      }),
+    );
+  });
+
+  const CAT_COLOR = "#60a5fa";
+  const WORK_CAT = categoryFixture({
+    id: 11,
+    title: "Work",
+    threshold_minutes: 60,
+    threshold_color: CAT_COLOR,
+  });
+  const OTHER_COLOR = "#f472b6";
+
+  it("tints a column in the category threshold color when reached", async () => {
+    mockedListTaskCategories.mockImplementation(async (id) =>
+      id === baseTask.id ? [WORK_CAT] : [],
+    );
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundColor: thresholdTint(CAT_COLOR),
+      }),
+    );
+    // The backlog column never tints from category thresholds.
+    expect(headers[0]).not.toHaveStyle({
+      backgroundColor: thresholdTint(CAT_COLOR),
+    });
+  });
+
+  it("does not tint when the category estimate stays under its limit", async () => {
+    mockedListTaskCategories.mockImplementation(async (id) =>
+      id === baseTask.id
+        ? [
+            categoryFixture({
+              id: 11,
+              threshold_minutes: 120,
+              threshold_color: CAT_COLOR,
+            }),
+          ]
+        : [],
+    );
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).not.toHaveStyle({
+        backgroundColor: thresholdTint(CAT_COLOR),
+      }),
+    );
+  });
+
+  it("blends the global and category tints into a gradient when both reach", async () => {
+    mockedGlobalThreshold.mockResolvedValue({
+      minutes: 60,
+      color: THRESHOLD_COLOR_DEFAULT,
+      day_minutes: {},
+    });
+    mockedListTaskCategories.mockImplementation(async (id) =>
+      id === baseTask.id ? [WORK_CAT] : [],
+    );
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundImage: `linear-gradient(to bottom, ${thresholdTint(THRESHOLD_COLOR_DEFAULT)}, ${thresholdTint(CAT_COLOR)})`,
+      }),
+    );
+  });
+
+  it("tints the card of a reached category but not unrelated cards", async () => {
+    mockedListTaskCategories.mockImplementation(async (id) =>
+      id === baseTask.id ? [WORK_CAT] : [],
+    );
+    renderBoard();
+    const card = await screen.findByLabelText(TASK_CARD_LABEL(TASK_TITLE));
+    await waitFor(() =>
+      expect(card).toHaveStyle({
+        backgroundColor: thresholdTint(CAT_COLOR),
+      }),
+    );
+    const other = await screen.findByLabelText(TASK_CARD_LABEL(BACKLOG_TITLE));
+    expect(other).not.toHaveStyle({
+      backgroundColor: thresholdTint(CAT_COLOR),
+    });
+  });
+
+  it("honors a per-weekday override on the category threshold", async () => {
+    const wd = weekdayNameOf(days[0]);
+    // Minutes 120 would not reach (60 < 120) — the day's 60 override does.
+    mockedListTaskCategories.mockImplementation(async (id) =>
+      id === baseTask.id
+        ? [
+            categoryFixture({
+              id: 11,
+              threshold_minutes: 120,
+              threshold_color: CAT_COLOR,
+              threshold_day_minutes: { [wd]: 60 },
+            }),
+          ]
+        : [],
+    );
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundColor: thresholdTint(CAT_COLOR),
+      }),
+    );
+    // A different day column uses the fallback limit — no tint there.
+    expect(headers[2]).not.toHaveStyle({
+      backgroundColor: thresholdTint(CAT_COLOR),
+    });
+  });
+
+  it("gradients a column when two categories both reach", async () => {
+    const second = {
+      ...baseTask,
+      id: 3,
+      title: "Fold the laundry",
+    };
+    mockedListWeekTasks.mockResolvedValue([baseTask, second, weeklyTask]);
+    mockedListTaskCategories.mockImplementation(async (id) => {
+      if (id === baseTask.id) return [WORK_CAT];
+      if (id === second.id)
+        return [
+          categoryFixture({
+            id: 12,
+            threshold_minutes: 60,
+            threshold_color: OTHER_COLOR,
+          }),
+        ];
+      return [];
+    });
+    renderBoard();
+    const headers = await screen.findAllByRole("columnheader");
+    await waitFor(() =>
+      expect(headers[1]).toHaveStyle({
+        backgroundImage: `linear-gradient(to bottom, ${thresholdTint(CAT_COLOR)}, ${thresholdTint(OTHER_COLOR)})`,
       }),
     );
   });

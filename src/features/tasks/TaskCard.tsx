@@ -2,10 +2,15 @@ import { DEFAULT_CATEGORY_COLOR } from "@/api/categories";
 import type { Category } from "@/api/categories";
 import type { Task } from "@/api/bindings";
 import { TASK_CARD_LABEL, formatMinutes } from "@/lib/labels";
+import { thresholdTintStyle } from "@/lib/utils";
 
 type TaskCardProps = {
   task: Task;
   categories: Category[];
+  /// §285: reached category thresholds tint the card's background —
+  /// muted overlay, gradient when the task spans several reached
+  /// categories.
+  tintColors?: string[];
 };
 
 // Category colors paint the card's left accent — a solid stripe for one
@@ -24,11 +29,16 @@ const accentStyle = (colors: string[]) => {
 const categoryColor = (category: Category) =>
   category.color ?? DEFAULT_CATEGORY_COLOR;
 
-export function TaskCard({ task, categories }: Readonly<TaskCardProps>) {
+export function TaskCard({
+  task,
+  categories,
+  tintColors,
+}: Readonly<TaskCardProps>) {
   const colors = categories.map(categoryColor);
   return (
     <article
       aria-label={TASK_CARD_LABEL(task.title)}
+      style={thresholdTintStyle(tintColors ?? [])}
       className="flex overflow-hidden rounded-lg border border-border bg-surface"
     >
       {colors.length > 0 && (
