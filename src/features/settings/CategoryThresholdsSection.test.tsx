@@ -165,8 +165,8 @@ describe("CategoryThresholdsSection", () => {
   it("hydrates stored weekday overrides into the inputs", async () => {
     mockedList.mockResolvedValue([
       categoryFixture({
-        id: 1,
-        title: "Errands",
+        id: ERRANDS.id,
+        title: ERRANDS.title,
         threshold_minutes: 240,
         threshold_color: "#60a5fa",
         threshold_day_minutes: { [Weekday.Sunday]: 720, [Weekday.Monday]: 60 },
@@ -174,13 +174,13 @@ describe("CategoryThresholdsSection", () => {
     ]);
     renderSection();
     const sunday = await screen.findByLabelText(
-      categoryThresholdDayLabel("Errands", "Sunday"),
+      categoryThresholdDayLabel(ERRANDS.title, "Sunday"),
     );
     const monday = await screen.findByLabelText(
-      categoryThresholdDayLabel("Errands", "Monday"),
+      categoryThresholdDayLabel(ERRANDS.title, "Monday"),
     );
     const tuesday = await screen.findByLabelText(
-      categoryThresholdDayLabel("Errands", "Tuesday"),
+      categoryThresholdDayLabel(ERRANDS.title, "Tuesday"),
     );
     await waitFor(() => {
       expect(sunday).toHaveValue(720);
@@ -192,8 +192,8 @@ describe("CategoryThresholdsSection", () => {
   it("omits a cleared weekday from the payload", async () => {
     mockedList.mockResolvedValue([
       categoryFixture({
-        id: 1,
-        title: "Errands",
+        id: ERRANDS.id,
+        title: ERRANDS.title,
         threshold_minutes: 240,
         threshold_color: "#60a5fa",
         threshold_day_minutes: { [Weekday.Sunday]: 720, [Weekday.Monday]: 60 },
@@ -201,7 +201,7 @@ describe("CategoryThresholdsSection", () => {
     ]);
     renderSection();
     const sunday = await screen.findByLabelText(
-      categoryThresholdDayLabel("Errands", "Sunday"),
+      categoryThresholdDayLabel(ERRANDS.title, "Sunday"),
     );
     await waitFor(() => expect(sunday).toHaveValue(720));
     fireEvent.change(sunday, { target: { value: "" } });
@@ -238,6 +238,21 @@ describe("CategoryThresholdsSection", () => {
         day_minutes: { [Weekday.Friday]: 45 },
       },
     ]);
+  });
+
+  it("shows the color picker for a day-only threshold", async () => {
+    mockedList.mockResolvedValue([ERRANDS]);
+    renderSection();
+    const friday = await screen.findByLabelText(
+      categoryThresholdDayLabel(ERRANDS.title, "Friday"),
+    );
+    // No base minutes, but a day override is still a threshold —
+    // the color control must not vanish (spec §285/§297).
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    fireEvent.change(friday, { target: { value: "45" } });
+    await waitFor(() =>
+      expect(screen.getAllByRole("radio").length).toBeGreaterThan(0),
+    );
   });
 
   it("blocks an out-of-range weekday value and flags the input", async () => {

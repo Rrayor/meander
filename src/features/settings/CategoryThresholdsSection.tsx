@@ -85,10 +85,22 @@ export function CategoryThresholdsSection() {
 
   const save = useMutation({
     mutationFn: async (v: FormValues) => {
-      const dayMap = (days: Record<string, number | null>) =>
+      const dayMap = (days: Record<string, number | null | undefined>) =>
         Object.fromEntries(
           Object.entries(days).filter(([, m]) => m != null),
         ) as Partial<Record<Weekday, number>>;
+      // Key order differs between the stored map and the form's
+      // WEEKDAY_OPTIONS-ordered record — compare by content, not
+      // serialization, or untouched rows look dirty.
+      const sameDays = (
+        a: Record<string, number | null | undefined>,
+        b: Record<string, number | null | undefined>,
+      ) => {
+        const da = dayMap(a);
+        const db = dayMap(b);
+        const keys = new Set([...Object.keys(da), ...Object.keys(db)]);
+        return [...keys].every((k) => da[k as Weekday] === db[k as Weekday]);
+      };
       const updates = (categories ?? [])
         .filter((c) => {
           const row = v.rows[c.id];
@@ -96,8 +108,7 @@ export function CategoryThresholdsSection() {
           return (
             row.minutes !== c.threshold_minutes ||
             row.color !== (c.threshold_color ?? "") ||
-            JSON.stringify(dayMap(row.day_minutes)) !==
-              JSON.stringify(c.threshold_day_minutes ?? {})
+            !sameDays(row.day_minutes, c.threshold_day_minutes ?? {})
           );
         })
         .map((c): CategoryThresholdUpdate => ({
@@ -234,8 +245,12 @@ export function CategoryThresholdsSection() {
                 )}
               </fieldset>
               {/* A category without a threshold has no color to pick —
-                  an unset row must not read as a custom selection. */}
-              {rows?.[c.id]?.minutes != null && (
+                  an unset row must not read as a custom selection. A
+                  day-only threshold still counts as a threshold. */}
+              {(rows?.[c.id]?.minutes != null ||
+                Object.values(rows?.[c.id]?.day_minutes ?? {}).some(
+                  (m) => m != null,
+                )) && (
                 <ColorRadios
                   label={`${THRESHOLD_COLOR_LABEL}: ${c.title}`}
                   value={color}
