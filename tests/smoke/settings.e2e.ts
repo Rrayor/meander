@@ -276,6 +276,7 @@ describe("Settings smoke", () => {
       async () => !(await switcherText()).includes(activeName),
       { timeout: 10000 },
     );
+    await expect(await switcherText()).not.toBe(activeName);
 
     // 2) Deleting the LAST profile re-seeds a fresh default.
     await deleteProfile(await switcherText());
@@ -283,5 +284,6 @@ describe("Settings smoke", () => {
       async () => (await switcherText()).includes(DEFAULT_PROFILE_NAME),
       { timeout: 10000 },
     );
+    await expect(await switcherText()).toContain(DEFAULT_PROFILE_NAME);
   });
 });
