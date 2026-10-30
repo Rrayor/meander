@@ -33,6 +33,12 @@ const BACKEND_ERROR_MESSAGE = "name taken";
 const CREATE_PROFILE_BUTTON = "Create profile";
 const RENAME_BUTTON = "Rename";
 
+const SECOND_PROFILE: Profile = {
+  id: 2,
+  name: "Second",
+  created_at: "2026-01-01 10:00:00",
+  updated_at: "2026-01-02 10:00:00",
+};
 const profiles: Profile[] = [
   {
     id: 1,
@@ -144,12 +150,7 @@ describe("ProfilesSection", () => {
   });
 
   it("imports settings from another profile on selection", async () => {
-    const source: Profile = {
-      id: 2,
-      name: "Second",
-      created_at: "2026-01-01 10:00:00",
-      updated_at: "2026-01-02 10:00:00",
-    };
+    const source = SECOND_PROFILE;
     vi.mocked(listProfiles).mockResolvedValue([...profiles, source]);
     vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
     vi.mocked(importProfileSettings).mockResolvedValue(source);
@@ -178,12 +179,7 @@ describe("ProfilesSection", () => {
   });
 
   it("does not import when the edit is cancelled", async () => {
-    const source: Profile = {
-      id: 2,
-      name: "Second",
-      created_at: "2026-01-01 10:00:00",
-      updated_at: "2026-01-02 10:00:00",
-    };
+    const source = SECOND_PROFILE;
     vi.mocked(listProfiles).mockResolvedValue([...profiles, source]);
     vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
     renderSection();
