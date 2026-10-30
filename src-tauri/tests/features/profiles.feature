@@ -124,3 +124,18 @@ Feature: Profiles
     Given a second profile exists
     When the application switches to the second profile
     Then the active profile has no threshold for sunday
+
+  Scenario: importing settings copies them from another profile
+    Given an application state on a temporary seeded database
+    And a second profile exists
+    When I set the active profile's global threshold to 240 minutes
+    And I set the active profile's week start to Wednesday
+    And I import the active profile's settings into the second profile
+    And the application switches to the second profile
+    Then the active profile's global threshold is 240 minutes
+    And the active profile's week start is Wednesday
+
+  Scenario: importing a profile's own settings is rejected
+    Given an application state on a temporary seeded database
+    When I import the active profile's settings into the active profile
+    Then the profile import fails

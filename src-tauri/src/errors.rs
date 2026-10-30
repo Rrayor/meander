@@ -33,6 +33,8 @@ pub enum ErrorCode {
     NoteBodyRequired,
     NoteBodyTooLong,
     NoteNotFound,
+    ProfileNotFound,
+    ProfileImportSelf,
     ProfileNameRequired,
     ProfileNameTooLong,
     ProfileNameInvalidCharacters,

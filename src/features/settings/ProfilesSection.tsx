@@ -6,6 +6,7 @@ import {
   createProfile,
   currentProfile,
   listProfiles,
+  importProfileSettings,
   renameProfile,
 } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
@@ -13,10 +14,11 @@ import {
   CANCEL_BUTTON_LABEL,
   CREATE_PROFILE_LABEL,
   CURRENT_PROFILE_LABEL,
+  IMPORT_SETTINGS_LABEL,
   PROFILES_HEADING,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
-  RENAME_BUTTON_LABEL,
+  EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   renameProfileLabel,
 } from "@/lib/labels";
@@ -27,6 +29,7 @@ export function ProfilesSection() {
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<number>();
   const [draft, setDraft] = useState("");
+  const [importSourceId, setImportSourceId] = useState<number>();
   const [validationError, setValidationError] = useState<string>();
 
   const { data: profiles } = useQuery({
@@ -42,6 +45,14 @@ export function ProfilesSection() {
     onSuccess: () => {
       setName("");
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
+    },
+  });
+  const importSettings = useMutation({
+    mutationFn: ({ id, sourceId }: { id: number; sourceId: number }) =>
+      importProfileSettings(id, sourceId),
+    onSuccess: () => {
+      // Imported settings touch every profile-scoped query.
+      void queryClient.invalidateQueries();
     },
   });
   const rename = useMutation({
@@ -68,8 +79,14 @@ export function ProfilesSection() {
 
   const startRename = (profile: { id: number; name: string }) => {
     setValidationError(undefined);
+    setImportSourceId(undefined);
     setEditingId(profile.id);
     setDraft(profile.name);
+  };
+
+  const cancelRename = () => {
+    setImportSourceId(undefined);
+    setEditingId(undefined);
   };
 
   const submitRename = (id: number) => {
@@ -79,12 +96,19 @@ export function ProfilesSection() {
       return;
     }
     rename.mutate({ id, name: draft });
+    // §404: the import applies on Save like the rename — selecting a
+    // source only stages it, so Cancel still discards the choice.
+    if (importSourceId != null) {
+      importSettings.mutate({ id, sourceId: importSourceId });
+      setImportSourceId(undefined);
+    }
   };
 
   const error =
     validationError ??
     (create.error && errorMessage(create.error)) ??
-    (rename.error && errorMessage(rename.error));
+    (rename.error && errorMessage(rename.error)) ??
+    (importSettings.error && errorMessage(importSettings.error));
 
   return (
     <section aria-labelledby="profiles-heading" className="flex flex-col gap-3">
@@ -112,7 +136,7 @@ export function ProfilesSection() {
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") submitRename(profile.id);
-                      if (e.key === "Escape") setEditingId(undefined);
+                      if (e.key === "Escape") cancelRename();
                     }}
                     aria-label={renameProfileLabel(profile.name)}
                     // Focus moves into the input when the row enters edit
@@ -129,9 +153,30 @@ export function ProfilesSection() {
                   >
                     {SAVE_BUTTON_LABEL}
                   </button>
+                  <select
+                    aria-label={IMPORT_SETTINGS_LABEL}
+                    disabled={importSettings.isPending}
+                    defaultValue=""
+                    onChange={(e) => {
+                      const sourceId = Number(e.target.value);
+                      if (sourceId) setImportSourceId(sourceId);
+                    }}
+                    className="w-36 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>
+                      {IMPORT_SETTINGS_LABEL}
+                    </option>
+                    {(profiles ?? [])
+                      .filter((p) => p.id !== profile.id)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </select>
                   <button
                     type="button"
-                    onClick={() => setEditingId(undefined)}
+                    onClick={cancelRename}
                     className="shrink-0 px-2 py-1 text-xs text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {CANCEL_BUTTON_LABEL}
@@ -161,7 +206,7 @@ export function ProfilesSection() {
                   onClick={() => startRename(profile)}
                   className="text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {RENAME_BUTTON_LABEL}
+                  {EDIT_BUTTON_LABEL}
                 </button>
               )}
             </div>

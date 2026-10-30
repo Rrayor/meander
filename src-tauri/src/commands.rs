@@ -396,6 +396,17 @@ pub async fn rename_profile(
 }
 
 #[tauri::command]
+pub async fn import_profile_settings(
+    id: i64,
+    source_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Profile, ApiError> {
+    profiles::import_settings(&state.pool(), id, source_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn switch_profile<R: Runtime>(
     id: i64,
     state: State<'_, AppState>,

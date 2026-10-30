@@ -336,6 +336,28 @@ fn switch_to_unknown(world: &mut MeanderWorld) {
     }
 }
 
+#[when("I import the active profile's settings into the second profile")]
+fn import_into_second(world: &mut MeanderWorld) {
+    let (pool, active) = active_profile_pool(world);
+    let dst = world.profile_id.expect("no second profile");
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::profiles::import_settings(&pool, dst, active))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I import the active profile's settings into the active profile")]
+fn import_into_self(world: &mut MeanderWorld) {
+    let (pool, active) = active_profile_pool(world);
+    if let Err(e) = world.rt().block_on(meander_lib::profiles::import_settings(
+        &pool, active, active,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
 #[then("the active profile is the second profile")]
 fn active_is_second(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
@@ -3412,6 +3434,11 @@ fn category_threshold_color_is_palette(world: &mut MeanderWorld, title: String) 
         meander_lib::categories::CATEGORY_PALETTE.contains(&c.as_deref().unwrap()),
         "expected a palette color, got {c:?}"
     );
+}
+
+#[then("the profile import fails")]
+fn profile_import_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "import unexpectedly succeeded");
 }
 
 #[then(expr = "the category threshold save fails")]
