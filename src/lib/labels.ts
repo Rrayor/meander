@@ -68,10 +68,9 @@ export const PROFILES_HEADING = "Profiles";
 export const PROFILE_NAME_LABEL = "Profile name";
 export const CREATE_PROFILE_LABEL = "Create profile";
 export const CURRENT_PROFILE_LABEL = "Current";
-export const RENAME_BUTTON_LABEL = "Rename";
+export const EDIT_BUTTON_LABEL = "Edit";
 export const SAVE_BUTTON_LABEL = "Save";
 export const CANCEL_BUTTON_LABEL = "Cancel";
-export const EDIT_BUTTON_LABEL = "Edit";
 // Placeholder shown where a task detail has no value.
 export const EMPTY_VALUE_LABEL = "—";
 

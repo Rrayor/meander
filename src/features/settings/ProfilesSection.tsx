@@ -18,7 +18,7 @@ import {
   PROFILES_HEADING,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
-  RENAME_BUTTON_LABEL,
+  EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   renameProfileLabel,
 } from "@/lib/labels";
@@ -206,7 +206,7 @@ export function ProfilesSection() {
                   onClick={() => startRename(profile)}
                   className="text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {RENAME_BUTTON_LABEL}
+                  {EDIT_BUTTON_LABEL}
                 </button>
               )}
             </div>

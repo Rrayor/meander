@@ -11,6 +11,7 @@ import {
 import type { Profile } from "@/api/profiles";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
 import {
+  EDIT_BUTTON_LABEL,
   IMPORT_SETTINGS_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
   renameProfileLabel,
@@ -31,7 +32,6 @@ const NEW_PROFILE_NAME = "  Work  ";
 const RENAMED_PROFILE_NAME = "Personal";
 const BACKEND_ERROR_MESSAGE = "name taken";
 const CREATE_PROFILE_BUTTON = "Create profile";
-const RENAME_BUTTON = "Rename";
 
 const SECOND_PROFILE: Profile = {
   id: 2,
@@ -94,7 +94,9 @@ describe("ProfilesSection", () => {
 
   it("renames a profile through the inline editor", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: RENAME_BUTTON }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     const editor = screen.getByLabelText(
       renameProfileLabel(DEFAULT_PROFILE_NAME),
     );
@@ -110,7 +112,9 @@ describe("ProfilesSection", () => {
 
   it("cancelling a rename restores the name", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: RENAME_BUTTON }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     const editor = screen.getByLabelText(
       renameProfileLabel(DEFAULT_PROFILE_NAME),
     );
@@ -124,7 +128,9 @@ describe("ProfilesSection", () => {
 
   it("rejects an empty rename", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: RENAME_BUTTON }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: EDIT_BUTTON_LABEL }),
+    );
     const editor = screen.getByLabelText(
       renameProfileLabel(DEFAULT_PROFILE_NAME),
     );
@@ -156,7 +162,7 @@ describe("ProfilesSection", () => {
     vi.mocked(importProfileSettings).mockResolvedValue(source);
     renderSection();
     fireEvent.click(
-      (await screen.findAllByRole("button", { name: RENAME_BUTTON }))[0],
+      (await screen.findAllByRole("button", { name: EDIT_BUTTON_LABEL }))[0],
     );
     const select = await screen.findByRole("combobox", {
       name: IMPORT_SETTINGS_LABEL,
@@ -184,7 +190,7 @@ describe("ProfilesSection", () => {
     vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
     renderSection();
     fireEvent.click(
-      (await screen.findAllByRole("button", { name: RENAME_BUTTON }))[0],
+      (await screen.findAllByRole("button", { name: EDIT_BUTTON_LABEL }))[0],
     );
     const select = await screen.findByRole("combobox", {
       name: IMPORT_SETTINGS_LABEL,

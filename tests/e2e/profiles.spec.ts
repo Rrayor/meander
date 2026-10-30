@@ -6,7 +6,7 @@ import {
   PROFILES_HEADING,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
-  RENAME_BUTTON_LABEL,
+  EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   THRESHOLD_CLEAR_LABEL,
   THRESHOLD_COLOR_DEFAULT,
@@ -131,7 +131,7 @@ test("renaming a profile updates the list and the footer", async ({ page }) => {
   await section
     .getByRole("listitem")
     .filter({ hasText: DEFAULT_PROFILE_NAME })
-    .getByRole("button", { name: RENAME_BUTTON_LABEL })
+    .getByRole("button", { name: EDIT_BUTTON_LABEL })
     .click();
   await page
     .getByLabel(renameProfileLabel(DEFAULT_PROFILE_NAME))
@@ -158,7 +158,7 @@ test("cancelling a rename leaves the name unchanged", async ({ page }) => {
   await section
     .getByRole("listitem")
     .filter({ hasText: DEFAULT_PROFILE_NAME })
-    .getByRole("button", { name: RENAME_BUTTON_LABEL })
+    .getByRole("button", { name: EDIT_BUTTON_LABEL })
     .click();
   await page
     .getByLabel(renameProfileLabel(DEFAULT_PROFILE_NAME))
@@ -701,7 +701,7 @@ test("profile edit offers a settings import that hits the wire", async ({
   });
   await page.goto(`/#${settingsPath}`);
 
-  await page.getByRole("button", { name: RENAME_BUTTON_LABEL }).first().click();
+  await page.getByRole("button", { name: EDIT_BUTTON_LABEL }).first().click();
   await page
     .getByRole("combobox", { name: IMPORT_SETTINGS_LABEL })
     .selectOption(String(profiles[1].id));
