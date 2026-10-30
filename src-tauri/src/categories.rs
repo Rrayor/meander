@@ -444,12 +444,14 @@ mod tests {
     use super::*;
 
     fn temp_db_path() -> std::path::PathBuf {
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         std::env::temp_dir().join(format!(
-            "meander-categories-test-{}-{nanos}.db",
+            "meander-categories-test-{}-{nanos}-{seq}.db",
             std::process::id()
         ))
     }

@@ -118,6 +118,40 @@ pub async fn import_settings(pool: &SqlitePool, id: i64, source_id: i64) -> Resu
     get(pool, id).await
 }
 
+/// §406/§414: deletes a profile and every row scoped to it. The join and
+/// detail tables (`task_categories`, `series_categories`, `task_notes`,
+/// `skipped_instances`) cascade from these deletes; the settings columns
+/// live on the profile row itself.
+pub async fn remove(pool: &SqlitePool, id: i64) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    // tasks first: they reference task_series.
+    sqlx::query("DELETE FROM tasks WHERE profile_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM task_series WHERE profile_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM categories WHERE profile_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    let changed = sqlx::query("DELETE FROM profiles WHERE id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    if changed == 0 {
+        return Err(crate::db::DbError::Validation {
+            code: crate::errors::ErrorCode::ProfileNotFound,
+            message: "profile not found".into(),
+        });
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
 pub async fn get(pool: &SqlitePool, id: i64) -> Result<Profile> {
     Ok(sqlx::query_as::<_, Profile>(
         "SELECT id, name, created_at, updated_at FROM profiles WHERE id = ?",
@@ -661,6 +695,169 @@ mod tests {
             "ワーク 日本語"
         );
         assert_eq!(profile_name("a?b!c#").unwrap().into_inner(), "a?b!c#");
+    }
+
+    #[tokio::test]
+    async fn remove_deletes_the_profile_and_all_scoped_data() {
+        let (pool, pid) = seeded_pool().await;
+        let doomed = create(&pool, "Doomed").await.unwrap();
+        crate::tasks::create(
+            &pool,
+            doomed.id,
+            &crate::tasks::NewTask {
+                title: "task".into(),
+                description: None,
+                estimated_minutes: None,
+                carry_over_rule: None,
+                series: None,
+            },
+        )
+        .await
+        .unwrap();
+        crate::categories::create(
+            &pool,
+            doomed.id,
+            &crate::categories::NewCategory {
+                title: "cat".into(),
+                description: None,
+                color: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        remove(&pool, doomed.id).await.unwrap();
+
+        assert!(get(&pool, doomed.id).await.is_err());
+        let counts: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM tasks WHERE profile_id = ?),                      (SELECT COUNT(*) FROM categories WHERE profile_id = ?),                      (SELECT COUNT(*) FROM task_series WHERE profile_id = ?)",
+        )
+        .bind(doomed.id)
+        .bind(doomed.id)
+        .bind(doomed.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(counts, (0, 0, 0));
+        // The surviving profile is untouched.
+        assert_eq!(list(&pool).await.unwrap()[0].id, pid);
+    }
+
+    #[tokio::test]
+    async fn remove_rejects_an_unknown_profile() {
+        let (pool, _pid) = seeded_pool().await;
+        let err = remove(&pool, 999).await.unwrap_err();
+        assert!(
+            matches!(err, crate::db::DbError::Validation { code, .. }
+                if code == crate::errors::ErrorCode::ProfileNotFound),
+            "expected ProfileNotFound, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_leaves_other_profiles_data_alone() {
+        let (pool, pid) = seeded_pool().await;
+        crate::tasks::create(
+            &pool,
+            pid,
+            &crate::tasks::NewTask {
+                title: "keep".into(),
+                description: None,
+                estimated_minutes: None,
+                carry_over_rule: None,
+                series: None,
+            },
+        )
+        .await
+        .unwrap();
+        let doomed = create(&pool, "Doomed").await.unwrap();
+        remove(&pool, doomed.id).await.unwrap();
+        assert_eq!(crate::tasks::list(&pool, pid).await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn remove_cascades_every_join_and_detail_table() {
+        let (pool, _pid) = seeded_pool().await;
+        let doomed = create(&pool, "Doomed").await.unwrap();
+        let category = crate::categories::create(
+            &pool,
+            doomed.id,
+            &crate::categories::NewCategory {
+                title: "cat".into(),
+                description: None,
+                color: None,
+            },
+        )
+        .await
+        .unwrap();
+        let task = crate::tasks::create(
+            &pool,
+            doomed.id,
+            &crate::tasks::NewTask {
+                title: "task".into(),
+                description: None,
+                estimated_minutes: None,
+                carry_over_rule: None,
+                series: None,
+            },
+        )
+        .await
+        .unwrap();
+        // A series row plus every dependent: the category joins on both
+        // sides, notes on both parents, and a tombstone.
+        let series_id: i64 = sqlx::query_scalar(
+            "INSERT INTO task_series (profile_id, title, recurrence, start_date)              VALUES (?, 'daily', '{\"kind\":\"daily\"}', '2026-01-01') RETURNING id",
+        )
+        .bind(doomed.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        for stmt in [
+            "INSERT INTO task_categories (task_id, category_id) VALUES (?, ?)",
+            "INSERT INTO series_categories (series_id, category_id) VALUES (?, ?)",
+        ] {
+            sqlx::query(stmt)
+                .bind(if stmt.contains("task_id") {
+                    task.id
+                } else {
+                    series_id
+                })
+                .bind(category.id)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO task_notes (task_id, body) VALUES (?, 'note')")
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO task_notes (series_id, body) VALUES (?, 'note')")
+            .bind(series_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO skipped_instances (series_id, scheduled_date) VALUES (?, '2026-01-05')",
+        )
+        .bind(series_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        remove(&pool, doomed.id).await.unwrap();
+
+        let orphans: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM task_categories WHERE task_id = ? OR category_id = ?),                      (SELECT COUNT(*) FROM series_categories WHERE series_id = ? OR category_id = ?),                      (SELECT COUNT(*) FROM task_notes WHERE task_id = ? OR series_id = ?),                      (SELECT COUNT(*) FROM skipped_instances WHERE series_id = ?)",
+        )
+        .bind(task.id).bind(category.id)
+        .bind(series_id).bind(category.id)
+        .bind(task.id).bind(series_id)
+        .bind(series_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(orphans, (0, 0, 0, 0), "profile-scoped rows survived");
     }
 
     #[test]

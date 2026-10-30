@@ -26,6 +26,8 @@ export const importProfileSettings = (id: number, sourceId: number) =>
     sourceId,
   });
 
+export const deleteProfile = (id: number) =>
+  transport.invoke<void>(COMMANDS.deleteProfile, { id });
 export const switchProfile = (id: number) =>
   transport.invoke<void>(COMMANDS.switchProfile, { id });
 

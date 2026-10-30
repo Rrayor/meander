@@ -1,8 +1,15 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import {
   createProfile,
+  deleteProfile,
   currentProfile,
   listProfiles,
   renameProfile,
@@ -11,7 +18,11 @@ import {
 import type { Profile } from "@/api/profiles";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
 import {
+  DELETE_BUTTON_LABEL,
+  DELETE_CONFIRM_INPUT_LABEL,
   EDIT_BUTTON_LABEL,
+  deleteProfileLabel,
+  deleteProfileSentence,
   IMPORT_SETTINGS_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
   renameProfileLabel,
@@ -25,6 +36,7 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   createProfile: vi.fn(),
   renameProfile: vi.fn(),
   importProfileSettings: vi.fn(),
+  deleteProfile: vi.fn(),
 }));
 
 const DEFAULT_PROFILE_NAME = "Default";
@@ -200,5 +212,156 @@ describe("ProfilesSection", () => {
     await waitFor(() =>
       expect(vi.mocked(importProfileSettings)).not.toHaveBeenCalled(),
     );
+  });
+
+  describe("profile deletion", () => {
+    it("requires typing the exact confirmation sentence", async () => {
+      vi.mocked(listProfiles).mockResolvedValue(profiles);
+      vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+      renderSection();
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: deleteProfileLabel(profiles[0].name),
+        }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      expect(
+        await within(dialog).findByText(
+          deleteProfileSentence(profiles[0].name),
+        ),
+      ).toBeInTheDocument();
+      const deleteButton = within(dialog).getByRole("button", {
+        name: DELETE_BUTTON_LABEL,
+      });
+      expect(deleteButton).toBeDisabled();
+      // A near-miss is not enough — the match must be exact.
+      fireEvent.change(
+        within(dialog).getByRole("textbox", {
+          name: DELETE_CONFIRM_INPUT_LABEL,
+        }),
+        { target: { value: ` ${deleteProfileSentence(profiles[0].name)} ` } },
+      );
+      expect(deleteButton).toBeDisabled();
+      fireEvent.change(
+        within(dialog).getByRole("textbox", {
+          name: DELETE_CONFIRM_INPUT_LABEL,
+        }),
+        {
+          target: {
+            value: deleteProfileSentence(profiles[0].name).toLowerCase(),
+          },
+        },
+      );
+      expect(deleteButton).toBeDisabled();
+      fireEvent.change(
+        within(dialog).getByRole("textbox", {
+          name: DELETE_CONFIRM_INPUT_LABEL,
+        }),
+        { target: { value: deleteProfileSentence(profiles[0].name) } },
+      );
+      expect(deleteButton).toBeEnabled();
+      fireEvent.click(deleteButton);
+      await waitFor(() =>
+        expect(deleteProfile).toHaveBeenCalledWith(profiles[0].id),
+      );
+    });
+
+    it("does not delete when the dialog is cancelled", async () => {
+      vi.mocked(listProfiles).mockResolvedValue(profiles);
+      vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+      renderSection();
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: deleteProfileLabel(profiles[0].name),
+        }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(vi.mocked(deleteProfile)).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("closes on Escape or backdrop without deleting", async () => {
+      vi.mocked(listProfiles).mockResolvedValue(profiles);
+      vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+      renderSection();
+      const open = async () =>
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: deleteProfileLabel(profiles[0].name),
+          }),
+        );
+
+      await open();
+      fireEvent.keyDown(document, { key: "Escape" });
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+
+      await open();
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog.parentElement!).getByRole("button", {
+          name: "Close dialog",
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(vi.mocked(deleteProfile)).not.toHaveBeenCalled();
+    });
+
+    it("closes the dialog after a successful delete", async () => {
+      vi.mocked(listProfiles).mockResolvedValue(profiles);
+      vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+      vi.mocked(deleteProfile).mockResolvedValue(undefined);
+      renderSection();
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: deleteProfileLabel(profiles[0].name),
+        }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(
+        within(dialog).getByRole("textbox", {
+          name: DELETE_CONFIRM_INPUT_LABEL,
+        }),
+        { target: { value: deleteProfileSentence(profiles[0].name) } },
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: DELETE_BUTTON_LABEL }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("surfaces a failed deletion", async () => {
+      const failure = "db gone";
+      vi.mocked(listProfiles).mockResolvedValue(profiles);
+      vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+      vi.mocked(deleteProfile).mockRejectedValue(new Error(failure));
+      renderSection();
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: deleteProfileLabel(profiles[0].name),
+        }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(
+        within(dialog).getByRole("textbox", {
+          name: DELETE_CONFIRM_INPUT_LABEL,
+        }),
+        { target: { value: deleteProfileSentence(profiles[0].name) } },
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: DELETE_BUTTON_LABEL }),
+      );
+      await waitFor(() =>
+        expect(within(dialog).getByRole("alert")).toHaveTextContent(failure),
+      );
+    });
   });
 });

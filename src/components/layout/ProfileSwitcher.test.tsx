@@ -5,6 +5,7 @@ import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
+import { DEFAULT_PROFILE_NAME } from "@/lib/constants";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/profiles", async (importOriginal) => ({
@@ -14,7 +15,6 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   switchProfile: vi.fn(),
 }));
 
-const DEFAULT_PROFILE_NAME = "Default";
 const WORK_PROFILE_NAME = "Work";
 
 const profiles: Profile[] = [

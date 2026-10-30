@@ -73,6 +73,25 @@ impl AppState {
         Ok(())
     }
 
+    /// §406/§414: removes a profile and all of its data, keeping the
+    /// "there is always an active profile" invariant — deleting the active
+    /// profile falls back to another, and deleting the last one re-seeds a
+    /// fresh default. Returns the new active profile id.
+    pub async fn remove_profile(&self, id: i64) -> Result<i64> {
+        profiles::remove(&self.pool(), id).await?;
+        if self.active_profile_id() != id {
+            return Ok(self.active_profile_id());
+        }
+        db::seed(&self.pool()).await?;
+        let next = profiles::list(&self.pool())
+            .await?
+            .first()
+            .map(|p| p.id)
+            .unwrap_or_default();
+        self.set_active_profile(next);
+        Ok(next)
+    }
+
     pub fn set_active_profile(&self, id: i64) {
         *self
             .active_profile_id
@@ -269,5 +288,53 @@ mod tests {
 
         assert!(state.switch_profile(9999).await.is_err());
         assert_eq!(state.active_profile_id(), before);
+    }
+
+    #[tokio::test]
+    async fn remove_profile_falls_back_to_another_when_active() {
+        let dir = temp_dir();
+        let state = AppState::new(&dir.join("app.db")).await.unwrap();
+        let pool = state.pool();
+        db::seed(&pool).await.unwrap();
+        let other = profiles::create(&pool, "Other").await.unwrap();
+        state.switch_profile(other.id).await.unwrap();
+
+        let next = state.remove_profile(other.id).await.unwrap();
+
+        let remaining = profiles::list(&pool).await.unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(next, remaining[0].id);
+        assert_eq!(state.active_profile_id(), remaining[0].id);
+    }
+
+    #[tokio::test]
+    async fn remove_profile_reseeds_a_default_when_the_last_is_deleted() {
+        let dir = temp_dir();
+        let state = AppState::new(&dir.join("app.db")).await.unwrap();
+        db::seed(&state.pool()).await.unwrap();
+        let only = profiles::list(&state.pool()).await.unwrap()[0].id;
+        state.set_active_profile(only);
+
+        let next = state.remove_profile(only).await.unwrap();
+
+        let remaining = profiles::list(&state.pool()).await.unwrap();
+        assert_eq!(remaining.len(), 1, "seed must re-create a profile");
+        assert_eq!(state.active_profile_id(), next);
+    }
+
+    #[tokio::test]
+    async fn remove_profile_keeps_the_active_when_deleting_another() {
+        let dir = temp_dir();
+        let state = AppState::new(&dir.join("app.db")).await.unwrap();
+        let pool = state.pool();
+        db::seed(&pool).await.unwrap();
+        let keep = profiles::list(&pool).await.unwrap()[0].id;
+        state.set_active_profile(keep);
+        let other = profiles::create(&pool, "Other").await.unwrap();
+
+        let next = state.remove_profile(other.id).await.unwrap();
+
+        assert_eq!(next, keep);
+        assert_eq!(state.active_profile_id(), keep);
     }
 }

@@ -1,5 +1,11 @@
+import { DEFAULT_PROFILE_NAME } from "@/lib/constants";
 import {
   ADD_CATEGORY_LABEL,
+  CREATE_PROFILE_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_CONFIRM_INPUT_LABEL,
+  deleteProfileLabel,
+  deleteProfileSentence,
   CATEGORIES_HEADING,
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
@@ -180,5 +186,104 @@ describe("Settings smoke", () => {
         `button=${SAVE_BUTTON_LABEL}`,
       )
     ).click();
+  });
+  it("deletes a profile after typing the confirmation sentence", async () => {
+    const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
+    const nav = await $(`aria/${NAV_LABEL}`);
+    await nav.$(`=${settingsRoute.label}`).click();
+
+    const section = await $(`section[aria-labelledby='profiles-heading']`);
+    await expect(section).toExist();
+
+    // Unique per attempt — the sandbox DB persists across wdio retries,
+    // and a failed attempt would leave a duplicate-name row behind.
+    const name = `SmokeDelete-${Date.now()}`;
+    await section.$("input#profile-name").setValue(name);
+    await section.$(`button=${CREATE_PROFILE_LABEL}`).click();
+    const deleteButton = await section.$(
+      `button[aria-label='${deleteProfileLabel(name)}']`,
+    );
+    await browser.waitUntil(() => deleteButton.isExisting());
+    await deleteButton.click();
+
+    const dialog = await $("dialog");
+    await expect(dialog).toExist();
+    const confirm = await dialog.$("aria/" + DELETE_CONFIRM_INPUT_LABEL);
+    const destroy = await dialog.$(`button=${DELETE_BUTTON_LABEL}`);
+    await expect(await destroy.getAttribute("disabled")).not.toBeNull();
+    await confirm.setValue(deleteProfileSentence(name));
+    await destroy.click();
+
+    await browser.waitUntil(
+      async () =>
+        !(await section
+          .$(`button[aria-label='${deleteProfileLabel(name)}']`)
+          .isExisting()),
+    );
+  });
+  it("deleting the active profile falls back and re-seeds", async () => {
+    const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
+    const nav = await $(`aria/${NAV_LABEL}`);
+    await nav.$(`=${settingsRoute.label}`).click();
+
+    // A second profile gives the fallback somewhere to land — deleting
+    // the active profile must switch to it without any switcher UI.
+    // The test deletes *whatever is currently active* rather than the
+    // seeded name specifically, so a retried attempt still works after
+    // a previous try already deleted the seeded profile.
+    const name = `SmokeActive-${Date.now()}`;
+    const section = await $(`section[aria-labelledby='profiles-heading']`);
+    await section.$("input#profile-name").setValue(name);
+    await section.$(`button=${CREATE_PROFILE_LABEL}`).click();
+    await browser.waitUntil(() =>
+      section
+        .$(`button[aria-label='${deleteProfileLabel(name)}']`)
+        .isExisting(),
+    );
+
+    // getText() reads rendered text and comes back empty under
+    // WebKitWebDriver here; textContent is the reliable signal.
+    const switcherText = async () =>
+      (
+        (await $("aside button[aria-haspopup='menu']").getProperty(
+          "textContent",
+        )) as string
+      ).trim();
+    await browser.waitUntil(
+      async () => {
+        const t = await switcherText();
+        return t.length > 0 && t !== "…";
+      },
+      { timeout: 10000 },
+    );
+    const deleteByAria = (n: string) =>
+      section.$(`button[aria-label='${deleteProfileLabel(n)}']`);
+    const deleteProfile = async (n: string) => {
+      await (await deleteByAria(n)).click();
+      const dialog = await $("dialog");
+      await browser.waitUntil(() => dialog.isDisplayed());
+      await (
+        await dialog.$(`aria/${DELETE_CONFIRM_INPUT_LABEL}`)
+      ).setValue(deleteProfileSentence(n));
+      await (await dialog.$(`button=${DELETE_BUTTON_LABEL}`)).click();
+      await browser.waitUntil(async () => !(await $("dialog").isExisting()));
+    };
+
+    // 1) Deleting the ACTIVE profile falls back to a remaining one.
+    const activeName = await switcherText();
+    await deleteProfile(activeName);
+    await browser.waitUntil(
+      async () => !(await switcherText()).includes(activeName),
+      { timeout: 10000 },
+    );
+    await expect(await switcherText()).not.toBe(activeName);
+
+    // 2) Deleting the LAST profile re-seeds a fresh default.
+    await deleteProfile(await switcherText());
+    await browser.waitUntil(
+      async () => (await switcherText()).includes(DEFAULT_PROFILE_NAME),
+      { timeout: 10000 },
+    );
+    await expect(await switcherText()).toContain(DEFAULT_PROFILE_NAME);
   });
 });

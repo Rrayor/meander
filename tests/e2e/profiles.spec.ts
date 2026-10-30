@@ -3,6 +3,10 @@ import { Weekday } from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
   CREATE_PROFILE_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_CONFIRM_INPUT_LABEL,
+  deleteProfileLabel,
+  deleteProfileSentence,
   PROFILES_HEADING,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
@@ -22,6 +26,7 @@ import {
   renameProfileLabel,
   thresholdColorLabel,
 } from "@/lib/labels";
+import { DEFAULT_PROFILE_NAME } from "@/lib/constants";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
@@ -33,7 +38,6 @@ import {
   stubTauriCommands,
 } from "./stubs";
 
-const DEFAULT_PROFILE_NAME = "Default";
 const WORK_PROFILE_NAME = "Work";
 const RENAMED_PROFILE_NAME = "Personal";
 const NEW_PROFILE_NAME = "Fieldwork";
@@ -140,7 +144,7 @@ test("renaming a profile updates the list and the footer", async ({ page }) => {
 
   await expect(section.getByText(RENAMED_PROFILE_NAME)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: RENAMED_PROFILE_NAME }),
+    page.getByRole("button", { name: RENAMED_PROFILE_NAME, exact: true }),
   ).toBeVisible();
 });
 
@@ -710,4 +714,81 @@ test("profile edit offers a settings import that hits the wire", async ({
   const calls = await getInvocations<{ id: number; sourceId: number }>(page);
   const call = calls.find((c) => c.cmd === COMMANDS.importProfileSettings);
   expect(call?.args).toEqual({ id: profiles[0].id, sourceId: profiles[1].id });
+});
+
+test("profile deletion requires the typed sentence and hits the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: stubSequence([
+      profiles,
+      [profiles[1], ...profiles.slice(2)],
+    ]),
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [],
+    [COMMANDS.deleteProfile]: undefined,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page
+    .getByRole("button", { name: deleteProfileLabel(profiles[0].name) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  const deleteButton = dialog.getByRole("button", {
+    name: DELETE_BUTTON_LABEL,
+  });
+  await expect(deleteButton).toBeDisabled();
+
+  // A near-miss does not enable the button — the match must be exact.
+  await dialog
+    .getByRole("textbox", { name: DELETE_CONFIRM_INPUT_LABEL })
+    .fill(` ${deleteProfileSentence(profiles[0].name)} `);
+  await expect(deleteButton).toBeDisabled();
+  await dialog
+    .getByRole("textbox", { name: DELETE_CONFIRM_INPUT_LABEL })
+    .fill(deleteProfileSentence(profiles[0].name));
+  await expect(deleteButton).toBeEnabled();
+  await deleteButton.click();
+
+  const calls = await getInvocations<{ id: number }>(page);
+  const call = calls.find((c) => c.cmd === COMMANDS.deleteProfile);
+  expect(call?.args).toEqual({ id: profiles[0].id });
+
+  // The refetched list drops the deleted profile's row.
+  await expect(
+    page
+      .locator("section[aria-labelledby='profiles-heading']")
+      .getByRole("button", { name: profiles[0].name, exact: true }),
+  ).toBeHidden();
+});
+
+test("cancelling the delete dialog sends nothing to the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [],
+    [COMMANDS.deleteProfile]: undefined,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page
+    .getByRole("button", { name: deleteProfileLabel(profiles[0].name) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("textbox", { name: DELETE_CONFIRM_INPUT_LABEL })
+    .fill(deleteProfileSentence(profiles[0].name));
+  await dialog.getByRole("button", { name: CANCEL_BUTTON_LABEL }).click();
+  await expect(dialog).toBeHidden();
+
+  const calls = await getInvocations<{ id: number }>(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.deleteProfile)).toBeUndefined();
 });
