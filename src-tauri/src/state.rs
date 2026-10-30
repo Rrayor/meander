@@ -289,4 +289,52 @@ mod tests {
         assert!(state.switch_profile(9999).await.is_err());
         assert_eq!(state.active_profile_id(), before);
     }
+
+    #[tokio::test]
+    async fn remove_profile_falls_back_to_another_when_active() {
+        let dir = temp_dir();
+        let state = AppState::new(&dir.join("app.db")).await.unwrap();
+        let pool = state.pool();
+        db::seed(&pool).await.unwrap();
+        let other = profiles::create(&pool, "Other").await.unwrap();
+        state.switch_profile(other.id).await.unwrap();
+
+        let next = state.remove_profile(other.id).await.unwrap();
+
+        let remaining = profiles::list(&pool).await.unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(next, remaining[0].id);
+        assert_eq!(state.active_profile_id(), remaining[0].id);
+    }
+
+    #[tokio::test]
+    async fn remove_profile_reseeds_a_default_when_the_last_is_deleted() {
+        let dir = temp_dir();
+        let state = AppState::new(&dir.join("app.db")).await.unwrap();
+        db::seed(&state.pool()).await.unwrap();
+        let only = profiles::list(&state.pool()).await.unwrap()[0].id;
+        state.set_active_profile(only);
+
+        let next = state.remove_profile(only).await.unwrap();
+
+        let remaining = profiles::list(&state.pool()).await.unwrap();
+        assert_eq!(remaining.len(), 1, "seed must re-create a profile");
+        assert_eq!(state.active_profile_id(), next);
+    }
+
+    #[tokio::test]
+    async fn remove_profile_keeps_the_active_when_deleting_another() {
+        let dir = temp_dir();
+        let state = AppState::new(&dir.join("app.db")).await.unwrap();
+        let pool = state.pool();
+        db::seed(&pool).await.unwrap();
+        let keep = profiles::list(&pool).await.unwrap()[0].id;
+        state.set_active_profile(keep);
+        let other = profiles::create(&pool, "Other").await.unwrap();
+
+        let next = state.remove_profile(other.id).await.unwrap();
+
+        assert_eq!(next, keep);
+        assert_eq!(state.active_profile_id(), keep);
+    }
 }

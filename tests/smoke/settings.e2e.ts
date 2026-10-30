@@ -213,4 +213,41 @@ describe("Settings smoke", () => {
         !(await section.$(`aria/${deleteProfileLabel(name)}`).isExisting()),
     );
   });
+  it("deleting the active profile falls back to a remaining one", async () => {
+    const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
+    const nav = await $(`aria/${NAV_LABEL}`);
+    await nav.$(`=${settingsRoute.label}`).click();
+
+    const name = "SmokeActive";
+    const section = await $(`section[aria-labelledby='profiles-heading']`);
+    await section.$("input#profile-name").setValue(name);
+    await section.$(`button=Create profile`).click();
+    await browser.waitUntil(() =>
+      section.$(`aria/${deleteProfileLabel(name)}`).isExisting(),
+    );
+
+    // Switch the active profile to the new one via the nav switcher.
+    const switcher = await $("aside button[aria-haspopup='menu']");
+    await switcher.click();
+    const menu = await $("aside ul[role='menu']");
+    await (await menu.$(`button=${name}`)).click();
+    await browser.waitUntil(async () =>
+      (await switcher.getText()).includes(name),
+    );
+
+    // Delete it — the backend must fall back to the remaining profile.
+    await (await section.$(`aria/${deleteProfileLabel(name)}`)).click();
+    const dialog = await $("aria/Delete profile");
+    await (
+      await dialog.$("aria/" + DELETE_CONFIRM_INPUT_LABEL)
+    ).setValue(deleteProfileSentence(name));
+    await (await dialog.$(`button=${DELETE_BUTTON_LABEL}`)).click();
+
+    await browser.waitUntil(async () =>
+      (await switcher.getText()).includes("Default"),
+    );
+    await expect(
+      await section.$(`aria/${deleteProfileLabel(name)}`).isExisting(),
+    ).toBe(false);
+  });
 });

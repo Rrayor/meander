@@ -756,4 +756,39 @@ test("profile deletion requires the typed sentence and hits the wire", async ({
   const calls = await getInvocations<{ id: number }>(page);
   const call = calls.find((c) => c.cmd === COMMANDS.deleteProfile);
   expect(call?.args).toEqual({ id: profiles[0].id });
+
+  // The refetched list drops the deleted profile's row.
+  await expect(
+    page
+      .locator("section[aria-labelledby='profiles-heading']")
+      .getByRole("button", { name: profiles[0].name, exact: true }),
+  ).toBeHidden();
+});
+
+test("cancelling the delete dialog sends nothing to the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listProfiles]: profiles,
+    [COMMANDS.currentProfile]: profiles[0],
+    [COMMANDS.currentDbPath]: STUB_DB_PATH,
+    [COMMANDS.weekStart]: Weekday.Monday,
+    [COMMANDS.workDays]: [],
+    [COMMANDS.listCategories]: [],
+    [COMMANDS.deleteProfile]: undefined,
+  });
+  await page.goto(`/#${settingsPath}`);
+
+  await page
+    .getByRole("button", { name: deleteProfileLabel(profiles[0].name) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("textbox", { name: DELETE_CONFIRM_INPUT_LABEL })
+    .fill(deleteProfileSentence(profiles[0].name));
+  await dialog.getByRole("button", { name: CANCEL_BUTTON_LABEL }).click();
+  await expect(dialog).toBeHidden();
+
+  const calls = await getInvocations<{ id: number }>(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.deleteProfile)).toBeUndefined();
 });

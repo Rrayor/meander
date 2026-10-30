@@ -402,17 +402,27 @@ fn profile_deletion_fails(world: &mut MeanderWorld) {
 
 #[then("the second profile has no tasks or categories")]
 fn second_profile_data_gone(world: &mut MeanderWorld) {
-    let rt = world
-        .runtime
-        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
     let pool = world.state.as_ref().expect("no app state in world").pool();
     let id = world.profile_id.expect("no second profile");
-    let tasks = rt
-        .block_on(meander_lib::tasks::list(&pool, id))
-        .expect("task list failed");
+    let (tasks, series): (_, (i64,)) = {
+        let rt = world
+            .runtime
+            .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+        (
+            rt.block_on(meander_lib::tasks::list(&pool, id))
+                .expect("task list failed"),
+            rt.block_on(
+                sqlx::query_as("SELECT COUNT(*) FROM task_series WHERE profile_id = ?")
+                    .bind(id)
+                    .fetch_one(&pool),
+            )
+            .expect("series count failed"),
+        )
+    };
     let categories = category_titles(world, id);
     assert!(tasks.is_empty(), "tasks survived deletion: {tasks:?}");
     assert!(categories.is_empty(), "categories survived: {categories:?}");
+    assert_eq!(series.0, 0, "series survived deletion");
 }
 
 #[then("the profile list has one profile")]
@@ -603,6 +613,24 @@ fn task_on_the_second_profile(world: &mut MeanderWorld) {
                 .execute(&pool),
         )
         .expect("insert task failed");
+}
+
+#[given(expr = "a repeating task titled {string} exists on the second profile")]
+fn repeating_task_on_the_second_profile(world: &mut MeanderWorld, title: String) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let id = world.profile_id.expect("no second profile");
+    world
+        .rt()
+        .block_on(meander_lib::tasks::create(
+            &pool,
+            id,
+            &meander_lib::tasks::NewTask {
+                title,
+                series: Some(weekly_monday()),
+                ..Default::default()
+            },
+        ))
+        .expect("repeating task failed");
 }
 
 fn category_titles(world: &mut MeanderWorld, profile_id: i64) -> Vec<String> {

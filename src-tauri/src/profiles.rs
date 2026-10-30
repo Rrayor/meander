@@ -775,6 +775,91 @@ mod tests {
         assert_eq!(crate::tasks::list(&pool, pid).await.unwrap().len(), 1);
     }
 
+    #[tokio::test]
+    async fn remove_cascades_every_join_and_detail_table() {
+        let (pool, _pid) = seeded_pool().await;
+        let doomed = create(&pool, "Doomed").await.unwrap();
+        let category = crate::categories::create(
+            &pool,
+            doomed.id,
+            &crate::categories::NewCategory {
+                title: "cat".into(),
+                description: None,
+                color: None,
+            },
+        )
+        .await
+        .unwrap();
+        let task = crate::tasks::create(
+            &pool,
+            doomed.id,
+            &crate::tasks::NewTask {
+                title: "task".into(),
+                description: None,
+                estimated_minutes: None,
+                carry_over_rule: None,
+                series: None,
+            },
+        )
+        .await
+        .unwrap();
+        // A series row plus every dependent: the category joins on both
+        // sides, notes on both parents, and a tombstone.
+        let series_id: i64 = sqlx::query_scalar(
+            "INSERT INTO task_series (profile_id, title, recurrence, start_date)              VALUES (?, 'daily', '{\"kind\":\"daily\"}', '2026-01-01') RETURNING id",
+        )
+        .bind(doomed.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        for stmt in [
+            "INSERT INTO task_categories (task_id, category_id) VALUES (?, ?)",
+            "INSERT INTO series_categories (series_id, category_id) VALUES (?, ?)",
+        ] {
+            sqlx::query(stmt)
+                .bind(if stmt.contains("task_id") {
+                    task.id
+                } else {
+                    series_id
+                })
+                .bind(category.id)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO task_notes (task_id, body) VALUES (?, 'note')")
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO task_notes (series_id, body) VALUES (?, 'note')")
+            .bind(series_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO skipped_instances (series_id, scheduled_date) VALUES (?, '2026-01-05')",
+        )
+        .bind(series_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        remove(&pool, doomed.id).await.unwrap();
+
+        let orphans: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM task_categories WHERE task_id = ? OR category_id = ?),                      (SELECT COUNT(*) FROM series_categories WHERE series_id = ? OR category_id = ?),                      (SELECT COUNT(*) FROM task_notes WHERE task_id = ? OR series_id = ?),                      (SELECT COUNT(*) FROM skipped_instances WHERE series_id = ?)",
+        )
+        .bind(task.id).bind(category.id)
+        .bind(series_id).bind(category.id)
+        .bind(task.id).bind(series_id)
+        .bind(series_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(orphans, (0, 0, 0, 0), "profile-scoped rows survived");
+    }
+
     #[test]
     fn trims_before_validating() {
         assert!(profile_name("   \n  ").is_err());
