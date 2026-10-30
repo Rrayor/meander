@@ -29,6 +29,7 @@ export function ProfilesSection() {
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<number>();
   const [draft, setDraft] = useState("");
+  const [importSourceId, setImportSourceId] = useState<number>();
   const [validationError, setValidationError] = useState<string>();
 
   const { data: profiles } = useQuery({
@@ -78,8 +79,14 @@ export function ProfilesSection() {
 
   const startRename = (profile: { id: number; name: string }) => {
     setValidationError(undefined);
+    setImportSourceId(undefined);
     setEditingId(profile.id);
     setDraft(profile.name);
+  };
+
+  const cancelRename = () => {
+    setImportSourceId(undefined);
+    setEditingId(undefined);
   };
 
   const submitRename = (id: number) => {
@@ -89,12 +96,19 @@ export function ProfilesSection() {
       return;
     }
     rename.mutate({ id, name: draft });
+    // §404: the import applies on Save like the rename — selecting a
+    // source only stages it, so Cancel still discards the choice.
+    if (importSourceId != null) {
+      importSettings.mutate({ id, sourceId: importSourceId });
+      setImportSourceId(undefined);
+    }
   };
 
   const error =
     validationError ??
     (create.error && errorMessage(create.error)) ??
-    (rename.error && errorMessage(rename.error));
+    (rename.error && errorMessage(rename.error)) ??
+    (importSettings.error && errorMessage(importSettings.error));
 
   return (
     <section aria-labelledby="profiles-heading" className="flex flex-col gap-3">
@@ -122,7 +136,7 @@ export function ProfilesSection() {
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") submitRename(profile.id);
-                      if (e.key === "Escape") setEditingId(undefined);
+                      if (e.key === "Escape") cancelRename();
                     }}
                     aria-label={renameProfileLabel(profile.name)}
                     // Focus moves into the input when the row enters edit
@@ -145,8 +159,7 @@ export function ProfilesSection() {
                     defaultValue=""
                     onChange={(e) => {
                       const sourceId = Number(e.target.value);
-                      if (sourceId)
-                        importSettings.mutate({ id: profile.id, sourceId });
+                      if (sourceId) setImportSourceId(sourceId);
                     }}
                     className="w-36 rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   >
@@ -163,7 +176,7 @@ export function ProfilesSection() {
                   </select>
                   <button
                     type="button"
-                    onClick={() => setEditingId(undefined)}
+                    onClick={cancelRename}
                     className="shrink-0 px-2 py-1 text-xs text-text-muted transition-colors duration-150 ease-out hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {CANCEL_BUTTON_LABEL}

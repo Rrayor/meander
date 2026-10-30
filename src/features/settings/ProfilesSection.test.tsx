@@ -161,6 +161,9 @@ describe("ProfilesSection", () => {
       name: IMPORT_SETTINGS_LABEL,
     });
     fireEvent.change(select, { target: { value: String(source.id) } });
+    // Staged only — the import must not fire until Save.
+    expect(vi.mocked(importProfileSettings)).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(
         vi.mocked(importProfileSettings).mock.calls[0].slice(0, 2),
@@ -172,5 +175,28 @@ describe("ProfilesSection", () => {
     );
     expect(options).toContain(source.name);
     expect(options.filter((t) => t === profiles[0].name)).toHaveLength(0);
+  });
+
+  it("does not import when the edit is cancelled", async () => {
+    const source: Profile = {
+      id: 2,
+      name: "Second",
+      created_at: "2026-01-01 10:00:00",
+      updated_at: "2026-01-02 10:00:00",
+    };
+    vi.mocked(listProfiles).mockResolvedValue([...profiles, source]);
+    vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
+    renderSection();
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: RENAME_BUTTON }))[0],
+    );
+    const select = await screen.findByRole("combobox", {
+      name: IMPORT_SETTINGS_LABEL,
+    });
+    fireEvent.change(select, { target: { value: String(source.id) } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(vi.mocked(importProfileSettings)).not.toHaveBeenCalled(),
+    );
   });
 });

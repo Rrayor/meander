@@ -705,6 +705,7 @@ test("profile edit offers a settings import that hits the wire", async ({
   await page
     .getByRole("combobox", { name: IMPORT_SETTINGS_LABEL })
     .selectOption(String(profiles[1].id));
+  await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).first().click();
 
   const calls = await getInvocations<{ id: number; sourceId: number }>(page);
   const call = calls.find((c) => c.cmd === COMMANDS.importProfileSettings);
