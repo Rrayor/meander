@@ -423,6 +423,22 @@ pub async fn switch_profile<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn delete_profile<R: Runtime>(
+    id: i64,
+    state: State<'_, AppState>,
+    app: AppHandle<R>,
+) -> Result<(), ApiError> {
+    let next = state.remove_profile(id).await?;
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut config = config::load(&dir);
+    config.last_profile_id = Some(next);
+    config::save(&dir, &config).map_err(|e| ApiError::internal(e.to_string()))
+}
+
+#[tauri::command]
 pub async fn current_profile(state: State<'_, AppState>) -> Result<Profile, ApiError> {
     profiles::get(&state.pool(), state.active_profile_id())
         .await

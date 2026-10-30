@@ -70,6 +70,13 @@ export const CREATE_PROFILE_LABEL = "Create profile";
 export const CURRENT_PROFILE_LABEL = "Current";
 export const EDIT_BUTTON_LABEL = "Edit";
 export const SAVE_BUTTON_LABEL = "Save";
+export const DELETE_PROFILE_HEADING = "Delete profile";
+export const DELETE_PROFILE_WARNING =
+  "This permanently deletes the profile along with all of its tasks and settings.";
+export const DELETE_CONFIRM_INPUT_LABEL = "Type the sentence above to confirm";
+export const deleteProfileLabel = (name: string) => `Delete ${name}`;
+export const deleteProfileSentence = (name: string) =>
+  `DELETE ${name} AND ALL ACCOMPANYING DATA`;
 export const CANCEL_BUTTON_LABEL = "Cancel";
 // Placeholder shown where a task detail has no value.
 export const EMPTY_VALUE_LABEL = "—";

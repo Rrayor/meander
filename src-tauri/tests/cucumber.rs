@@ -358,6 +358,87 @@ fn import_into_self(world: &mut MeanderWorld) {
     }
 }
 
+#[when("I delete the second profile")]
+fn delete_second_profile(world: &mut MeanderWorld) {
+    let id = world.profile_id.expect("no second profile");
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    let result = rt.block_on(state.remove_profile(id));
+    if let Err(e) = result {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I delete the active profile")]
+fn delete_active_profile(world: &mut MeanderWorld) {
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    let result = rt.block_on(state.remove_profile(state.active_profile_id()));
+    if let Err(e) = result {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when("I delete a profile that does not exist")]
+fn delete_unknown_profile(world: &mut MeanderWorld) {
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    let result = rt.block_on(state.remove_profile(999_999));
+    if let Err(e) = result {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then("the profile deletion fails")]
+fn profile_deletion_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "deletion unexpectedly succeeded");
+}
+
+#[then("the second profile has no tasks or categories")]
+fn second_profile_data_gone(world: &mut MeanderWorld) {
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let id = world.profile_id.expect("no second profile");
+    let tasks = rt
+        .block_on(meander_lib::tasks::list(&pool, id))
+        .expect("task list failed");
+    let categories = category_titles(world, id);
+    assert!(tasks.is_empty(), "tasks survived deletion: {tasks:?}");
+    assert!(categories.is_empty(), "categories survived: {categories:?}");
+}
+
+#[then("the profile list has one profile")]
+fn profile_list_has_one(world: &mut MeanderWorld) {
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    let profiles = rt
+        .block_on(meander_lib::profiles::list(&state.pool()))
+        .expect("profile list failed");
+    assert_eq!(profiles.len(), 1, "expected one profile, got {profiles:?}");
+}
+
+#[then("the active profile is the default profile")]
+fn active_is_default(world: &mut MeanderWorld) {
+    let rt = world
+        .runtime
+        .get_or_insert_with(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
+    let state = world.state.as_ref().expect("no app state in world");
+    let profiles = rt
+        .block_on(meander_lib::profiles::list(&state.pool()))
+        .expect("profile list failed");
+    assert_eq!(state.active_profile_id(), profiles[0].id);
+}
+
 #[then("the active profile is the second profile")]
 fn active_is_second(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
@@ -502,6 +583,26 @@ fn category_on_second_profile(world: &mut MeanderWorld, title: String) {
         .expect("create profile failed");
     world.profile_id = Some(other.id);
     insert_category(world, &title, other.id);
+}
+
+#[given(expr = "a category named {word} exists on the second profile")]
+fn category_on_the_second_profile(world: &mut MeanderWorld, title: String) {
+    let id = world.profile_id.expect("no second profile");
+    insert_category(world, &title, id);
+}
+
+#[given("a task exists on the second profile")]
+fn task_on_the_second_profile(world: &mut MeanderWorld) {
+    let pool = world.state.as_ref().expect("no app state in world").pool();
+    let id = world.profile_id.expect("no second profile");
+    world
+        .rt()
+        .block_on(
+            sqlx::query("INSERT INTO tasks (profile_id, title) VALUES (?, 'Other task')")
+                .bind(id)
+                .execute(&pool),
+        )
+        .expect("insert task failed");
 }
 
 fn category_titles(world: &mut MeanderWorld, profile_id: i64) -> Vec<String> {

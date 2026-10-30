@@ -1,5 +1,9 @@
 import {
   ADD_CATEGORY_LABEL,
+  DELETE_BUTTON_LABEL,
+  DELETE_CONFIRM_INPUT_LABEL,
+  deleteProfileLabel,
+  deleteProfileSentence,
   CATEGORIES_HEADING,
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
@@ -180,5 +184,33 @@ describe("Settings smoke", () => {
         `button=${SAVE_BUTTON_LABEL}`,
       )
     ).click();
+  });
+  it("deletes a profile after typing the confirmation sentence", async () => {
+    const settingsRoute = ROUTES.find(({ label }) => label === "Settings")!;
+    const nav = await $(`aria/${NAV_LABEL}`);
+    await nav.$(`=${settingsRoute.label}`).click();
+
+    const section = await $(`section[aria-labelledby='profiles-heading']`);
+    await expect(section).toExist();
+
+    const name = "SmokeDelete";
+    await section.$("input#profile-name").setValue(name);
+    await section.$(`button=Create profile`).click();
+    const deleteButton = await section.$(`aria/${deleteProfileLabel(name)}`);
+    await browser.waitUntil(() => deleteButton.isExisting());
+    await deleteButton.click();
+
+    const dialog = await $("aria/Delete profile");
+    await expect(dialog).toExist();
+    const confirm = await dialog.$("aria/" + DELETE_CONFIRM_INPUT_LABEL);
+    const destroy = await dialog.$(`button=${DELETE_BUTTON_LABEL}`);
+    await expect(await destroy.getAttribute("disabled")).not.toBeNull();
+    await confirm.setValue(deleteProfileSentence(name));
+    await destroy.click();
+
+    await browser.waitUntil(
+      async () =>
+        !(await section.$(`aria/${deleteProfileLabel(name)}`).isExisting()),
+    );
   });
 });

@@ -139,3 +139,24 @@ Feature: Profiles
     Given an application state on a temporary seeded database
     When I import the active profile's settings into the active profile
     Then the profile import fails
+
+  Scenario: deleting a profile removes it and all accompanying data
+    Given an application state on a temporary seeded database
+    And a second profile exists
+    And a task exists on the second profile
+    And a category named Doomed exists on the second profile
+    When I delete the second profile
+    Then the profile list has one profile
+    And the second profile has no tasks or categories
+
+  Scenario: deleting the active profile falls back to a remaining profile
+    Given an application state on a temporary seeded database
+    And a second profile exists
+    When the application switches to the second profile
+    And I delete the active profile
+    Then the active profile is the default profile
+
+  Scenario: deleting a profile that does not exist fails
+    Given an application state on a temporary seeded database
+    When I delete a profile that does not exist
+    Then the profile deletion fails

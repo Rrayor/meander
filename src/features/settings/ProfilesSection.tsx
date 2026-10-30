@@ -9,7 +9,9 @@ import {
   importProfileSettings,
   renameProfile,
 } from "@/api/profiles";
+import type { Profile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
+import { DeleteProfileDialog } from "@/features/settings/DeleteProfileDialog";
 import {
   CANCEL_BUTTON_LABEL,
   CREATE_PROFILE_LABEL,
@@ -18,7 +20,9 @@ import {
   PROFILES_HEADING,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
+  DELETE_BUTTON_LABEL,
   EDIT_BUTTON_LABEL,
+  deleteProfileLabel,
   SAVE_BUTTON_LABEL,
   renameProfileLabel,
 } from "@/lib/labels";
@@ -30,6 +34,7 @@ export function ProfilesSection() {
   const [editingId, setEditingId] = useState<number>();
   const [draft, setDraft] = useState("");
   const [importSourceId, setImportSourceId] = useState<number>();
+  const [deleting, setDeleting] = useState<Profile | undefined>();
   const [validationError, setValidationError] = useState<string>();
 
   const { data: profiles } = useQuery({
@@ -209,6 +214,14 @@ export function ProfilesSection() {
                   {EDIT_BUTTON_LABEL}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setDeleting(profile)}
+                aria-label={deleteProfileLabel(profile.name)}
+                className="text-xs font-medium text-text-muted transition-colors duration-150 ease-out hover:text-danger focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {DELETE_BUTTON_LABEL}
+              </button>
             </div>
           </li>
         ))}
@@ -234,6 +247,12 @@ export function ProfilesSection() {
           {CREATE_PROFILE_LABEL}
         </button>
       </form>
+      {deleting && (
+        <DeleteProfileDialog
+          profile={deleting}
+          onClose={() => setDeleting(undefined)}
+        />
+      )}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}

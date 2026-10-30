@@ -73,6 +73,25 @@ impl AppState {
         Ok(())
     }
 
+    /// §406/§414: removes a profile and all of its data, keeping the
+    /// "there is always an active profile" invariant — deleting the active
+    /// profile falls back to another, and deleting the last one re-seeds a
+    /// fresh default. Returns the new active profile id.
+    pub async fn remove_profile(&self, id: i64) -> Result<i64> {
+        profiles::remove(&self.pool(), id).await?;
+        if self.active_profile_id() != id {
+            return Ok(self.active_profile_id());
+        }
+        db::seed(&self.pool()).await?;
+        let next = profiles::list(&self.pool())
+            .await?
+            .first()
+            .map(|p| p.id)
+            .unwrap_or_default();
+        self.set_active_profile(next);
+        Ok(next)
+    }
+
     pub fn set_active_profile(&self, id: i64) {
         *self
             .active_profile_id
