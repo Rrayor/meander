@@ -26,6 +26,7 @@ import {
   renameProfileLabel,
   thresholdColorLabel,
 } from "@/lib/labels";
+import { DEFAULT_PROFILE_NAME } from "@/lib/constants";
 import { ROUTES } from "@/lib/routes";
 
 import { expect, test } from "./fixtures";
@@ -37,7 +38,6 @@ import {
   stubTauriCommands,
 } from "./stubs";
 
-const DEFAULT_PROFILE_NAME = "Default";
 const WORK_PROFILE_NAME = "Work";
 const RENAMED_PROFILE_NAME = "Personal";
 const NEW_PROFILE_NAME = "Fieldwork";

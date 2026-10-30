@@ -429,13 +429,16 @@ pub async fn delete_profile<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<(), ApiError> {
     let next = state.remove_profile(id).await?;
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    let mut config = config::load(&dir);
-    config.last_profile_id = Some(next);
-    config::save(&dir, &config).map_err(|e| ApiError::internal(e.to_string()))
+    // The delete already committed — persisting the new active id is
+    // best-effort: a stale `last_profile_id` self-heals on next launch
+    // (`from_config` falls back when the stored profile is gone), so a
+    // config failure must not report a successful delete as failed.
+    if let Ok(dir) = app.path().app_config_dir() {
+        let mut config = config::load(&dir);
+        config.last_profile_id = Some(next);
+        let _ = config::save(&dir, &config);
+    }
+    Ok(())
 }
 
 #[tauri::command]

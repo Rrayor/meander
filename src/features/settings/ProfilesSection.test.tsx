@@ -339,9 +339,10 @@ describe("ProfilesSection", () => {
     });
 
     it("surfaces a failed deletion", async () => {
+      const failure = "db gone";
       vi.mocked(listProfiles).mockResolvedValue(profiles);
       vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
-      vi.mocked(deleteProfile).mockRejectedValue(new Error("db gone"));
+      vi.mocked(deleteProfile).mockRejectedValue(new Error(failure));
       renderSection();
       fireEvent.click(
         await screen.findByRole("button", {
@@ -359,7 +360,7 @@ describe("ProfilesSection", () => {
         within(dialog).getByRole("button", { name: DELETE_BUTTON_LABEL }),
       );
       await waitFor(() =>
-        expect(within(dialog).getByRole("alert")).toHaveTextContent("db gone"),
+        expect(within(dialog).getByRole("alert")).toHaveTextContent(failure),
       );
     });
   });

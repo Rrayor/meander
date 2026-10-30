@@ -1,5 +1,8 @@
+import { DEFAULT_PROFILE_NAME } from "@/lib/constants";
 import {
   ADD_CATEGORY_LABEL,
+  CREATE_PROFILE_LABEL,
+  DELETE_PROFILE_HEADING,
   DELETE_BUTTON_LABEL,
   DELETE_CONFIRM_INPUT_LABEL,
   deleteProfileLabel,
@@ -195,12 +198,12 @@ describe("Settings smoke", () => {
 
     const name = "SmokeDelete";
     await section.$("input#profile-name").setValue(name);
-    await section.$(`button=Create profile`).click();
+    await section.$(`button=${CREATE_PROFILE_LABEL}`).click();
     const deleteButton = await section.$(`aria/${deleteProfileLabel(name)}`);
     await browser.waitUntil(() => deleteButton.isExisting());
     await deleteButton.click();
 
-    const dialog = await $("aria/Delete profile");
+    const dialog = await $(`aria/${DELETE_PROFILE_HEADING}`);
     await expect(dialog).toExist();
     const confirm = await dialog.$("aria/" + DELETE_CONFIRM_INPUT_LABEL);
     const destroy = await dialog.$(`button=${DELETE_BUTTON_LABEL}`);
@@ -221,7 +224,7 @@ describe("Settings smoke", () => {
     const name = "SmokeActive";
     const section = await $(`section[aria-labelledby='profiles-heading']`);
     await section.$("input#profile-name").setValue(name);
-    await section.$(`button=Create profile`).click();
+    await section.$(`button=${CREATE_PROFILE_LABEL}`).click();
     await browser.waitUntil(() =>
       section.$(`aria/${deleteProfileLabel(name)}`).isExisting(),
     );
@@ -237,14 +240,14 @@ describe("Settings smoke", () => {
 
     // Delete it — the backend must fall back to the remaining profile.
     await (await section.$(`aria/${deleteProfileLabel(name)}`)).click();
-    const dialog = await $("aria/Delete profile");
+    const dialog = await $(`aria/${DELETE_PROFILE_HEADING}`);
     await (
       await dialog.$("aria/" + DELETE_CONFIRM_INPUT_LABEL)
     ).setValue(deleteProfileSentence(name));
     await (await dialog.$(`button=${DELETE_BUTTON_LABEL}`)).click();
 
     await browser.waitUntil(async () =>
-      (await switcher.getText()).includes("Default"),
+      (await switcher.getText()).includes(DEFAULT_PROFILE_NAME),
     );
     await expect(
       await section.$(`aria/${deleteProfileLabel(name)}`).isExisting(),
