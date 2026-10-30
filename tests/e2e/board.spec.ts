@@ -7,6 +7,7 @@ import {
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
+  CREATE_TASK_LABEL,
   EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
   STATUS_LABELS,
@@ -558,4 +559,50 @@ test("a weekday override tints its own day only", async ({ page }) => {
       name: new RegExp(shortWeekdayLabel(days[1])),
     }),
   ).not.toHaveCSS("background-color", /rgba\(248, 113, 113/);
+});
+
+test("the board's create-task button opens the dialog and hits the wire", async ({
+  page,
+}) => {
+  const created = {
+    id: 99,
+    profile_id: 1,
+    title: "Board errand",
+    description: null,
+    status: TaskStatus.Todo,
+    carry_over_rule: null,
+    estimated_minutes: null,
+    spent_minutes: null,
+    placement: TaskPlacement.Backlog,
+    scheduled_date: null,
+    series_id: null,
+    sort_order: 1,
+    created_at: "2026-10-30 12:00:00",
+    updated_at: "2026-10-30 12:00:00",
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listCategories]: [],
+    [COMMANDS.createTask]: created,
+  });
+  await page.goto("/");
+
+  await page.getByRole("button", { name: CREATE_TASK_LABEL }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel(/^Title/).fill("Board errand");
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+
+  const calls = await getInvocations(page);
+  const call = calls.find((c) => c.cmd === COMMANDS.createTask);
+  expect(call?.args).toMatchObject({ input: { title: "Board errand" } });
+  await expect(dialog).not.toBeVisible();
 });

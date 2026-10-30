@@ -9,7 +9,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { listTaskCategories } from "@/api/categories";
-import { TASK_CARD_LABEL } from "@/lib/labels";
+import { CREATE_TASK_LABEL, TASK_CARD_LABEL } from "@/lib/labels";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
@@ -64,6 +64,15 @@ vi.mock("@/api/categories", async (importOriginal) => ({
 // the board's own responsibilities.
 vi.mock("@/features/tasks/EditTaskDialog", () => ({
   EditTaskDialog: ({ onClose }: { onClose: () => void }) => (
+    <div role="dialog">
+      <button type="button" onClick={onClose}>
+        Close
+      </button>
+    </div>
+  ),
+}));
+vi.mock("@/features/tasks/NewTaskDialog", () => ({
+  NewTaskDialog: ({ onClose }: { onClose: () => void }) => (
     <div role="dialog">
       <button type="button" onClick={onClose}>
         Close
@@ -798,5 +807,17 @@ describe("BoardPage", () => {
     await screen.findByRole("columnheader", {
       name: new RegExp(WEEKLY_BACKLOG_LABEL),
     });
+  });
+
+  it("opens the create-task dialog from the header and closes it", async () => {
+    renderBoard();
+    fireEvent.click(
+      await screen.findByRole("button", { name: CREATE_TASK_LABEL }),
+    );
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 });
