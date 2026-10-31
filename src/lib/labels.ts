@@ -4,6 +4,7 @@ import {
   CarryOverRule,
   RepeatNth,
   RepeatUnit,
+  TaskSort,
   TaskStatus,
   Weekday,
 } from "@/lib/enums";
@@ -336,3 +337,9 @@ export const shortWeekdayLabel = (iso: string) =>
 export const SEARCH_TASKS_LABEL = "Search tasks";
 export const SORT_TASKS_LABEL = "Sort by";
 export const FILTER_CATEGORY_LABEL = "Filter by category";
+export const TASK_SORT_LABELS: Record<TaskSort, string> = {
+  [TaskSort.Manual]: "Manual order",
+  [TaskSort.Title]: "Title",
+  [TaskSort.Created]: "Created",
+  [TaskSort.Updated]: "Recently updated",
+};

@@ -1710,5 +1710,5 @@ test("search narrows the rows and the sort pick reorders — no wire calls", asy
   expect(rows[0]).toContain("Alpha");
 
   // View-time transforms fire no backend traffic.
-  expect((await getInvocations(page)).length).toBe(before);
+  expect(await getInvocations(page)).toHaveLength(before);
 });

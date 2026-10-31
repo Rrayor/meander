@@ -175,10 +175,14 @@ export function BacklogPage() {
   );
   // View-time transforms only (spec §360/§364) — search narrows and
   // the pick reorders the slice; manual order stays the stored truth.
-  const tasks = sortTasks(
-    (scoped ?? []).filter((t) => matchesSearch(t, query)),
-    sort,
-  );
+  // `tasks` stays undefined until the list resolves — an empty
+  // array here would flash the empty state during loading.
+  const tasks =
+    scoped &&
+    sortTasks(
+      scoped.filter((t) => matchesSearch(t, query)),
+      sort,
+    );
   const move = useMutation({
     mutationFn: ({
       taskId,

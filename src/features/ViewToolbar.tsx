@@ -1,5 +1,9 @@
-import { TaskSort, TASK_SORTS, TASK_SORT_LABELS } from "@/lib/enums";
-import { SEARCH_TASKS_LABEL, SORT_TASKS_LABEL } from "@/lib/labels";
+import { TaskSort, TASK_SORTS } from "@/lib/enums";
+import {
+  SEARCH_TASKS_LABEL,
+  SORT_TASKS_LABEL,
+  TASK_SORT_LABELS,
+} from "@/lib/labels";
 
 /// The shared view-controls row (spec §360): search by title and
 /// description, sort by a spec property, filter by categories. All

@@ -282,15 +282,18 @@ export function BoardPage() {
   const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
   // Search narrows and the pick reorders within the grid's bounds —
   // columns, rows and placement are never touched (spec §360/§366).
+  const columnMembers = (column: string | null) =>
+    (tasks ?? []).filter((t) =>
+      column === null
+        ? t.placement === TaskPlacement.WeeklyBacklog
+        : t.scheduled_date === column,
+    );
+  // Thresholds and day totals always use the full membership — a
+  // search must not hide workload that is still scheduled. Only the
+  // rendered cards are narrowed and reordered (spec §360/§366).
   const columnTasks = (column: string | null) =>
     sortTasks(
-      (tasks ?? []).filter(
-        (t) =>
-          matchesSearch(t, query) &&
-          (column === null
-            ? t.placement === TaskPlacement.WeeklyBacklog
-            : t.scheduled_date === column),
-      ),
+      columnMembers(column).filter((t) => matchesSearch(t, query)),
       sort,
     );
 
@@ -372,7 +375,7 @@ export function BoardPage() {
 
   const { tintColors: columnTintColors, reachedCats } = columnThresholds(
     columns,
-    columnTasks,
+    columnMembers,
     threshold,
     taskCategories,
   );
@@ -488,7 +491,7 @@ export function BoardPage() {
                   rowheader + 8 data cells of the body rows. */}
                 <td className="w-12" />
                 {columns.map((column) => {
-                  const day = totals(columnTasks(column));
+                  const day = totals(columnMembers(column));
                   return (
                     <th
                       key={column ?? "weekly-backlog"}

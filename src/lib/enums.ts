@@ -104,10 +104,3 @@ export const TASK_SORTS = [
   TaskSort.Created,
   TaskSort.Updated,
 ] as const;
-
-export const TASK_SORT_LABELS: Record<TaskSort, string> = {
-  [TaskSort.Manual]: "Manual order",
-  [TaskSort.Title]: "Title",
-  [TaskSort.Created]: "Created",
-  [TaskSort.Updated]: "Recently updated",
-};
