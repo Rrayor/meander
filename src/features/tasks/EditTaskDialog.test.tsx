@@ -1944,4 +1944,22 @@ describe("EditTaskDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: MOVE_TO_DATE_LABEL }));
     expect(await screen.findByRole("alert")).toHaveTextContent("db exploded");
   });
+
+  it("prefills the date input for an already-scheduled task", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            placement: TaskPlacement.Scheduled,
+            scheduled_date: "2027-03-15",
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByLabelText(DATE_FIELD_LABEL)).toHaveValue(
+      "2027-03-15",
+    );
+  });
 });

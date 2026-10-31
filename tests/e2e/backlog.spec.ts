@@ -1578,3 +1578,26 @@ test("scheduling a backlog task sends the date on the wire", async ({
     date: "2027-03-15",
   });
 });
+
+test("a rejected schedule surfaces the error and keeps the row", async ({
+  page,
+}) => {
+  const message = "schedule write failed";
+  const errand = tasks[0];
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [errand],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.scheduleTask]: stubApiError("internal", "internal", message),
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: editTaskLabel(errand.title) }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Date").fill("2027-03-15");
+  await dialog.getByRole("button", { name: MOVE_TO_DATE_LABEL }).click();
+
+  await expect(dialog.getByRole("alert")).toHaveText(message);
+  await expect(dialog).toBeVisible();
+});

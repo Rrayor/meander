@@ -2588,6 +2588,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn schedule_moves_a_weekly_backlog_task_to_a_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        add_to_week(&pool, pid, task.id).await.unwrap();
+
+        let moved = schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
+    }
+
+    #[tokio::test]
+    async fn schedule_rejects_a_series_member() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = schedule(&pool, pid, task.id, "2027-03-15")
+            .await
+            .unwrap_err();
+        assert!(format!("{error:?}").contains("TaskNotFound"));
+        assert_eq!(
+            get(&pool, task.id).await.unwrap().placement,
+            TaskPlacement::Backlog
+        );
+    }
+
+    #[tokio::test]
+    async fn schedule_rejects_an_impossible_calendar_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+
+        let error = schedule(&pool, pid, task.id, "2027-02-30")
+            .await
+            .unwrap_err();
+        assert!(format!("{error:?}").contains("ScheduledDateInvalid"));
+    }
+
+    #[tokio::test]
     async fn schedule_rejects_a_malformed_date() {
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();
