@@ -68,7 +68,7 @@ Audit information: Created at, updated at
 
 ### Creating/updating/deleting tasks
 
-Tasks can be created from the kanban view or from the backlog view. They both have a "Create task" button.
+Tasks can be created from the kanban view or from the backlog view. They both have an "Add task" button.
 
 When that button is clicked the "Create task" view is shown, where the task information can be filled out (title, description, categories, carry-over rule, estimated time).
 
