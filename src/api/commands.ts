@@ -32,6 +32,8 @@ export const COMMANDS = {
   addTaskToWeek: "add_task_to_week",
   returnTaskToBacklog: "return_task_to_backlog",
   scheduleTask: "schedule_task",
+  scheduleOccurrence: "schedule_occurrence",
+  skippedSeriesDates: "skipped_series_dates",
   moveTask: "move_task",
   deleteTask: "delete_task",
   updateTask: "update_task",

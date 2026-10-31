@@ -30,6 +30,7 @@ pub enum ErrorCode {
     AlreadyInSeries,
     InstanceDateInvalid,
     ScheduledDateInvalid,
+    InstanceDateOccupied,
     InstanceDateNotScheduled,
     NoteBodyRequired,
     NoteBodyTooLong,

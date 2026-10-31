@@ -51,6 +51,8 @@ pub fn run() {
             commands::add_task_to_week,
             commands::return_task_to_backlog,
             commands::schedule_task,
+            commands::schedule_occurrence,
+            commands::skipped_series_dates,
             commands::update_task,
             commands::list_task_series,
             commands::list_series_instances,

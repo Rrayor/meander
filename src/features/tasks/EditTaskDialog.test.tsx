@@ -136,6 +136,8 @@ vi.mock("@/api/series", () => ({
   deleteTaskSeries: vi.fn(),
   truncateTaskSeries: vi.fn(),
   getOrCreateInstance: vi.fn(),
+  skippedSeriesDates: vi.fn(),
+  scheduleOccurrence: vi.fn(),
 }));
 
 const mockedListTaskSeries = vi.mocked(listTaskSeries);
@@ -146,6 +148,9 @@ const mockedUpdateSeriesFrom = vi.mocked(updateTaskSeriesFrom);
 const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
 const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
 const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
+vi.mocked(scheduleTask).mockImplementation(async () => baseTask);
+const { skippedSeriesDates } = await import("@/api/series");
+vi.mocked(skippedSeriesDates).mockResolvedValue([]);
 const mockedDeleteTask = vi.mocked(deleteTask);
 const mockedReturnToBacklog = vi.mocked(returnTaskToBacklog);
 const mockedSchedule = vi.mocked(scheduleTask);
@@ -1918,7 +1923,46 @@ describe("EditTaskDialog", () => {
     );
   });
 
-  it("hides the date control for series tasks", async () => {
+  it("materializes a pending occurrence before moving it", async () => {
+    const { scheduleOccurrence } = await import("@/api/series");
+    const mockedOcc = vi.mocked(scheduleOccurrence);
+    mockedOcc.mockResolvedValue({
+      ...baseTask,
+      id: 42,
+      placement: TaskPlacement.Scheduled,
+      scheduled_date: "2027-03-15",
+    });
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE);
+
+    fireEvent.change(await screen.findByLabelText(DATE_FIELD_LABEL), {
+      target: { value: "2027-03-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: MOVE_TO_DATE_LABEL }));
+    await waitFor(() =>
+      expect(mockedOcc).toHaveBeenCalledWith(
+        baseSeries.id,
+        OTHER_INSTANCE_DATE,
+        "2027-03-15",
+      ),
+    );
+  });
+
+  it("shows the date control for series tasks", async () => {
     render(
       <QueryClientProvider client={testQueryClient()}>
         <EditTaskDialog
@@ -1927,8 +1971,7 @@ describe("EditTaskDialog", () => {
         />
       </QueryClientProvider>,
     );
-    await screen.findByRole("button", { name: EDIT_BUTTON_LABEL });
-    expect(screen.queryByLabelText(DATE_FIELD_LABEL)).toBeNull();
+    expect(await screen.findByLabelText(DATE_FIELD_LABEL)).toBeInTheDocument();
   });
 
   it("surfaces a rejected schedule in the details alert", async () => {

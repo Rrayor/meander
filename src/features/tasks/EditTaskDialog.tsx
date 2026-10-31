@@ -55,6 +55,8 @@ import type { SaveScope } from "@/lib/enums";
 import {
   deleteTaskSeries,
   getOrCreateInstance,
+  scheduleOccurrence,
+  skippedSeriesDates,
   listSeriesCategories,
   listSeriesInstances,
   listTaskSeries,
@@ -188,6 +190,7 @@ interface TaskDetailsViewProps {
   materializeError?: string;
   categories: Category[];
   seriesRow: TaskSeries | undefined;
+  skippedDates?: string[];
   // The segment producing a pending picked date — its values, not the
   // living series', back the unpersisted-occurrence display.
   pendingSegment: TaskSeries | undefined;
@@ -383,6 +386,7 @@ function TaskDetailsView({
   materializeError,
   categories,
   seriesRow,
+  skippedDates,
   pendingSegment,
   seriesSegments,
   seriesInstances,
@@ -522,6 +526,7 @@ function TaskDetailsView({
         <InstanceCalendar
           series={seriesSegments}
           instances={seriesInstances}
+          skipped={skippedDates}
           selectedIso={pendingIso ?? viewed.scheduled_date}
           onPick={onPick}
         />
@@ -551,25 +556,23 @@ function TaskDetailsView({
                 {MOVE_TO_BACKLOG_LABEL}
               </button>
             )}
-          {viewed.series_id === null && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                aria-label={DATE_FIELD_LABEL}
-                value={pickedDate}
-                onChange={(e) => setPickedDate(e.target.value)}
-                className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text"
-              />
-              <button
-                type="button"
-                onClick={() => onSchedule(pickedDate)}
-                disabled={!pickedDate}
-                className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
-              >
-                {MOVE_TO_DATE_LABEL}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              aria-label={DATE_FIELD_LABEL}
+              value={pickedDate}
+              onChange={(e) => setPickedDate(e.target.value)}
+              className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text"
+            />
+            <button
+              type="button"
+              onClick={() => onSchedule(pickedDate)}
+              disabled={!pickedDate}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+            >
+              {MOVE_TO_DATE_LABEL}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-text-muted">
@@ -769,6 +772,7 @@ function useSeriesScopeSeed({
 }: {
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
+  skippedDates?: string[];
   reset: UseFormReset<FormValues>;
   getValues: UseFormGetValues<FormValues>;
   dirtyFields: FieldNamesMarkedBoolean<FormValues>;
@@ -946,6 +950,7 @@ function EditTaskForm({
   categories: Category[];
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
+  skippedDates?: string[];
   seriesError: string | null;
   serverError: string | null | undefined;
   seriesFieldsPending: boolean;
@@ -1367,6 +1372,11 @@ export function EditTaskDialog({
   const seriesRow = taskSeries?.find((s) => s.id === livingSeriesId);
   // Every segment of the conceptual series — the living row plus the
   // earlier segments — so the calendar shows the full schedule.
+  const skippedDates = useQuery({
+    queryKey: QUERY_KEYS.seriesSkipped(livingSeriesId ?? -1),
+    queryFn: () => skippedSeriesDates(livingSeriesId ?? -1),
+    enabled: livingSeriesId != null,
+  }).data;
   const familySegments = taskSeries?.filter(
     (s) =>
       livingSeriesId !== null &&
@@ -1482,11 +1492,19 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.pendingCarryOver,
       });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.taskSeries });
     },
   });
 
   const schedule = useMutation({
-    mutationFn: (date: string) => scheduleTask(viewed.id, date),
+    mutationFn: async (date: string) => {
+      // A picked-but-unpersisted occurrence must exist before it can be
+      // redated — otherwise the move has no row to land on (spec §228).
+      if (pendingIso !== null) {
+        return scheduleOccurrence(livingSeriesId!, pendingIso, date);
+      }
+      return scheduleTask(viewed.id, date);
+    },
     onSuccess: onClose,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
@@ -1496,6 +1514,11 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.pendingCarryOver,
       });
+      if (livingSeriesId != null) {
+        void queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.seriesSkipped(livingSeriesId),
+        });
+      }
     },
   });
 
@@ -1699,6 +1722,7 @@ export function EditTaskDialog({
             seriesRow={seriesRow}
             pendingSegment={pendingSegment}
             seriesSegments={familySegments}
+            skippedDates={skippedDates}
             seriesInstances={seriesInstances}
             onPick={(picked, iso) => {
               if (picked) {
