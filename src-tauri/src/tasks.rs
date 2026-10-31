@@ -2688,6 +2688,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_moved_instance_vacates_its_old_dates_board() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
+
+        let old_week = list_week(&pool, pid, "2026-11-16").await.unwrap();
+        assert!(old_week.iter().all(|t| t.id != task.id));
+        let new_week = list_week(&pool, pid, "2027-03-15").await.unwrap();
+        assert!(new_week.iter().any(|t| t.id == task.id));
+    }
+
+    #[tokio::test]
+    async fn skipped_dates_reports_family_tombstones() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        assert!(
+            skipped_dates(&pool, task.series_id.unwrap())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
+        assert_eq!(
+            skipped_dates(&pool, task.series_id.unwrap()).await.unwrap(),
+            vec!["2026-11-16".to_string()]
+        );
+    }
+
+    #[tokio::test]
     async fn schedule_rejects_an_impossible_calendar_date() {
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();

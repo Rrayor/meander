@@ -1601,3 +1601,32 @@ test("a rejected schedule surfaces the error and keeps the row", async ({
   await expect(dialog.getByRole("alert")).toHaveText(message);
   await expect(dialog).toBeVisible();
 });
+
+test("a skipped cadence date is not offered as an expected occurrence", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.skippedSeriesDates]: [SERIES_PICK],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(seriesInstance.title) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  // The persisted instance stays reachable; the vacated date renders as
+  // a plain day — no selectable expected occurrence.
+  await expect(
+    dialog.getByRole("button", { name: SERIES_OPENED }),
+  ).toBeVisible();
+  expect(await dialog.getByRole("button", { name: SERIES_PICK }).count()).toBe(
+    0,
+  );
+});

@@ -298,3 +298,14 @@ Feature: Tasks
     When I schedule the task Alpha for "2027-02-30"
     Then the schedule fails
     And the task Alpha is in the backlog
+
+  Scenario: a moved series instance vacates its old date
+    Given an application state on a temporary seeded database
+    When I create a task titled "Alpha" repeating weekly on Monday
+    And I schedule the task Alpha for "2026-11-16"
+    And I schedule the task Alpha for "2026-11-25"
+    Then the task Alpha is scheduled for "2026-11-25"
+    When I view the board for the week containing "2026-11-16"
+    Then the board does not list Alpha
+    When I view the board for the week containing "2026-11-25"
+    Then the board lists Alpha on "2026-11-25"
