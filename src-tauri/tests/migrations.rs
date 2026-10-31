@@ -80,6 +80,12 @@ async fn check_bounds(
     pool: &SqlitePool,
     table: &str,
 ) -> (Vec<(String, String)>, Vec<(String, i64)>, Vec<String>) {
+    // `col_a != 'v' OR col_b IS NULL` implication CHECKs: when col_a
+    // takes the forbidden literal, col_b must stay NULL. The enum
+    // probe always picks the first literal, so col_b is forced NULL
+    // whenever that literal is the forbidden one.
+    let implies_re =
+        regex::Regex::new(r"(?i)(\w+)\s*!=\s*'([^']+)'\s+OR\s+(\w+)\s+IS\s+NULL").unwrap();
     let ddl: String = sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name = ?")
         .bind(table)
         .fetch_one(pool)
@@ -87,7 +93,7 @@ async fn check_bounds(
         .unwrap();
     let in_re = regex::Regex::new(r"(?i)(\w+)\s+IN\s*\(([^)]*)\)").unwrap();
     let between_re = regex::Regex::new(r"(?i)(\w+)\s+BETWEEN\s+(\d+)\s+AND\s+(\d+)").unwrap();
-    let ins = in_re
+    let ins: Vec<(String, String)> = in_re
         .captures_iter(&ddl)
         .filter_map(|c| {
             let col = c[1].to_string();
@@ -107,10 +113,20 @@ async fn check_bounds(
     let xor_re =
         regex::Regex::new(r"(?i)\(\s*(\w+)\s+IS NULL\s*\)\s*<>\s*\(\s*(\w+)\s+IS NULL\s*\)")
             .unwrap();
-    let xor_nulls: Vec<String> = xor_re
+    let mut xor_nulls: Vec<String> = xor_re
         .captures_iter(&ddl)
         .map(|c| c[2].to_string())
         .collect();
+    for cap in implies_re.captures_iter(&ddl) {
+        let forbidden_lit = ins
+            .iter()
+            .find(|(c, _)| *c == cap[1])
+            .map(|(_, l)| l == &cap[2])
+            .unwrap_or(false);
+        if forbidden_lit {
+            xor_nulls.push(cap[3].to_string());
+        }
+    }
     (ins, betweens, xor_nulls)
 }
 
@@ -237,10 +253,19 @@ fn migrations_preserve_existing_data() {
         let mut probes: Vec<Probe> = Vec::new();
         for (step, path) in migration_paths().iter().enumerate() {
             let sql = std::fs::read_to_string(path).unwrap();
+            // sqlx applies real migrations with foreign keys off so a
+            // table rebuild's DROP does not cascade through children;
+            // mirror that on one connection — PRAGMA is per-connection.
+            let mut conn = pool.acquire().await.unwrap();
+            sqlx::query("PRAGMA foreign_keys=OFF")
+                .execute(&mut *conn)
+                .await
+                .unwrap();
             sqlx::raw_sql(&sql)
-                .execute(&pool)
+                .execute(&mut *conn)
                 .await
                 .unwrap_or_else(|e| panic!("{} failed: {e}", path.display()));
+            drop(conn);
             // Alphabetical order puts `profiles` before `tasks`, so FK parents
             // get their probe row first and children can reference it.
             for table in user_tables(&pool).await {

@@ -333,7 +333,8 @@ export function BoardPage() {
   const columnMembers = (column: string | null) =>
     (tasks ?? []).filter((t) =>
       column === null
-        ? t.placement === TaskPlacement.WeeklyBacklog
+        ? t.placement === TaskPlacement.WeeklyBacklog &&
+          t.scheduled_date === null
         : t.scheduled_date === column,
     );
   // Thresholds and day totals always use the full membership — a
@@ -439,7 +440,7 @@ export function BoardPage() {
     const placement =
       col === "weekly-backlog"
         ? TaskPlacement.WeeklyBacklog
-        : TaskPlacement.Scheduled;
+        : TaskPlacement.WeeklyBacklog;
     const date = col === "weekly-backlog" ? null : col;
     if (
       task.placement === placement &&
@@ -501,7 +502,7 @@ export function BoardPage() {
               />
               <div className="absolute top-full z-20 mt-2 w-72">
                 <WeekJumpCalendar
-                  anchorIso={anchor}
+                  anchorIso={days[0]}
                   weekStart={start ?? Weekday.Monday}
                   onPick={(iso) => {
                     setAnchor(iso);

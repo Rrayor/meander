@@ -76,7 +76,6 @@ pub enum CarryOverRule {
 pub enum TaskPlacement {
     Backlog,
     WeeklyBacklog,
-    Scheduled,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type, sqlx::FromRow)]
@@ -227,8 +226,8 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     let first_date = saved_series.as_ref().map(first_instance_date).transpose()?;
     let series_id = saved_series.as_ref().map(|s| s.id);
     let result = sqlx::query(
-        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, scheduled_date, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+        "INSERT INTO tasks (profile_id, title, description, estimated_minutes, carry_over_rule, series_id, scheduled_date, placement, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? IS NULL THEN 'backlog' ELSE 'weekly_backlog' END, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
     .bind(title)
@@ -236,7 +235,8 @@ pub async fn create(pool: &SqlitePool, profile_id: i64, input: &NewTask) -> Resu
     .bind(estimated)
     .bind(carry_over)
     .bind(series_id)
-    .bind(first_date)
+    .bind(&first_date)
+    .bind(&first_date)
     .bind(profile_id)
     .execute(&mut *tx)
     .await?;
@@ -432,8 +432,10 @@ pub async fn update(
                 .await?;
                 let series_id = saved_series.id;
                 // The existing task becomes the first occurrence's instance.
-                sqlx::query("UPDATE tasks SET series_id = ?, scheduled_date = ? WHERE id = ?")
+                sqlx::query("UPDATE tasks SET series_id = ?, scheduled_date = ?, \
+                placement = CASE WHEN ? IS NULL THEN placement ELSE 'weekly_backlog' END WHERE id = ?")
                     .bind(series_id)
+                    .bind(first_instance_date(&saved_series)?)
                     .bind(first_instance_date(&saved_series)?)
                     .bind(id)
                     .execute(&mut *tx)
@@ -519,7 +521,7 @@ pub async fn schedule(pool: &SqlitePool, profile_id: i64, id: i64, date: &str) -
             .fetch_optional(&mut *tx)
             .await?;
     let result = sqlx::query(
-        "UPDATE tasks SET placement = 'scheduled', scheduled_date = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND (placement != 'scheduled' OR scheduled_date != ?)",
+        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND (scheduled_date IS NULL OR scheduled_date != ?)",
     )
     .bind(date)
     .bind(id)
@@ -640,7 +642,7 @@ pub async fn schedule_occurrence(
         Some(id) => id,
         None => insert_instance(&mut tx, profile_id, series, date).await?.id,
     };
-    sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    sqlx::query("UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(new_date)
         .bind(moved_id)
         .execute(&mut *tx)
@@ -711,12 +713,12 @@ pub async fn board_move(
     // show in both views, and a dated cell drop without a date cannot
     // exist (spec §312/§336).
     match (placement, date) {
-        (TaskPlacement::Scheduled, Some(d)) => {
+        // A weekly-backlog row may be dated — the date is the fact.
+        (TaskPlacement::WeeklyBacklog, Some(d)) => {
             crate::validation::iso_date(d, ErrorCode::ScheduledDateInvalid, "date")?;
         }
-        (TaskPlacement::Scheduled, None)
-        | (TaskPlacement::Backlog, Some(_))
-        | (TaskPlacement::WeeklyBacklog, Some(_)) => {
+        // A backlog row carrying a date would show in both views.
+        (TaskPlacement::Backlog, Some(_)) => {
             return Err(crate::db::DbError::Validation {
                 code: ErrorCode::ScheduledDateInvalid,
                 message: "the placement and date do not match".into(),
@@ -828,13 +830,7 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     // start a new backlog item). Segments join to the living series
     // through `succeeded_by`.
     Ok(sqlx::query_as::<_, Task>(
-        "SELECT * FROM tasks t WHERE t.profile_id = ? AND t.placement = 'backlog' \
-         AND (t.series_id IS NULL \
-         OR t.id = (SELECT MIN(t2.id) FROM tasks t2 \
-           JOIN task_series s2 ON s2.id = t2.series_id \
-           WHERE COALESCE(s2.succeeded_by, s2.id) = \
-                 COALESCE((SELECT s.succeeded_by FROM task_series s \
-                           WHERE s.id = t.series_id), t.series_id))) \
+        "SELECT * FROM tasks WHERE profile_id = ? AND placement = 'backlog' \
          ORDER BY sort_order, id",
     )
     .bind(profile_id)
@@ -890,7 +886,7 @@ pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result
     // future weeks (spec §336/§348/§354).
     Ok(sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks WHERE profile_id = ? AND \
-         ((placement = 'weekly_backlog' AND ?) OR \
+         ((placement = 'weekly_backlog' AND scheduled_date IS NULL AND ?) OR \
           (scheduled_date IS NOT NULL AND scheduled_date BETWEEN ? AND ?)) \
          ORDER BY scheduled_date, sort_order, id",
     )
@@ -1076,8 +1072,8 @@ async fn insert_instance(
 ) -> Result<Task> {
     let result = sqlx::query(
         "INSERT INTO tasks (profile_id, title, description, estimated_minutes, \
-         carry_over_rule, series_id, scheduled_date, sort_order) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, \
+         carry_over_rule, series_id, scheduled_date, placement, sort_order) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'weekly_backlog', \
          (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
     )
     .bind(profile_id)
@@ -1250,12 +1246,14 @@ mod tests {
             .await
             .unwrap();
         let outside = create(&pool, pid, &task(TITLE_C)).await.unwrap();
-        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
-            .bind(iso(monday + 7))
-            .bind(outside.id)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ? WHERE id = ?",
+        )
+        .bind(iso(monday + 7))
+        .bind(outside.id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
         // The Monday instance materializes on view and is returned
         // alongside the weekly backlog; the out-of-week task is not.
@@ -1426,7 +1424,7 @@ mod tests {
     ) -> Task {
         let task = create(pool, pid, &task(title)).await.unwrap();
         sqlx::query(
-            "UPDATE tasks SET scheduled_date = date('now', 'localtime', '-7 days'),              carry_over_rule = ?, status = ? WHERE id = ?",
+            "UPDATE tasks SET scheduled_date = date('now', 'localtime', '-7 days'),              placement = 'weekly_backlog', carry_over_rule = ?, status = ? WHERE id = ?",
         )
         .bind(rule)
         .bind(if done { "done" } else { "todo" })
@@ -1789,12 +1787,14 @@ mod tests {
             .await
             .unwrap();
         let task = create(&pool, pid, &task(TITLE_A)).await.unwrap();
-        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
-            .bind(SATURDAY)
-            .bind(task.id)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ? WHERE id = ?",
+        )
+        .bind(SATURDAY)
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
         let week = list_week(&pool, pid, SUNDAY).await.unwrap();
         assert!(week.iter().any(|t| t.id == task.id));
         // …but a Monday-start view of the same date puts Oct 24 in the
@@ -1862,7 +1862,7 @@ mod tests {
         for (title, date, _) in fixtures {
             let task = create(&pool, pid, &task(title)).await.unwrap();
             sqlx::query(
-                "UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?",
+                "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ? WHERE id = ?",
             )
             .bind(date)
             .bind(task.id)
@@ -1884,12 +1884,14 @@ mod tests {
         let other = crate::profiles::create(&pool, "second").await.unwrap().id;
         daily_task(&pool, other).await; // foreign series
         let foreign = create(&pool, other, &task(TITLE_A)).await.unwrap();
-        sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ? WHERE id = ?")
-            .bind(WEDNESDAY)
-            .bind(foreign.id)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ? WHERE id = ?",
+        )
+        .bind(WEDNESDAY)
+        .bind(foreign.id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
         // The board only lists the active profile's tasks — and reading
         // it must not materialize instances for the other profile.
@@ -2280,8 +2282,8 @@ mod tests {
         // task that must not leak in. The first instance is dated by create.
         assert_eq!(first.scheduled_date.as_deref(), Some(DAILY_START));
         sqlx::query(
-            "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, sort_order) \
-             VALUES (?, ?, ?, '2026-10-26', ?)",
+            "INSERT INTO tasks (profile_id, title, series_id, scheduled_date, placement, sort_order) \
+             VALUES (?, ?, ?, '2026-10-26', 'weekly_backlog', ?)",
         )
         .bind(pid)
         .bind(TITLE_B)
@@ -2344,7 +2346,8 @@ mod tests {
         // Instance fields are untouched — the task only gained a link and
         // the normalized carry-over policy shared with its series.
         assert_eq!(updated.status, existing.status);
-        assert_eq!(updated.placement, existing.placement);
+        // The row gained a date — it is a board entity now.
+        assert_eq!(updated.placement, TaskPlacement::WeeklyBacklog);
         assert_eq!(updated.sort_order, existing.sort_order);
         assert_eq!(updated.carry_over_rule, Some(CarryOverRule::Return));
         // The existing task becomes the start date's instance.
@@ -2365,7 +2368,8 @@ mod tests {
         )
         .await
         .unwrap();
-        let linked = list(&pool, pid).await.unwrap()[0].clone();
+        // The dated link row is a board entity — read it by id.
+        let linked = get(&pool, 1).await.unwrap();
 
         let err = update(
             &pool,
@@ -2691,7 +2695,7 @@ mod tests {
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();
         sqlx::query(
-            "UPDATE tasks SET placement = 'scheduled', scheduled_date = '2026-10-30' WHERE id = ?",
+            "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = '2026-10-30' WHERE id = ?",
         )
         .bind(task.id)
         .execute(&pool)
@@ -2723,18 +2727,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_to_week_clears_a_stray_scheduled_date() {
+    async fn the_backlog_stays_undated_by_write_paths() {
+        // No write path can produce backlog+date: scheduling flips the
+        // pool, and every backlog transition clears the date — the
+        // invariant lives in the writes, not a CHECK (spec §57).
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();
-        sqlx::query("UPDATE tasks SET scheduled_date = '2026-10-30' WHERE id = ?")
-            .bind(task.id)
-            .execute(&pool)
-            .await
-            .unwrap();
-
-        let moved = add_to_week(&pool, pid, task.id).await.unwrap();
-        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
-        assert_eq!(moved.scheduled_date, None);
+        schedule(&pool, pid, task.id, "2026-10-30").await.unwrap();
+        let returned = return_to_backlog(&pool, pid, task.id).await.unwrap();
+        assert_eq!(returned.placement, TaskPlacement::Backlog);
+        assert_eq!(returned.scheduled_date, None);
     }
 
     #[tokio::test]
@@ -2776,7 +2778,7 @@ mod tests {
         let task = create(&pool, pid, &task("Errand")).await.unwrap();
 
         let moved = schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
-        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
         assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
         assert_eq!(list(&pool, pid).await.unwrap().len(), 0);
     }
@@ -2834,7 +2836,7 @@ mod tests {
         add_to_week(&pool, pid, task.id).await.unwrap();
 
         let moved = schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
-        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
         assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
     }
 
@@ -2853,7 +2855,7 @@ mod tests {
         .unwrap();
 
         let moved = schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
-        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
         assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
         assert_eq!(moved.series_id, task.series_id);
     }
@@ -2872,7 +2874,7 @@ mod tests {
         .await
         .unwrap();
         sqlx::query(
-            "UPDATE tasks SET scheduled_date = '2026-10-30', placement = 'scheduled' WHERE id = ?",
+            "UPDATE tasks SET scheduled_date = '2026-10-30', placement = 'weekly_backlog' WHERE id = ?",
         )
         .bind(task.id)
         .execute(&pool)
@@ -2905,7 +2907,7 @@ mod tests {
         .await
         .unwrap();
         sqlx::query(
-            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'weekly_backlog' WHERE id = ?",
         )
         .bind(task.id)
         .execute(&pool)
@@ -2934,7 +2936,7 @@ mod tests {
         .await
         .unwrap();
         sqlx::query(
-            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'weekly_backlog' WHERE id = ?",
         )
         .bind(task.id)
         .execute(&pool)
@@ -2970,7 +2972,7 @@ mod tests {
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO tasks (profile_id, title, series_id, placement, scheduled_date, sort_order)              VALUES (?, 'Other', ?, 'scheduled', '2027-03-15', 5)",
+            "INSERT INTO tasks (profile_id, title, series_id, placement, scheduled_date, sort_order)              VALUES (?, 'Other', ?, 'weekly_backlog', '2027-03-15', 5)",
         )
         .bind(pid)
         .bind(task.series_id)
@@ -3199,13 +3201,13 @@ mod tests {
             &pool,
             pid,
             task.id,
-            TaskPlacement::Scheduled,
+            TaskPlacement::WeeklyBacklog,
             Some("2027-03-15"),
             TaskStatus::InProgress,
         )
         .await
         .unwrap();
-        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
         assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
         assert_eq!(moved.status, TaskStatus::InProgress);
 
@@ -3238,7 +3240,7 @@ mod tests {
         .await
         .unwrap();
         sqlx::query(
-            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'weekly_backlog' WHERE id = ?",
         )
         .bind(task.id)
         .execute(&pool)
@@ -3249,7 +3251,7 @@ mod tests {
             &pool,
             pid,
             task.id,
-            TaskPlacement::Scheduled,
+            TaskPlacement::WeeklyBacklog,
             Some("2027-03-15"),
             TaskStatus::Todo,
         )
@@ -3277,14 +3279,14 @@ mod tests {
         .await
         .unwrap();
         sqlx::query(
-            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'weekly_backlog' WHERE id = ?",
         )
         .bind(task.id)
         .execute(&pool)
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO tasks (profile_id, title, series_id, placement, scheduled_date, sort_order)              VALUES (?, 'Other', ?, 'scheduled', '2027-03-15', 5)",
+            "INSERT INTO tasks (profile_id, title, series_id, placement, scheduled_date, sort_order)              VALUES (?, 'Other', ?, 'weekly_backlog', '2027-03-15', 5)",
         )
         .bind(pid)
         .bind(task.series_id)
@@ -3296,7 +3298,7 @@ mod tests {
             &pool,
             pid,
             task.id,
-            TaskPlacement::Scheduled,
+            TaskPlacement::WeeklyBacklog,
             Some("2027-03-15"),
             TaskStatus::Todo,
         )
@@ -3310,33 +3312,34 @@ mod tests {
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();
 
-        // A backlog or weekly-backlog drop must never carry a date —
-        // the row would render in both views at once.
-        for placement in [TaskPlacement::Backlog, TaskPlacement::WeeklyBacklog] {
-            let err = board_move(
-                &pool,
-                pid,
-                task.id,
-                placement,
-                Some("2027-03-15"),
-                TaskStatus::Todo,
-            )
-            .await
-            .unwrap_err();
-            assert!(format!("{err:?}").contains("ScheduledDateInvalid"));
-        }
-        // And a scheduled drop without a date cannot exist.
+        // A backlog drop must never carry a date — the row would
+        // render in both views at once. A weekly-backlog drop is the
+        // dated form and is legal.
         assert!(
             board_move(
                 &pool,
                 pid,
                 task.id,
-                TaskPlacement::Scheduled,
+                TaskPlacement::Backlog,
+                Some("2027-03-15"),
+                TaskStatus::Todo,
+            )
+            .await
+            .is_err()
+        );
+        // A weekly-backlog drop without a date is the weekly
+        // column itself — legal.
+        assert!(
+            board_move(
+                &pool,
+                pid,
+                task.id,
+                TaskPlacement::WeeklyBacklog,
                 None,
                 TaskStatus::Todo
             )
             .await
-            .is_err()
+            .is_ok()
         );
     }
 
@@ -3351,7 +3354,7 @@ mod tests {
                 &pool,
                 pid,
                 9999,
-                TaskPlacement::Scheduled,
+                TaskPlacement::WeeklyBacklog,
                 Some("2027-03-15"),
                 TaskStatus::Todo
             )
@@ -3363,7 +3366,7 @@ mod tests {
                 &other_pool,
                 other,
                 task.id,
-                TaskPlacement::Scheduled,
+                TaskPlacement::WeeklyBacklog,
                 Some("2027-03-15"),
                 TaskStatus::Todo
             )
@@ -3377,7 +3380,7 @@ mod tests {
                     &pool,
                     pid,
                     task.id,
-                    TaskPlacement::Scheduled,
+                    TaskPlacement::WeeklyBacklog,
                     Some("bad"),
                     TaskStatus::Todo
                 )
@@ -3467,7 +3470,7 @@ mod tests {
         .await
         .unwrap();
         let instance = sqlx::query_as::<_, Task>(
-            "INSERT INTO tasks (profile_id, title, placement, scheduled_date, series_id)              VALUES (?, 'Dated', 'scheduled', '2026-10-30', ?) RETURNING *",
+            "INSERT INTO tasks (profile_id, title, placement, scheduled_date, series_id)              VALUES (?, 'Dated', 'weekly_backlog', '2026-10-30', ?) RETURNING *",
         )
         .bind(pid)
         .bind(series.id)

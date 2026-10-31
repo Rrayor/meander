@@ -1834,7 +1834,7 @@ describe("EditTaskDialog", () => {
   it("offers move-to-backlog on a day-scheduled card too", async () => {
     const scheduled = {
       ...baseTask,
-      placement: TaskPlacement.Scheduled,
+      placement: TaskPlacement.WeeklyBacklog,
       scheduled_date: "2026-10-30",
     };
     render(
@@ -1881,7 +1881,7 @@ describe("EditTaskDialog", () => {
         <EditTaskDialog
           task={{
             ...baseTask,
-            placement: TaskPlacement.Scheduled,
+            placement: TaskPlacement.WeeklyBacklog,
             series_id: baseSeries.id,
             scheduled_date: OPENED_INSTANCE_DATE,
           }}
@@ -1907,7 +1907,7 @@ describe("EditTaskDialog", () => {
   it("schedules a standalone task for an arbitrary date", async () => {
     mockedSchedule.mockResolvedValue({
       ...baseTask,
-      placement: TaskPlacement.Scheduled,
+      placement: TaskPlacement.WeeklyBacklog,
       scheduled_date: "2027-03-15",
     });
     render(
@@ -1929,7 +1929,7 @@ describe("EditTaskDialog", () => {
     mockedOcc.mockResolvedValue({
       ...baseTask,
       id: 42,
-      placement: TaskPlacement.Scheduled,
+      placement: TaskPlacement.WeeklyBacklog,
       scheduled_date: "2027-03-15",
     });
     render(
@@ -1994,7 +1994,7 @@ describe("EditTaskDialog", () => {
         <EditTaskDialog
           task={{
             ...baseTask,
-            placement: TaskPlacement.Scheduled,
+            placement: TaskPlacement.WeeklyBacklog,
             scheduled_date: "2027-03-15",
           }}
           onClose={vi.fn()}

@@ -1557,7 +1557,7 @@ test("scheduling a backlog task sends the date on the wire", async ({
   const errand = tasks[0];
   const scheduled = {
     ...errand,
-    placement: "scheduled",
+    placement: "weekly_backlog",
     scheduled_date: "2027-03-15",
   };
   await stubTauriCommands(page, {

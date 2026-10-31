@@ -150,7 +150,7 @@ const baseTask: Task = {
   carry_over_rule: null,
   estimated_minutes: 60,
   spent_minutes: 30,
-  placement: TaskPlacement.Scheduled,
+  placement: TaskPlacement.WeeklyBacklog,
   scheduled_date: days[0],
   series_id: null,
   sort_order: 1,
@@ -883,7 +883,7 @@ describe("drag and drop", () => {
     await waitFor(() =>
       expect(mockedBoardMove).toHaveBeenCalledWith(
         weeklyTask.id,
-        TaskPlacement.Scheduled,
+        TaskPlacement.WeeklyBacklog,
         days[1],
         TaskStatus.InProgress,
       ),
@@ -1005,7 +1005,7 @@ it("dropping in the transposed grid sends the same combined move", async () => {
   await waitFor(() =>
     expect(mockedBoardMove).toHaveBeenCalledWith(
       weeklyTask.id,
-      TaskPlacement.Scheduled,
+      TaskPlacement.WeeklyBacklog,
       days[1],
       TaskStatus.InProgress,
     ),
