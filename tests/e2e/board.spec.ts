@@ -36,6 +36,7 @@ import {
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
+const DB_PATH = "/data/main.db";
 
 const baseTask = {
   profile_id: 1,
@@ -77,7 +78,7 @@ const stubBoard = (page: import("@playwright/test").Page) =>
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -164,7 +165,7 @@ test("a status edit moves the card to the matching row", async ({ page }) => {
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: stubSequence([
@@ -254,7 +255,7 @@ test("a failed board read surfaces an error alert", async ({ page }) => {
     [COMMANDS.listTaskNotes]: [],
     [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.listWeekTasks]: stubError(message),
@@ -394,7 +395,7 @@ test("the carry-over prompt lists undecided tasks and applies the choice", async
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -427,7 +428,7 @@ test("the carry-over prompt sends a return decision to the backend", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -470,7 +471,7 @@ test("a day column tints when its estimates reach the threshold", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -499,7 +500,7 @@ test("a reached category threshold tints the column and its card", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -545,7 +546,7 @@ test("a weekday override tints its own day only", async ({ page }) => {
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -589,7 +590,7 @@ test("the board's create-task button opens the dialog and hits the wire", async 
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -620,7 +621,7 @@ test("a board task returns to the backlog from its details view", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: stubSequence([
@@ -660,7 +661,7 @@ test("a day-scheduled card returns to the backlog from its details", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
-    [COMMANDS.currentDbPath]: "/data/main.db",
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: stubSequence([
