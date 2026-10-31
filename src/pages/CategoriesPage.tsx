@@ -37,7 +37,6 @@ export function CategoriesPage() {
     queryKey: QUERY_KEYS.categories,
     queryFn: listCategories,
   });
-  const { pageItems, page, pageCount, setPage } = usePagination(categories);
   const del = useMutation({
     mutationFn: deleteCategory,
     onSuccess: () => {
@@ -56,6 +55,10 @@ export function CategoriesPage() {
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    categories,
+    profile?.id,
+  );
   // A failed delete belongs to the profile it ran under — clear the
   // mutation on a switch so the alert can't leak across. Only a
   // transition between two resolved ids counts: the first profile load

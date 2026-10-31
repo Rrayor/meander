@@ -59,6 +59,7 @@ export const renameProfileLabel = (name: string) => `Rename ${name}`;
 
 export const ADD_TASK_LABEL = "Add task";
 export const PAGE_SIZE = 50;
+export const PAGINATION_LABEL = "Pagination";
 export const PAGINATION_PREVIOUS_LABEL = "Previous page";
 export const PAGINATION_NEXT_LABEL = "Next page";
 export const pageXOfYLabel = (page: number, count: number) =>

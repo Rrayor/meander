@@ -1532,5 +1532,5 @@ test("the backlog paginates at 50 items without hitting the wire", async ({
   await expect(
     page.getByRole("button", { name: editTaskLabel("Task 51") }),
   ).toBeVisible();
-  expect((await getInvocations(page)).length).toBe(before);
+  expect(await getInvocations(page)).toHaveLength(before);
 });

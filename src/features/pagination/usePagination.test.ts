@@ -50,4 +50,18 @@ describe("usePagination", () => {
     expect(result.current.pageCount).toBe(1);
     expect(result.current.pageItems).toBeUndefined();
   });
+
+  it("resets to the first page when the reset key changes", () => {
+    const items = Array.from({ length: PAGE_SIZE + 1 }, (_, i) => i);
+    const { result, rerender } = renderHook(
+      ({ key }) => usePagination(items, key),
+      { initialProps: { key: 1 } },
+    );
+    result.current.setPage(1);
+    rerender({ key: 1 });
+    expect(result.current.page).toBe(1);
+    rerender({ key: 2 });
+    expect(result.current.page).toBe(0);
+    expect(result.current.pageItems?.[0]).toBe(0);
+  });
 });

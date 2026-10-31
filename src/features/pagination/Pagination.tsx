@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
+  PAGINATION_LABEL,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
   pageXOfYLabel,
@@ -18,7 +19,7 @@ export function Pagination({
   if (pageCount <= 1) return null;
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={PAGINATION_LABEL}
       className="flex items-center justify-end gap-1 pt-3"
     >
       <button

@@ -203,11 +203,14 @@ export function BacklogPage() {
       });
     },
   });
-  const { pageItems, page, pageCount, setPage } = usePagination(tasks);
   const { data: profile } = useQuery({
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
+  const { pageItems, page, pageCount, setPage } = usePagination(
+    tasks,
+    profile?.id,
+  );
   // Failed mutations are scoped to the profile they ran under — reset on
   // a switch so alerts can't leak across. Only a transition between two
   // resolved ids counts: the first profile load must not clear an error

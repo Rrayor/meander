@@ -5,6 +5,7 @@ import { ROUTES } from "@/lib/routes";
 import {
   NAV_LABEL,
   PAGE_SIZE,
+  PAGINATION_LABEL,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
   editTaskLabel,
@@ -48,9 +49,9 @@ describe("Backlog smoke", () => {
       timeout: 10000,
     });
     await expect(await row(PAGE_SIZE + 1).isExisting()).toBe(false);
-    await expect(await $(`nav[aria-label='Pagination']`).isExisting()).toBe(
-      true,
-    );
+    await expect(
+      await $(`nav[aria-label='${PAGINATION_LABEL}']`).isExisting(),
+    ).toBe(true);
 
     await (await $(`button[aria-label='${PAGINATION_NEXT_LABEL}']`)).click();
     await browser.waitUntil(
