@@ -32,6 +32,7 @@ import {
   BOARD_HEADING,
   ADD_TASK_LABEL,
   STATUS_LABELS,
+  TRANSPOSE_LAYOUT_LABEL,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_SAVING_LABEL,
@@ -66,6 +67,7 @@ const STATUS_ROWS = [
 /// backlog bucket) and its status row — the drop decodes placement,
 /// date and status from it in one gesture (spec §314/§328).
 const WEEKLY_CELL = "weekly-backlog";
+const BOARD_LAYOUT_KEY = "meander.boardLayout";
 
 const cellId = (column: string | null, status: TaskStatus) =>
   `${column ?? WEEKLY_CELL}|${status}`;
@@ -280,6 +282,17 @@ export function BoardPage() {
   const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
+  // §368 — the transposed layout is a persisted view preference,
+  // never the default.
+  const [transposed, setTransposed] = useState(
+    () => localStorage.getItem(BOARD_LAYOUT_KEY) === "day-rows",
+  );
+  const toggleLayout = () =>
+    setTransposed((t) => {
+      const next = !t;
+      localStorage.setItem(BOARD_LAYOUT_KEY, next ? "day-rows" : "status-rows");
+      return next;
+    });
   // Search narrows and the pick reorders within the grid's bounds —
   // columns, rows and placement are never touched (spec §360/§366).
   const columnMembers = (column: string | null) =>
@@ -349,6 +362,36 @@ export function BoardPage() {
       });
     },
   });
+
+  const renderCell = (column: string | null, status: TaskStatus) => {
+    const cell = columnTasks(column).filter((t) => t.status === status);
+    return (
+      <DroppableCell
+        key={cellId(column, status)}
+        id={cellId(column, status)}
+        style={tint(column)}
+      >
+        {cell.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {cell.map((task) => (
+              <li key={task.id}>
+                <BoardCard
+                  task={task}
+                  onOpen={() => setEditingTask(task)}
+                  // §285: cards of a reached category carry that
+                  // threshold's tint — the global tint stays on the
+                  // column only.
+                  tintColors={(taskCategories.get(task.id) ?? [])
+                    .map((cat) => reachedCats.get(column)?.get(cat.id))
+                    .filter((x): x is string => x != null)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </DroppableCell>
+    );
+  };
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over) return;
@@ -481,6 +524,14 @@ export function BoardPage() {
         sort={sort}
         onSort={setSort}
       />
+      <button
+        type="button"
+        aria-label={TRANSPOSE_LAYOUT_LABEL}
+        onClick={toggleLayout}
+        className="mx-6 mt-3 w-fit rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:bg-surface-raised"
+      >
+        {TRANSPOSE_LAYOUT_LABEL}
+      </button>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
       <section tabIndex={0} className="flex-1 overflow-auto p-6">
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
@@ -490,75 +541,77 @@ export function BoardPage() {
                 {/* Corner cell — keeps the day headers aligned with the
                   rowheader + 8 data cells of the body rows. */}
                 <td className="w-12" />
-                {columns.map((column) => {
-                  const day = totals(columnMembers(column));
-                  return (
+                {transposed &&
+                  STATUS_ROWS.map((status) => (
                     <th
-                      key={column ?? "weekly-backlog"}
+                      key={status}
                       scope="col"
-                      style={tint(column)}
-                      className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
+                      className="w-[33%] rounded-md bg-surface/40 px-3 py-2 text-left align-middle text-xs font-medium uppercase tracking-wide text-text-muted"
                     >
-                      <p className="text-sm font-medium text-text">
-                        {column === null
-                          ? WEEKLY_BACKLOG_LABEL
-                          : `${shortWeekdayLabel(column)} ${shortDateLabel(column)}`}
-                      </p>
-                      <p className="mt-0.5 text-xs font-normal text-text-muted">
-                        {taskCountLabel(day.count)} ·{" "}
-                        {dayTotalsLabel(day.estimated, day.spent)}
-                      </p>
+                      {STATUS_LABELS[status]}
                     </th>
-                  );
-                })}
+                  ))}
+                {!transposed &&
+                  columns.map((column) => {
+                    const day = totals(columnMembers(column));
+                    return (
+                      <th
+                        key={column ?? "weekly-backlog"}
+                        scope="col"
+                        style={tint(column)}
+                        className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
+                      >
+                        <p className="text-sm font-medium text-text">
+                          {column === null
+                            ? WEEKLY_BACKLOG_LABEL
+                            : `${shortWeekdayLabel(column)} ${shortDateLabel(column)}`}
+                        </p>
+                        <p className="mt-0.5 text-xs font-normal text-text-muted">
+                          {taskCountLabel(day.count)} ·{" "}
+                          {dayTotalsLabel(day.estimated, day.spent)}
+                        </p>
+                      </th>
+                    );
+                  })}
               </tr>
             </thead>
             <tbody>
-              {STATUS_ROWS.map((status) => (
-                <tr key={status}>
-                  <th
-                    scope="row"
-                    className="w-12 rounded-md bg-surface/40 align-middle text-xs font-medium uppercase tracking-wide text-text-muted"
-                  >
-                    {STATUS_LABELS[status]}
-                  </th>
-                  {columns.map((column) => {
-                    const cell = columnTasks(column).filter(
-                      (t) => t.status === status,
-                    );
-                    return (
-                      <DroppableCell
-                        key={column ?? "weekly-backlog"}
-                        id={cellId(column, status)}
+              {transposed
+                ? columns.map((column) => (
+                    <tr key={column ?? "weekly-backlog"}>
+                      <th
+                        scope="row"
                         style={tint(column)}
+                        className="w-48 rounded-md bg-surface-raised px-3 py-2 text-left align-top"
                       >
-                        {cell.length > 0 && (
-                          <ul className="flex flex-col gap-2">
-                            {cell.map((task) => (
-                              <li key={task.id}>
-                                <BoardCard
-                                  task={task}
-                                  onOpen={() => setEditingTask(task)}
-                                  // §285: cards of a reached category carry
-                                  // that threshold's tint — the global tint
-                                  // stays on the column only.
-                                  tintColors={(
-                                    taskCategories.get(task.id) ?? []
-                                  )
-                                    .map((cat) =>
-                                      reachedCats.get(column)?.get(cat.id),
-                                    )
-                                    .filter((x): x is string => x != null)}
-                                />
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </DroppableCell>
-                    );
-                  })}
-                </tr>
-              ))}
+                        <p className="text-sm font-medium text-text">
+                          {column === null
+                            ? WEEKLY_BACKLOG_LABEL
+                            : `${shortWeekdayLabel(column)} ${shortDateLabel(column)}`}
+                        </p>
+                        <p className="mt-0.5 text-xs font-normal text-text-muted">
+                          {taskCountLabel(totals(columnMembers(column)).count)}{" "}
+                          ·{" "}
+                          {dayTotalsLabel(
+                            totals(columnMembers(column)).estimated,
+                            totals(columnMembers(column)).spent,
+                          )}
+                        </p>
+                      </th>
+                      {STATUS_ROWS.map((status) => renderCell(column, status))}
+                    </tr>
+                  ))
+                : STATUS_ROWS.map((status) => (
+                    <tr key={status}>
+                      <th
+                        scope="row"
+                        className="w-12 rounded-md bg-surface/40 align-middle text-xs font-medium uppercase tracking-wide text-text-muted"
+                      >
+                        {STATUS_LABELS[status]}
+                      </th>
+                      {columns.map((column) => renderCell(column, status))}
+                    </tr>
+                  ))}
             </tbody>
           </table>
         </DndContext>

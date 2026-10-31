@@ -13,6 +13,7 @@ import {
   MOVE_TO_BACKLOG_LABEL,
   SAVE_BUTTON_LABEL,
   STATUS_LABELS,
+  TRANSPOSE_LAYOUT_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -720,4 +721,29 @@ test("a drop on the same cell sends nothing on the wire", async ({ page }) => {
 
   const calls = await getInvocations(page);
   expect(calls.find((c) => c.cmd === COMMANDS.boardMove)).toBeUndefined();
+});
+
+test("the layout toggle transposes the grid and keeps the same cells", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }).click();
+  // Statuses become column headers; days become rowheaders.
+  await expect(
+    page.getByRole("columnheader", { name: STATUS_LABELS.todo }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("rowheader", {
+      name: new RegExp(shortWeekdayLabel(days[0])),
+    }),
+  ).toBeVisible();
+  // The card still renders in its own cell under the new axes.
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toBeVisible();
 });

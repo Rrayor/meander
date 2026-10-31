@@ -28,6 +28,7 @@ import {
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
   STATUS_LABELS,
+  TRANSPOSE_LAYOUT_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -917,4 +918,41 @@ describe("drag and drop", () => {
       ),
     );
   });
+});
+
+test("the layout toggle swaps rows and columns and persists the choice", async () => {
+  renderBoard();
+
+  // Default: day headers, status rows (spec §368 — normal is default).
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", {
+        name: new RegExp(shortWeekdayLabel(days[0])),
+      }),
+    ).toBeInTheDocument(),
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }));
+  // Transposed: statuses become column headers, days become rowheaders.
+  await waitFor(() => {
+    expect(
+      screen.getByRole("columnheader", { name: STATUS_LABELS.todo }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("rowheader", {
+        name: new RegExp(shortWeekdayLabel(days[0])),
+      }),
+    ).toBeInTheDocument();
+  });
+  expect(localStorage.getItem("meander.boardLayout")).toBe("day-rows");
+
+  // Toggling back restores the default orientation.
+  fireEvent.click(screen.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", {
+        name: new RegExp(shortWeekdayLabel(days[0])),
+      }),
+    ).toBeInTheDocument(),
+  );
 });
