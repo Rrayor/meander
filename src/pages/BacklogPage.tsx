@@ -15,6 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { CalendarPlus } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -117,13 +118,14 @@ function TaskRow({
         <button
           type="button"
           aria-label={addToWeekLabel(task.title)}
+          title={ADD_TO_WEEK_LABEL}
           onClick={(e) => {
             e.stopPropagation();
             onAddToWeek();
           }}
-          className="rounded-md px-2 py-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 hover:bg-surface-raised focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface-raised hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
         >
-          {ADD_TO_WEEK_LABEL}
+          <CalendarPlus size={16} aria-hidden="true" />
         </button>
         <DeleteButton
           label={deleteTaskLabel(task.title)}
