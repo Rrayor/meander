@@ -16,6 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarPlus } from "lucide-react";
+import { matchesSearch, sortTasks } from "@/features/viewFilters";
+import { ViewToolbar } from "@/features/ViewToolbar";
+import { TaskSort } from "@/lib/enums";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -52,15 +55,17 @@ function TaskRow({
   onEdit,
   onAddToWeek,
   deletePending,
+  sortLocked,
 }: Readonly<{
   task: Task;
   onDelete: () => void;
   onEdit: () => void;
   onAddToWeek: () => void;
   deletePending: boolean;
+  sortLocked: boolean;
 }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: task.id });
+    useSortable({ id: task.id, disabled: sortLocked });
 
   return (
     // The row is clickable per the Stitch design (cursor-pointer + hover
@@ -163,8 +168,16 @@ export function BacklogPage() {
       anchorBySeries.set(t.series_id, t.id);
     }
   }
-  const tasks = allTasks?.filter(
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
+  const scoped = allTasks?.filter(
     (t) => t.series_id === null || anchorBySeries.get(t.series_id) === t.id,
+  );
+  // View-time transforms only (spec §360/§364) — search narrows and
+  // the pick reorders the slice; manual order stays the stored truth.
+  const tasks = sortTasks(
+    (scoped ?? []).filter((t) => matchesSearch(t, query)),
+    sort,
   );
   const move = useMutation({
     mutationFn: ({
@@ -291,33 +304,42 @@ export function BacklogPage() {
           </div>
         )}
         {tasks && tasks.length > 0 && (
-          <Paged key={profile?.id} items={tasks}>
-            {(pageItems) => (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={onDragEnd}
-              >
-                <SortableContext
-                  items={pageItems!.map((t) => t.id)}
-                  strategy={verticalListSortingStrategy}
+          <>
+            <ViewToolbar
+              query={query}
+              onQuery={setQuery}
+              sort={sort}
+              onSort={setSort}
+            />
+            <Paged key={`${profile?.id}-${sort}-${query}`} items={tasks}>
+              {(pageItems) => (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={onDragEnd}
                 >
-                  <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
-                    {pageItems!.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        deletePending={del.isPending}
-                        onDelete={() => del.mutate(task.id)}
-                        onEdit={() => setEditingTask(task)}
-                        onAddToWeek={() => addToWeek.mutate(task.id)}
-                      />
-                    ))}
-                  </ul>
-                </SortableContext>
-              </DndContext>
-            )}
-          </Paged>
+                  <SortableContext
+                    items={pageItems!.map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
+                      {pageItems!.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          deletePending={del.isPending}
+                          onDelete={() => del.mutate(task.id)}
+                          onEdit={() => setEditingTask(task)}
+                          sortLocked={sort !== TaskSort.Manual}
+                          onAddToWeek={() => addToWeek.mutate(task.id)}
+                        />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </Paged>
+          </>
         )}
       </section>
       {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}

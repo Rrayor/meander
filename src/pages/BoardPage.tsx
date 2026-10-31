@@ -27,7 +27,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { TaskCard } from "@/features/tasks/TaskCard";
-import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
+import { TaskPlacement, TaskSort, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
   ADD_TASK_LABEL,
@@ -53,6 +53,8 @@ import {
   weekDates,
 } from "@/lib/utils";
 import { serverErrorMessage } from "@/lib/errors";
+import { matchesSearch, sortTasks } from "@/features/viewFilters";
+import { ViewToolbar } from "@/features/ViewToolbar";
 
 const STATUS_ROWS = [
   TaskStatus.Todo,
@@ -276,11 +278,20 @@ export function BoardPage() {
     enabled: isCurrentWeek,
   });
   const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
+  // Search narrows and the pick reorders within the grid's bounds —
+  // columns, rows and placement are never touched (spec §360/§366).
   const columnTasks = (column: string | null) =>
-    (tasks ?? []).filter((t) =>
-      column === null
-        ? t.placement === TaskPlacement.WeeklyBacklog
-        : t.scheduled_date === column,
+    sortTasks(
+      (tasks ?? []).filter(
+        (t) =>
+          matchesSearch(t, query) &&
+          (column === null
+            ? t.placement === TaskPlacement.WeeklyBacklog
+            : t.scheduled_date === column),
+      ),
+      sort,
     );
 
   // Task→category associations ride the same query keys as the card
@@ -461,6 +472,12 @@ export function BoardPage() {
           {BOARD_SAVING_LABEL}
         </output>
       )}
+      <ViewToolbar
+        query={query}
+        onQuery={setQuery}
+        sort={sort}
+        onSort={setSort}
+      />
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
       <section tabIndex={0} className="flex-1 overflow-auto p-6">
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
