@@ -563,6 +563,7 @@ function TaskDetailsView({
               <button
                 type="button"
                 onClick={() => onSchedule(pickedDate)}
+                disabled={!pickedDate}
                 className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
               >
                 {MOVE_TO_DATE_LABEL}
@@ -1478,6 +1479,9 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.boardWeeks,
       });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.pendingCarryOver,
+      });
     },
   });
 
@@ -1488,6 +1492,9 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.boardWeeks,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.pendingCarryOver,
       });
     },
   });

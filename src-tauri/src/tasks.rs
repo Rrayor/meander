@@ -488,7 +488,7 @@ pub async fn add_to_week(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<
 /// may be used, not just the current week). Series members reject: their
 /// dates come from cadence; moving a series instance is a separate action.
 pub async fn schedule(pool: &SqlitePool, profile_id: i64, id: i64, date: &str) -> Result<Task> {
-    crate::series::iso_date(date, ErrorCode::ScheduledDateInvalid, "date")?;
+    crate::validation::iso_date(date, ErrorCode::ScheduledDateInvalid, "date")?;
     let result = sqlx::query(
         "UPDATE tasks SET placement = 'scheduled', scheduled_date = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND series_id IS NULL          AND (placement != 'scheduled' OR scheduled_date != ?)",
     )
@@ -609,7 +609,7 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
 /// series only, since segments are history and never produce new rows.
 /// Carry-over into the weekly backlog is a later plan item.
 pub async fn list_week(pool: &SqlitePool, profile_id: i64, date: &str) -> Result<Vec<Task>> {
-    crate::series::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
+    crate::validation::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
     let week_start = crate::profiles::week_start(pool, profile_id).await?;
     let (y, m, d) = crate::series::parse_iso(date);
     let z = crate::series::days_from_civil(y, m, d);
@@ -793,7 +793,7 @@ pub async fn get_or_create_instance(
     series_id: i64,
     date: &str,
 ) -> Result<Task> {
-    crate::series::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
+    crate::validation::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
     let series = crate::series::get(pool, profile_id, series_id).await?;
     if let Some(existing) = sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks WHERE profile_id = ? AND series_id = ? AND scheduled_date = ?",

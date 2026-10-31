@@ -61,3 +61,38 @@ pub fn parse_estimate(raw: Option<i64>) -> Result<Option<i64>> {
         })?
         .map(PositiveDuration::into_inner))
 }
+
+/// Real-calendar ISO date check (YYYY-MM-DD with a valid month/day).
+/// Shared by scheduling entry points — series cadence dates, instance
+/// reads, and task scheduling (feature-boundary rule).
+pub fn iso_date(raw: &str, code: crate::errors::ErrorCode, field: &str) -> crate::db::Result<()> {
+    let reject = || crate::db::DbError::Validation {
+        code,
+        message: format!("{field} must be a real ISO date (YYYY-MM-DD)"),
+    };
+    if raw.len() != 10 {
+        return Err(reject());
+    }
+    if raw.as_bytes()[4] != b'-' || raw.as_bytes()[7] != b'-' {
+        return Err(reject());
+    }
+    let year: u32 = raw[0..4].parse().map_err(|_| reject())?;
+    let month: u32 = raw[5..7].parse().map_err(|_| reject())?;
+    let day: u32 = raw[8..10].parse().map_err(|_| reject())?;
+    if !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
+        return Err(reject());
+    }
+    Ok(())
+}
+
+pub fn days_in_month(year: u32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => {
+            29
+        }
+        2 => 28,
+        _ => 0,
+    }
+}
