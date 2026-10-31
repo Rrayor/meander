@@ -30,6 +30,7 @@ import {
   STATUS_LABELS,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
+  BOARD_SAVING_LABEL,
   BOARD_THIS_WEEK_LABEL,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -40,13 +41,13 @@ import {
   taskCountLabel,
 } from "@/lib/labels";
 import {
-  errorMessage,
   shiftDays,
   thresholdTintStyle,
   weekdayNameOf,
   todayLocalIso,
   weekDates,
 } from "@/lib/utils";
+import { serverErrorMessage } from "@/lib/errors";
 
 const STATUS_ROWS = [
   TaskStatus.Todo,
@@ -57,8 +58,10 @@ const STATUS_ROWS = [
 /// A cell's droppable id packs its column (iso date or the weekly
 /// backlog bucket) and its status row — the drop decodes placement,
 /// date and status from it in one gesture (spec §314/§328).
+const WEEKLY_CELL = "weekly-backlog";
+
 const cellId = (column: string | null, status: TaskStatus) =>
-  `${column ?? "weekly-backlog"}|${status}`;
+  `${column ?? WEEKLY_CELL}|${status}`;
 
 function DroppableCell({
   id,
@@ -440,9 +443,16 @@ export function BoardPage() {
           {dayTotalsLabel(weekTotals.estimated, weekTotals.spent)}
         </p>
       </header>
-      {error && (
+      {(boardError != null || move.isError) && (
         <p role="alert" className="px-6 pt-4 text-sm text-danger">
-          {errorMessage(boardError)}
+          {serverErrorMessage(boardError ?? move.error)}
+        </p>
+      )}
+      {/* §451: drops move instantly — a status line announces the
+          save in flight so a relocating card never looks silent. */}
+      {move.isPending && (
+        <p role="status" className="px-6 pt-4 text-sm text-text-muted">
+          {BOARD_SAVING_LABEL}
         </p>
       )}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}

@@ -704,8 +704,22 @@ pub async fn board_move(
     date: Option<&str>,
     status: TaskStatus,
 ) -> Result<Task> {
-    if let Some(d) = date {
-        crate::validation::iso_date(d, ErrorCode::ScheduledDateInvalid, "date")?;
+    // Placement and date must agree — a backlog row with a date would
+    // show in both views, and a dated cell drop without a date cannot
+    // exist (spec §312/§336).
+    match (placement, date) {
+        (TaskPlacement::Scheduled, Some(d)) => {
+            crate::validation::iso_date(d, ErrorCode::ScheduledDateInvalid, "date")?;
+        }
+        (TaskPlacement::Scheduled, None)
+        | (TaskPlacement::Backlog, Some(_))
+        | (TaskPlacement::WeeklyBacklog, Some(_)) => {
+            return Err(crate::db::DbError::Validation {
+                code: ErrorCode::ScheduledDateInvalid,
+                message: "the placement and date do not match".into(),
+            });
+        }
+        _ => {}
     }
     let mut tx = pool.begin().await?;
     let before: Option<(Option<i64>, Option<String>)> =
