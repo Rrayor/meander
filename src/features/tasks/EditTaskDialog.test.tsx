@@ -28,6 +28,7 @@ import {
   MAX_TASK_TITLE_LENGTH,
   deleteTask,
   returnTaskToBacklog,
+  scheduleTask,
   updateTask,
 } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
@@ -46,6 +47,8 @@ import {
   CLOSE_LABEL,
   DELETE_BUTTON_LABEL,
   MOVE_TO_BACKLOG_LABEL,
+  MOVE_TO_DATE_LABEL,
+  DATE_FIELD_LABEL,
   DELETE_KEEP_LABEL,
   DELETE_SCOPE_FUTURE_LABEL,
   DELETE_TASK_HEADING,
@@ -102,6 +105,7 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
   returnTaskToBacklog: vi.fn(),
+  scheduleTask: vi.fn(),
 }));
 
 vi.mock("@/api/categories", async (importOriginal) => ({
@@ -144,6 +148,7 @@ const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
 const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
 const mockedDeleteTask = vi.mocked(deleteTask);
 const mockedReturnToBacklog = vi.mocked(returnTaskToBacklog);
+const mockedSchedule = vi.mocked(scheduleTask);
 const mockedUpdate = vi.mocked(updateTask);
 const mockedListCategories = vi.mocked(listCategories);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
@@ -1892,5 +1897,51 @@ describe("EditTaskDialog", () => {
     expect(
       screen.queryByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
     ).not.toBeInTheDocument();
+  });
+
+  it("schedules a standalone task for an arbitrary date", async () => {
+    mockedSchedule.mockResolvedValue({
+      ...baseTask,
+      placement: TaskPlacement.Scheduled,
+      scheduled_date: "2027-03-15",
+    });
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    const input = await screen.findByLabelText(DATE_FIELD_LABEL);
+    fireEvent.change(input, { target: { value: "2027-03-15" } });
+    fireEvent.click(screen.getByRole("button", { name: MOVE_TO_DATE_LABEL }));
+    await waitFor(() =>
+      expect(mockedSchedule).toHaveBeenCalledWith(baseTask.id, "2027-03-15"),
+    );
+  });
+
+  it("hides the date control for series tasks", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{ ...baseTask, series_id: baseSeries.id }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: EDIT_BUTTON_LABEL });
+    expect(screen.queryByLabelText(DATE_FIELD_LABEL)).toBeNull();
+  });
+
+  it("surfaces a rejected schedule in the details alert", async () => {
+    mockedSchedule.mockRejectedValue(new Error("db exploded"));
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(await screen.findByLabelText(DATE_FIELD_LABEL), {
+      target: { value: "2027-03-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: MOVE_TO_DATE_LABEL }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("db exploded");
   });
 });

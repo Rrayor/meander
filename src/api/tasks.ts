@@ -48,5 +48,8 @@ export const addTaskToWeek = (taskId: number) =>
 export const returnTaskToBacklog = (taskId: number) =>
   transport.invoke<Task>(COMMANDS.returnTaskToBacklog, { taskId });
 
+export const scheduleTask = (taskId: number, date: string) =>
+  transport.invoke<Task>(COMMANDS.scheduleTask, { taskId, date });
+
 export const updateTask = (taskId: number, input: UpdateTask) =>
   transport.invoke<Task>(COMMANDS.updateTask, { taskId, input });

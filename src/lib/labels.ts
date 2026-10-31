@@ -66,6 +66,8 @@ export const pageXOfYLabel = (page: number, count: number) =>
   `Page ${page} of ${count}`;
 export const ADD_TO_WEEK_LABEL = "Add to current week";
 export const MOVE_TO_BACKLOG_LABEL = "Move to backlog";
+export const MOVE_TO_DATE_LABEL = "Move to date";
+export const DATE_FIELD_LABEL = "Date";
 export const addToWeekLabel = (title: string) =>
   `${ADD_TO_WEEK_LABEL}: ${title}`;
 export const CREATE_TASK_LABEL = "Create task";

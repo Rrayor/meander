@@ -3352,6 +3352,48 @@ fn week_move_fails(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "add to week unexpectedly succeeded");
 }
 
+#[when(expr = "I schedule the task {word} for {string}")]
+fn schedule_task(world: &mut MeanderWorld, title: String, date: String) {
+    let task_id = task_id_by_title(world, &title);
+    let (pool, active) = active_profile_pool(world);
+    let rt = world.rt();
+    if let Err(e) = rt.block_on(meander_lib::tasks::schedule(&pool, active, task_id, &date)) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I schedule an unknown task for {string}")]
+fn schedule_unknown_task(world: &mut MeanderWorld, date: String) {
+    let (pool, active) = active_profile_pool(world);
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::schedule(&pool, active, 9999, &date))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the task {word} is scheduled for {string}")]
+fn task_scheduled_for(world: &mut MeanderWorld, title: String, date: String) {
+    assert_eq!(
+        task_placement(world, &title),
+        meander_lib::tasks::TaskPlacement::Scheduled
+    );
+    let (pool, _) = active_profile_pool(world);
+    let id = task_id_by_title(world, &title);
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::get(&pool, id))
+        .expect("task read failed");
+    assert_eq!(task.scheduled_date.as_deref(), Some(date.as_str()));
+}
+
+#[then(expr = "the schedule fails")]
+fn schedule_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some());
+    world.error = None;
+}
+
 #[then(expr = "the backlog return fails")]
 fn backlog_return_fails(world: &mut MeanderWorld) {
     assert!(

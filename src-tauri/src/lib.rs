@@ -50,6 +50,7 @@ pub fn run() {
             commands::delete_task,
             commands::add_task_to_week,
             commands::return_task_to_backlog,
+            commands::schedule_task,
             commands::update_task,
             commands::list_task_series,
             commands::list_series_instances,

@@ -47,6 +47,7 @@ import {
   TASK_SCOPE_SERIES_LABEL,
   addToWeekLabel,
   PAGINATION_LABEL,
+  MOVE_TO_DATE_LABEL,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
   pageXOfYLabel,
@@ -815,9 +816,9 @@ test("opening a task shows a read-only details view first", async ({
     .click();
   const dialog = page.getByRole("dialog");
 
-  // Read-only: the only textbox is the notes composer — notes are handled
-  // outside the task form, so they stay available in the view.
-  await expect(dialog.getByRole("textbox")).toHaveCount(1);
+  // Read-only: the only textboxes are the notes composer and the
+  // move-to-date input — notes and scheduling stay outside the task form.
+  await expect(dialog.getByRole("textbox")).toHaveCount(2);
   await expect(dialog.getByLabel(NOTE_COMPOSER_PLACEHOLDER)).toBeVisible();
   await expect(dialog.getByLabel(/Title/)).toHaveCount(0);
   await expect(
@@ -1546,4 +1547,34 @@ test("the backlog paginates at 50 items without hitting the wire", async ({
     page.getByRole("button", { name: PAGINATION_NEXT_LABEL }),
   ).toBeDisabled();
   expect(await getInvocations(page)).toHaveLength(before);
+});
+
+test("scheduling a backlog task sends the date on the wire", async ({
+  page,
+}) => {
+  const errand = tasks[0];
+  const scheduled = {
+    ...errand,
+    placement: "scheduled",
+    scheduled_date: "2027-03-15",
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: stubSequence([[errand], []]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.scheduleTask]: scheduled,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: editTaskLabel(errand.title) }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Date").fill("2027-03-15");
+  await dialog.getByRole("button", { name: MOVE_TO_DATE_LABEL }).click();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.scheduleTask)?.args).toEqual({
+    taskId: errand.id,
+    date: "2027-03-15",
+  });
 });
