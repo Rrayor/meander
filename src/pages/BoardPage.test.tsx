@@ -12,7 +12,7 @@ import { listTaskCategories } from "@/api/categories";
 import { ApiError } from "@/api/transport";
 import { INSTANCE_DATE_OCCUPIED_MESSAGE } from "@/lib/errors";
 import { ADD_TASK_LABEL, CLOSE_LABEL, TASK_CARD_LABEL } from "@/lib/labels";
-import { globalThreshold, weekStart } from "@/api/profiles";
+import { currentProfile, globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
   boardMove,
@@ -60,6 +60,12 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
   weekStart: vi.fn(),
   globalThreshold: vi.fn(),
+  currentProfile: vi.fn().mockResolvedValue({
+    id: 1,
+    name: "Profile",
+    created_at: "2026-01-01",
+    updated_at: "2026-01-01",
+  }),
 }));
 vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
@@ -122,6 +128,7 @@ const mockedPendingCarryOver = vi.mocked(listPendingCarryOver);
 const mockedResolveCarryOver = vi.mocked(resolveCarryOver);
 const mockedWeekStart = vi.mocked(weekStart);
 const mockedGlobalThreshold = vi.mocked(globalThreshold);
+const mockedCurrentProfile = vi.mocked(currentProfile);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
 
 const todayIso = todayLocalIso();
@@ -932,6 +939,9 @@ test("the layout toggle swaps rows and columns and persists the choice", async (
       }),
     ).toBeInTheDocument(),
   );
+  // The profile query must settle before the seed effect does —
+  // toggling earlier would be re-read from the per-profile key.
+  await waitFor(() => expect(mockedCurrentProfile).toHaveBeenCalled());
 
   fireEvent.click(screen.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }));
   // Transposed: statuses become column headers, days become rowheaders.
@@ -945,7 +955,7 @@ test("the layout toggle swaps rows and columns and persists the choice", async (
       }),
     ).toBeInTheDocument();
   });
-  expect(localStorage.getItem("meander.boardLayout")).toBe("day-rows");
+  expect(localStorage.getItem("meander.boardLayout.1")).toBe("day-rows");
 
   // Toggling back restores the default orientation.
   fireEvent.click(screen.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }));
@@ -959,7 +969,7 @@ test("the layout toggle swaps rows and columns and persists the choice", async (
 });
 
 test("transposed on mount when the saved layout is day-rows", async () => {
-  localStorage.setItem("meander.boardLayout", "day-rows");
+  localStorage.setItem("meander.boardLayout.1", "day-rows");
   renderBoard();
 
   await waitFor(() => {
@@ -971,7 +981,7 @@ test("transposed on mount when the saved layout is day-rows", async () => {
 });
 
 it("dropping in the transposed grid sends the same combined move", async () => {
-  localStorage.setItem("meander.boardLayout", "day-rows");
+  localStorage.setItem("meander.boardLayout.1", "day-rows");
   renderBoard();
   await screen.findByText(TASK_TITLE);
 

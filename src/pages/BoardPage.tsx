@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { listTaskCategories } from "@/api/categories";
 import type { Category, Task } from "@/api/bindings";
-import { globalThreshold, weekStart } from "@/api/profiles";
+import { currentProfile, globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { boardMove, listPendingCarryOver, listWeekTasks } from "@/api/tasks";
 import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
@@ -27,7 +27,13 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { TaskCard } from "@/features/tasks/TaskCard";
-import { TaskPlacement, TaskSort, TaskStatus, Weekday } from "@/lib/enums";
+import {
+  BoardLayout,
+  TaskPlacement,
+  TaskSort,
+  TaskStatus,
+  Weekday,
+} from "@/lib/enums";
 import {
   BOARD_HEADING,
   ADD_TASK_LABEL,
@@ -67,7 +73,8 @@ const STATUS_ROWS = [
 /// backlog bucket) and its status row — the drop decodes placement,
 /// date and status from it in one gesture (spec §314/§328).
 const WEEKLY_CELL = "weekly-backlog";
-const BOARD_LAYOUT_KEY = "meander.boardLayout";
+const layoutKey = (profileId: number | undefined) =>
+  `meander.boardLayout.${profileId ?? 0}`;
 
 const cellId = (column: string | null, status: TaskStatus) =>
   `${column ?? WEEKLY_CELL}|${status}`;
@@ -284,13 +291,31 @@ export function BoardPage() {
   const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
   // §368 — the transposed layout is a persisted view preference,
   // never the default.
-  const [transposed, setTransposed] = useState(
-    () => localStorage.getItem(BOARD_LAYOUT_KEY) === "day-rows",
-  );
+  // §368 — the orientation is a per-profile setting, persisted so
+  // the choice survives restarts without leaking between profiles.
+  const { data: profile } = useQuery({
+    queryKey: QUERY_KEYS.currentProfile,
+    queryFn: currentProfile,
+  });
+  const [transposed, setTransposed] = useState(false);
+  // Seed from storage when the profile id resolves — React's
+  // documented adjust-state-during-render alternative to an
+  // effect-side setState; switching profiles re-reads that
+  // profile's own saved orientation.
+  const [layoutFor, setLayoutFor] = useState<number | undefined>(undefined);
+  if (profile !== undefined && layoutFor !== profile?.id) {
+    setLayoutFor(profile?.id);
+    setTransposed(
+      localStorage.getItem(layoutKey(profile?.id)) === BoardLayout.DayRows,
+    );
+  }
   const toggleLayout = () =>
     setTransposed((t) => {
       const next = !t;
-      localStorage.setItem(BOARD_LAYOUT_KEY, next ? "day-rows" : "status-rows");
+      localStorage.setItem(
+        layoutKey(profile?.id),
+        next ? BoardLayout.DayRows : BoardLayout.StatusRows,
+      );
       return next;
     });
   // Search narrows and the pick reorders within the grid's bounds —
@@ -527,6 +552,7 @@ export function BoardPage() {
       <button
         type="button"
         aria-label={TRANSPOSE_LAYOUT_LABEL}
+        aria-pressed={transposed}
         onClick={toggleLayout}
         className="mx-6 mt-3 w-fit rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:bg-surface-raised"
       >

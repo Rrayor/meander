@@ -104,3 +104,9 @@ export const TASK_SORTS = [
   TaskSort.Created,
   TaskSort.Updated,
 ] as const;
+/// Board row/column orientation (spec §368) — the persisted
+/// preference is per-profile; normal is the default.
+export enum BoardLayout {
+  StatusRows = "status-rows",
+  DayRows = "day-rows",
+}
