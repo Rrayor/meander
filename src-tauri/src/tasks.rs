@@ -693,6 +693,90 @@ pub async fn return_to_backlog(pool: &SqlitePool, profile_id: i64, id: i64) -> R
     get(pool, id).await
 }
 
+/// One-gesture board move (spec §314/§328): a drop changes placement,
+/// scheduled date and status together. Series-instance date moves keep
+/// the same tombstone and occupancy rules as `schedule`.
+pub async fn board_move(
+    pool: &SqlitePool,
+    profile_id: i64,
+    id: i64,
+    placement: TaskPlacement,
+    date: Option<&str>,
+    status: TaskStatus,
+) -> Result<Task> {
+    // Placement and date must agree — a backlog row with a date would
+    // show in both views, and a dated cell drop without a date cannot
+    // exist (spec §312/§336).
+    match (placement, date) {
+        (TaskPlacement::Scheduled, Some(d)) => {
+            crate::validation::iso_date(d, ErrorCode::ScheduledDateInvalid, "date")?;
+        }
+        (TaskPlacement::Scheduled, None)
+        | (TaskPlacement::Backlog, Some(_))
+        | (TaskPlacement::WeeklyBacklog, Some(_)) => {
+            return Err(crate::db::DbError::Validation {
+                code: ErrorCode::ScheduledDateInvalid,
+                message: "the placement and date do not match".into(),
+            });
+        }
+        _ => {}
+    }
+    let mut tx = pool.begin().await?;
+    let before: Option<(Option<i64>, Option<String>)> =
+        sqlx::query_as("SELECT series_id, scheduled_date FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let result = sqlx::query(
+        "UPDATE tasks SET placement = ?, scheduled_date = ?, status = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?",
+    )
+    .bind(placement)
+    .bind(date)
+    .bind(status)
+    .bind(id)
+    .bind(profile_id)
+    .execute(&mut *tx)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(task_not_found());
+    }
+    let (moved_series, old_date) = before.unwrap_or((None, None));
+    if let Some(sid) = moved_series
+        && let Some(od) = old_date.as_deref()
+        && Some(od) != date
+    {
+        sqlx::query(
+            "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date) VALUES (?, ?)",
+        )
+        .bind(sid)
+        .bind(od)
+        .execute(&mut *tx)
+        .await?;
+    }
+    if let (Some(sid), Some(nd)) = (moved_series, date)
+        && Some(nd) != old_date.as_deref()
+    {
+        let occupied: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND id != ?              AND series_id IN ({FAMILY_IDS}) AND scheduled_date = ?",
+        ))
+        .bind(profile_id)
+        .bind(id)
+        .bind(sid)
+        .bind(sid)
+        .bind(nd)
+        .fetch_one(&mut *tx)
+        .await?;
+        if occupied > 0 {
+            return Err(crate::db::DbError::Validation {
+                code: ErrorCode::InstanceDateOccupied,
+                message: "another instance of the series already occupies that date".into(),
+            });
+        }
+    }
+    tx.commit().await?;
+    get(pool, id).await
+}
+
 /// Deletes a task scoped to its owning profile. Deleting an unknown id — or
 /// another profile's task — is an error, not a silent no-op.
 pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
@@ -3100,6 +3184,204 @@ mod tests {
                 .await
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn board_move_writes_placement_date_and_status() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+
+        let moved = board_move(
+            &pool,
+            pid,
+            task.id,
+            TaskPlacement::Scheduled,
+            Some("2027-03-15"),
+            TaskStatus::InProgress,
+        )
+        .await
+        .unwrap();
+        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
+        assert_eq!(moved.status, TaskStatus::InProgress);
+
+        let back = board_move(
+            &pool,
+            pid,
+            task.id,
+            TaskPlacement::WeeklyBacklog,
+            None,
+            TaskStatus::Done,
+        )
+        .await
+        .unwrap();
+        assert_eq!(back.placement, TaskPlacement::WeeklyBacklog);
+        assert_eq!(back.scheduled_date, None);
+        assert_eq!(back.status, TaskStatus::Done);
+    }
+
+    #[tokio::test]
+    async fn board_move_tombstones_a_moved_series_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        board_move(
+            &pool,
+            pid,
+            task.id,
+            TaskPlacement::Scheduled,
+            Some("2027-03-15"),
+            TaskStatus::Todo,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            skipped_dates(&pool, pid, task.series_id.unwrap())
+                .await
+                .unwrap(),
+            vec!["2026-11-16".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn board_move_rejects_an_occupied_family_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, series_id, placement, scheduled_date, sort_order)              VALUES (?, 'Other', ?, 'scheduled', '2027-03-15', 5)",
+        )
+        .bind(pid)
+        .bind(task.series_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let err = board_move(
+            &pool,
+            pid,
+            task.id,
+            TaskPlacement::Scheduled,
+            Some("2027-03-15"),
+            TaskStatus::Todo,
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{err:?}").contains("InstanceDateOccupied"));
+    }
+
+    #[tokio::test]
+    async fn board_move_rejects_a_placement_date_mismatch() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+
+        // A backlog or weekly-backlog drop must never carry a date —
+        // the row would render in both views at once.
+        for placement in [TaskPlacement::Backlog, TaskPlacement::WeeklyBacklog] {
+            let err = board_move(
+                &pool,
+                pid,
+                task.id,
+                placement,
+                Some("2027-03-15"),
+                TaskStatus::Todo,
+            )
+            .await
+            .unwrap_err();
+            assert!(format!("{err:?}").contains("ScheduledDateInvalid"));
+        }
+        // And a scheduled drop without a date cannot exist.
+        assert!(
+            board_move(
+                &pool,
+                pid,
+                task.id,
+                TaskPlacement::Scheduled,
+                None,
+                TaskStatus::Todo
+            )
+            .await
+            .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn board_move_rejects_unknown_foreign_and_bad_dates() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        let (other_pool, other) = seeded_pool().await;
+
+        assert!(
+            board_move(
+                &pool,
+                pid,
+                9999,
+                TaskPlacement::Scheduled,
+                Some("2027-03-15"),
+                TaskStatus::Todo
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            board_move(
+                &other_pool,
+                other,
+                task.id,
+                TaskPlacement::Scheduled,
+                Some("2027-03-15"),
+                TaskStatus::Todo
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            format!(
+                "{:?}",
+                board_move(
+                    &pool,
+                    pid,
+                    task.id,
+                    TaskPlacement::Scheduled,
+                    Some("bad"),
+                    TaskStatus::Todo
+                )
+                .await
+                .unwrap_err()
+            )
+            .contains("ScheduledDateInvalid")
         );
     }
 

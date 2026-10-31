@@ -49,6 +49,7 @@ pub fn run() {
             commands::move_task,
             commands::delete_task,
             commands::add_task_to_week,
+            commands::board_move,
             commands::return_task_to_backlog,
             commands::schedule_task,
             commands::schedule_occurrence,

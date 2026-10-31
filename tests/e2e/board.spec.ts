@@ -142,7 +142,7 @@ test("a card renders in the cell under its day's column header", async ({
         ...document.querySelectorAll<HTMLTableCellElement>("thead tr th"),
       ].find((th) => th.textContent?.includes(dayLabel));
       const cell = document
-        .querySelector<HTMLButtonElement>(`button[aria-label="${cardLabel}"]`)
+        .querySelector<HTMLElement>(`[aria-label="${cardLabel}"]`)
         ?.closest("td");
       return { headerIndex: header?.cellIndex, cellIndex: cell?.cellIndex };
     },
@@ -677,4 +677,47 @@ test("a day-scheduled card returns to the backlog from its details", async ({
   await expect(
     page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
   ).toHaveCount(0);
+});
+
+test("dragging a card to another day sends the combined move on the wire", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const card = page.getByRole("button", {
+    name: editTaskLabel(mondayTask.title),
+  });
+  const target = page.locator("tbody tr").first().locator("td").nth(3);
+  const from = await card.boundingBox();
+  const to = await target.boundingBox();
+  await page.mouse.move(from!.x + 10, from!.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(to!.x + 10, to!.y + 10, { steps: 10 });
+  await page.mouse.up();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.boardMove)?.args).toEqual({
+    taskId: mondayTask.id,
+    placement: "scheduled",
+    date: days[2],
+    status: "todo",
+  });
+});
+
+test("a drop on the same cell sends nothing on the wire", async ({ page }) => {
+  await stubBoard(page);
+  await page.goto("/");
+
+  const card = page.getByRole("button", {
+    name: editTaskLabel(mondayTask.title),
+  });
+  const from = await card.boundingBox();
+  await page.mouse.move(from!.x + 10, from!.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(from!.x + 12, from!.y + 12, { steps: 6 });
+  await page.mouse.up();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.boardMove)).toBeUndefined();
 });

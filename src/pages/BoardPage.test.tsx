@@ -9,10 +9,13 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { listTaskCategories } from "@/api/categories";
+import { ApiError } from "@/api/transport";
+import { INSTANCE_DATE_OCCUPIED_MESSAGE } from "@/lib/errors";
 import { ADD_TASK_LABEL, CLOSE_LABEL, TASK_CARD_LABEL } from "@/lib/labels";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
+  boardMove,
   listPendingCarryOver,
   listWeekTasks,
   resolveCarryOver,
@@ -50,6 +53,7 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   listWeekTasks: vi.fn(),
   listPendingCarryOver: vi.fn(),
   resolveCarryOver: vi.fn(),
+  boardMove: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
@@ -62,6 +66,36 @@ vi.mock("@/api/categories", async (importOriginal) => ({
 }));
 // The dialog is covered by its own suite — a stub keeps this test on
 // the board's own responsibilities.
+let capturedDragEnd: (e: unknown) => void = () => {};
+vi.mock("@dnd-kit/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@dnd-kit/core")>();
+  return {
+    ...actual,
+    DndContext: ({
+      children,
+      onDragEnd,
+    }: {
+      children: unknown;
+      onDragEnd: (e: unknown) => void;
+    }) => {
+      capturedDragEnd = onDragEnd;
+      return children;
+    },
+    useDraggable: () => ({
+      attributes: {
+        role: "button",
+        tabIndex: 0,
+        "aria-roledescription": "draggable",
+      },
+      listeners: {},
+      setNodeRef: () => {},
+      transform: null,
+      isDragging: false,
+    }),
+    useDroppable: () => ({ setNodeRef: () => {}, isOver: false }),
+  };
+});
+
 vi.mock("@/features/tasks/EditTaskDialog", () => ({
   EditTaskDialog: ({ onClose }: { onClose: () => void }) => (
     <div role="dialog">
@@ -82,6 +116,7 @@ vi.mock("@/features/tasks/NewTaskDialog", () => ({
 }));
 
 const mockedListWeekTasks = vi.mocked(listWeekTasks);
+const mockedBoardMove = vi.mocked(boardMove);
 const mockedPendingCarryOver = vi.mocked(listPendingCarryOver);
 const mockedResolveCarryOver = vi.mocked(resolveCarryOver);
 const mockedWeekStart = vi.mocked(weekStart);
@@ -818,6 +853,68 @@ describe("BoardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: CLOSE_LABEL }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+});
+
+describe("drag and drop", () => {
+  const dragEnd = (taskId: number, cell: string) =>
+    capturedDragEnd({ active: { id: taskId }, over: { id: cell } });
+
+  it("dropping on a day cell moves placement, date and status together", async () => {
+    renderBoard();
+    await screen.findByText(TASK_TITLE);
+
+    dragEnd(weeklyTask.id, `${days[1]}|${TaskStatus.InProgress}`);
+
+    await waitFor(() =>
+      expect(mockedBoardMove).toHaveBeenCalledWith(
+        weeklyTask.id,
+        TaskPlacement.Scheduled,
+        days[1],
+        TaskStatus.InProgress,
+      ),
+    );
+  });
+
+  it("dropping on the weekly backlog clears the date", async () => {
+    renderBoard();
+    await screen.findByText(TASK_TITLE);
+
+    dragEnd(baseTask.id, `weekly-backlog|${TaskStatus.Done}`);
+
+    await waitFor(() =>
+      expect(mockedBoardMove).toHaveBeenCalledWith(
+        baseTask.id,
+        TaskPlacement.WeeklyBacklog,
+        null,
+        TaskStatus.Done,
+      ),
+    );
+  });
+
+  it("a drop on the same cell is a no-op", async () => {
+    renderBoard();
+    await screen.findByText(TASK_TITLE);
+
+    dragEnd(baseTask.id, `${baseTask.scheduled_date}|${baseTask.status}`);
+
+    expect(mockedBoardMove).not.toHaveBeenCalled();
+  });
+
+  it("a rejected drop surfaces its typed error", async () => {
+    mockedBoardMove.mockRejectedValueOnce(
+      new ApiError("instance_date_occupied", "validation", "occupied"),
+    );
+    renderBoard();
+    await screen.findByText(TASK_TITLE);
+
+    dragEnd(baseTask.id, `${days[1]}|${TaskStatus.Todo}`);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain(
+        INSTANCE_DATE_OCCUPIED_MESSAGE,
+      ),
     );
   });
 });

@@ -315,3 +315,27 @@ Feature: Tasks
     And a task titled Alpha scheduled for "2026-11-16"
     When I schedule the task Alpha for "2026-11-16"
     Then the schedule fails
+
+  Scenario: a board move places a task on a day in a state
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Alpha
+    When I move the task Alpha to "2026-11-16" in state in_progress
+    Then the task Alpha is scheduled for "2026-11-16"
+    And the task "Alpha" has status in_progress
+
+  Scenario: a board move to the weekly backlog clears the date
+    Given an application state on a temporary seeded database
+    And a task titled Alpha scheduled for "2026-11-16"
+    When I move the task Alpha to the weekly backlog in state done
+    Then the task Alpha is in the weekly backlog
+
+  Scenario: a board move for an unknown task is rejected
+    Given an application state on a temporary seeded database
+    When I move an unknown task to "2026-11-16" in state todo
+    Then the board move fails
+
+  Scenario: a board move to a malformed date is rejected
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Alpha
+    When I move the task Alpha to "not-a-date" in state todo
+    Then the board move fails

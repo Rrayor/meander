@@ -150,7 +150,7 @@ describe("Board smoke", () => {
 
     // The card appears in the weekly backlog column.
     await nav.$(`=${boardRoute.label}`).click();
-    const card = () => $(`button[aria-label='${editTaskLabel(title)}']`);
+    const card = () => $(`aria/${editTaskLabel(title)}`);
     await browser.waitUntil(async () => (await card()).isExisting(), {
       timeout: 10000,
     });
@@ -162,8 +162,7 @@ describe("Board smoke", () => {
     await (await (await dialog()).$(`button=${MOVE_TO_BACKLOG_LABEL}`)).click();
     await browser.waitUntil(noDialog, { timeout: 15000 });
     await browser.waitUntil(
-      async () =>
-        (await $$(`button[aria-label='${editTaskLabel(title)}']`)).length === 0,
+      async () => (await $$(`aria/${editTaskLabel(title)}`)).length === 0,
       { timeout: 10000 },
     );
 
