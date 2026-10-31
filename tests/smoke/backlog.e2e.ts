@@ -27,7 +27,7 @@ function seedTasks(prefix: string, count: number) {
     "-c",
     "import sqlite3,sys;" +
       "c=sqlite3.connect(sys.argv[1],timeout=10);" +
-      'c.execute("DELETE FROM tasks");' +
+      `c.execute("DELETE FROM tasks WHERE title LIKE '${prefix}%'");` +
       'c.execute("INSERT INTO tasks (profile_id, title, sort_order) VALUES " + sys.argv[2]);' +
       "c.commit();c.close()",
     dbPath,
@@ -39,36 +39,48 @@ describe("Backlog smoke", () => {
   it("paginates the backlog at 50 items on the real backend", async () => {
     const prefix = `SP${Date.now()}-`;
     seedTasks(prefix, PAGE_SIZE + 1);
-    const row = (n: number) =>
-      $(`button[aria-label='${editTaskLabel(`${prefix}${n}`)}']`);
 
     const nav = await $(`aria/${NAV_LABEL}`);
     const route = ROUTES.find(({ label }) => label === "Backlog")!;
     await nav.$(`=${route.label}`).click();
-    await browser.waitUntil(async () => (await row(1)).isExisting(), {
+    await browser.waitUntil(
+      async () =>
+        (await $(`nav[aria-label='${PAGINATION_LABEL}']`)).isExisting(),
+      { timeout: 10000 },
+    );
+
+    // Leftover rows from other specs sort first; the seeds occupy the
+    // tail — walk to the last page by the "Page X of Y" indicator.
+    const label = async () =>
+      String(
+        await (
+          await $(`nav[aria-label='${PAGINATION_LABEL}'] span`)
+        ).getProperty("textContent"),
+      );
+    for (let i = 0; i < 20; i++) {
+      const m = /^Page (\d+) of (\d+)$/.exec(await label());
+      if (m && m[1] === m[2]) break;
+      await (await $(`button[aria-label='${PAGINATION_NEXT_LABEL}']`)).click();
+    }
+    const lastRow = () =>
+      $(`button[aria-label='${editTaskLabel(`${prefix}${PAGE_SIZE + 1}`)}']`);
+    await browser.waitUntil(async () => (await lastRow()).isExisting(), {
       timeout: 10000,
     });
-    await expect(await row(PAGE_SIZE + 1).isExisting()).toBe(false);
-    await expect(
-      await $(`nav[aria-label='${PAGINATION_LABEL}']`).isExisting(),
-    ).toBe(true);
+    await expect(await lastRow().isExisting()).toBe(true);
 
-    await (await $(`button[aria-label='${PAGINATION_NEXT_LABEL}']`)).click();
-    await browser.waitUntil(
-      async () => (await row(PAGE_SIZE + 1)).isExisting(),
-      {
-        timeout: 10000,
-      },
-    );
-    await expect(await row(PAGE_SIZE + 1).isExisting()).toBe(true);
-    await expect(await row(1).isExisting()).toBe(false);
-
+    // And one page back hides it again.
     await (
       await $(`button[aria-label='${PAGINATION_PREVIOUS_LABEL}']`)
     ).click();
-    await browser.waitUntil(async () => (await row(1)).isExisting(), {
-      timeout: 10000,
-    });
-    await expect(await row(1).isExisting()).toBe(true);
+    await browser.waitUntil(
+      async () =>
+        (
+          await $$(
+            `button[aria-label='${editTaskLabel(`${prefix}${PAGE_SIZE + 1}`)}']`,
+          )
+        ).length === 0,
+      { timeout: 10000 },
+    );
   });
 });

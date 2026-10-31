@@ -7,6 +7,10 @@ import {
   pageXOfYLabel,
 } from "@/lib/labels";
 
+import { usePagination } from "./usePagination";
+
+import type { ReactNode } from "react";
+
 export function Pagination({
   page,
   pageCount,
@@ -44,5 +48,23 @@ export function Pagination({
         <ChevronRight size={16} />
       </button>
     </nav>
+  );
+}
+/// Keyed boundary for the paged region — render it with key={owner id}
+/// (e.g. the profile id) so a context switch remounts the hook and the
+/// list reopens on page one instead of restoring a stale page.
+export function Paged<T>({
+  items,
+  children,
+}: Readonly<{
+  items: readonly T[] | undefined;
+  children: (pageItems: readonly T[] | undefined) => ReactNode;
+}>) {
+  const { pageItems, page, pageCount, setPage } = usePagination(items);
+  return (
+    <>
+      {children(pageItems)}
+      <Pagination page={page} pageCount={pageCount} onPage={setPage} />
+    </>
   );
 }

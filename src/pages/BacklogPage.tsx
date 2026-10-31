@@ -38,8 +38,7 @@ import type { Task } from "@/api/tasks";
 import { DeleteButton } from "@/components/DeleteButton";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
-import { Pagination } from "@/features/pagination/Pagination";
-import { usePagination } from "@/features/pagination/usePagination";
+import { Paged } from "@/features/pagination/Pagination";
 
 const STATUS_BADGE = {
   todo: "bg-surface-raised text-text-muted",
@@ -207,10 +206,6 @@ export function BacklogPage() {
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
-  const { pageItems, page, pageCount, setPage } = usePagination(
-    tasks,
-    profile?.id,
-  );
   // Failed mutations are scoped to the profile they ran under — reset on
   // a switch so alerts can't leak across. Only a transition between two
   // resolved ids counts: the first profile load must not clear an error
@@ -296,30 +291,33 @@ export function BacklogPage() {
           </div>
         )}
         {tasks && tasks.length > 0 && (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={onDragEnd}
-          >
-            <SortableContext
-              items={pageItems!.map((t) => t.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
-                {pageItems!.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    deletePending={del.isPending}
-                    onDelete={() => del.mutate(task.id)}
-                    onEdit={() => setEditingTask(task)}
-                    onAddToWeek={() => addToWeek.mutate(task.id)}
-                  />
-                ))}
-              </ul>
-            </SortableContext>
-            <Pagination page={page} pageCount={pageCount} onPage={setPage} />
-          </DndContext>
+          <Paged key={profile?.id} items={tasks}>
+            {(pageItems) => (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext
+                  items={pageItems!.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
+                    {pageItems!.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        deletePending={del.isPending}
+                        onDelete={() => del.mutate(task.id)}
+                        onEdit={() => setEditingTask(task)}
+                        onAddToWeek={() => addToWeek.mutate(task.id)}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            )}
+          </Paged>
         )}
       </section>
       {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
