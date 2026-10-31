@@ -1436,6 +1436,89 @@ fn move_after(world: &mut MeanderWorld, moved: String, anchor: String) {
     }
 }
 
+#[when(expr = "I move the task {word} between {word} and {word}")]
+fn move_between_anchors(world: &mut MeanderWorld, moved: String, low: String, high: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let id_of = |title: &str| {
+        tasks
+            .iter()
+            .find(|t| t.title == title)
+            .expect("task missing")
+            .id
+    };
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::move_task(
+        &pool,
+        active,
+        id_of(&moved),
+        Some(id_of(&low)),
+        Some(id_of(&high)),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I move the foreign task before {word}")]
+fn move_foreign_task(world: &mut MeanderWorld, anchor: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let foreign = world.profile_id.expect("no second profile");
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let anchor_id = tasks
+        .iter()
+        .find(|t| t.title == anchor)
+        .expect("anchor task missing")
+        .id;
+    let foreign_id = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, foreign))
+        .expect("foreign task list failed")[0]
+        .id;
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::move_task(
+        &pool,
+        active,
+        foreign_id,
+        None,
+        Some(anchor_id),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I move an unknown task before {word}")]
+fn move_unknown_task(world: &mut MeanderWorld, anchor: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let tasks = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed");
+    let anchor_id = tasks
+        .iter()
+        .find(|t| t.title == anchor)
+        .expect("anchor task missing")
+        .id;
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::move_task(
+        &pool,
+        active,
+        9999,
+        None,
+        Some(anchor_id),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
 #[when(expr = "I delete {word}")]
 fn delete_task_titled(world: &mut MeanderWorld, title: String) {
     let state = world.state.as_ref().expect("no app state in world");

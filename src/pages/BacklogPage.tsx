@@ -16,6 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarPlus } from "lucide-react";
+import { matchesSearch, sortTasks } from "@/features/viewFilters";
+import { ViewToolbar } from "@/features/ViewToolbar";
+import { TaskSort } from "@/lib/enums";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -52,15 +55,17 @@ function TaskRow({
   onEdit,
   onAddToWeek,
   deletePending,
+  sortLocked,
 }: Readonly<{
   task: Task;
   onDelete: () => void;
   onEdit: () => void;
   onAddToWeek: () => void;
   deletePending: boolean;
+  sortLocked: boolean;
 }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: task.id });
+    useSortable({ id: task.id, disabled: sortLocked });
 
   return (
     // The row is clickable per the Stitch design (cursor-pointer + hover
@@ -163,9 +168,21 @@ export function BacklogPage() {
       anchorBySeries.set(t.series_id, t.id);
     }
   }
-  const tasks = allTasks?.filter(
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
+  const scoped = allTasks?.filter(
     (t) => t.series_id === null || anchorBySeries.get(t.series_id) === t.id,
   );
+  // View-time transforms only (spec §360/§364) — search narrows and
+  // the pick reorders the slice; manual order stays the stored truth.
+  // `tasks` stays undefined until the list resolves — an empty
+  // array here would flash the empty state during loading.
+  const tasks =
+    scoped &&
+    sortTasks(
+      scoped.filter((t) => matchesSearch(t, query)),
+      sort,
+    );
   const move = useMutation({
     mutationFn: ({
       taskId,
@@ -285,13 +302,23 @@ export function BacklogPage() {
             )}
           </p>
         )}
+        {/* The toolbar follows the unfiltered list — a search that
+            yields nothing must not hide the control that produced it. */}
+        {scoped && scoped.length > 0 && (
+          <ViewToolbar
+            query={query}
+            onQuery={setQuery}
+            sort={sort}
+            onSort={setSort}
+          />
+        )}
         {tasks?.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-text-muted">{EMPTY_BACKLOG_MESSAGE}</p>
           </div>
         )}
         {tasks && tasks.length > 0 && (
-          <Paged key={profile?.id} items={tasks}>
+          <Paged key={`${profile?.id}-${sort}-${query}`} items={tasks}>
             {(pageItems) => (
               <DndContext
                 sensors={sensors}
@@ -310,6 +337,7 @@ export function BacklogPage() {
                         deletePending={del.isPending}
                         onDelete={() => del.mutate(task.id)}
                         onEdit={() => setEditingTask(task)}
+                        sortLocked={sort !== TaskSort.Manual}
                         onAddToWeek={() => addToWeek.mutate(task.id)}
                       />
                     ))}

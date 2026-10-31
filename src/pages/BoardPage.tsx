@@ -27,7 +27,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { TaskCard } from "@/features/tasks/TaskCard";
-import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
+import { TaskPlacement, TaskSort, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
   ADD_TASK_LABEL,
@@ -53,6 +53,8 @@ import {
   weekDates,
 } from "@/lib/utils";
 import { serverErrorMessage } from "@/lib/errors";
+import { matchesSearch, sortTasks } from "@/features/viewFilters";
+import { ViewToolbar } from "@/features/ViewToolbar";
 
 const STATUS_ROWS = [
   TaskStatus.Todo,
@@ -276,11 +278,23 @@ export function BoardPage() {
     enabled: isCurrentWeek,
   });
   const columns: (string | null)[] = isCurrentWeek ? [null, ...days] : days;
-  const columnTasks = (column: string | null) =>
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
+  // Search narrows and the pick reorders within the grid's bounds —
+  // columns, rows and placement are never touched (spec §360/§366).
+  const columnMembers = (column: string | null) =>
     (tasks ?? []).filter((t) =>
       column === null
         ? t.placement === TaskPlacement.WeeklyBacklog
         : t.scheduled_date === column,
+    );
+  // Thresholds and day totals always use the full membership — a
+  // search must not hide workload that is still scheduled. Only the
+  // rendered cards are narrowed and reordered (spec §360/§366).
+  const columnTasks = (column: string | null) =>
+    sortTasks(
+      columnMembers(column).filter((t) => matchesSearch(t, query)),
+      sort,
     );
 
   // Task→category associations ride the same query keys as the card
@@ -361,7 +375,7 @@ export function BoardPage() {
 
   const { tintColors: columnTintColors, reachedCats } = columnThresholds(
     columns,
-    columnTasks,
+    columnMembers,
     threshold,
     taskCategories,
   );
@@ -461,6 +475,12 @@ export function BoardPage() {
           {BOARD_SAVING_LABEL}
         </output>
       )}
+      <ViewToolbar
+        query={query}
+        onQuery={setQuery}
+        sort={sort}
+        onSort={setSort}
+      />
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
       <section tabIndex={0} className="flex-1 overflow-auto p-6">
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
@@ -471,7 +491,7 @@ export function BoardPage() {
                   rowheader + 8 data cells of the body rows. */}
                 <td className="w-12" />
                 {columns.map((column) => {
-                  const day = totals(columnTasks(column));
+                  const day = totals(columnMembers(column));
                   return (
                     <th
                       key={column ?? "weekly-backlog"}
