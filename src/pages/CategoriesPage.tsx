@@ -1,3 +1,4 @@
+import { Paged } from "@/features/pagination/Pagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -107,41 +108,45 @@ export function CategoriesPage() {
             {EMPTY_CATEGORIES_MESSAGE}
           </p>
         )}
-        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-          {categories?.map((category) => (
-            // Rows open the editor on click like backlog rows; the title
-            // button carries the keyboard/AT affordance, so the li's click
-            // handler is pointer-only by design.
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- keyboard users reach the same action via the title's <button>
-            <li
-              key={category.id}
-              onClick={() => setEditing(category)}
-              className="group flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-surface-raised"
-            >
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: category.color ?? UNCOLORED }}
-              />
-              <button
-                type="button"
-                aria-label={editCategoryLabel(category.title)}
-                onClick={() => setEditing(category)}
-                className="min-w-0 flex-1 cursor-pointer truncate rounded text-left text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {category.title}
-              </button>
-              <span className="text-xs text-text-muted">
-                {categoryCreatedLabel(formatDate(category.created_at))}
-              </span>
-              <DeleteButton
-                label={deleteCategoryLabel(category.title)}
-                disabled={del.isPending}
-                onDelete={() => del.mutate(category.id)}
-              />
-            </li>
-          ))}
-        </ul>
+        <Paged key={profile?.id} items={categories}>
+          {(items) => (
+            <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
+              {items?.map((category) => (
+                // Rows open the editor on click like backlog rows; the title
+                // button carries the keyboard/AT affordance, so the li's click
+                // handler is pointer-only by design.
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- keyboard users reach the same action via the title's <button>
+                <li
+                  key={category.id}
+                  onClick={() => setEditing(category)}
+                  className="group flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-surface-raised"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: category.color ?? UNCOLORED }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={editCategoryLabel(category.title)}
+                    onClick={() => setEditing(category)}
+                    className="min-w-0 flex-1 cursor-pointer truncate rounded text-left text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {category.title}
+                  </button>
+                  <span className="text-xs text-text-muted">
+                    {categoryCreatedLabel(formatDate(category.created_at))}
+                  </span>
+                  <DeleteButton
+                    label={deleteCategoryLabel(category.title)}
+                    disabled={del.isPending}
+                    onDelete={() => del.mutate(category.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Paged>
       </section>
       {dialogOpen && <CategoryDialog onClose={() => setDialogOpen(false)} />}
       {editing && (

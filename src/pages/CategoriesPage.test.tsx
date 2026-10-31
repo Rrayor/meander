@@ -16,6 +16,8 @@ import {
   NEW_CATEGORY_HEADING,
   CATEGORIES_SUBTITLE,
   CREATE_CATEGORY_LABEL,
+  PAGINATION_NEXT_LABEL,
+  PAGINATION_PREVIOUS_LABEL,
   EMPTY_CATEGORIES_MESSAGE,
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
@@ -423,4 +425,34 @@ test("surfaces backend errors in an alert region", async () => {
   await waitFor(() =>
     expect(screen.getByRole("alert")).toHaveTextContent(SERVER_MESSAGE),
   );
+});
+
+test("paginates the list at 50 categories per page", async () => {
+  const many = Array.from({ length: 51 }, (_, i) => ({
+    ...CATEGORY,
+    id: i + 1,
+    title: `Cat ${i + 1}`,
+  }));
+  vi.mocked(listCategories).mockResolvedValue(many);
+  renderPage();
+  await screen.findByText("Cat 1");
+
+  expect(screen.queryByText("Cat 51")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: PAGINATION_NEXT_LABEL }));
+  expect(await screen.findByText("Cat 51")).toBeInTheDocument();
+  expect(screen.queryByText("Cat 1")).not.toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: PAGINATION_PREVIOUS_LABEL }),
+  );
+  expect(await screen.findByText("Cat 1")).toBeInTheDocument();
+});
+
+test("hides pagination controls for a single page", async () => {
+  vi.mocked(listCategories).mockResolvedValue([CATEGORY]);
+  renderPage();
+  await screen.findByText(CATEGORY.title);
+  expect(
+    screen.queryByRole("button", { name: PAGINATION_NEXT_LABEL }),
+  ).not.toBeInTheDocument();
 });
