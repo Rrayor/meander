@@ -60,6 +60,7 @@ import {
   weekDates,
 } from "@/lib/utils";
 import { serverErrorMessage } from "@/lib/errors";
+import { currentDatabasePath } from "@/api/settings";
 import { matchesSearch, sortTasks } from "@/features/viewFilters";
 import { ViewToolbar } from "@/features/ViewToolbar";
 
@@ -73,8 +74,8 @@ const STATUS_ROWS = [
 /// backlog bucket) and its status row — the drop decodes placement,
 /// date and status from it in one gesture (spec §314/§328).
 const WEEKLY_CELL = "weekly-backlog";
-const layoutKey = (profileId: number | undefined) =>
-  `meander.boardLayout.${profileId ?? 0}`;
+const layoutKey = (dbPath: string | undefined, profileId: number | undefined) =>
+  `meander.boardLayout.${dbPath ?? "?"}.${profileId ?? 0}`;
 
 const cellId = (column: string | null, status: TaskStatus) =>
   `${column ?? WEEKLY_CELL}|${status}`;
@@ -297,23 +298,32 @@ export function BoardPage() {
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
   });
+  const { data: dbPath } = useQuery({
+    queryKey: QUERY_KEYS.dbPath,
+    queryFn: currentDatabasePath,
+  });
   const [transposed, setTransposed] = useState(false);
   // Seed from storage when the profile id resolves — React's
   // documented adjust-state-during-render alternative to an
   // effect-side setState; switching profiles re-reads that
   // profile's own saved orientation.
   const [layoutFor, setLayoutFor] = useState<number | undefined>(undefined);
-  if (profile !== undefined && layoutFor !== profile?.id) {
+  if (
+    profile !== undefined &&
+    dbPath !== undefined &&
+    layoutFor !== profile?.id
+  ) {
     setLayoutFor(profile?.id);
     setTransposed(
-      localStorage.getItem(layoutKey(profile?.id)) === BoardLayout.DayRows,
+      localStorage.getItem(layoutKey(dbPath, profile?.id)) ===
+        BoardLayout.DayRows,
     );
   }
   const toggleLayout = () =>
     setTransposed((t) => {
       const next = !t;
       localStorage.setItem(
-        layoutKey(profile?.id),
+        layoutKey(dbPath, profile?.id),
         next ? BoardLayout.DayRows : BoardLayout.StatusRows,
       );
       return next;
@@ -553,6 +563,7 @@ export function BoardPage() {
         type="button"
         aria-label={TRANSPOSE_LAYOUT_LABEL}
         aria-pressed={transposed}
+        disabled={profile === undefined || dbPath === undefined}
         onClick={toggleLayout}
         className="mx-6 mt-3 w-fit rounded-md border border-border px-2 py-1 text-xs text-text-muted hover:bg-surface-raised"
       >
