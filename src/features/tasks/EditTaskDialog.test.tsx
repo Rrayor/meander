@@ -1918,7 +1918,52 @@ describe("EditTaskDialog", () => {
     );
   });
 
-  it("hides the date control for series tasks", async () => {
+  it("materializes a pending occurrence before moving it", async () => {
+    mockedGetOrCreate.mockResolvedValue({
+      ...baseTask,
+      id: 42,
+      placement: TaskPlacement.Scheduled,
+      scheduled_date: OTHER_INSTANCE_DATE,
+    });
+    mockedSchedule.mockResolvedValue({
+      ...baseTask,
+      id: 42,
+      placement: TaskPlacement.Scheduled,
+      scheduled_date: "2027-03-15",
+    });
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE);
+
+    fireEvent.change(await screen.findByLabelText(DATE_FIELD_LABEL), {
+      target: { value: "2027-03-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: MOVE_TO_DATE_LABEL }));
+    await waitFor(() =>
+      expect(mockedGetOrCreate).toHaveBeenCalledWith(
+        baseSeries.id,
+        OTHER_INSTANCE_DATE,
+      ),
+    );
+    await waitFor(() =>
+      expect(mockedSchedule).toHaveBeenCalledWith(42, "2027-03-15"),
+    );
+  });
+
+  it("shows the date control for series tasks", async () => {
     render(
       <QueryClientProvider client={testQueryClient()}>
         <EditTaskDialog
@@ -1927,8 +1972,7 @@ describe("EditTaskDialog", () => {
         />
       </QueryClientProvider>,
     );
-    await screen.findByRole("button", { name: EDIT_BUTTON_LABEL });
-    expect(screen.queryByLabelText(DATE_FIELD_LABEL)).toBeNull();
+    expect(await screen.findByLabelText(DATE_FIELD_LABEL)).toBeInTheDocument();
   });
 
   it("surfaces a rejected schedule in the details alert", async () => {

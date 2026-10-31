@@ -286,11 +286,11 @@ Feature: Tasks
     When I schedule the task Alpha for "2027-03-15"
     Then the task Alpha is scheduled for "2027-03-15"
 
-  Scenario: scheduling a series task is rejected
+  Scenario: a series task is scheduled for a different date
     Given an application state on a temporary seeded database
     When I create a task titled "Alpha" repeating weekly on Monday
     And I schedule the task Alpha for "2027-03-15"
-    Then the schedule fails
+    Then the task Alpha is scheduled for "2027-03-15"
 
   Scenario: scheduling for an impossible calendar date is rejected
     Given an application state on a temporary seeded database

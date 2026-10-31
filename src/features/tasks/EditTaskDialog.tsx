@@ -551,25 +551,23 @@ function TaskDetailsView({
                 {MOVE_TO_BACKLOG_LABEL}
               </button>
             )}
-          {viewed.series_id === null && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                aria-label={DATE_FIELD_LABEL}
-                value={pickedDate}
-                onChange={(e) => setPickedDate(e.target.value)}
-                className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text"
-              />
-              <button
-                type="button"
-                onClick={() => onSchedule(pickedDate)}
-                disabled={!pickedDate}
-                className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
-              >
-                {MOVE_TO_DATE_LABEL}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              aria-label={DATE_FIELD_LABEL}
+              value={pickedDate}
+              onChange={(e) => setPickedDate(e.target.value)}
+              className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text"
+            />
+            <button
+              type="button"
+              onClick={() => onSchedule(pickedDate)}
+              disabled={!pickedDate}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+            >
+              {MOVE_TO_DATE_LABEL}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-text-muted">
@@ -1486,7 +1484,15 @@ export function EditTaskDialog({
   });
 
   const schedule = useMutation({
-    mutationFn: (date: string) => scheduleTask(viewed.id, date),
+    mutationFn: async (date: string) => {
+      // A picked-but-unpersisted occurrence must exist before it can be
+      // redated — otherwise the move has no row to land on (spec §228).
+      if (pendingIso !== null) {
+        const created = await getOrCreateInstance(livingSeriesId!, pendingIso);
+        return scheduleTask(created.id, date);
+      }
+      return scheduleTask(viewed.id, date);
+    },
     onSuccess: onClose,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });

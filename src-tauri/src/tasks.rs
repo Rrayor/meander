@@ -485,12 +485,13 @@ pub async fn add_to_week(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<
 }
 
 /// Schedules a standalone task for an arbitrary date (spec §228 — any date
-/// may be used, not just the current week). Series members reject: their
-/// dates come from cadence; moving a series instance is a separate action.
+/// may be used, not just the current week). A persisted series instance
+/// redates its row — the moved occurrence deviates from cadence and is
+/// used instead of a freshly materialized one (spec §228/§231).
 pub async fn schedule(pool: &SqlitePool, profile_id: i64, id: i64, date: &str) -> Result<Task> {
     crate::validation::iso_date(date, ErrorCode::ScheduledDateInvalid, "date")?;
     let result = sqlx::query(
-        "UPDATE tasks SET placement = 'scheduled', scheduled_date = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND series_id IS NULL          AND (placement != 'scheduled' OR scheduled_date != ?)",
+        "UPDATE tasks SET placement = 'scheduled', scheduled_date = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND (placement != 'scheduled' OR scheduled_date != ?)",
     )
     .bind(date)
     .bind(id)
@@ -2599,7 +2600,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn schedule_rejects_a_series_member() {
+    async fn schedule_redates_a_persisted_series_instance() {
         let (pool, pid) = seeded_pool().await;
         let task = create(
             &pool,
@@ -2612,14 +2613,10 @@ mod tests {
         .await
         .unwrap();
 
-        let error = schedule(&pool, pid, task.id, "2027-03-15")
-            .await
-            .unwrap_err();
-        assert!(format!("{error:?}").contains("TaskNotFound"));
-        assert_eq!(
-            get(&pool, task.id).await.unwrap().placement,
-            TaskPlacement::Backlog
-        );
+        let moved = schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::Scheduled);
+        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
+        assert_eq!(moved.series_id, task.series_id);
     }
 
     #[tokio::test]
