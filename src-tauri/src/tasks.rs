@@ -490,6 +490,12 @@ pub async fn add_to_week(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<
 /// used instead of a freshly materialized one (spec §228/§231).
 pub async fn schedule(pool: &SqlitePool, profile_id: i64, id: i64, date: &str) -> Result<Task> {
     crate::validation::iso_date(date, ErrorCode::ScheduledDateInvalid, "date")?;
+    let mut tx = pool.begin().await?;
+    let before: Option<(Option<i64>, Option<String>)> =
+        sqlx::query_as("SELECT series_id, scheduled_date FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
     let result = sqlx::query(
         "UPDATE tasks SET placement = 'scheduled', scheduled_date = ?,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND (placement != 'scheduled' OR scheduled_date != ?)",
     )
@@ -497,11 +503,26 @@ pub async fn schedule(pool: &SqlitePool, profile_id: i64, id: i64, date: &str) -
     .bind(id)
     .bind(profile_id)
     .bind(date)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     if result.rows_affected() == 0 {
         return Err(task_not_found());
     }
+    // A series instance moved off a cadence date must not rematerialize
+    // there — tombstone the old date like a return to backlog would
+    // (spec §148/§153), or the board shows the task twice.
+    if let Some((Some(series_id), Some(old_date))) = before
+        && old_date != date
+    {
+        sqlx::query(
+            "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date) VALUES (?, ?)",
+        )
+        .bind(series_id)
+        .bind(old_date)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
     get(pool, id).await
 }
 
@@ -2617,6 +2638,39 @@ mod tests {
         assert_eq!(moved.placement, TaskPlacement::Scheduled);
         assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
         assert_eq!(moved.series_id, task.series_id);
+    }
+
+    #[tokio::test]
+    async fn scheduling_a_series_instance_tombstones_the_old_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = '2026-10-30', placement = 'scheduled' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        schedule(&pool, pid, task.id, "2027-03-15").await.unwrap();
+
+        let tombstones: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM skipped_instances WHERE series_id = ? AND scheduled_date = '2026-10-30'",
+        )
+        .bind(task.series_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(tombstones, 1);
     }
 
     #[tokio::test]
