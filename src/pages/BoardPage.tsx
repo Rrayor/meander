@@ -10,10 +10,12 @@ import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
 import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
+import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
 import { TaskCard } from "@/features/tasks/TaskCard";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
+  ADD_TASK_LABEL,
   STATUS_LABELS,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
@@ -157,6 +159,7 @@ const totals = (tasks: Task[]) => ({
 // week renders for now; navigation and carry-over are later items.
 export function BoardPage() {
   const [editingTask, setEditingTask] = useState<Task>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const todayIso = todayLocalIso();
   const { data: start, error: startError } = useQuery({
     queryKey: QUERY_KEYS.weekStart,
@@ -299,6 +302,13 @@ export function BoardPage() {
           >
             {BOARD_THIS_WEEK_LABEL}
           </button>
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="ml-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            {ADD_TASK_LABEL}
+          </button>
         </div>
         <p className="text-sm text-text-muted">
           {taskCountLabel(weekTotals.count)} ·{" "}
@@ -400,6 +410,7 @@ export function BoardPage() {
           onClose={() => setEditingTask(undefined)}
         />
       )}
+      {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
     </>
   );
 }

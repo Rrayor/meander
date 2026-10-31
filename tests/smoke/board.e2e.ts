@@ -96,4 +96,24 @@ describe("Board smoke", () => {
       expect((await h.getText()).includes(WEEKLY_BACKLOG_LABEL)).toBe(false);
     }
   });
+  it("creates a task from the board through the real backend", async () => {
+    const title = `SmokeBoardTask-${Date.now()}`;
+
+    // Unique per attempt — the sandbox DB persists across wdio retries.
+    await (await $(`button=${ADD_TASK_LABEL}`)).click();
+    const dialog = await $("dialog");
+    await browser.waitUntil(() => dialog.isDisplayed());
+    await (await dialog.$("#new-task-title-input")).setValue(title);
+    await (await dialog.$(`button=${CREATE_TASK_LABEL}`)).click();
+    await browser.waitUntil(async () => !(await $("dialog").isExisting()));
+
+    // Board-created tasks land in the backlog — the real proof that the
+    // create flowed through the backend is finding it there.
+    const backlogRoute = ROUTES.find(({ label }) => label === "Backlog")!;
+    const nav = await $(`aria/${NAV_LABEL}`);
+    await nav.$(`=${backlogRoute.label}`).click();
+    const createdRow = () => $(`button[aria-label='${editTaskLabel(title)}']`);
+    await browser.waitUntil(async () => (await createdRow()).isExisting());
+    await expect(await createdRow().isExisting()).toBe(true);
+  });
 });
