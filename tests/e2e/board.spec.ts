@@ -13,6 +13,7 @@ import {
   MOVE_TO_BACKLOG_LABEL,
   SAVE_BUTTON_LABEL,
   STATUS_LABELS,
+  TRANSPOSE_LAYOUT_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -35,6 +36,7 @@ import {
 
 const todayIso = todayLocalIso();
 const days = weekDates(todayIso, Weekday.Monday);
+const DB_PATH = "/data/main.db";
 
 const baseTask = {
   profile_id: 1,
@@ -76,6 +78,7 @@ const stubBoard = (page: import("@playwright/test").Page) =>
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -162,6 +165,7 @@ test("a status edit moves the card to the matching row", async ({ page }) => {
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: stubSequence([
@@ -251,6 +255,7 @@ test("a failed board read surfaces an error alert", async ({ page }) => {
     [COMMANDS.listTaskNotes]: [],
     [COMMANDS.listSeriesNotes]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: Weekday.Monday,
     [COMMANDS.listWeekTasks]: stubError(message),
@@ -390,6 +395,7 @@ test("the carry-over prompt lists undecided tasks and applies the choice", async
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -422,6 +428,7 @@ test("the carry-over prompt sends a return decision to the backend", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -464,6 +471,7 @@ test("a day column tints when its estimates reach the threshold", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -492,6 +500,7 @@ test("a reached category threshold tints the column and its card", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -537,6 +546,7 @@ test("a weekday override tints its own day only", async ({ page }) => {
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -580,6 +590,7 @@ test("the board's create-task button opens the dialog and hits the wire", async 
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: [backlogTask, mondayTask],
@@ -610,6 +621,7 @@ test("a board task returns to the backlog from its details view", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: stubSequence([
@@ -649,6 +661,7 @@ test("a day-scheduled card returns to the backlog from its details", async ({
     [COMMANDS.listTaskSeries]: [],
     [COMMANDS.listSeriesInstances]: [],
     [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
     [COMMANDS.listTasks]: [],
     [COMMANDS.weekStart]: "monday",
     [COMMANDS.listWeekTasks]: stubSequence([
@@ -720,4 +733,53 @@ test("a drop on the same cell sends nothing on the wire", async ({ page }) => {
 
   const calls = await getInvocations(page);
   expect(calls.find((c) => c.cmd === COMMANDS.boardMove)).toBeUndefined();
+});
+
+test("the layout toggle transposes the grid and keeps the same cells", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }).click();
+  // Statuses become column headers; days become rowheaders.
+  await expect(
+    page.getByRole("columnheader", { name: STATUS_LABELS.todo }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("rowheader", {
+      name: new RegExp(shortWeekdayLabel(days[0])),
+    }),
+  ).toBeVisible();
+  // The card still renders in its own cell under the new axes.
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toBeVisible();
+});
+
+test("a transposed drag sends the same combined move on the wire", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }).click();
+
+  const card = page.getByRole("button", {
+    name: editTaskLabel(mondayTask.title),
+  });
+  // In the transposed grid the target is a body row's status cell —
+  // the second day's row, third status column.
+  const target = page.locator("tbody tr").nth(2).locator("td").nth(2);
+  const from = await card.boundingBox();
+  const to = await target.boundingBox();
+  await page.mouse.move(from!.x + 10, from!.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(to!.x + 10, to!.y + 10, { steps: 10 });
+  await page.mouse.up();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.boardMove)).toBeTruthy();
 });

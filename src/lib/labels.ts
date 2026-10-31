@@ -343,3 +343,4 @@ export const TASK_SORT_LABELS: Record<TaskSort, string> = {
   [TaskSort.Created]: "Created",
   [TaskSort.Updated]: "Recently updated",
 };
+export const TRANSPOSE_LAYOUT_LABEL = "Swap rows and columns";

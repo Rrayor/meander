@@ -12,7 +12,7 @@ import { listTaskCategories } from "@/api/categories";
 import { ApiError } from "@/api/transport";
 import { INSTANCE_DATE_OCCUPIED_MESSAGE } from "@/lib/errors";
 import { ADD_TASK_LABEL, CLOSE_LABEL, TASK_CARD_LABEL } from "@/lib/labels";
-import { globalThreshold, weekStart } from "@/api/profiles";
+import { currentProfile, globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
   boardMove,
@@ -20,7 +20,7 @@ import {
   listWeekTasks,
   resolveCarryOver,
 } from "@/api/tasks";
-import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
+import { BoardLayout, TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   CARRY_OVER_APPLY_LABEL,
   CARRY_OVER_CARRY_LABEL,
@@ -28,6 +28,7 @@ import {
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
   STATUS_LABELS,
+  TRANSPOSE_LAYOUT_LABEL,
   THRESHOLD_COLOR_DEFAULT,
   WEEKLY_BACKLOG_LABEL,
   boardWeekRangeLabel,
@@ -59,6 +60,16 @@ vi.mock("@/api/profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/profiles")>()),
   weekStart: vi.fn(),
   globalThreshold: vi.fn(),
+  currentProfile: vi.fn().mockResolvedValue({
+    id: 1,
+    name: "Profile",
+    created_at: "2026-01-01",
+    updated_at: "2026-01-01",
+  }),
+}));
+vi.mock("@/api/settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/settings")>()),
+  currentDatabasePath: vi.fn().mockResolvedValue("/data/main.db"),
 }));
 vi.mock("@/api/categories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/categories")>()),
@@ -121,6 +132,7 @@ const mockedPendingCarryOver = vi.mocked(listPendingCarryOver);
 const mockedResolveCarryOver = vi.mocked(resolveCarryOver);
 const mockedWeekStart = vi.mocked(weekStart);
 const mockedGlobalThreshold = vi.mocked(globalThreshold);
+const mockedCurrentProfile = vi.mocked(currentProfile);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
 
 const todayIso = todayLocalIso();
@@ -162,6 +174,7 @@ const renderBoard = () =>
   );
 
 beforeEach(() => {
+  localStorage.clear();
   mockedListWeekTasks.mockResolvedValue([baseTask, weeklyTask]);
   mockedPendingCarryOver.mockResolvedValue([]);
   mockedWeekStart.mockResolvedValue(Weekday.Monday);
@@ -917,4 +930,84 @@ describe("drag and drop", () => {
       ),
     );
   });
+});
+
+test("the layout toggle swaps rows and columns and persists the choice", async () => {
+  renderBoard();
+
+  // Default: day headers, status rows (spec §368 — normal is default).
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", {
+        name: new RegExp(shortWeekdayLabel(days[0])),
+      }),
+    ).toBeInTheDocument(),
+  );
+  // The profile query must settle before the seed effect does —
+  // toggling earlier would be re-read from the per-profile key.
+  await waitFor(() => expect(mockedCurrentProfile).toHaveBeenCalled());
+
+  fireEvent.click(screen.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }));
+  // Transposed: statuses become column headers, days become rowheaders.
+  await waitFor(() => {
+    expect(
+      screen.getByRole("columnheader", { name: STATUS_LABELS.todo }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("rowheader", {
+        name: new RegExp(shortWeekdayLabel(days[0])),
+      }),
+    ).toBeInTheDocument();
+  });
+  expect(localStorage.getItem("meander.boardLayout./data/main.db.1")).toBe(
+    BoardLayout.DayRows,
+  );
+
+  // Toggling back restores the default orientation.
+  fireEvent.click(screen.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("columnheader", {
+        name: new RegExp(shortWeekdayLabel(days[0])),
+      }),
+    ).toBeInTheDocument(),
+  );
+});
+
+test("transposed on mount when the saved layout is day-rows", async () => {
+  localStorage.setItem(
+    "meander.boardLayout./data/main.db.1",
+    BoardLayout.DayRows,
+  );
+  renderBoard();
+
+  await waitFor(() => {
+    // 8 rowheaders — weekly backlog plus the seven days — and the
+    // three statuses as column headers.
+    expect(screen.getAllByRole("rowheader")).toHaveLength(8);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+  });
+});
+
+it("dropping in the transposed grid sends the same combined move", async () => {
+  localStorage.setItem(
+    "meander.boardLayout./data/main.db.1",
+    BoardLayout.DayRows,
+  );
+  renderBoard();
+  await screen.findByText(TASK_TITLE);
+
+  capturedDragEnd({
+    active: { id: weeklyTask.id },
+    over: { id: `${days[1]}|${TaskStatus.InProgress}` },
+  });
+
+  await waitFor(() =>
+    expect(mockedBoardMove).toHaveBeenCalledWith(
+      weeklyTask.id,
+      TaskPlacement.Scheduled,
+      days[1],
+      TaskStatus.InProgress,
+    ),
+  );
 });
