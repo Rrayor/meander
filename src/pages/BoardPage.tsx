@@ -1,4 +1,9 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -21,7 +26,6 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "@/features/tasks/TaskCard";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
@@ -41,6 +45,7 @@ import {
   taskCountLabel,
 } from "@/lib/labels";
 import {
+  errorMessage,
   shiftDays,
   thresholdTintStyle,
   weekdayNameOf,
@@ -445,15 +450,16 @@ export function BoardPage() {
       </header>
       {(boardError != null || move.isError) && (
         <p role="alert" className="px-6 pt-4 text-sm text-danger">
-          {serverErrorMessage(boardError ?? move.error)}
+          {serverErrorMessage(boardError ?? move.error) ??
+            errorMessage(boardError ?? move.error)}
         </p>
       )}
       {/* §451: drops move instantly — a status line announces the
           save in flight so a relocating card never looks silent. */}
       {move.isPending && (
-        <p role="status" className="px-6 pt-4 text-sm text-text-muted">
+        <output className="px-6 pt-4 text-sm text-text-muted">
           {BOARD_SAVING_LABEL}
-        </p>
+        </output>
       )}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
       <section tabIndex={0} className="flex-1 overflow-auto p-6">
