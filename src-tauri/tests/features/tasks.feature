@@ -40,6 +40,16 @@ Feature: Tasks
     When I move a task before the foreign task
     Then the reorder fails
 
+  Scenario: a returned task rejoins the backlog at its stored position
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    And a backlog task titled Gamma
+    When I move Beta before Alpha
+    And I add the task Beta to the current week
+    And I return the task Beta to the backlog
+    Then the task list order is "Beta, Alpha, Gamma"
+
   Scenario: estimates must be a positive value
     Given an application state on a temporary seeded database
     When I create a task with an estimate of 0 minutes
