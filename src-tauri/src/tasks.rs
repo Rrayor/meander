@@ -642,13 +642,17 @@ pub async fn schedule_occurrence(
         .bind(moved_id)
         .execute(&mut *tx)
         .await?;
-    sqlx::query(
-        "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date) VALUES (?, ?)",
-    )
-    .bind(series.id)
-    .bind(date)
-    .execute(&mut *tx)
-    .await?;
+    // A same-date move is a no-op semantically — tombstoning would mark
+    // the row's own destination as skipped and hide it from the board.
+    if date != new_date {
+        sqlx::query(
+            "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date) VALUES (?, ?)",
+        )
+        .bind(series.id)
+        .bind(date)
+        .execute(&mut *tx)
+        .await?;
+    }
     tx.commit().await?;
     get(pool, moved_id).await
 }
@@ -2975,6 +2979,141 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(dupes, 1);
+    }
+
+    #[tokio::test]
+    async fn schedule_occurrence_rejects_unknown_and_foreign_series() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        let (other_pool, other) = seeded_pool().await;
+
+        assert!(
+            format!(
+                "{:?}",
+                schedule_occurrence(&pool, pid, 9999, "2027-03-14", "2027-03-15")
+                    .await
+                    .unwrap_err()
+            )
+            .contains("SeriesNotFound")
+        );
+        assert!(
+            format!(
+                "{:?}",
+                schedule_occurrence(
+                    &other_pool,
+                    other,
+                    task.series_id.unwrap(),
+                    "2027-03-14",
+                    "2027-03-15",
+                )
+                .await
+                .unwrap_err()
+            )
+            .contains("SeriesNotFound")
+        );
+    }
+
+    #[tokio::test]
+    async fn schedule_occurrence_rejects_an_unscheduled_source_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = schedule_occurrence(
+            &pool,
+            pid,
+            task.series_id.unwrap(),
+            "1900-01-01",
+            "2027-03-15",
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{error:?}").contains("InstanceDateNotScheduled"));
+    }
+
+    #[tokio::test]
+    async fn schedule_occurrence_rejects_a_malformed_source_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+
+        let error = schedule_occurrence(
+            &pool,
+            pid,
+            task.series_id.unwrap(),
+            "not-a-date",
+            "2027-03-15",
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{error:?}").contains("InstanceDateInvalid"));
+    }
+
+    #[tokio::test]
+    async fn schedule_occurrence_on_its_own_date_is_not_tombstoned() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        let series_id = task.series_id.unwrap();
+
+        let moved = schedule_occurrence(&pool, pid, series_id, "2027-03-14", "2027-03-14")
+            .await
+            .unwrap();
+        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-14"));
+        // A same-date move must not tombstone its own destination —
+        // the row would sit on a date the board treats as skipped.
+        assert!(
+            skipped_dates(&pool, pid, series_id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn two_standalone_tasks_share_a_date_freely() {
+        let (pool, pid) = seeded_pool().await;
+        let first = create(&pool, pid, &task("One")).await.unwrap();
+        let second = create(&pool, pid, &task("Two")).await.unwrap();
+        schedule(&pool, pid, first.id, "2027-03-15").await.unwrap();
+
+        // Occupancy only constrains series families — plain tasks can
+        // share a day (the board holds any number of scheduled cards).
+        let moved = schedule(&pool, pid, second.id, "2027-03-15").await.unwrap();
+        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
     }
 
     #[tokio::test]

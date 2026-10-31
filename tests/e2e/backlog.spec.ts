@@ -1630,3 +1630,40 @@ test("a skipped cadence date is not offered as an expected occurrence", async ({
     0,
   );
 });
+
+test("moving a pending occurrence sends the atomic move on the wire", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [seriesInstance],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listTaskSeries]: [seriesFixture],
+    [COMMANDS.listSeriesInstances]: [seriesInstance],
+    [COMMANDS.skippedSeriesDates]: [],
+    [COMMANDS.scheduleOccurrence]: {
+      ...seriesInstance,
+      scheduled_date: "2027-03-15",
+    },
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: editTaskLabel(seriesInstance.title) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: SERIES_PICK }).click();
+  await dialog.getByLabel("Date").fill("2027-03-15");
+  await dialog.getByRole("button", { name: MOVE_TO_DATE_LABEL }).click();
+
+  const calls = await getInvocations(page);
+  expect(
+    calls.find((c) => c.cmd === COMMANDS.scheduleOccurrence)?.args,
+  ).toEqual({
+    seriesId: seriesFixture.id,
+    date: SERIES_PICK,
+    newDate: "2027-03-15",
+  });
+});

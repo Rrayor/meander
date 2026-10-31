@@ -309,3 +309,9 @@ Feature: Tasks
     Then the board does not list Alpha
     When I view the board for the week containing "2026-11-25"
     Then the board lists Alpha on "2026-11-25"
+
+  Scenario: scheduling a task for its current date is rejected as a no-op
+    Given an application state on a temporary seeded database
+    And a task titled Alpha scheduled for "2026-11-16"
+    When I schedule the task Alpha for "2026-11-16"
+    Then the schedule fails
