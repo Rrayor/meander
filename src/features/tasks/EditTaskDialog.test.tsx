@@ -137,6 +137,7 @@ vi.mock("@/api/series", () => ({
   truncateTaskSeries: vi.fn(),
   getOrCreateInstance: vi.fn(),
   skippedSeriesDates: vi.fn(),
+  scheduleOccurrence: vi.fn(),
 }));
 
 const mockedListTaskSeries = vi.mocked(listTaskSeries);
@@ -1923,13 +1924,9 @@ describe("EditTaskDialog", () => {
   });
 
   it("materializes a pending occurrence before moving it", async () => {
-    mockedGetOrCreate.mockResolvedValue({
-      ...baseTask,
-      id: 42,
-      placement: TaskPlacement.Scheduled,
-      scheduled_date: OTHER_INSTANCE_DATE,
-    });
-    mockedSchedule.mockResolvedValue({
+    const { scheduleOccurrence } = await import("@/api/series");
+    const mockedOcc = vi.mocked(scheduleOccurrence);
+    mockedOcc.mockResolvedValue({
       ...baseTask,
       id: 42,
       placement: TaskPlacement.Scheduled,
@@ -1957,13 +1954,11 @@ describe("EditTaskDialog", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: MOVE_TO_DATE_LABEL }));
     await waitFor(() =>
-      expect(mockedGetOrCreate).toHaveBeenCalledWith(
+      expect(mockedOcc).toHaveBeenCalledWith(
         baseSeries.id,
         OTHER_INSTANCE_DATE,
+        "2027-03-15",
       ),
-    );
-    await waitFor(() =>
-      expect(mockedSchedule).toHaveBeenCalledWith(42, "2027-03-15"),
     );
   });
 

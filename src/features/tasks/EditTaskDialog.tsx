@@ -55,6 +55,7 @@ import type { SaveScope } from "@/lib/enums";
 import {
   deleteTaskSeries,
   getOrCreateInstance,
+  scheduleOccurrence,
   skippedSeriesDates,
   listSeriesCategories,
   listSeriesInstances,
@@ -1500,8 +1501,7 @@ export function EditTaskDialog({
       // A picked-but-unpersisted occurrence must exist before it can be
       // redated — otherwise the move has no row to land on (spec §228).
       if (pendingIso !== null) {
-        const created = await getOrCreateInstance(livingSeriesId!, pendingIso);
-        return scheduleTask(created.id, date);
+        return scheduleOccurrence(livingSeriesId!, pendingIso, date);
       }
       return scheduleTask(viewed.id, date);
     },
