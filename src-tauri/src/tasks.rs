@@ -3303,6 +3303,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn board_move_rejects_a_placement_date_mismatch() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+
+        // A backlog or weekly-backlog drop must never carry a date —
+        // the row would render in both views at once.
+        for placement in [TaskPlacement::Backlog, TaskPlacement::WeeklyBacklog] {
+            let err = board_move(
+                &pool,
+                pid,
+                task.id,
+                placement,
+                Some("2027-03-15"),
+                TaskStatus::Todo,
+            )
+            .await
+            .unwrap_err();
+            assert!(format!("{err:?}").contains("ScheduledDateInvalid"));
+        }
+        // And a scheduled drop without a date cannot exist.
+        assert!(
+            board_move(
+                &pool,
+                pid,
+                task.id,
+                TaskPlacement::Scheduled,
+                None,
+                TaskStatus::Todo
+            )
+            .await
+            .is_err()
+        );
+    }
+
+    #[tokio::test]
     async fn board_move_rejects_unknown_foreign_and_bad_dates() {
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();
