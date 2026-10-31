@@ -475,6 +475,16 @@ describe("BacklogPage", () => {
     );
   });
 
+  it("shows the add-to-week action without requiring hover", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    renderPage();
+    expect(
+      await screen.findByRole("button", { name: addToWeekLabel(TITLE_A) }),
+    ).toBeVisible();
+  });
+
   it("does not open the task when the add-to-week button is clicked", async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task({ id: 1, title: TITLE_A, sort_order: 1 }),

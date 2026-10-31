@@ -549,7 +549,8 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     // start a new backlog item). Segments join to the living series
     // through `succeeded_by`.
     Ok(sqlx::query_as::<_, Task>(
-        "SELECT * FROM tasks t WHERE t.profile_id = ? AND (t.series_id IS NULL \
+        "SELECT * FROM tasks t WHERE t.profile_id = ? AND t.placement = 'backlog' \
+         AND (t.series_id IS NULL \
          OR t.id = (SELECT MIN(t2.id) FROM tasks t2 \
            JOIN task_series s2 ON s2.id = t2.series_id \
            WHERE COALESCE(s2.succeeded_by, s2.id) = \
@@ -2440,6 +2441,66 @@ mod tests {
 
         let err = return_to_backlog(&pool, pid, task.id).await.unwrap_err();
         assert!(format!("{err:?}").contains("TaskNotFound"));
+    }
+
+    #[tokio::test]
+    async fn add_to_week_clears_a_stray_scheduled_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        sqlx::query("UPDATE tasks SET scheduled_date = '2026-10-30' WHERE id = ?")
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let moved = add_to_week(&pool, pid, task.id).await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
+        assert_eq!(moved.scheduled_date, None);
+    }
+
+    #[tokio::test]
+    async fn add_to_week_rejects_an_unknown_task() {
+        let (pool, pid) = seeded_pool().await;
+        let err = add_to_week(&pool, pid, 9999).await.unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+    }
+
+    #[tokio::test]
+    async fn return_to_backlog_rejects_an_unknown_task() {
+        let (pool, pid) = seeded_pool().await;
+        let err = return_to_backlog(&pool, pid, 9999).await.unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+    }
+
+    #[tokio::test]
+    async fn add_to_week_preserves_the_tasks_other_fields() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        sqlx::query(
+            "UPDATE tasks SET status = 'in_progress', estimated_minutes = 45, spent_minutes = 10 WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let moved = add_to_week(&pool, pid, task.id).await.unwrap();
+        assert_eq!(moved.status, TaskStatus::InProgress);
+        assert_eq!(moved.estimated_minutes, Some(45));
+        assert_eq!(moved.spent_minutes, Some(10));
+        assert_eq!(moved.sort_order, task.sort_order);
+    }
+
+    #[tokio::test]
+    async fn list_excludes_tasks_that_moved_onto_the_board() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 1);
+
+        add_to_week(&pool, pid, task.id).await.unwrap();
+        assert!(list(&pool, pid).await.unwrap().is_empty());
+        return_to_backlog(&pool, pid, task.id).await.unwrap();
+        assert_eq!(list(&pool, pid).await.unwrap().len(), 1);
     }
 
     #[tokio::test]

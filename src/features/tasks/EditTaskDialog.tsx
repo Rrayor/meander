@@ -194,6 +194,7 @@ interface TaskDetailsViewProps {
   onClose: () => void;
   onDelete: () => void;
   onMoveToBacklog: () => void;
+  moveError?: string;
   deletePrompt?: ReactNode;
 }
 
@@ -384,6 +385,7 @@ function TaskDetailsView({
   onClose,
   onDelete,
   onMoveToBacklog,
+  moveError,
   deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
   let notesSection: ReactNode = null;
@@ -517,6 +519,11 @@ function TaskDetailsView({
         />
       )}
       {notesSection}
+      {moveError && (
+        <p role="alert" className="text-sm text-danger">
+          {moveError}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
@@ -1660,6 +1667,7 @@ export function EditTaskDialog({
             }}
             onClose={onClose}
             onMoveToBacklog={() => moveToBacklog.mutate()}
+            moveError={serverErrorMessage(moveToBacklog.error)}
             onDelete={() => {
               setDeleteScope(TaskScope.Instance);
               setConfirmingDelete(true);

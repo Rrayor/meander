@@ -7,6 +7,8 @@ import {
   NAV_LABEL,
   STATUS_LABELS,
   WEEKLY_BACKLOG_LABEL,
+  MOVE_TO_BACKLOG_LABEL,
+  addToWeekLabel,
   editTaskLabel,
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
@@ -115,5 +117,61 @@ describe("Board smoke", () => {
     const createdRow = () => $(`button[aria-label='${editTaskLabel(title)}']`);
     await browser.waitUntil(async () => (await createdRow()).isExisting());
     await expect(await createdRow().isExisting()).toBe(true);
+  });
+  it("moves a task backlog → week → backlog on the real backend", async () => {
+    const title = `SmokeMove-${Date.now()}`;
+    const nav = await $(`aria/${NAV_LABEL}`);
+
+    // Create from the board — lands in the backlog.
+    await (await $(`button=${ADD_TASK_LABEL}`)).click();
+    const dialog = () => $("dialog");
+    const noDialog = async () => (await $$("dialog")).length === 0;
+    await browser.waitUntil(async () => (await dialog()).isDisplayed());
+    await (await (await dialog()).$("#new-task-title-input")).setValue(title);
+    await (await (await dialog()).$(`button=${CREATE_TASK_LABEL}`)).click();
+    await browser.waitUntil(noDialog, { timeout: 15000 });
+
+    // On the backlog, the row's add-to-week action moves it onto the
+    // board's weekly backlog column.
+    const backlogRoute = ROUTES.find(({ label }) => label === "Backlog")!;
+    const boardRoute = ROUTES.find(({ label }) => label === BOARD_HEADING)!;
+    await nav.$(`=${backlogRoute.label}`).click();
+    const addButton = () => $(`button[aria-label='${addToWeekLabel(title)}']`);
+    await browser.waitUntil(async () => (await addButton()).isExisting(), {
+      timeout: 10000,
+    });
+    await (await addButton()).click();
+    await browser.waitUntil(
+      async () =>
+        (await $$(`button[aria-label='${addToWeekLabel(title)}']`)).length ===
+        0,
+      { timeout: 10000 },
+    );
+
+    // The card appears in the weekly backlog column.
+    await nav.$(`=${boardRoute.label}`).click();
+    const card = () => $(`button[aria-label='${editTaskLabel(title)}']`);
+    await browser.waitUntil(async () => (await card()).isExisting(), {
+      timeout: 10000,
+    });
+    await expect(await card().isExisting()).toBe(true);
+
+    // Move it back through the details view.
+    await (await card()).click();
+    await browser.waitUntil(async () => (await dialog()).isDisplayed());
+    await (await (await dialog()).$(`button=${MOVE_TO_BACKLOG_LABEL}`)).click();
+    await browser.waitUntil(noDialog, { timeout: 15000 });
+    await browser.waitUntil(
+      async () =>
+        (await $$(`button[aria-label='${editTaskLabel(title)}']`)).length === 0,
+      { timeout: 10000 },
+    );
+
+    // And it is back on the backlog page.
+    await nav.$(`=${backlogRoute.label}`).click();
+    await browser.waitUntil(async () => (await card()).isExisting(), {
+      timeout: 10000,
+    });
+    await expect(await card().isExisting()).toBe(true);
   });
 });

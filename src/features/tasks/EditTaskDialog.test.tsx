@@ -174,6 +174,8 @@ const RETURN_OPTION = CARRY_OVER_OPTIONS.find(
   (o) => o.value === CarryOverRule.Return,
 )!;
 
+const LOAD_ERROR = "offline";
+
 const baseTask: Task = {
   id: 7,
   profile_id: 1,
@@ -1666,7 +1668,6 @@ describe("EditTaskDialog", () => {
   });
 
   it("blocks and surfaces a failed series-category load", async () => {
-    const LOAD_ERROR = "offline";
     mockedListSeriesCategories.mockRejectedValue(new Error(LOAD_ERROR));
     renderDialog({ ...baseTask, series_id: baseSeries.id });
     fireEvent.click(
@@ -1818,6 +1819,38 @@ describe("EditTaskDialog", () => {
     await waitFor(() =>
       expect(mockedReturnToBacklog).toHaveBeenCalledWith(onWeek.id),
     );
+  });
+
+  it("offers move-to-backlog on a day-scheduled card too", async () => {
+    const scheduled = {
+      ...baseTask,
+      placement: TaskPlacement.Scheduled,
+      scheduled_date: "2026-10-30",
+    };
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={scheduled} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a failed move to the backlog", async () => {
+    const onWeek = { ...baseTask, placement: TaskPlacement.WeeklyBacklog };
+    mockedReturnToBacklog.mockRejectedValue(new Error(LOAD_ERROR));
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={onWeek} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(LOAD_ERROR);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("hides the move-to-backlog action for a task already in the backlog", async () => {

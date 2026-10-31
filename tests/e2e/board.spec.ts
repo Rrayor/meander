@@ -639,3 +639,42 @@ test("a board task returns to the backlog from its details view", async ({
     page.getByRole("button", { name: editTaskLabel(backlogTask.title) }),
   ).toHaveCount(0);
 });
+
+test("a day-scheduled card returns to the backlog from its details", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: stubSequence([
+      [backlogTask, mondayTask],
+      [backlogTask],
+    ]),
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.returnTaskToBacklog]: {
+      ...mondayTask,
+      placement: "backlog",
+      scheduled_date: null,
+    },
+  });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { name: editTaskLabel(mondayTask.title) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: MOVE_TO_BACKLOG_LABEL }).click();
+
+  const calls = await getInvocations(page);
+  expect(
+    calls.find((c) => c.cmd === COMMANDS.returnTaskToBacklog)?.args,
+  ).toEqual({ taskId: mondayTask.id });
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toHaveCount(0);
+});

@@ -226,3 +226,13 @@ Feature: Tasks
     And a backlog task titled Alpha
     When I return the task Alpha to the backlog
     Then the backlog return fails
+
+  Scenario: adding an unknown task to the week is rejected
+    Given an application state on a temporary seeded database
+    When I add an unknown task to the current week
+    Then the week move fails
+
+  Scenario: returning an unknown task to the backlog is rejected
+    Given an application state on a temporary seeded database
+    When I return an unknown task to the backlog
+    Then the backlog return fails
