@@ -579,6 +579,7 @@ pub async fn schedule_occurrence(
     new_date: &str,
 ) -> Result<Task> {
     crate::validation::iso_date(new_date, ErrorCode::ScheduledDateInvalid, "date")?;
+    crate::validation::iso_date(date, ErrorCode::InstanceDateInvalid, "date")?;
     let all = crate::series::list(pool, profile_id).await?;
     let root = |s: &crate::series::TaskSeries| s.succeeded_by.unwrap_or(s.id);
     let family_root = all
@@ -605,10 +606,22 @@ pub async fn schedule_occurrence(
             message: "the date is not a scheduled occurrence of this series".into(),
         })?;
     let mut tx = pool.begin().await?;
-    let occupied: i64 = sqlx::query_scalar(&format!(
-        "SELECT COUNT(*) FROM tasks WHERE profile_id = ?          AND series_id IN ({FAMILY_IDS}) AND scheduled_date = ?",
+    // A board that already materialized this occurrence owns the row —
+    // move it rather than inserting a duplicate for the same date.
+    let existing: Option<i64> = sqlx::query_scalar(&format!(
+        "SELECT id FROM tasks WHERE profile_id = ? AND scheduled_date = ?          AND series_id IN ({FAMILY_IDS})",
     ))
     .bind(profile_id)
+    .bind(date)
+    .bind(series.id)
+    .bind(series.id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let occupied: i64 = sqlx::query_scalar(&format!(
+        "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND id != ?          AND series_id IN ({FAMILY_IDS}) AND scheduled_date = ?",
+    ))
+    .bind(profile_id)
+    .bind(existing.unwrap_or(-1))
     .bind(series.id)
     .bind(series.id)
     .bind(new_date)
@@ -620,10 +633,13 @@ pub async fn schedule_occurrence(
             message: "another instance of the series already occupies that date".into(),
         });
     }
-    let created = insert_instance(&mut tx, profile_id, series, date).await?;
+    let moved_id = match existing {
+        Some(id) => id,
+        None => insert_instance(&mut tx, profile_id, series, date).await?.id,
+    };
     sqlx::query("UPDATE tasks SET placement = 'scheduled', scheduled_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .bind(new_date)
-        .bind(created.id)
+        .bind(moved_id)
         .execute(&mut *tx)
         .await?;
     sqlx::query(
@@ -634,7 +650,7 @@ pub async fn schedule_occurrence(
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    get(pool, created.id).await
+    get(pool, moved_id).await
 }
 
 /// Returns a task from the board to the backlog (spec §25 — any task in the
@@ -2921,6 +2937,40 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(stray, 0);
+    }
+
+    #[tokio::test]
+    async fn schedule_occurrence_moves_an_already_materialized_row() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        let series_id = task.series_id.unwrap();
+        let materialized = get_or_create_instance(&pool, pid, series_id, "2027-03-14")
+            .await
+            .unwrap();
+
+        let moved = schedule_occurrence(&pool, pid, series_id, "2027-03-14", "2027-03-15")
+            .await
+            .unwrap();
+        assert_eq!(moved.id, materialized.id);
+        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
+        let dupes: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND series_id = ? AND scheduled_date IN ('2027-03-14','2027-03-15')",
+        )
+        .bind(pid)
+        .bind(series_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(dupes, 1);
     }
 
     #[tokio::test]

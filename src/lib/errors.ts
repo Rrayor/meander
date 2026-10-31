@@ -52,6 +52,9 @@ export const INSTANCE_DATE_INVALID_MESSAGE =
 export const INSTANCE_DATE_NOT_SCHEDULED_MESSAGE =
   "That date is not a scheduled occurrence of this series";
 
+export const INSTANCE_DATE_OCCUPIED_MESSAGE =
+  "Another instance of this series already occupies that date";
+
 export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   task_title_required: TITLE_REQUIRED_MESSAGE,
   task_title_too_long: TASK_TITLE_TOO_LONG_MESSAGE,
@@ -69,6 +72,7 @@ export const SERVER_ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   note_not_found: NOTE_NOT_FOUND_MESSAGE,
   instance_date_invalid: INSTANCE_DATE_INVALID_MESSAGE,
   instance_date_not_scheduled: INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
+  instance_date_occupied: INSTANCE_DATE_OCCUPIED_MESSAGE,
 };
 
 export const serverErrorMessage = (error: unknown): string | undefined => {
