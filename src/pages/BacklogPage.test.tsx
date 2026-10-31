@@ -14,6 +14,7 @@ import {
   EDIT_BUTTON_LABEL,
   EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
+  SEARCH_TASKS_LABEL,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
   STATUS_LABELS,
@@ -577,4 +578,24 @@ describe("BacklogPage", () => {
       screen.queryByRole("button", { name: PAGINATION_NEXT_LABEL }),
     ).not.toBeInTheDocument();
   });
+});
+
+test("a search with no matches keeps the toolbar and shows the empty state", async () => {
+  vi.mocked(listTasks).mockResolvedValue([
+    task({ id: 1, title: TITLE_A, sort_order: 1 }),
+  ]);
+  renderPage();
+  await screen.findByText(TITLE_A);
+
+  const input = screen.getByRole("searchbox", {
+    name: SEARCH_TASKS_LABEL,
+  });
+  fireEvent.change(input, { target: { value: "zzz-no-match" } });
+
+  await waitFor(() =>
+    expect(screen.getByText(EMPTY_BACKLOG_MESSAGE)).toBeInTheDocument(),
+  );
+  expect(
+    screen.getByRole("searchbox", { name: SEARCH_TASKS_LABEL }),
+  ).toBeInTheDocument();
 });

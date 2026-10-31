@@ -298,48 +298,50 @@ export function BacklogPage() {
             )}
           </p>
         )}
+        {/* The toolbar follows the unfiltered list — a search that
+            yields nothing must not hide the control that produced it. */}
+        {scoped && scoped.length > 0 && (
+          <ViewToolbar
+            query={query}
+            onQuery={setQuery}
+            sort={sort}
+            onSort={setSort}
+          />
+        )}
         {tasks?.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-text-muted">{EMPTY_BACKLOG_MESSAGE}</p>
           </div>
         )}
         {tasks && tasks.length > 0 && (
-          <>
-            <ViewToolbar
-              query={query}
-              onQuery={setQuery}
-              sort={sort}
-              onSort={setSort}
-            />
-            <Paged key={`${profile?.id}-${sort}-${query}`} items={tasks}>
-              {(pageItems) => (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={onDragEnd}
+          <Paged key={`${profile?.id}-${sort}-${query}`} items={tasks}>
+            {(pageItems) => (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext
+                  items={pageItems!.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <SortableContext
-                    items={pageItems!.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
-                      {pageItems!.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          deletePending={del.isPending}
-                          onDelete={() => del.mutate(task.id)}
-                          onEdit={() => setEditingTask(task)}
-                          sortLocked={sort !== TaskSort.Manual}
-                          onAddToWeek={() => addToWeek.mutate(task.id)}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              )}
-            </Paged>
-          </>
+                  <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
+                    {pageItems!.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        deletePending={del.isPending}
+                        onDelete={() => del.mutate(task.id)}
+                        onEdit={() => setEditingTask(task)}
+                        sortLocked={sort !== TaskSort.Manual}
+                        onAddToWeek={() => addToWeek.mutate(task.id)}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            )}
+          </Paged>
         )}
       </section>
       {dialogOpen && <NewTaskDialog onClose={() => setDialogOpen(false)} />}
