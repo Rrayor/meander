@@ -163,6 +163,7 @@ const renderBoard = () =>
   );
 
 beforeEach(() => {
+  localStorage.clear();
   mockedListWeekTasks.mockResolvedValue([baseTask, weeklyTask]);
   mockedPendingCarryOver.mockResolvedValue([]);
   mockedWeekStart.mockResolvedValue(Weekday.Monday);
@@ -954,5 +955,37 @@ test("the layout toggle swaps rows and columns and persists the choice", async (
         name: new RegExp(shortWeekdayLabel(days[0])),
       }),
     ).toBeInTheDocument(),
+  );
+});
+
+test("transposed on mount when the saved layout is day-rows", async () => {
+  localStorage.setItem("meander.boardLayout", "day-rows");
+  renderBoard();
+
+  await waitFor(() => {
+    // 8 rowheaders — weekly backlog plus the seven days — and the
+    // three statuses as column headers.
+    expect(screen.getAllByRole("rowheader")).toHaveLength(8);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+  });
+});
+
+it("dropping in the transposed grid sends the same combined move", async () => {
+  localStorage.setItem("meander.boardLayout", "day-rows");
+  renderBoard();
+  await screen.findByText(TASK_TITLE);
+
+  capturedDragEnd({
+    active: { id: weeklyTask.id },
+    over: { id: `${days[1]}|${TaskStatus.InProgress}` },
+  });
+
+  await waitFor(() =>
+    expect(mockedBoardMove).toHaveBeenCalledWith(
+      weeklyTask.id,
+      TaskPlacement.Scheduled,
+      days[1],
+      TaskStatus.InProgress,
+    ),
   );
 });

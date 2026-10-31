@@ -747,3 +747,27 @@ test("the layout toggle transposes the grid and keeps the same cells", async ({
     page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
   ).toBeVisible();
 });
+
+test("a transposed drag sends the same combined move on the wire", async ({
+  page,
+}) => {
+  await stubBoard(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: TRANSPOSE_LAYOUT_LABEL }).click();
+
+  const card = page.getByRole("button", {
+    name: editTaskLabel(mondayTask.title),
+  });
+  // In the transposed grid the target is a body row's status cell —
+  // the second day's row, third status column.
+  const target = page.locator("tbody tr").nth(2).locator("td").nth(2);
+  const from = await card.boundingBox();
+  const to = await target.boundingBox();
+  await page.mouse.move(from!.x + 10, from!.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(to!.x + 10, to!.y + 10, { steps: 10 });
+  await page.mouse.up();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.boardMove)).toBeTruthy();
+});
