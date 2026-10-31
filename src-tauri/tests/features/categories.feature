@@ -189,3 +189,12 @@ Feature: Categories
     And a category named Alpha exists on the active profile
     And a category named Beta exists on the active profile
     Then the category list is "Alpha, Beta"
+
+  Scenario: the category list is empty when none exist
+    Given an application state on a temporary seeded database
+    Then the category list is empty
+
+  Scenario: another profile's categories never appear in the list
+    Given an application state on a temporary seeded database
+    And a category named Hidden exists on a second profile
+    Then the category list is empty

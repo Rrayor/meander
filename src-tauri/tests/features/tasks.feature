@@ -242,3 +242,15 @@ Feature: Tasks
     And a backlog task titled Beta
     And a backlog task titled Gamma
     Then the task list has 3 tasks
+  Scenario: non-backlog tasks never appear in the backlog list
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a weekly backlog task titled Boarded
+    And a task titled Planned scheduled for today
+    Then the task list has 1 task
+    And the task list order is "Alpha"
+
+  Scenario: another profile's tasks never appear in the backlog list
+    Given an application state on a temporary seeded database
+    And a task exists on a second profile
+    Then the task list has 0 tasks
