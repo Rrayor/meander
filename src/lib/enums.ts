@@ -89,3 +89,25 @@ export enum NotesTab {
   Instance = "instance",
   Series = "series",
 }
+/// View-side sort options (spec §360/§364). ManualOrder is the
+/// backlog's stored drag order — the other keys are transforms.
+export enum TaskSort {
+  Manual = "manual",
+  Title = "title",
+  Created = "created",
+  Updated = "updated",
+}
+
+export const TASK_SORTS = [
+  TaskSort.Manual,
+  TaskSort.Title,
+  TaskSort.Created,
+  TaskSort.Updated,
+] as const;
+
+export const TASK_SORT_LABELS: Record<TaskSort, string> = {
+  [TaskSort.Manual]: "Manual order",
+  [TaskSort.Title]: "Title",
+  [TaskSort.Created]: "Created",
+  [TaskSort.Updated]: "Recently updated",
+};
