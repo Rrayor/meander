@@ -3247,6 +3247,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn board_move_rejects_an_occupied_family_date() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(
+            &pool,
+            pid,
+            &NewTask {
+                series: Some(daily_series()),
+                ..task("Repeating")
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE tasks SET scheduled_date = '2026-11-16', placement = 'scheduled' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, series_id, placement, scheduled_date, sort_order)              VALUES (?, 'Other', ?, 'scheduled', '2027-03-15', 5)",
+        )
+        .bind(pid)
+        .bind(task.series_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let err = board_move(
+            &pool,
+            pid,
+            task.id,
+            TaskPlacement::Scheduled,
+            Some("2027-03-15"),
+            TaskStatus::Todo,
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{err:?}").contains("InstanceDateOccupied"));
+    }
+
+    #[tokio::test]
     async fn board_move_rejects_unknown_foreign_and_bad_dates() {
         let (pool, pid) = seeded_pool().await;
         let task = create(&pool, pid, &task("Errand")).await.unwrap();

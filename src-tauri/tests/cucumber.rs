@@ -3352,6 +3352,14 @@ fn week_move_fails(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "add to week unexpectedly succeeded");
 }
 
+fn step_status(word: &str) -> meander_lib::tasks::TaskStatus {
+    match word {
+        "in_progress" => meander_lib::tasks::TaskStatus::InProgress,
+        "done" => meander_lib::tasks::TaskStatus::Done,
+        _ => meander_lib::tasks::TaskStatus::Todo,
+    }
+}
+
 #[when(expr = "I schedule the task {word} for {string}")]
 fn schedule_task(world: &mut MeanderWorld, title: String, date: String) {
     let task_id = task_id_by_title(world, &title);
@@ -3371,6 +3379,61 @@ fn schedule_unknown_task(world: &mut MeanderWorld, date: String) {
     {
         world.error = Some(e.to_string());
     }
+}
+
+#[when(expr = "I move the task {word} to {string} in state {word}")]
+fn board_move_task(world: &mut MeanderWorld, title: String, date: String, status: String) {
+    let task_id = task_id_by_title(world, &title);
+    let (pool, active) = active_profile_pool(world);
+    let rt = world.rt();
+    if let Err(e) = rt.block_on(meander_lib::tasks::board_move(
+        &pool,
+        active,
+        task_id,
+        meander_lib::tasks::TaskPlacement::Scheduled,
+        Some(&date),
+        step_status(&status),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I move the task {word} to the weekly backlog in state {word}")]
+fn board_move_weekly(world: &mut MeanderWorld, title: String, status: String) {
+    let task_id = task_id_by_title(world, &title);
+    let (pool, active) = active_profile_pool(world);
+    let rt = world.rt();
+    if let Err(e) = rt.block_on(meander_lib::tasks::board_move(
+        &pool,
+        active,
+        task_id,
+        meander_lib::tasks::TaskPlacement::WeeklyBacklog,
+        None,
+        step_status(&status),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I move an unknown task to {string} in state {word}")]
+fn board_move_unknown(world: &mut MeanderWorld, date: String, status: String) {
+    let (pool, active) = active_profile_pool(world);
+    if let Err(e) = world.rt().block_on(meander_lib::tasks::board_move(
+        &pool,
+        active,
+        9999,
+        meander_lib::tasks::TaskPlacement::Scheduled,
+        Some(&date),
+        step_status(&status),
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the board move fails")]
+fn board_move_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some());
+    world.error = None;
 }
 
 #[then(expr = "the task {word} is scheduled for {string}")]
