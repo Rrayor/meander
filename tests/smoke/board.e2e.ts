@@ -100,7 +100,7 @@ describe("Board smoke", () => {
     const title = `SmokeBoardTask-${Date.now()}`;
 
     // Unique per attempt — the sandbox DB persists across wdio retries.
-    await (await $(`button=${CREATE_TASK_LABEL}`)).click();
+    await (await $(`button=${ADD_TASK_LABEL}`)).click();
     const dialog = await $("dialog");
     await browser.waitUntil(() => dialog.isDisplayed());
     await (await dialog.$("#new-task-title-input")).setValue(title);

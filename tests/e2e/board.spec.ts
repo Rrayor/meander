@@ -7,6 +7,7 @@ import {
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
   BOARD_THIS_WEEK_LABEL,
+  ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
   EDIT_BUTTON_LABEL,
   SAVE_BUTTON_LABEL,
@@ -64,6 +65,7 @@ const mondayTask = {
   spent_minutes: 30,
 };
 
+const BOARD_ERRAND_TITLE = "Board errand";
 const current = { id: 1, name: "Me", week_start: "monday" };
 
 const stubBoard = (page: import("@playwright/test").Page) =>
@@ -565,20 +567,11 @@ test("the board's create-task button opens the dialog and hits the wire", async 
   page,
 }) => {
   const created = {
+    ...mondayTask,
     id: 99,
-    profile_id: 1,
-    title: "Board errand",
-    description: null,
-    status: TaskStatus.Todo,
-    carry_over_rule: null,
-    estimated_minutes: null,
-    spent_minutes: null,
+    title: BOARD_ERRAND_TITLE,
     placement: TaskPlacement.Backlog,
     scheduled_date: null,
-    series_id: null,
-    sort_order: 1,
-    created_at: "2026-10-30 12:00:00",
-    updated_at: "2026-10-30 12:00:00",
   };
   await stubTauriCommands(page, {
     [COMMANDS.listTaskNotes]: [],
@@ -595,14 +588,14 @@ test("the board's create-task button opens the dialog and hits the wire", async 
   });
   await page.goto("/");
 
-  await page.getByRole("button", { name: CREATE_TASK_LABEL }).first().click();
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).first().click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel(/^Title/).fill("Board errand");
+  await dialog.getByLabel(/^Title/).fill(BOARD_ERRAND_TITLE);
   await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
 
   const calls = await getInvocations(page);
   const call = calls.find((c) => c.cmd === COMMANDS.createTask);
-  expect(call?.args).toMatchObject({ input: { title: "Board errand" } });
+  expect(call?.args).toMatchObject({ input: { title: BOARD_ERRAND_TITLE } });
   await expect(dialog).not.toBeVisible();
 });

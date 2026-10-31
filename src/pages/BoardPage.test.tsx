@@ -9,7 +9,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { listTaskCategories } from "@/api/categories";
-import { CREATE_TASK_LABEL, TASK_CARD_LABEL } from "@/lib/labels";
+import { ADD_TASK_LABEL, CLOSE_LABEL, TASK_CARD_LABEL } from "@/lib/labels";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import type { Task } from "@/api/bindings";
 import {
@@ -66,7 +66,7 @@ vi.mock("@/features/tasks/EditTaskDialog", () => ({
   EditTaskDialog: ({ onClose }: { onClose: () => void }) => (
     <div role="dialog">
       <button type="button" onClick={onClose}>
-        Close
+        {CLOSE_LABEL}
       </button>
     </div>
   ),
@@ -75,7 +75,7 @@ vi.mock("@/features/tasks/NewTaskDialog", () => ({
   NewTaskDialog: ({ onClose }: { onClose: () => void }) => (
     <div role="dialog">
       <button type="button" onClick={onClose}>
-        Close
+        {CLOSE_LABEL}
       </button>
     </div>
   ),
@@ -294,7 +294,7 @@ describe("BoardPage", () => {
         name: editTaskLabel(TASK_TITLE),
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: CLOSE_LABEL }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     // The board still shows the task afterwards.
@@ -812,10 +812,10 @@ describe("BoardPage", () => {
   it("opens the create-task dialog from the header and closes it", async () => {
     renderBoard();
     fireEvent.click(
-      await screen.findByRole("button", { name: CREATE_TASK_LABEL }),
+      await screen.findByRole("button", { name: ADD_TASK_LABEL }),
     );
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: CLOSE_LABEL }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );

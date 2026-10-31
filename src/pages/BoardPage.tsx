@@ -15,7 +15,7 @@ import { TaskCard } from "@/features/tasks/TaskCard";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   BOARD_HEADING,
-  CREATE_TASK_LABEL,
+  ADD_TASK_LABEL,
   STATUS_LABELS,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
@@ -307,7 +307,7 @@ export function BoardPage() {
             onClick={() => setDialogOpen(true)}
             className="ml-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            {CREATE_TASK_LABEL}
+            {ADD_TASK_LABEL}
           </button>
         </div>
         <p className="text-sm text-text-muted">
