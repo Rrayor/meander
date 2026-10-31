@@ -254,3 +254,47 @@ Feature: Tasks
     Given an application state on a temporary seeded database
     And a task exists on a second profile
     Then the task list has 0 tasks
+
+  Scenario: a backlog task is scheduled for an arbitrary date
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I schedule the task Alpha for "2027-03-15"
+    Then the task Alpha is scheduled for "2027-03-15"
+    And the task list is empty
+
+  Scenario: a scheduled task is redated earlier
+    Given an application state on a temporary seeded database
+    And a task titled Alpha scheduled for today
+    When I schedule the task Alpha for "2026-01-05"
+    Then the task Alpha is scheduled for "2026-01-05"
+
+  Scenario: scheduling an unknown task is rejected
+    Given an application state on a temporary seeded database
+    When I schedule an unknown task for "2027-03-15"
+    Then the schedule fails
+
+  Scenario: scheduling for a malformed date is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I schedule the task Alpha for "not-a-date"
+    Then the schedule fails
+    And the task Alpha is in the backlog
+
+  Scenario: a weekly backlog task is scheduled for a date
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Alpha
+    When I schedule the task Alpha for "2027-03-15"
+    Then the task Alpha is scheduled for "2027-03-15"
+
+  Scenario: scheduling a series task is rejected
+    Given an application state on a temporary seeded database
+    When I create a task titled "Alpha" repeating weekly on Monday
+    And I schedule the task Alpha for "2027-03-15"
+    Then the schedule fails
+
+  Scenario: scheduling for an impossible calendar date is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I schedule the task Alpha for "2027-02-30"
+    Then the schedule fails
+    And the task Alpha is in the backlog

@@ -5,6 +5,7 @@ import { ROUTES } from "@/lib/routes";
 import {
   NAV_LABEL,
   PAGE_SIZE,
+  MOVE_TO_DATE_LABEL,
   PAGINATION_LABEL,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
@@ -89,5 +90,44 @@ describe("Backlog smoke", () => {
         ).length === 0,
       { timeout: 10000 },
     );
+  });
+
+  it("schedules a backlog task for a date on the real backend", async () => {
+    const title = `Sched-${Date.now()}`;
+    seedTasks(title, 1);
+    const row = () => $(`button[aria-label='${editTaskLabel(title)}1']`);
+
+    const nav = await $(`aria/${NAV_LABEL}`);
+    const route = ROUTES.find(({ label }) => label === "Backlog")!;
+    // The prior spec leaves the backlog mounted with a cached list —
+    // hop to the board and back so the remount refetches the seed.
+    const boardRoute = ROUTES.find(({ label }) => label === "Board")!;
+    await nav.$(`=${boardRoute.label}`).click();
+    await nav.$(`=${route.label}`).click();
+    await browser.waitUntil(async () => (await row()).isExisting(), {
+      timeout: 10000,
+    });
+    await (await row()).click();
+    const dialog = () => $("dialog");
+    await browser.waitUntil(async () => (await dialog()).isDisplayed(), {
+      timeout: 10000,
+    });
+    await (
+      await (await dialog()).$(`input[type='date']`)
+    ).setValue("2027-03-15");
+    await (await (await dialog()).$(`button=${MOVE_TO_DATE_LABEL}`)).click();
+    await browser.waitUntil(async () => (await $$("dialog")).length === 0, {
+      timeout: 15000,
+    });
+    // Scheduled tasks leave the backlog list entirely (§24).
+    await browser.waitUntil(
+      async () =>
+        (await $$(`button[aria-label='${editTaskLabel(title)}1']`)).length ===
+        0,
+      { timeout: 10000 },
+    );
+    await expect(
+      await $$(`button[aria-label='${editTaskLabel(title)}1']`),
+    ).toHaveLength(0);
   });
 });

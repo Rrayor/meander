@@ -25,6 +25,7 @@ import {
   MAX_TASK_TITLE_LENGTH,
   deleteTask,
   returnTaskToBacklog,
+  scheduleTask,
   updateTask,
 } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
@@ -66,6 +67,8 @@ import {
   CANCEL_BUTTON_LABEL,
   DELETE_BUTTON_LABEL,
   MOVE_TO_BACKLOG_LABEL,
+  MOVE_TO_DATE_LABEL,
+  DATE_FIELD_LABEL,
   DELETE_KEEP_LABEL,
   DELETE_SCOPE_FUTURE_LABEL,
   DELETE_TASK_HEADING,
@@ -194,6 +197,8 @@ interface TaskDetailsViewProps {
   onClose: () => void;
   onDelete: () => void;
   onMoveToBacklog: () => void;
+  onSchedule: (date: string) => void;
+  scheduleError?: string;
   moveError?: string;
   deletePrompt?: ReactNode;
 }
@@ -385,9 +390,12 @@ function TaskDetailsView({
   onClose,
   onDelete,
   onMoveToBacklog,
+  onSchedule,
+  scheduleError,
   moveError,
   deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
+  const [pickedDate, setPickedDate] = useState(viewed.scheduled_date ?? "");
   let notesSection: ReactNode = null;
   if (pendingIso === null) {
     if (viewed.series_id !== null && seriesRow) {
@@ -519,9 +527,9 @@ function TaskDetailsView({
         />
       )}
       {notesSection}
-      {moveError && (
+      {(moveError ?? scheduleError) && (
         <p role="alert" className="text-sm text-danger">
-          {moveError}
+          {moveError ?? scheduleError}
         </p>
       )}
       <div className="flex items-center justify-between gap-2">
@@ -543,6 +551,25 @@ function TaskDetailsView({
                 {MOVE_TO_BACKLOG_LABEL}
               </button>
             )}
+          {viewed.series_id === null && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                aria-label={DATE_FIELD_LABEL}
+                value={pickedDate}
+                onChange={(e) => setPickedDate(e.target.value)}
+                className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-text"
+              />
+              <button
+                type="button"
+                onClick={() => onSchedule(pickedDate)}
+                disabled={!pickedDate}
+                className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+              >
+                {MOVE_TO_DATE_LABEL}
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-text-muted">
@@ -1452,6 +1479,23 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.boardWeeks,
       });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.pendingCarryOver,
+      });
+    },
+  });
+
+  const schedule = useMutation({
+    mutationFn: (date: string) => scheduleTask(viewed.id, date),
+    onSuccess: onClose,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.pendingCarryOver,
+      });
     },
   });
 
@@ -1669,6 +1713,8 @@ export function EditTaskDialog({
             onClose={onClose}
             onMoveToBacklog={() => moveToBacklog.mutate()}
             moveError={serverErrorMessage(moveToBacklog.error)}
+            onSchedule={(date) => schedule.mutate(date)}
+            scheduleError={serverErrorMessage(schedule.error)}
             onDelete={() => {
               setDeleteScope(TaskScope.Instance);
               setConfirmingDelete(true);

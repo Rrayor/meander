@@ -160,41 +160,9 @@ impl Recurrence {
     }
 }
 
-/// Spec §125: a start date is required, an end date optional. Both must be
-/// real Gregorian `YYYY-MM-DD` dates — a stored schedule that can never
-/// occur ("2026-02-30") would break later occurrence calculation.
-pub(crate) fn iso_date(raw: &str, code: ErrorCode, field: &str) -> Result<()> {
-    let reject = || DbError::Validation {
-        code,
-        message: format!("{field} must be a real ISO date (YYYY-MM-DD)"),
-    };
-    if raw.len() != 10 {
-        return Err(reject());
-    }
-    if raw.as_bytes()[4] != b'-' || raw.as_bytes()[7] != b'-' {
-        return Err(reject());
-    }
-    let year: u32 = raw[0..4].parse().map_err(|_| reject())?;
-    let month: u32 = raw[5..7].parse().map_err(|_| reject())?;
-    let day: u32 = raw[8..10].parse().map_err(|_| reject())?;
-    if !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
-        return Err(reject());
-    }
-    Ok(())
-}
-
-fn days_in_month(year: u32, month: u32) -> u32 {
-    match month {
-        2 if is_leap_year(year) => 29,
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
-    }
-}
-
-fn is_leap_year(year: u32) -> bool {
-    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
-}
+// Spec §125: a start date is required, an end date optional. Both must be
+// real Gregorian `YYYY-MM-DD` dates — a stored schedule that can never
+// occur ("2026-02-30") would break later occurrence calculation.
 
 // Civil-calendar arithmetic (Hinnant's algorithms) — enough to walk dates
 // without pulling in chrono. Inputs are dates `iso_date` already accepted.
@@ -243,7 +211,7 @@ fn nth_weekday_day(y: u32, m: u32, nth: i8, weekday: Weekday) -> u32 {
     let offset = (i64::from(weekday as u8) - weekday_index(y, m, 1)).rem_euclid(7);
     let first = 1 + offset as u32;
     if nth == -1 {
-        let last_day = days_in_month(y, m);
+        let last_day = crate::validation::days_in_month(y, m);
         first + 7 * ((last_day - first) / 7)
     } else {
         first + 7 * (nth as u32 - 1)
@@ -285,12 +253,12 @@ pub(crate) fn first_occurrence(
             day,
         } => {
             let day = u32::from(*day);
-            let clamped = day.min(days_in_month(y, m));
+            let clamped = day.min(crate::validation::days_in_month(y, m));
             if clamped >= d {
                 (y, m, clamped)
             } else {
                 let (y2, m2) = shift_months(y, m, *interval_months);
-                (y2, m2, day.min(days_in_month(y2, m2)))
+                (y2, m2, day.min(crate::validation::days_in_month(y2, m2)))
             }
         }
         Recurrence::MonthlyNthWeekday {
@@ -387,7 +355,7 @@ pub(crate) fn occurs_on(
             let months = months_between(sy, sm, dy, dm);
             months >= 0
                 && months % i64::from(*interval_months) == 0
-                && dd == u32::from(*day).min(days_in_month(dy, dm))
+                && dd == u32::from(*day).min(crate::validation::days_in_month(dy, dm))
         }
         Recurrence::MonthlyNthWeekday {
             interval_months,
@@ -555,10 +523,10 @@ fn prepare(
         .transpose()?
         .map(TaskDescription::into_inner);
     let start = start_raw.trim();
-    iso_date(start, ErrorCode::StartDateInvalid, "start date")?;
+    crate::validation::iso_date(start, ErrorCode::StartDateInvalid, "start date")?;
     let end = end_raw.map(str::trim).filter(|d| !d.is_empty());
     if let Some(end) = end {
-        iso_date(end, ErrorCode::EndDateInvalid, "end date")?;
+        crate::validation::iso_date(end, ErrorCode::EndDateInvalid, "end date")?;
         if end < start {
             return Err(DbError::Validation {
                 code: ErrorCode::EndDateBeforeStart,
@@ -833,7 +801,7 @@ pub async fn update(
 /// deleting the whole series. Past instances keep `series_id` and stay
 /// viewable.
 pub async fn truncate(pool: &SqlitePool, profile_id: i64, id: i64, from_date: &str) -> Result<()> {
-    iso_date(from_date, ErrorCode::StartDateInvalid, "from date")?;
+    crate::validation::iso_date(from_date, ErrorCode::StartDateInvalid, "from date")?;
     let mut tx: Transaction<'_, Sqlite> = pool.begin().await?;
     let row = owned_row(pool, profile_id, id).await?;
     if from_date <= row.start_date.as_str() {
@@ -885,7 +853,7 @@ pub async fn update_from(
     from_date: &str,
     input: &UpdateSeries,
 ) -> Result<TaskSeries> {
-    iso_date(from_date, ErrorCode::InstanceDateInvalid, "from date")?;
+    crate::validation::iso_date(from_date, ErrorCode::InstanceDateInvalid, "from date")?;
     let row = owned_row(pool, profile_id, id).await?;
     let earlier: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE series_id = ? AND scheduled_date < ?")
