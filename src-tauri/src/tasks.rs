@@ -488,16 +488,35 @@ pub async fn add_to_week(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<
 /// current week, weekly backlog or day-scheduled alike). Already-backlogged
 /// or unknown ids are errors, not silent no-ops.
 pub async fn return_to_backlog(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<Task> {
+    let mut tx = pool.begin().await?;
+    let task: Option<(Option<i64>, Option<String>)> =
+        sqlx::query_as("SELECT series_id, scheduled_date FROM tasks WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
     let result = sqlx::query(
-        "UPDATE tasks SET placement = 'backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND placement != 'backlog'",
+        "UPDATE tasks SET placement = 'backlog', scheduled_date = NULL, series_id = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND placement != 'backlog'",
     )
     .bind(id)
     .bind(profile_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     if result.rows_affected() == 0 {
         return Err(task_not_found());
     }
+    // A dated series instance that gets pulled back is "gone" from that
+    // date, same as a deleted one — the tombstone keeps the board's
+    // materialization from recreating the occurrence (spec §148/§153).
+    if let Some((Some(series_id), Some(date))) = task {
+        sqlx::query(
+            "INSERT OR IGNORE INTO skipped_instances (series_id, scheduled_date) VALUES (?, ?)",
+        )
+        .bind(series_id)
+        .bind(date)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
     get(pool, id).await
 }
 
@@ -2489,6 +2508,46 @@ mod tests {
         assert_eq!(moved.estimated_minutes, Some(45));
         assert_eq!(moved.spent_minutes, Some(10));
         assert_eq!(moved.sort_order, task.sort_order);
+    }
+
+    #[tokio::test]
+    async fn return_to_backlog_tombstones_a_series_instance() {
+        let (pool, pid) = seeded_pool().await;
+        let series = crate::series::create(
+            &pool,
+            pid,
+            &crate::series::SeriesFields {
+                title: "Dated",
+                description: None,
+                carry_over_rule: None,
+                estimated_minutes: None,
+                series: &daily_series(),
+            },
+        )
+        .await
+        .unwrap();
+        let instance = sqlx::query_as::<_, Task>(
+            "INSERT INTO tasks (profile_id, title, placement, scheduled_date, series_id)              VALUES (?, 'Dated', 'scheduled', '2026-10-30', ?) RETURNING *",
+        )
+        .bind(pid)
+        .bind(series.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let moved = return_to_backlog(&pool, pid, instance.id).await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::Backlog);
+        assert_eq!(moved.series_id, None);
+        // The occurrence's date is tombstoned so the board won't
+        // rematerialize it — same guarantee as deleting an instance.
+        let skipped: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM skipped_instances WHERE series_id = ? AND scheduled_date = '2026-10-30'",
+        )
+        .bind(series.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(skipped, 1);
     }
 
     #[tokio::test]

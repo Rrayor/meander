@@ -533,15 +533,16 @@ function TaskDetailsView({
           >
             {DELETE_BUTTON_LABEL}
           </button>
-          {viewed.placement !== TaskPlacement.Backlog && (
-            <button
-              type="button"
-              onClick={onMoveToBacklog}
-              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
-            >
-              {MOVE_TO_BACKLOG_LABEL}
-            </button>
-          )}
+          {pendingIso === null &&
+            viewed.placement !== TaskPlacement.Backlog && (
+              <button
+                type="button"
+                onClick={onMoveToBacklog}
+                className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+              >
+                {MOVE_TO_BACKLOG_LABEL}
+              </button>
+            )}
         </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-text-muted">

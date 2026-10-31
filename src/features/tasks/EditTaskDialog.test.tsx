@@ -1864,4 +1864,33 @@ describe("EditTaskDialog", () => {
       screen.queryByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
     ).not.toBeInTheDocument();
   });
+
+  it("hides move-to-backlog while a calendar date is pending", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            placement: TaskPlacement.Scheduled,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).toBeInTheDocument();
+
+    // An unmaterialized pick has no instance to move — the button would
+    // otherwise move the previously viewed instance (review finding).
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE);
+    expect(
+      screen.queryByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).not.toBeInTheDocument();
+  });
 });
