@@ -8,7 +8,7 @@ import { PAGE_SIZE } from "@/lib/labels";
 /// overflowing. Owner resets (profile switches) happen through a keyed
 /// <Paged> boundary, which remounts the hook's component.
 export function usePagination<T>(items: readonly T[] | undefined) {
-  const [requested, setPage] = useState(0);
+  const [requested, setRequested] = useState(0);
   const count = items?.length ?? 0;
   const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const page = Math.min(requested, pageCount - 1);
@@ -16,7 +16,7 @@ export function usePagination<T>(items: readonly T[] | undefined) {
   return {
     page,
     pageCount,
-    setPage,
+    setPage: setRequested,
     pageItems: items?.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
   };
 }

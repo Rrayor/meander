@@ -36,6 +36,19 @@ function seedTasks(prefix: string, count: number) {
 }
 
 describe("Backlog smoke", () => {
+  // Specs run serially on one sandbox DB — remove the seeds so the
+  // next spec's tasks aren't pushed onto later pages.
+  after(() => {
+    execFileSync("python3", [
+      "-c",
+      "import sqlite3,sys;" +
+        "c=sqlite3.connect(sys.argv[1],timeout=10);" +
+        `c.execute("DELETE FROM tasks WHERE title LIKE 'SP%'");` +
+        "c.commit();c.close()",
+      dbPath,
+    ]);
+  });
+
   it("paginates the backlog at 50 items on the real backend", async () => {
     const prefix = `SP${Date.now()}-`;
     seedTasks(prefix, PAGE_SIZE + 1);
@@ -49,18 +62,12 @@ describe("Backlog smoke", () => {
       { timeout: 10000 },
     );
 
-    // Leftover rows from other specs sort first; the seeds occupy the
-    // tail — walk to the last page by the "Page X of Y" indicator.
-    const label = async () =>
-      String(
-        await (
-          await $(`nav[aria-label='${PAGINATION_LABEL}'] span`)
-        ).getProperty("textContent"),
-      );
+    // Leftover rows from other specs sort first; the seeds occupy
+    // the tail — walk Next until it disables on the final page.
+    const nextButton = () => $(`button[aria-label='${PAGINATION_NEXT_LABEL}']`);
     for (let i = 0; i < 20; i++) {
-      const m = /^Page (\d+) of (\d+)$/.exec(await label());
-      if (m && m[1] === m[2]) break;
-      await (await $(`button[aria-label='${PAGINATION_NEXT_LABEL}']`)).click();
+      if (!(await (await nextButton()).isEnabled())) break;
+      await (await nextButton()).click();
     }
     const lastRow = () =>
       $(`button[aria-label='${editTaskLabel(`${prefix}${PAGE_SIZE + 1}`)}']`);
