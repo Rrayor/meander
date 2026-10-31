@@ -236,3 +236,9 @@ Feature: Tasks
     Given an application state on a temporary seeded database
     When I return an unknown task to the backlog
     Then the backlog return fails
+  Scenario: the backlog list returns every task for view-side paging
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    And a backlog task titled Gamma
+    Then the task list has 3 tasks

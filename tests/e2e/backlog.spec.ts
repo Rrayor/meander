@@ -46,6 +46,7 @@ import {
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
   addToWeekLabel,
+  PAGINATION_NEXT_LABEL,
   deleteTaskLabel,
   editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
@@ -1503,4 +1504,33 @@ test("an added task shows in the board's weekly backlog column", async ({
   await expect(
     page.getByRole("button", { name: editTaskLabel(errand.title) }),
   ).toBeVisible();
+});
+
+test("the backlog paginates at 50 items without hitting the wire", async ({
+  page,
+}) => {
+  const many = Array.from({ length: 51 }, (_, i) => ({
+    ...tasks[0],
+    id: i + 1,
+    title: `Task ${i + 1}`,
+    sort_order: i + 1,
+  }));
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: many,
+    [COMMANDS.currentProfile]: current,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await expect(
+    page.getByRole("button", { name: editTaskLabel("Task 51") }),
+  ).toHaveCount(0);
+  // Paging is a view transform — navigation itself hits no command.
+  const before = (await getInvocations(page)).length;
+  await page.getByRole("button", { name: PAGINATION_NEXT_LABEL }).click();
+  await expect(
+    page.getByRole("button", { name: editTaskLabel("Task 51") }),
+  ).toBeVisible();
+  expect((await getInvocations(page)).length).toBe(before);
 });

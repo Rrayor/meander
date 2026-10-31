@@ -9,6 +9,7 @@ import {
   DESCRIPTION_FIELD_LABEL,
   EMPTY_CATEGORIES_MESSAGE,
   NEW_CATEGORY_HEADING,
+  PAGINATION_NEXT_LABEL,
   TITLE_FIELD_LABEL,
   categoryCreatedLabel,
   categorySwatchLabel,
@@ -339,4 +340,44 @@ test("editing a category updates the row", async ({ page }) => {
       },
     },
   });
+});
+
+test("the category list paginates at 50 items", async ({ page }) => {
+  const many = Array.from({ length: 51 }, (_, i) => ({
+    id: i + 1,
+    profile_id: 1,
+    title: `Cat ${i + 1}`,
+    description: null,
+    color: null,
+    threshold_minutes: null,
+    threshold_color: null,
+    threshold_day_minutes: {},
+    created_at: "2026-10-10 09:00:00",
+    updated_at: "2026-10-10 09:00:00",
+  }));
+  await stubTauriCommands(page, {
+    [COMMANDS.listCategories]: many,
+    [COMMANDS.currentProfile]: { id: 1, name: "Me", week_start: "monday" },
+  });
+  await page.goto(`/#${categoriesPath}`);
+
+  await expect(
+    page.getByRole("button", { name: editCategoryLabel("Cat 1"), exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: editCategoryLabel("Cat 51"),
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: PAGINATION_NEXT_LABEL }).click();
+  await expect(
+    page.getByRole("button", {
+      name: editCategoryLabel("Cat 51"),
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: editCategoryLabel("Cat 1"), exact: true }),
+  ).toHaveCount(0);
 });
