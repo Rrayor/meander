@@ -60,6 +60,8 @@ import {
   TITLE_REQUIRED_MESSAGE,
   formatMinutes,
   reorderLabel,
+  SEARCH_TASKS_LABEL,
+  SORT_TASKS_LABEL,
   WEEKLY_BACKLOG_LABEL,
 } from "@/lib/labels";
 import {
@@ -1666,4 +1668,47 @@ test("moving a pending occurrence sends the atomic move on the wire", async ({
     date: SERIES_PICK,
     newDate: "2027-03-15",
   });
+});
+
+test("search narrows the rows and the sort pick reorders — no wire calls", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTasks]: [
+      {
+        ...seriesInstance,
+        id: 1,
+        series_id: null,
+        title: "Bravo",
+        sort_order: 1,
+      },
+      {
+        ...seriesInstance,
+        id: 2,
+        series_id: null,
+        title: "Alpha",
+        sort_order: 2,
+      },
+    ],
+    [COMMANDS.currentProfile]: current,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  const search = page.getByLabel(SEARCH_TASKS_LABEL);
+  await search.fill("alpha");
+  await expect(
+    page.getByRole("button", { name: editTaskLabel("Alpha") }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: editTaskLabel("Bravo") }),
+  ).not.toBeVisible();
+
+  await search.fill("");
+  const before = (await getInvocations(page)).length;
+  await page.getByLabel(SORT_TASKS_LABEL).selectOption("title");
+  const rows = await page.locator("li").allTextContents();
+  expect(rows[0]).toContain("Alpha");
+
+  // View-time transforms fire no backend traffic.
+  expect((await getInvocations(page)).length).toBe(before);
 });

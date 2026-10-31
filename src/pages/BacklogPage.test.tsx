@@ -15,6 +15,7 @@ import {
   EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
   SEARCH_TASKS_LABEL,
+  SORT_TASKS_LABEL,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
   STATUS_LABELS,
@@ -595,7 +596,30 @@ test("a search with no matches keeps the toolbar and shows the empty state", asy
   await waitFor(() =>
     expect(screen.getByText(EMPTY_BACKLOG_MESSAGE)).toBeInTheDocument(),
   );
-  expect(
-    screen.getByRole("searchbox", { name: SEARCH_TASKS_LABEL }),
-  ).toBeInTheDocument();
+  expect(screen.getByLabelText(SEARCH_TASKS_LABEL)).toBeInTheDocument();
+});
+
+test("a matching query narrows the list; the sort pick reorders it", async () => {
+  vi.mocked(listTasks).mockResolvedValue([
+    task({ id: 1, title: "Bravo", sort_order: 1 }),
+    task({ id: 2, title: "Alpha", sort_order: 2 }),
+  ]);
+  renderPage();
+  await screen.findByText("Bravo");
+  const search = screen.getByLabelText(SEARCH_TASKS_LABEL);
+  fireEvent.change(search, { target: { value: "alpha" } });
+  await waitFor(() => {
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Bravo")).not.toBeInTheDocument();
+  });
+
+  fireEvent.change(search, { target: { value: "" } });
+  fireEvent.change(screen.getByLabelText(SORT_TASKS_LABEL), {
+    target: { value: "title" },
+  });
+  await waitFor(() => {
+    const rows = screen.getAllByRole("listitem").map((li) => li.textContent);
+    expect(rows[0]).toContain("Alpha");
+    expect(rows[1]).toContain("Bravo");
+  });
 });
