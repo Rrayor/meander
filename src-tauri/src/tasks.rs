@@ -2941,6 +2941,8 @@ mod tests {
 
     #[tokio::test]
     async fn schedule_occurrence_moves_an_already_materialized_row() {
+        const FROM: &str = "2027-03-14";
+        const TO: &str = "2027-03-15";
         let (pool, pid) = seeded_pool().await;
         let task = create(
             &pool,
@@ -2953,20 +2955,22 @@ mod tests {
         .await
         .unwrap();
         let series_id = task.series_id.unwrap();
-        let materialized = get_or_create_instance(&pool, pid, series_id, "2027-03-14")
+        let materialized = get_or_create_instance(&pool, pid, series_id, FROM)
             .await
             .unwrap();
 
-        let moved = schedule_occurrence(&pool, pid, series_id, "2027-03-14", "2027-03-15")
+        let moved = schedule_occurrence(&pool, pid, series_id, FROM, TO)
             .await
             .unwrap();
         assert_eq!(moved.id, materialized.id);
-        assert_eq!(moved.scheduled_date.as_deref(), Some("2027-03-15"));
+        assert_eq!(moved.scheduled_date.as_deref(), Some(TO));
         let dupes: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND series_id = ? AND scheduled_date IN ('2027-03-14','2027-03-15')",
+            "SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND series_id = ? AND scheduled_date IN (?, ?)",
         )
         .bind(pid)
         .bind(series_id)
+        .bind(FROM)
+        .bind(TO)
         .fetch_one(&pool)
         .await
         .unwrap();
