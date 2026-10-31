@@ -6,11 +6,22 @@ import { listTaskCategories } from "@/api/categories";
 import type { Category, Task } from "@/api/bindings";
 import { globalThreshold, weekStart } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { listPendingCarryOver, listWeekTasks } from "@/api/tasks";
+import { boardMove, listPendingCarryOver, listWeekTasks } from "@/api/tasks";
 import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "@/features/tasks/TaskCard";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
@@ -43,6 +54,35 @@ const STATUS_ROWS = [
   TaskStatus.Done,
 ] as const;
 
+/// A cell's droppable id packs its column (iso date or the weekly
+/// backlog bucket) and its status row — the drop decodes placement,
+/// date and status from it in one gesture (spec §314/§328).
+const cellId = (column: string | null, status: TaskStatus) =>
+  `${column ?? "weekly-backlog"}|${status}`;
+
+function DroppableCell({
+  id,
+  style,
+  children,
+}: Readonly<{
+  id: string;
+  style?: React.CSSProperties;
+  children?: React.ReactNode;
+}>) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <td
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-md align-top transition-colors ${
+        isOver ? "bg-primary/20" : "bg-surface/40"
+      }`}
+    >
+      {children}
+    </td>
+  );
+}
+
 // A card queries its own category chips — same per-task association
 // read the backlog row does.
 function BoardCard({
@@ -54,19 +94,36 @@ function BoardCard({
     queryKey: QUERY_KEYS.taskCategories(task.id),
     queryFn: () => listTaskCategories(task.id),
   });
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: task.id });
   return (
-    <button
-      type="button"
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- dnd-kit supplies role=button/tabIndex/keyboard via spread attributes
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       aria-label={editTaskLabel(task.title)}
       onClick={onOpen}
-      className="w-full cursor-pointer text-left"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onOpen();
+      }}
+      // §451: the card follows the pointer immediately — the backend
+      // write must never gate the visual.
+      style={{
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        zIndex: isDragging ? 30 : undefined,
+        cursor: "grab",
+      }}
+      className={isDragging ? "opacity-70" : undefined}
     >
       <TaskCard
         task={task}
         categories={categories ?? []}
         tintColors={tintColors}
       />
-    </button>
+    </div>
   );
 }
 
@@ -166,6 +223,12 @@ export function BoardPage() {
     queryFn: weekStart,
   });
   const [anchor, setAnchor] = useState(todayIso);
+  const sensors = useSensors(
+    // A small distance keeps plain clicks opening the dialog while a
+    // real drag gesture takes over.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor),
+  );
   const [jumpOpen, setJumpOpen] = useState(false);
   const [promptDismissed, setPromptDismissed] = useState(false);
   const rangeButton = useRef<HTMLButtonElement>(null);
@@ -225,6 +288,68 @@ export function BoardPage() {
   );
   const categoryError = categoryQueries.find((q) => q.error)?.error;
   const boardError = error ?? categoryError ?? null;
+
+  const queryClient = useQueryClient();
+  const move = useMutation({
+    mutationFn: ({
+      taskId,
+      placement,
+      date,
+      status,
+    }: {
+      taskId: number;
+      placement: TaskPlacement;
+      date: string | null;
+      status: TaskStatus;
+    }) => boardMove(taskId, placement, date, status),
+    onMutate: async ({ taskId, placement, date, status }) => {
+      // §451: optimistic — the card relocates the moment it drops;
+      // the query refetches to confirm.
+      await queryClient.cancelQueries({
+        queryKey: QUERY_KEYS.boardWeek(days[0]),
+      });
+      queryClient.setQueryData<Task[]>(QUERY_KEYS.boardWeek(days[0]), (old) =>
+        (old ?? []).map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                placement,
+                scheduled_date: date,
+                status,
+              }
+            : t,
+        ),
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
+    },
+  });
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over) return;
+    const [col, status] = (over.id as string).split("|") as [
+      string,
+      TaskStatus,
+    ];
+    const task = tasks?.find((t) => t.id === active.id);
+    if (!task) return;
+    const placement =
+      col === "weekly-backlog"
+        ? TaskPlacement.WeeklyBacklog
+        : TaskPlacement.Scheduled;
+    const date = col === "weekly-backlog" ? null : col;
+    if (
+      task.placement === placement &&
+      task.scheduled_date === date &&
+      task.status === status
+    ) {
+      return;
+    }
+    move.mutate({ taskId: task.id, placement, date, status });
+  };
 
   const { tintColors: columnTintColors, reachedCats } = columnThresholds(
     columns,
@@ -322,81 +447,85 @@ export function BoardPage() {
       )}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable regions need tabIndex=0 so keyboard users can scroll them (axe scrollable-region-focusable) */}
       <section tabIndex={0} className="flex-1 overflow-auto p-6">
-        <table className="w-full min-w-[1200px] border-separate border-spacing-2">
-          <thead>
-            <tr>
-              {/* Corner cell — keeps the day headers aligned with the
+        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          <table className="w-full min-w-[1200px] border-separate border-spacing-2">
+            <thead>
+              <tr>
+                {/* Corner cell — keeps the day headers aligned with the
                   rowheader + 8 data cells of the body rows. */}
-              <td className="w-12" />
-              {columns.map((column) => {
-                const day = totals(columnTasks(column));
-                return (
-                  <th
-                    key={column ?? "weekly-backlog"}
-                    scope="col"
-                    style={tint(column)}
-                    className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
-                  >
-                    <p className="text-sm font-medium text-text">
-                      {column === null
-                        ? WEEKLY_BACKLOG_LABEL
-                        : `${shortWeekdayLabel(column)} ${shortDateLabel(column)}`}
-                    </p>
-                    <p className="mt-0.5 text-xs font-normal text-text-muted">
-                      {taskCountLabel(day.count)} ·{" "}
-                      {dayTotalsLabel(day.estimated, day.spent)}
-                    </p>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {STATUS_ROWS.map((status) => (
-              <tr key={status}>
-                <th
-                  scope="row"
-                  className="w-12 rounded-md bg-surface/40 align-middle text-xs font-medium uppercase tracking-wide text-text-muted"
-                >
-                  {STATUS_LABELS[status]}
-                </th>
+                <td className="w-12" />
                 {columns.map((column) => {
-                  const cell = columnTasks(column).filter(
-                    (t) => t.status === status,
-                  );
+                  const day = totals(columnTasks(column));
                   return (
-                    <td
+                    <th
                       key={column ?? "weekly-backlog"}
+                      scope="col"
                       style={tint(column)}
-                      className="rounded-md bg-surface/40 align-top"
+                      className="w-[12.5%] rounded-md bg-surface-raised px-3 py-2 text-left align-top"
                     >
-                      {cell.length > 0 && (
-                        <ul className="flex flex-col gap-2">
-                          {cell.map((task) => (
-                            <li key={task.id}>
-                              <BoardCard
-                                task={task}
-                                onOpen={() => setEditingTask(task)}
-                                // §285: cards of a reached category carry
-                                // that threshold's tint — the global tint
-                                // stays on the column only.
-                                tintColors={(taskCategories.get(task.id) ?? [])
-                                  .map((cat) =>
-                                    reachedCats.get(column)?.get(cat.id),
-                                  )
-                                  .filter((x): x is string => x != null)}
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </td>
+                      <p className="text-sm font-medium text-text">
+                        {column === null
+                          ? WEEKLY_BACKLOG_LABEL
+                          : `${shortWeekdayLabel(column)} ${shortDateLabel(column)}`}
+                      </p>
+                      <p className="mt-0.5 text-xs font-normal text-text-muted">
+                        {taskCountLabel(day.count)} ·{" "}
+                        {dayTotalsLabel(day.estimated, day.spent)}
+                      </p>
+                    </th>
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {STATUS_ROWS.map((status) => (
+                <tr key={status}>
+                  <th
+                    scope="row"
+                    className="w-12 rounded-md bg-surface/40 align-middle text-xs font-medium uppercase tracking-wide text-text-muted"
+                  >
+                    {STATUS_LABELS[status]}
+                  </th>
+                  {columns.map((column) => {
+                    const cell = columnTasks(column).filter(
+                      (t) => t.status === status,
+                    );
+                    return (
+                      <DroppableCell
+                        key={column ?? "weekly-backlog"}
+                        id={cellId(column, status)}
+                        style={tint(column)}
+                      >
+                        {cell.length > 0 && (
+                          <ul className="flex flex-col gap-2">
+                            {cell.map((task) => (
+                              <li key={task.id}>
+                                <BoardCard
+                                  task={task}
+                                  onOpen={() => setEditingTask(task)}
+                                  // §285: cards of a reached category carry
+                                  // that threshold's tint — the global tint
+                                  // stays on the column only.
+                                  tintColors={(
+                                    taskCategories.get(task.id) ?? []
+                                  )
+                                    .map((cat) =>
+                                      reachedCats.get(column)?.get(cat.id),
+                                    )
+                                    .filter((x): x is string => x != null)}
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </DroppableCell>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DndContext>
       </section>
       {isCurrentWeek && !promptDismissed && (pending?.length ?? 0) > 0 && (
         <CarryOverPrompt

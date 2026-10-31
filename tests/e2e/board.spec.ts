@@ -142,7 +142,7 @@ test("a card renders in the cell under its day's column header", async ({
         ...document.querySelectorAll<HTMLTableCellElement>("thead tr th"),
       ].find((th) => th.textContent?.includes(dayLabel));
       const cell = document
-        .querySelector<HTMLButtonElement>(`button[aria-label="${cardLabel}"]`)
+        .querySelector<HTMLElement>(`[aria-label="${cardLabel}"]`)
         ?.closest("td");
       return { headerIndex: header?.cellIndex, cellIndex: cell?.cellIndex };
     },

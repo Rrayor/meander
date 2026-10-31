@@ -1,7 +1,14 @@
 import { COMMANDS } from "@/api/commands";
 import { transport } from "@/api/transport";
 
-import type { CarryOverRule, NewTask, Task, UpdateTask } from "./bindings";
+import type {
+  TaskPlacement,
+  TaskStatus,
+  CarryOverRule,
+  NewTask,
+  Task,
+  UpdateTask,
+} from "./bindings";
 
 export type { NewTask, Task, UpdateTask };
 
@@ -53,3 +60,15 @@ export const scheduleTask = (taskId: number, date: string) =>
 
 export const updateTask = (taskId: number, input: UpdateTask) =>
   transport.invoke<Task>(COMMANDS.updateTask, { taskId, input });
+export const boardMove = (
+  taskId: number,
+  placement: TaskPlacement,
+  date: string | null,
+  status: TaskStatus,
+) =>
+  transport.invoke<Task>(COMMANDS.boardMove, {
+    taskId,
+    placement,
+    date,
+    status,
+  });

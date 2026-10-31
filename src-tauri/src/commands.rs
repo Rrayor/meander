@@ -236,6 +236,26 @@ pub async fn skipped_series_dates(
 }
 
 #[tauri::command]
+pub async fn board_move(
+    task_id: i64,
+    placement: crate::tasks::TaskPlacement,
+    date: Option<String>,
+    status: crate::tasks::TaskStatus,
+    state: State<'_, AppState>,
+) -> Result<crate::tasks::Task, ApiError> {
+    crate::tasks::board_move(
+        &state.pool(),
+        state.active_profile_id(),
+        task_id,
+        placement,
+        date.as_deref(),
+        status,
+    )
+    .await
+    .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn schedule_occurrence(
     series_id: i64,
     date: String,
