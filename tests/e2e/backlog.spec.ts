@@ -46,7 +46,10 @@ import {
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
   addToWeekLabel,
+  PAGINATION_LABEL,
   PAGINATION_NEXT_LABEL,
+  PAGINATION_PREVIOUS_LABEL,
+  pageXOfYLabel,
   deleteTaskLabel,
   editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
@@ -1526,11 +1529,21 @@ test("the backlog paginates at 50 items without hitting the wire", async ({
   await expect(
     page.getByRole("button", { name: editTaskLabel("Task 51") }),
   ).toHaveCount(0);
+  const nav = page.getByRole("navigation", { name: PAGINATION_LABEL });
+  await expect(nav).toHaveText(pageXOfYLabel(1, 2));
+  await expect(
+    page.getByRole("button", { name: PAGINATION_PREVIOUS_LABEL }),
+  ).toBeDisabled();
+
   // Paging is a view transform — navigation itself hits no command.
   const before = (await getInvocations(page)).length;
   await page.getByRole("button", { name: PAGINATION_NEXT_LABEL }).click();
   await expect(
     page.getByRole("button", { name: editTaskLabel("Task 51") }),
   ).toBeVisible();
+  await expect(nav).toHaveText(pageXOfYLabel(2, 2));
+  await expect(
+    page.getByRole("button", { name: PAGINATION_NEXT_LABEL }),
+  ).toBeDisabled();
   expect(await getInvocations(page)).toHaveLength(before);
 });

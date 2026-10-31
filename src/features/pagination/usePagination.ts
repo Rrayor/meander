@@ -11,7 +11,7 @@ export function usePagination<T>(items: readonly T[] | undefined) {
   const [requested, setRequested] = useState(0);
   const count = items?.length ?? 0;
   const pageCount = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const page = Math.min(requested, pageCount - 1);
+  const page = Math.max(0, Math.min(requested, pageCount - 1));
 
   return {
     page,

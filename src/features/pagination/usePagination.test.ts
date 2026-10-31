@@ -50,4 +50,26 @@ describe("usePagination", () => {
     expect(result.current.pageCount).toBe(1);
     expect(result.current.pageItems).toBeUndefined();
   });
+
+  it("floors a below-range page at zero", () => {
+    const items = Array.from({ length: PAGE_SIZE + 1 }, (_, i) => i);
+    const { result, rerender } = renderHook(() => usePagination(items));
+    result.current.setPage(-3);
+    rerender();
+    expect(result.current.page).toBe(0);
+    expect(result.current.pageItems?.[0]).toBe(0);
+  });
+
+  it("slices middle pages of a three-page list", () => {
+    const items = Array.from({ length: PAGE_SIZE * 2 + 5 }, (_, i) => i);
+    const { result, rerender } = renderHook(() => usePagination(items));
+    result.current.setPage(1);
+    rerender();
+    expect(result.current.pageCount).toBe(3);
+    expect(result.current.pageItems).toHaveLength(PAGE_SIZE);
+    expect(result.current.pageItems?.[0]).toBe(PAGE_SIZE);
+    result.current.setPage(2);
+    rerender();
+    expect(result.current.pageItems).toHaveLength(5);
+  });
 });

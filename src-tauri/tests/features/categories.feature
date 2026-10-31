@@ -184,3 +184,8 @@ Feature: Categories
     When I clear the category Errands threshold
     Then the category Errands has no threshold
     And the category Errands has no threshold for sunday
+  Scenario: the category list returns every category for view-side paging
+    Given an application state on a temporary seeded database
+    And a category named Alpha exists on the active profile
+    And a category named Beta exists on the active profile
+    Then the category list is "Alpha, Beta"
