@@ -682,15 +682,15 @@ fn task_id_by_title(world: &mut MeanderWorld, title: &str) -> i64 {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let profile_id = state.active_profile_id();
-    let tasks = world
+    world
         .rt()
-        .block_on(meander_lib::tasks::list(&pool, profile_id))
-        .expect("task list failed");
-    tasks
-        .iter()
-        .find(|t| t.title == title)
-        .expect("task missing")
-        .id
+        .block_on(
+            sqlx::query_scalar("SELECT id FROM tasks WHERE profile_id = ? AND title = ?")
+                .bind(profile_id)
+                .bind(title)
+                .fetch_one(&pool),
+        )
+        .unwrap_or_else(|_| panic!("task {title} not found"))
 }
 
 // Resolves a category id by title across all profiles — scoping is the
@@ -3203,14 +3203,7 @@ fn scheduled_past_task_with_rule(world: &mut MeanderWorld, title: String, days: 
 #[when(expr = "I resolve the carry-over for {word} as {word}")]
 fn resolve_carry_over_step(world: &mut MeanderWorld, title: String, rule: String) {
     let (pool, id) = active_profile_pool(world);
-    let task_id = world
-        .rt()
-        .block_on(meander_lib::tasks::list(&pool, id))
-        .expect("list failed")
-        .iter()
-        .find(|t| t.title == title)
-        .expect("task missing")
-        .id;
+    let task_id = task_id_by_title(world, &title);
     let rule = match rule.as_str() {
         "carry" => meander_lib::tasks::CarryOverRule::Carry,
         "return" => meander_lib::tasks::CarryOverRule::Return,
@@ -3269,6 +3262,123 @@ fn task_pending_carry_over(world: &mut MeanderWorld, title: String) {
         pending.iter().any(|t| t.title == title),
         "{title} not pending: {pending:?}"
     );
+}
+
+#[when(expr = "I add the task {word} to the current week")]
+fn add_task_to_week(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task_id = task_id_by_title(world, &title);
+    let rt = world.rt();
+    if let Err(e) = rt.block_on(meander_lib::tasks::add_to_week(&pool, active, task_id)) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I return the task {word} to the backlog")]
+fn return_task_to_backlog(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task_id = task_id_by_title(world, &title);
+    let rt = world.rt();
+    if let Err(e) = rt.block_on(meander_lib::tasks::return_to_backlog(
+        &pool, active, task_id,
+    )) {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I add an unknown task to the current week")]
+fn add_unknown_task_to_week(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::add_to_week(&pool, active, 9999))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[when(expr = "I return an unknown task to the backlog")]
+fn return_unknown_task_to_backlog(world: &mut MeanderWorld) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    if let Err(e) = world
+        .rt()
+        .block_on(meander_lib::tasks::return_to_backlog(&pool, active, 9999))
+    {
+        world.error = Some(e.to_string());
+    }
+}
+
+#[then(expr = "the task {word} is in the weekly backlog")]
+fn task_in_weekly_backlog(world: &mut MeanderWorld, title: String) {
+    assert_eq!(
+        task_placement(world, &title),
+        meander_lib::tasks::TaskPlacement::WeeklyBacklog
+    );
+}
+
+#[then(expr = "the task {word} is in the backlog")]
+fn task_in_backlog(world: &mut MeanderWorld, title: String) {
+    assert_eq!(
+        task_placement(world, &title),
+        meander_lib::tasks::TaskPlacement::Backlog
+    );
+}
+
+#[then(expr = "the task {word} has no scheduled date")]
+fn task_has_no_date(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let task = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .into_iter()
+        .find(|t| t.title == title)
+        .unwrap_or_else(|| panic!("task {title} not found"));
+    assert_eq!(task.scheduled_date, None);
+}
+
+#[then(expr = "the week move fails")]
+fn week_move_fails(world: &mut MeanderWorld) {
+    assert!(world.error.is_some(), "add to week unexpectedly succeeded");
+}
+
+#[then(expr = "the backlog return fails")]
+fn backlog_return_fails(world: &mut MeanderWorld) {
+    assert!(
+        world.error.is_some(),
+        "return to backlog unexpectedly succeeded"
+    );
+}
+
+fn task_placement(world: &mut MeanderWorld, title: &str) -> meander_lib::tasks::TaskPlacement {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let raw: String = world
+        .rt()
+        .block_on(
+            sqlx::query_scalar("SELECT placement FROM tasks WHERE profile_id = ? AND title = ?")
+                .bind(active)
+                .bind(title)
+                .fetch_one(&pool),
+        )
+        .expect("task placement read failed");
+    match raw.as_str() {
+        "backlog" => meander_lib::tasks::TaskPlacement::Backlog,
+        "weekly_backlog" => meander_lib::tasks::TaskPlacement::WeeklyBacklog,
+        "scheduled" => meander_lib::tasks::TaskPlacement::Scheduled,
+        other => panic!("unknown placement {other}"),
+    }
 }
 
 #[then(expr = "the board lists {word} in the weekly backlog")]

@@ -10,6 +10,7 @@ import {
   ADD_TASK_LABEL,
   CREATE_TASK_LABEL,
   EDIT_BUTTON_LABEL,
+  MOVE_TO_BACKLOG_LABEL,
   SAVE_BUTTON_LABEL,
   STATUS_LABELS,
   THRESHOLD_COLOR_DEFAULT,
@@ -598,4 +599,82 @@ test("the board's create-task button opens the dialog and hits the wire", async 
   const call = calls.find((c) => c.cmd === COMMANDS.createTask);
   expect(call?.args).toMatchObject({ input: { title: BOARD_ERRAND_TITLE } });
   await expect(dialog).not.toBeVisible();
+});
+
+test("a board task returns to the backlog from its details view", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: stubSequence([
+      [backlogTask, mondayTask],
+      [mondayTask],
+    ]),
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.returnTaskToBacklog]: {
+      ...backlogTask,
+      placement: "backlog",
+      scheduled_date: null,
+    },
+  });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { name: editTaskLabel(backlogTask.title) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: MOVE_TO_BACKLOG_LABEL }).click();
+
+  const calls = await getInvocations(page);
+  expect(
+    calls.find((c) => c.cmd === COMMANDS.returnTaskToBacklog)?.args,
+  ).toEqual({ taskId: backlogTask.id });
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(backlogTask.title) }),
+  ).toHaveCount(0);
+});
+
+test("a day-scheduled card returns to the backlog from its details", async ({
+  page,
+}) => {
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.listTasks]: [],
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: stubSequence([
+      [backlogTask, mondayTask],
+      [backlogTask],
+    ]),
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.returnTaskToBacklog]: {
+      ...mondayTask,
+      placement: "backlog",
+      scheduled_date: null,
+    },
+  });
+  await page.goto("/");
+
+  await page
+    .getByRole("button", { name: editTaskLabel(mondayTask.title) })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: MOVE_TO_BACKLOG_LABEL }).click();
+
+  const calls = await getInvocations(page);
+  expect(
+    calls.find((c) => c.cmd === COMMANDS.returnTaskToBacklog)?.args,
+  ).toEqual({ taskId: mondayTask.id });
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(mondayTask.title) }),
+  ).toHaveCount(0);
 });

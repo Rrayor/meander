@@ -24,7 +24,12 @@ import {
   listTaskCategories,
   removeTaskCategory,
 } from "@/api/categories";
-import { MAX_TASK_TITLE_LENGTH, deleteTask, updateTask } from "@/api/tasks";
+import {
+  MAX_TASK_TITLE_LENGTH,
+  deleteTask,
+  returnTaskToBacklog,
+  updateTask,
+} from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { listSeriesNotes, listTaskNotes } from "@/api/notes";
 import { QUERY_KEYS } from "@/api/queryKeys";
@@ -40,6 +45,7 @@ import {
   CARRY_OVER_OPTIONS,
   CLOSE_LABEL,
   DELETE_BUTTON_LABEL,
+  MOVE_TO_BACKLOG_LABEL,
   DELETE_KEEP_LABEL,
   DELETE_SCOPE_FUTURE_LABEL,
   DELETE_TASK_HEADING,
@@ -95,6 +101,7 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/tasks")>()),
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
+  returnTaskToBacklog: vi.fn(),
 }));
 
 vi.mock("@/api/categories", async (importOriginal) => ({
@@ -136,6 +143,7 @@ const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
 const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
 const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
 const mockedDeleteTask = vi.mocked(deleteTask);
+const mockedReturnToBacklog = vi.mocked(returnTaskToBacklog);
 const mockedUpdate = vi.mocked(updateTask);
 const mockedListCategories = vi.mocked(listCategories);
 const mockedListTaskCategories = vi.mocked(listTaskCategories);
@@ -165,6 +173,8 @@ const WEDNESDAY = WEEKDAY_OPTIONS.find((w) => w.value === Weekday.Wednesday)!;
 const RETURN_OPTION = CARRY_OVER_OPTIONS.find(
   (o) => o.value === CarryOverRule.Return,
 )!;
+
+const LOAD_ERROR = "offline";
 
 const baseTask: Task = {
   id: 7,
@@ -1658,7 +1668,6 @@ describe("EditTaskDialog", () => {
   });
 
   it("blocks and surfaces a failed series-category load", async () => {
-    const LOAD_ERROR = "offline";
     mockedListSeriesCategories.mockRejectedValue(new Error(LOAD_ERROR));
     renderDialog({ ...baseTask, series_id: baseSeries.id });
     fireEvent.click(
@@ -1793,5 +1802,95 @@ describe("EditTaskDialog", () => {
       screen.queryByRole("heading", { name: DELETE_TASK_HEADING }),
     ).not.toBeInTheDocument();
     expect(mockedDeleteTask).not.toHaveBeenCalled();
+  });
+
+  it("moves a board task back to the backlog from the details view", async () => {
+    const onWeek = { ...baseTask, placement: TaskPlacement.WeeklyBacklog };
+    mockedReturnToBacklog.mockResolvedValue(onWeek);
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={onWeek} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    );
+
+    await waitFor(() =>
+      expect(mockedReturnToBacklog).toHaveBeenCalledWith(onWeek.id),
+    );
+  });
+
+  it("offers move-to-backlog on a day-scheduled card too", async () => {
+    const scheduled = {
+      ...baseTask,
+      placement: TaskPlacement.Scheduled,
+      scheduled_date: "2026-10-30",
+    };
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={scheduled} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a failed move to the backlog", async () => {
+    const onWeek = { ...baseTask, placement: TaskPlacement.WeeklyBacklog };
+    mockedReturnToBacklog.mockRejectedValue(new Error(LOAD_ERROR));
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={onWeek} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(LOAD_ERROR);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("hides the move-to-backlog action for a task already in the backlog", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog task={baseTask} onClose={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: DELETE_BUTTON_LABEL });
+    expect(
+      screen.queryByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides move-to-backlog while a calendar date is pending", async () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <EditTaskDialog
+          task={{
+            ...baseTask,
+            placement: TaskPlacement.Scheduled,
+            series_id: baseSeries.id,
+            scheduled_date: OPENED_INSTANCE_DATE,
+          }}
+          onClose={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).toBeInTheDocument();
+
+    // An unmaterialized pick has no instance to move — the button would
+    // otherwise move the previously viewed instance (review finding).
+    fireEvent.click(
+      await screen.findByRole("button", { name: OTHER_INSTANCE_DATE }),
+    );
+    await screen.findByText(SCHEDULED_INSTANCE_PENDING_MESSAGE);
+    expect(
+      screen.queryByRole("button", { name: MOVE_TO_BACKLOG_LABEL }),
+    ).not.toBeInTheDocument();
   });
 });

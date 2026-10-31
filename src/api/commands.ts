@@ -29,6 +29,8 @@ export const COMMANDS = {
   addTaskCategory: "add_task_category",
   removeTaskCategory: "remove_task_category",
   createTask: "create_task",
+  addTaskToWeek: "add_task_to_week",
+  returnTaskToBacklog: "return_task_to_backlog",
   moveTask: "move_task",
   deleteTask: "delete_task",
   updateTask: "update_task",

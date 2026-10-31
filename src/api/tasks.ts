@@ -42,5 +42,11 @@ export const moveTask = (
 export const deleteTask = (taskId: number) =>
   transport.invoke<void>(COMMANDS.deleteTask, { taskId });
 
+export const addTaskToWeek = (taskId: number) =>
+  transport.invoke<Task>(COMMANDS.addTaskToWeek, { taskId });
+
+export const returnTaskToBacklog = (taskId: number) =>
+  transport.invoke<Task>(COMMANDS.returnTaskToBacklog, { taskId });
+
 export const updateTask = (taskId: number, input: UpdateTask) =>
   transport.invoke<Task>(COMMANDS.updateTask, { taskId, input });

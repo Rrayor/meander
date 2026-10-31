@@ -45,6 +45,7 @@ import {
   DELETE_TASK_HEADING,
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
+  addToWeekLabel,
   deleteTaskLabel,
   editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
@@ -54,6 +55,7 @@ import {
   TITLE_REQUIRED_MESSAGE,
   formatMinutes,
   reorderLabel,
+  WEEKLY_BACKLOG_LABEL,
 } from "@/lib/labels";
 import {
   INSTANCE_DATE_NOT_SCHEDULED_MESSAGE,
@@ -1417,4 +1419,88 @@ test("a rejected note surfaces the typed error", async ({ page }) => {
   await expect(dialog.getByRole("alert")).toHaveText(
     NOTE_BODY_TOO_LONG_MESSAGE,
   );
+});
+
+test("the row button adds a task to the current week on the wire", async ({
+  page,
+}) => {
+  const errand = tasks[0];
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: stubSequence([[errand], []]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.addTaskToWeek]: { ...errand, placement: "weekly_backlog" },
+    [COMMANDS.listWeekTasks]: [errand],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: addToWeekLabel(errand.title) })
+    .click();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.addTaskToWeek)?.args).toEqual({
+    taskId: errand.id,
+  });
+  await expect(
+    page.getByRole("button", { name: addToWeekLabel(errand.title) }),
+  ).toHaveCount(0);
+});
+
+test("a rejected add-to-week keeps the row and surfaces the error", async ({
+  page,
+}) => {
+  const message = "placement write failed";
+  const errand = tasks[0];
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: [errand],
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.addTaskToWeek]: stubApiError("internal", "internal", message),
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: addToWeekLabel(errand.title) })
+    .click();
+
+  await expect(page.getByRole("alert")).toHaveText(message);
+  await expect(
+    page.getByRole("button", { name: addToWeekLabel(errand.title) }),
+  ).toBeVisible();
+});
+
+test("an added task shows in the board's weekly backlog column", async ({
+  page,
+}) => {
+  const errand = tasks[0];
+  const weekly = { ...errand, placement: "weekly_backlog" };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.listTasks]: stubSequence([[errand], []]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.addTaskToWeek]: weekly,
+    [COMMANDS.listWeekTasks]: [weekly],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: addToWeekLabel(errand.title) })
+    .click();
+  await page.goto("/");
+
+  const column = page.getByRole("columnheader", {
+    name: WEEKLY_BACKLOG_LABEL,
+  });
+  await expect(column).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(errand.title) }),
+  ).toBeVisible();
 });

@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
-import { deleteTask, listTasks, moveTask } from "@/api/tasks";
+import { addTaskToWeek, deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 import { BacklogPage } from "@/pages/BacklogPage";
@@ -15,6 +15,7 @@ import {
   EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
+  addToWeekLabel,
   deleteTaskLabel,
   formatMinutes,
   reorderLabel,
@@ -27,6 +28,7 @@ vi.mock("@/api/tasks", async (importOriginal) => ({
   moveTask: vi.fn(),
   createTask: vi.fn(),
   deleteTask: vi.fn(),
+  addTaskToWeek: vi.fn(),
 }));
 
 vi.mock("@/api/profiles", async (importOriginal) => ({
@@ -445,6 +447,72 @@ describe("BacklogPage", () => {
     );
     await waitFor(() =>
       expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(1),
+    );
+  });
+
+  it("adds a task to the current week via its row button and re-fetches", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    vi.mocked(addTaskToWeek).mockResolvedValue(
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    );
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: addToWeekLabel(TITLE_A),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(vi.mocked(addTaskToWeek)).toHaveBeenCalledWith(
+        1,
+        expect.anything(),
+      ),
+    );
+    await waitFor(() =>
+      expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(1),
+    );
+  });
+
+  it("shows the add-to-week action without requiring hover", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    renderPage();
+    expect(
+      await screen.findByRole("button", { name: addToWeekLabel(TITLE_A) }),
+    ).toBeVisible();
+  });
+
+  it("does not open the task when the add-to-week button is clicked", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: addToWeekLabel(TITLE_A),
+      }),
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("surfaces an add-to-week error", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    vi.mocked(addTaskToWeek).mockRejectedValue(new Error(LOAD_ERROR_MESSAGE));
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: addToWeekLabel(TITLE_A),
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      LOAD_ERROR_MESSAGE,
     );
   });
 
