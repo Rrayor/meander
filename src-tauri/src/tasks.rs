@@ -488,6 +488,20 @@ pub async fn add_to_week(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<
 /// may be used, not just the current week). A persisted series instance
 /// redates its row — the moved occurrence deviates from cadence and is
 /// used instead of a freshly materialized one (spec §228/§231).
+/// Dates a series has dropped — tombstones from skips, deletions, or
+/// moved-away instances. The details calendar needs them: a vacated
+/// date is no longer "expected", so it must not draw the scheduled dot.
+pub async fn skipped_dates(pool: &SqlitePool, series_id: i64) -> Result<Vec<String>> {
+    let rows: Vec<(String,)> = sqlx::query_as(&format!(
+        "SELECT scheduled_date FROM skipped_instances WHERE series_id IN ({FAMILY_IDS})",
+    ))
+    .bind(series_id)
+    .bind(series_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}
+
 pub async fn schedule(pool: &SqlitePool, profile_id: i64, id: i64, date: &str) -> Result<Task> {
     crate::validation::iso_date(date, ErrorCode::ScheduledDateInvalid, "date")?;
     let mut tx = pool.begin().await?;

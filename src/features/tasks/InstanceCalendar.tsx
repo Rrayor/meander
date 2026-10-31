@@ -20,6 +20,7 @@ interface InstanceCalendarProps {
   // scheduled when any segment's window produces it.
   series: TaskSeries[];
   instances: Task[];
+  skipped?: string[];
   selectedIso: string | null;
   onPick: (task: Task | null, iso: string) => void;
 }
@@ -27,6 +28,7 @@ interface InstanceCalendarProps {
 export function InstanceCalendar({
   series,
   instances,
+  skipped,
   selectedIso,
   onPick,
 }: Readonly<InstanceCalendarProps>) {
@@ -60,16 +62,20 @@ export function InstanceCalendar({
           // A persisted instance stays reachable even if its date no
           // longer matches the schedule (e.g. after a series edit).
           const persisted = instances.some((t) => t.scheduled_date === iso);
+          // A tombstoned date is vacated — a moved-away or skipped
+          // occurrence must not still read as "expected" (§228: a move
+          // relocates the instance; the old slot is empty, not pending).
           const scheduled =
             persisted ||
-            series.some((segment) =>
-              isScheduledOn(
-                segment.recurrence,
-                segment.start_date,
-                segment.end_date,
-                iso,
-              ),
-            );
+            (!skipped?.includes(iso) &&
+              series.some((segment) =>
+                isScheduledOn(
+                  segment.recurrence,
+                  segment.start_date,
+                  segment.end_date,
+                  iso,
+                ),
+              ));
           if (!scheduled) {
             // Padding days outside the month stay blank — showing them
             // faded fails contrast and adds noise.

@@ -238,4 +238,23 @@ describe("InstanceCalendar", () => {
       "date",
     );
   });
+
+  it("does not offer a vacated date after its instance moved away", () => {
+    render(
+      <QueryClientProvider client={testQueryClient()}>
+        <InstanceCalendar
+          series={[series]}
+          instances={[]}
+          skipped={[series.start_date]}
+          selectedIso={series.start_date}
+          onPick={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    // The cadence date still exists visually, but it is a plain day —
+    // not a selectable expected occurrence.
+    expect(
+      screen.queryByRole("button", { name: series.start_date }),
+    ).toBeNull();
+  });
 });

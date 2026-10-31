@@ -45,3 +45,5 @@ export const truncateTaskSeries = (seriesId: number, fromDate: string) =>
     seriesId,
     fromDate,
   });
+export const skippedSeriesDates = (seriesId: number) =>
+  transport.invoke<string[]>(COMMANDS.skippedSeriesDates, { seriesId });

@@ -226,6 +226,16 @@ pub async fn schedule_task(
 }
 
 #[tauri::command]
+pub async fn skipped_series_dates(
+    series_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, ApiError> {
+    crate::tasks::skipped_dates(&state.pool(), series_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn return_task_to_backlog(
     task_id: i64,
     state: State<'_, AppState>,

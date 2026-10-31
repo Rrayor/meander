@@ -136,6 +136,7 @@ vi.mock("@/api/series", () => ({
   deleteTaskSeries: vi.fn(),
   truncateTaskSeries: vi.fn(),
   getOrCreateInstance: vi.fn(),
+  skippedSeriesDates: vi.fn(),
 }));
 
 const mockedListTaskSeries = vi.mocked(listTaskSeries);
@@ -146,6 +147,9 @@ const mockedUpdateSeriesFrom = vi.mocked(updateTaskSeriesFrom);
 const mockedDeleteSeries = vi.mocked(deleteTaskSeries);
 const mockedTruncateSeries = vi.mocked(truncateTaskSeries);
 const mockedGetOrCreate = vi.mocked(getOrCreateInstance);
+vi.mocked(scheduleTask).mockImplementation(async () => baseTask);
+const { skippedSeriesDates } = await import("@/api/series");
+vi.mocked(skippedSeriesDates).mockResolvedValue([]);
 const mockedDeleteTask = vi.mocked(deleteTask);
 const mockedReturnToBacklog = vi.mocked(returnTaskToBacklog);
 const mockedSchedule = vi.mocked(scheduleTask);

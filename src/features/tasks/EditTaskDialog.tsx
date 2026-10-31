@@ -55,6 +55,7 @@ import type { SaveScope } from "@/lib/enums";
 import {
   deleteTaskSeries,
   getOrCreateInstance,
+  skippedSeriesDates,
   listSeriesCategories,
   listSeriesInstances,
   listTaskSeries,
@@ -188,6 +189,7 @@ interface TaskDetailsViewProps {
   materializeError?: string;
   categories: Category[];
   seriesRow: TaskSeries | undefined;
+  skippedDates?: string[];
   // The segment producing a pending picked date — its values, not the
   // living series', back the unpersisted-occurrence display.
   pendingSegment: TaskSeries | undefined;
@@ -383,6 +385,7 @@ function TaskDetailsView({
   materializeError,
   categories,
   seriesRow,
+  skippedDates,
   pendingSegment,
   seriesSegments,
   seriesInstances,
@@ -522,6 +525,7 @@ function TaskDetailsView({
         <InstanceCalendar
           series={seriesSegments}
           instances={seriesInstances}
+          skipped={skippedDates}
           selectedIso={pendingIso ?? viewed.scheduled_date}
           onPick={onPick}
         />
@@ -767,6 +771,7 @@ function useSeriesScopeSeed({
 }: {
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
+  skippedDates?: string[];
   reset: UseFormReset<FormValues>;
   getValues: UseFormGetValues<FormValues>;
   dirtyFields: FieldNamesMarkedBoolean<FormValues>;
@@ -944,6 +949,7 @@ function EditTaskForm({
   categories: Category[];
   saveScope: SaveScope;
   seriesRow: TaskSeries | undefined;
+  skippedDates?: string[];
   seriesError: string | null;
   serverError: string | null | undefined;
   seriesFieldsPending: boolean;
@@ -1365,6 +1371,11 @@ export function EditTaskDialog({
   const seriesRow = taskSeries?.find((s) => s.id === livingSeriesId);
   // Every segment of the conceptual series — the living row plus the
   // earlier segments — so the calendar shows the full schedule.
+  const skippedDates = useQuery({
+    queryKey: QUERY_KEYS.seriesSkipped(livingSeriesId ?? -1),
+    queryFn: () => skippedSeriesDates(livingSeriesId ?? -1),
+    enabled: livingSeriesId != null,
+  }).data;
   const familySegments = taskSeries?.filter(
     (s) =>
       livingSeriesId !== null &&
@@ -1480,6 +1491,7 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.pendingCarryOver,
       });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.taskSeries });
     },
   });
 
@@ -1502,6 +1514,11 @@ export function EditTaskDialog({
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.pendingCarryOver,
       });
+      if (livingSeriesId != null) {
+        void queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.seriesSkipped(livingSeriesId),
+        });
+      }
     },
   });
 
@@ -1705,6 +1722,7 @@ export function EditTaskDialog({
             seriesRow={seriesRow}
             pendingSegment={pendingSegment}
             seriesSegments={familySegments}
+            skippedDates={skippedDates}
             seriesInstances={seriesInstances}
             onPick={(picked, iso) => {
               if (picked) {
