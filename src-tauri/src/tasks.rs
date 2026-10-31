@@ -285,8 +285,11 @@ pub async fn move_task(
     before_id: Option<i64>,
     after_id: Option<i64>,
 ) -> Result<()> {
+    // Ownership of the moved task is validated in every path — the
+    // anchored UPDATE below must never reorder a foreign or unknown
+    // row silently.
+    sort_order_of(pool, profile_id, task_id).await?;
     if before_id.is_none() && after_id.is_none() {
-        sort_order_of(pool, profile_id, task_id).await?;
         return Ok(());
     }
     let (low, high) = match (before_id, after_id) {

@@ -50,6 +50,27 @@ Feature: Tasks
     And I return the task Beta to the backlog
     Then the task list order is "Beta, Alpha, Gamma"
 
+  Scenario: reordering a foreign task is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a task exists on a second profile
+    When I move the foreign task before Alpha
+    Then the reorder fails
+
+  Scenario: reordering an unknown task is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I move an unknown task before Alpha
+    Then the reorder fails
+
+  Scenario: reordering with inverted anchors is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    And a backlog task titled Beta
+    And a backlog task titled Gamma
+    When I move the task Alpha between Gamma and Beta
+    Then the reorder fails
+
   Scenario: estimates must be a positive value
     Given an application state on a temporary seeded database
     When I create a task with an estimate of 0 minutes
