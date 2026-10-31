@@ -1,3 +1,5 @@
+import { Pagination } from "@/features/pagination/Pagination";
+import { usePagination } from "@/features/pagination/usePagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -35,6 +37,7 @@ export function CategoriesPage() {
     queryKey: QUERY_KEYS.categories,
     queryFn: listCategories,
   });
+  const { pageItems, page, pageCount, setPage } = usePagination(categories);
   const del = useMutation({
     mutationFn: deleteCategory,
     onSuccess: () => {
@@ -108,7 +111,7 @@ export function CategoriesPage() {
           </p>
         )}
         <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-          {categories?.map((category) => (
+          {pageItems?.map((category) => (
             // Rows open the editor on click like backlog rows; the title
             // button carries the keyboard/AT affordance, so the li's click
             // handler is pointer-only by design.
@@ -142,6 +145,7 @@ export function CategoriesPage() {
             </li>
           ))}
         </ul>
+        <Pagination page={page} pageCount={pageCount} onPage={setPage} />
       </section>
       {dialogOpen && <CategoryDialog onClose={() => setDialogOpen(false)} />}
       {editing && (

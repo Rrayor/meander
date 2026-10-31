@@ -38,6 +38,8 @@ import type { Task } from "@/api/tasks";
 import { DeleteButton } from "@/components/DeleteButton";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
+import { Pagination } from "@/features/pagination/Pagination";
+import { usePagination } from "@/features/pagination/usePagination";
 
 const STATUS_BADGE = {
   todo: "bg-surface-raised text-text-muted",
@@ -201,6 +203,7 @@ export function BacklogPage() {
       });
     },
   });
+  const { pageItems, page, pageCount, setPage } = usePagination(tasks);
   const { data: profile } = useQuery({
     queryKey: QUERY_KEYS.currentProfile,
     queryFn: currentProfile,
@@ -296,11 +299,11 @@ export function BacklogPage() {
             onDragEnd={onDragEnd}
           >
             <SortableContext
-              items={tasks.map((t) => t.id)}
+              items={pageItems!.map((t) => t.id)}
               strategy={verticalListSortingStrategy}
             >
               <ul className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-1">
-                {tasks.map((task) => (
+                {pageItems!.map((task) => (
                   <TaskRow
                     key={task.id}
                     task={task}
@@ -312,6 +315,7 @@ export function BacklogPage() {
                 ))}
               </ul>
             </SortableContext>
+            <Pagination page={page} pageCount={pageCount} onPage={setPage} />
           </DndContext>
         )}
       </section>

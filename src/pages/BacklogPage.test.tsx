@@ -14,8 +14,11 @@ import {
   EDIT_BUTTON_LABEL,
   EDIT_TASK_HEADING,
   EMPTY_BACKLOG_MESSAGE,
+  PAGINATION_NEXT_LABEL,
+  PAGINATION_PREVIOUS_LABEL,
   STATUS_LABELS,
   addToWeekLabel,
+  editTaskLabel,
   deleteTaskLabel,
   formatMinutes,
   reorderLabel,
@@ -529,5 +532,49 @@ describe("BacklogPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       LOAD_ERROR_MESSAGE,
     );
+  });
+
+  it("paginates the backlog at 50 items per page", async () => {
+    const many = Array.from({ length: 51 }, (_, i) =>
+      task({ id: i + 1, title: `Task ${i + 1}`, sort_order: i + 1 }),
+    );
+    vi.mocked(listTasks).mockResolvedValue(many);
+    renderPage();
+    await screen.findByRole("button", { name: editTaskLabel("Task 1") });
+
+    expect(
+      screen.getByRole("button", { name: PAGINATION_NEXT_LABEL }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: editTaskLabel("Task 51") }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: PAGINATION_NEXT_LABEL }),
+    );
+    expect(
+      await screen.findByRole("button", { name: editTaskLabel("Task 51") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: editTaskLabel("Task 1") }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: PAGINATION_PREVIOUS_LABEL }),
+    );
+    expect(
+      await screen.findByRole("button", { name: editTaskLabel("Task 1") }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides pagination controls for a single page", async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, sort_order: 1 }),
+    ]);
+    renderPage();
+    await screen.findByRole("button", { name: editTaskLabel(TITLE_A) });
+    expect(
+      screen.queryByRole("button", { name: PAGINATION_NEXT_LABEL }),
+    ).not.toBeInTheDocument();
   });
 });
