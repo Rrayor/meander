@@ -205,6 +205,26 @@ pub async fn move_task(
 }
 
 #[tauri::command]
+pub async fn add_task_to_week(
+    task_id: i64,
+    state: State<'_, AppState>,
+) -> Result<crate::tasks::Task, ApiError> {
+    crate::tasks::add_to_week(&state.pool(), state.active_profile_id(), task_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn return_task_to_backlog(
+    task_id: i64,
+    state: State<'_, AppState>,
+) -> Result<crate::tasks::Task, ApiError> {
+    crate::tasks::return_to_backlog(&state.pool(), state.active_profile_id(), task_id)
+        .await
+        .map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn update_task(
     task_id: i64,
     input: crate::tasks::UpdateTask,

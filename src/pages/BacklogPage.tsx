@@ -22,15 +22,17 @@ import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
   ADD_TASK_LABEL,
+  ADD_TO_WEEK_LABEL,
   EMPTY_BACKLOG_MESSAGE,
   STATUS_LABELS,
+  addToWeekLabel,
   deleteTaskLabel,
   editTaskLabel,
   formatMinutes,
   reorderLabel,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
-import { deleteTask, listTasks, moveTask } from "@/api/tasks";
+import { addTaskToWeek, deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { DeleteButton } from "@/components/DeleteButton";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
@@ -46,11 +48,13 @@ function TaskRow({
   task,
   onDelete,
   onEdit,
+  onAddToWeek,
   deletePending,
 }: Readonly<{
   task: Task;
   onDelete: () => void;
   onEdit: () => void;
+  onAddToWeek: () => void;
   deletePending: boolean;
 }>) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -110,6 +114,17 @@ function TaskRow({
         >
           {STATUS_LABELS[task.status]}
         </span>
+        <button
+          type="button"
+          aria-label={addToWeekLabel(task.title)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToWeek();
+          }}
+          className="rounded-md px-2 py-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 hover:bg-surface-raised focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          {ADD_TO_WEEK_LABEL}
+        </button>
         <DeleteButton
           label={deleteTaskLabel(task.title)}
           disabled={deletePending}
@@ -166,6 +181,15 @@ export function BacklogPage() {
     },
   });
 
+  const addToWeek = useMutation({
+    mutationFn: addTaskToWeek,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
+    },
+  });
   const del = useMutation({
     mutationFn: deleteTask,
     onSettled: () => {
@@ -251,9 +275,11 @@ export function BacklogPage() {
             {ADD_TASK_LABEL}
           </button>
         </div>
-        {(error ?? del.error ?? move.error) && (
+        {(error ?? addToWeek.error ?? del.error ?? move.error) && (
           <p role="alert" className="text-sm text-danger">
-            {errorMessage((error ?? del.error ?? move.error)!)}
+            {errorMessage(
+              (error ?? addToWeek.error ?? del.error ?? move.error)!,
+            )}
           </p>
         )}
         {tasks?.length === 0 && (
@@ -279,6 +305,7 @@ export function BacklogPage() {
                     deletePending={del.isPending}
                     onDelete={() => del.mutate(task.id)}
                     onEdit={() => setEditingTask(task)}
+                    onAddToWeek={() => addToWeek.mutate(task.id)}
                   />
                 ))}
               </ul>

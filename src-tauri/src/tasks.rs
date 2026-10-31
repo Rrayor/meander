@@ -466,6 +466,41 @@ pub async fn update(
     get(pool, id).await
 }
 
+/// Moves a backlog task onto the current week's board: it joins the
+/// "Weekly backlog" column (spec §24 — tasks pending but not yet
+/// day-assigned). The scheduled date always clears — a picked day is a
+/// separate action, not part of adding to the week.
+pub async fn add_to_week(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<Task> {
+    let result = sqlx::query(
+        "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND placement = 'backlog'",
+    )
+    .bind(id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(task_not_found());
+    }
+    get(pool, id).await
+}
+
+/// Returns a task from the board to the backlog (spec §25 — any task in the
+/// current week, weekly backlog or day-scheduled alike). Already-backlogged
+/// or unknown ids are errors, not silent no-ops.
+pub async fn return_to_backlog(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<Task> {
+    let result = sqlx::query(
+        "UPDATE tasks SET placement = 'backlog', scheduled_date = NULL,          updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?          AND placement != 'backlog'",
+    )
+    .bind(id)
+    .bind(profile_id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(task_not_found());
+    }
+    get(pool, id).await
+}
+
 /// Deletes a task scoped to its owning profile. Deleting an unknown id — or
 /// another profile's task — is an error, not a silent no-op.
 pub async fn delete(pool: &SqlitePool, profile_id: i64, id: i64) -> Result<()> {
@@ -2330,5 +2365,101 @@ mod tests {
             assert_eq!(cats.len(), 1);
             assert_eq!(cats[0].id, category.id);
         }
+    }
+
+    #[tokio::test]
+    async fn add_to_week_moves_a_backlog_task_into_the_weekly_backlog() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        assert_eq!(task.placement, TaskPlacement::Backlog);
+
+        let moved = add_to_week(&pool, pid, task.id).await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::WeeklyBacklog);
+        assert_eq!(moved.scheduled_date, None);
+    }
+
+    #[tokio::test]
+    async fn add_to_week_rejects_a_task_already_on_the_board() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'weekly_backlog' WHERE id = ?")
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let err = add_to_week(&pool, pid, task.id).await.unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+    }
+
+    #[tokio::test]
+    async fn add_to_week_rejects_another_profiles_task() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        let (other_pool, other) = seeded_pool().await;
+
+        let err = add_to_week(&other_pool, other, task.id).await.unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+        assert_eq!(
+            get(&pool, task.id).await.unwrap().placement,
+            TaskPlacement::Backlog
+        );
+    }
+
+    #[tokio::test]
+    async fn return_to_backlog_sends_a_scheduled_task_back() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        sqlx::query(
+            "UPDATE tasks SET placement = 'scheduled', scheduled_date = '2026-10-30' WHERE id = ?",
+        )
+        .bind(task.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let moved = return_to_backlog(&pool, pid, task.id).await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::Backlog);
+        assert_eq!(moved.scheduled_date, None);
+    }
+
+    #[tokio::test]
+    async fn return_to_backlog_sends_a_weekly_backlog_task_back() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        add_to_week(&pool, pid, task.id).await.unwrap();
+
+        let moved = return_to_backlog(&pool, pid, task.id).await.unwrap();
+        assert_eq!(moved.placement, TaskPlacement::Backlog);
+    }
+
+    #[tokio::test]
+    async fn return_to_backlog_rejects_a_task_already_there() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+
+        let err = return_to_backlog(&pool, pid, task.id).await.unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+    }
+
+    #[tokio::test]
+    async fn return_to_backlog_rejects_another_profiles_task() {
+        let (pool, pid) = seeded_pool().await;
+        let task = create(&pool, pid, &task("Errand")).await.unwrap();
+        sqlx::query("UPDATE tasks SET placement = 'weekly_backlog' WHERE id = ?")
+            .bind(task.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (other_pool, other) = seeded_pool().await;
+
+        let err = return_to_backlog(&other_pool, other, task.id)
+            .await
+            .unwrap_err();
+        assert!(format!("{err:?}").contains("TaskNotFound"));
+        assert_eq!(
+            get(&pool, task.id).await.unwrap().placement,
+            TaskPlacement::WeeklyBacklog
+        );
     }
 }

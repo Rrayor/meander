@@ -195,3 +195,34 @@ Feature: Tasks
     And a backlog task titled Alpha
     When I update Alpha with a spent time of 1441 minutes
     Then the task update fails
+
+  Scenario: a backlog task joins the weekly backlog
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I add the task Alpha to the current week
+    Then the task Alpha is in the weekly backlog
+
+  Scenario: a weekly backlog task returns to the backlog
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Alpha
+    When I return the task Alpha to the backlog
+    Then the task Alpha is in the backlog
+
+  Scenario: a scheduled task returns to the backlog clearing its date
+    Given an application state on a temporary seeded database
+    And a task titled Alpha scheduled for today
+    When I return the task Alpha to the backlog
+    Then the task Alpha is in the backlog
+    And the task Alpha has no scheduled date
+
+  Scenario: adding an already-weekly task is rejected
+    Given an application state on a temporary seeded database
+    And a weekly backlog task titled Alpha
+    When I add the task Alpha to the current week
+    Then the week move fails
+
+  Scenario: returning an already-backlogged task is rejected
+    Given an application state on a temporary seeded database
+    And a backlog task titled Alpha
+    When I return the task Alpha to the backlog
+    Then the backlog return fails

@@ -45,6 +45,7 @@ import {
   DELETE_TASK_HEADING,
   TASK_SCOPE_FUTURE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
+  addToWeekLabel,
   deleteTaskLabel,
   editTaskLabel,
   EMPTY_BACKLOG_MESSAGE,
@@ -1417,4 +1418,31 @@ test("a rejected note surfaces the typed error", async ({ page }) => {
   await expect(dialog.getByRole("alert")).toHaveText(
     NOTE_BODY_TOO_LONG_MESSAGE,
   );
+});
+
+test("the row button adds a task to the current week on the wire", async ({
+  page,
+}) => {
+  const errand = tasks[0];
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTasks]: stubSequence([[errand], []]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.addTaskToWeek]: { ...errand, placement: "weekly_backlog" },
+    [COMMANDS.listWeekTasks]: [errand],
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page
+    .getByRole("button", { name: addToWeekLabel(errand.title) })
+    .click();
+
+  const calls = await getInvocations(page);
+  expect(calls.find((c) => c.cmd === COMMANDS.addTaskToWeek)?.args).toEqual({
+    taskId: errand.id,
+  });
+  await expect(
+    page.getByRole("button", { name: addToWeekLabel(errand.title) }),
+  ).toHaveCount(0);
 });

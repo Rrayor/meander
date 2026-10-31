@@ -24,6 +24,7 @@ import {
   MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_TITLE_LENGTH,
   deleteTask,
+  returnTaskToBacklog,
   updateTask,
 } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
@@ -45,6 +46,7 @@ import {
   CarryOverRule,
   DialogMode,
   TaskScope,
+  TaskPlacement,
   TaskStatus,
   carryOverToWire,
 } from "@/lib/enums";
@@ -63,6 +65,7 @@ import {
   NOTES_SECTION_LABEL,
   CANCEL_BUTTON_LABEL,
   DELETE_BUTTON_LABEL,
+  MOVE_TO_BACKLOG_LABEL,
   DELETE_KEEP_LABEL,
   DELETE_SCOPE_FUTURE_LABEL,
   DELETE_TASK_HEADING,
@@ -190,6 +193,7 @@ interface TaskDetailsViewProps {
   onPick: (picked: Task | null, iso: string) => void;
   onClose: () => void;
   onDelete: () => void;
+  onMoveToBacklog: () => void;
   deletePrompt?: ReactNode;
 }
 
@@ -379,6 +383,7 @@ function TaskDetailsView({
   onPick,
   onClose,
   onDelete,
+  onMoveToBacklog,
   deletePrompt,
 }: Readonly<TaskDetailsViewProps>) {
   let notesSection: ReactNode = null;
@@ -513,13 +518,24 @@ function TaskDetailsView({
       )}
       {notesSection}
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
-        >
-          {DELETE_BUTTON_LABEL}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+          >
+            {DELETE_BUTTON_LABEL}
+          </button>
+          {viewed.placement !== TaskPlacement.Backlog && (
+            <button
+              type="button"
+              onClick={onMoveToBacklog}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-surface-raised"
+            >
+              {MOVE_TO_BACKLOG_LABEL}
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-text-muted">
             {auditTimestampsLabel(
@@ -1420,6 +1436,17 @@ export function EditTaskDialog({
     },
   });
 
+  const moveToBacklog = useMutation({
+    mutationFn: () => returnTaskToBacklog(viewed.id),
+    onSuccess: onClose,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.boardWeeks,
+      });
+    },
+  });
+
   const updateSeries = useMutation({
     mutationFn: (input: UpdateSeries) =>
       updateTaskSeries(livingSeriesId!, input),
@@ -1632,6 +1659,7 @@ export function EditTaskDialog({
               }
             }}
             onClose={onClose}
+            onMoveToBacklog={() => moveToBacklog.mutate()}
             onDelete={() => {
               setDeleteScope(TaskScope.Instance);
               setConfirmingDelete(true);

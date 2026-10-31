@@ -58,6 +58,10 @@ export const IMPORT_SETTINGS_LABEL = "Import settings from…";
 export const renameProfileLabel = (name: string) => `Rename ${name}`;
 
 export const ADD_TASK_LABEL = "Add task";
+export const ADD_TO_WEEK_LABEL = "Add to current week";
+export const MOVE_TO_BACKLOG_LABEL = "Move to backlog";
+export const addToWeekLabel = (title: string) =>
+  `${ADD_TO_WEEK_LABEL}: ${title}`;
 export const CREATE_TASK_LABEL = "Create task";
 export const EMPTY_BACKLOG_MESSAGE =
   "No tasks yet — created tasks will appear here.";
