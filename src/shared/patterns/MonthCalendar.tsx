@@ -4,10 +4,11 @@ import { useMemo } from "react";
 
 import { monthCells, monthLabel } from "@/lib/calendar";
 import { ComponentSize, Weekday } from "@/lib/enums";
-import { formatIsoDay } from "@/lib/utils";
+import { formatIsoDay, todayLocalIso } from "@/lib/utils";
 
 import { IconButton } from "../ui/IconButton";
 
+import type { MonthCell } from "@/lib/calendar";
 import type { ComponentProps } from "react";
 import type { WeekdayLabel } from "./WeekdayPicker";
 
@@ -17,13 +18,34 @@ export interface MonthCalendarNavLabels {
   next: string;
 }
 
+/** Per-cell flags handed to `dayClassName`. */
+export interface MonthCalendarDayState {
+  /** The cell equals `selectedDate`. */
+  selected: boolean;
+  /** The cell's ISO date is in `markedDates`. */
+  marked: boolean;
+  /** The cell's ISO date is the local today. */
+  today: boolean;
+  /** The cell belongs to the displayed month (padding cells are false). */
+  inMonth: boolean;
+}
+
+/** Per-cell class hook — domain wrappers restyle cells without baked
+ * variants (WeekJumpCalendar's week band, InstanceCalendar's rings). */
+export type MonthCalendarDayClassName = (
+  cell: MonthCell,
+  state: MonthCalendarDayState,
+) => string;
+
 // shared/ cannot import @/lib/labels (layering rule, eslint.config.js),
 // so the nav copy defaults mirror CALENDAR_PREVIOUS_LABEL /
-// CALENDAR_NEXT_LABEL from there. Feature callers pass the registry
-// values through `navLabels` when they migrate (InstanceCalendar,
-// WeekJumpCalendar) so labels.ts stays the single source of copy — the
-// same arrangement WeekdayPicker documents for `formatDay`.
-const DEFAULT_NAV_LABELS: MonthCalendarNavLabels = {
+// CALENDAR_NEXT_LABEL from there — exported so the colocated test asserts
+// the defaults through the same constant. Feature callers pass the
+// registry values through `navLabels` when they migrate
+// (InstanceCalendar, WeekJumpCalendar) so labels.ts stays the single
+// source of copy — the same arrangement WeekdayPicker documents for
+// `formatDay`.
+export const DEFAULT_NAV_LABELS: MonthCalendarNavLabels = {
   previous: "Previous month",
   next: "Next month",
 };
@@ -50,19 +72,21 @@ const defaultFormatDay = (day: Weekday): WeekdayLabel => {
   return { label: name, short: name.slice(0, 2) };
 };
 
-interface MonthCalendarProps extends Omit<ComponentProps<"div">, "onSelect"> {
+interface MonthCalendarProps extends Omit<
+  ComponentProps<"div">,
+  "children" | "onSelect"
+> {
   /** First day of the displayed month — its UTC components are read. */
   month: Date;
   /** Weekday opening each grid row. The caller supplies the profile's
    * week-start setting; the pattern fetches nothing. */
   weekStart: Weekday;
-  /** Selected ISO date — strong primary fill + `aria-current="date"`.
-   * Multi-day emphasis (WeekJumpCalendar's week band) stays a domain
-   * concern of the wrapper, not a baked variant. */
+  /** Emphasized ISO date — the soft `bg-primary/20` highlight plus
+   * `aria-current="date"`. Multi-day emphasis (WeekJumpCalendar's week
+   * band) is composed per-cell through `dayClassName`. */
   selectedDate?: string;
-  /** ISO dates rendered with the filled-dot marker — the indicator
-   * InstanceCalendar uses for persisted instances. A "today" marker is
-   * composed by including today's ISO date in this set. */
+  /** ISO dates rendered with the dot marker — the same dot today's cell
+   * gets; a date is dotted when it is in this set or is today. */
   markedDates?: ReadonlySet<string>;
   /** Called with the clicked cell's ISO date — every cell is clickable,
    * including adjacent-month padding days. */
@@ -74,6 +98,59 @@ interface MonthCalendarProps extends Omit<ComponentProps<"div">, "onSelect"> {
   navLabels?: MonthCalendarNavLabels;
   /** Column-header copy — defaults derive from the Weekday wire name. */
   formatDay?: (day: Weekday) => WeekdayLabel;
+  /** Extra classes per day cell, applied last so domain wrappers can
+   * restyle cells (week bands, hollow rings) without baked variants. */
+  dayClassName?: MonthCalendarDayClassName;
+}
+
+interface DayCellProps {
+  cell: MonthCell;
+  selected: boolean;
+  marked: boolean;
+  today: boolean;
+  onSelect: (iso: string) => void;
+  dayClassName?: MonthCalendarDayClassName;
+}
+
+// One grid cell — WeekJumpCalendar's flat `relative py-1` geometry with
+// its conditional absolute today-dot markup reused for every mark.
+function DayCell({
+  cell,
+  selected,
+  marked,
+  today,
+  onSelect,
+  dayClassName,
+}: Readonly<DayCellProps>) {
+  return (
+    <button
+      type="button"
+      // Day-of-month alone is ambiguous across the padding cells
+      // of adjacent months — the formatted date is the name.
+      aria-label={formatIsoDay(cell.iso)}
+      aria-current={selected ? "date" : undefined}
+      onClick={() => onSelect(cell.iso)}
+      className={cn(
+        "relative py-1 text-center text-xs transition-colors",
+        selected ? "bg-primary/20 text-text" : "hover:bg-surface",
+        !cell.inMonth && "text-text-muted",
+        dayClassName?.(cell, {
+          selected,
+          marked,
+          today,
+          inMonth: cell.inMonth,
+        }),
+      )}
+    >
+      {cell.day}
+      {(marked || today) && (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 bottom-0.5 mx-auto h-1 w-1 rounded-full bg-primary"
+        />
+      )}
+    </button>
+  );
 }
 
 export function MonthCalendar({
@@ -85,6 +162,7 @@ export function MonthCalendar({
   onMonthShift,
   navLabels = DEFAULT_NAV_LABELS,
   formatDay = defaultFormatDay,
+  dayClassName,
   className,
   ...rest
 }: Readonly<MonthCalendarProps>) {
@@ -97,6 +175,7 @@ export function MonthCalendar({
     return [...WEEKDAY_ORDER.slice(start), ...WEEKDAY_ORDER.slice(0, start)];
   }, [weekStart]);
   const title = monthLabel(month.getUTCFullYear(), month.getUTCMonth());
+  const todayIso = todayLocalIso();
 
   const handlePrevious = () => onMonthShift(-1);
   const handleNext = () => onMonthShift(1);
@@ -120,56 +199,30 @@ export function MonthCalendar({
           />
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-7 gap-1">
+      <div className="mt-2 grid grid-cols-7 gap-px">
         {weekdayOrder.map((day) => {
           const { label, short } = formatDay(day);
           return (
             <span
               key={day}
               title={label}
-              className="text-center text-xs font-medium text-text-muted"
+              className="py-1 text-center text-xs font-medium text-text-muted"
             >
               {short}
             </span>
           );
         })}
-        {cells.map((cell) => {
-          const selected = cell.iso === selectedDate;
-          const marked = markedDates?.has(cell.iso) ?? false;
-          return (
-            <button
-              key={cell.iso}
-              type="button"
-              // Day-of-month alone is ambiguous across the padding cells
-              // of adjacent months — the formatted date is the name.
-              aria-label={formatIsoDay(cell.iso)}
-              aria-current={selected ? "date" : undefined}
-              onClick={() => onSelect(cell.iso)}
-              className={cn(
-                "flex flex-col items-center rounded-md py-1 text-center text-xs transition-colors",
-                selected
-                  ? "bg-primary font-medium text-on-primary"
-                  : "text-text hover:bg-surface",
-                !cell.inMonth && "opacity-50",
-              )}
-            >
-              {cell.day}
-              {/* The marker row renders even when unmarked so every cell
-                  keeps the same height across the grid. */}
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "mt-0.5 h-1.5 w-1.5 rounded-full",
-                  marked
-                    ? selected
-                      ? "bg-on-primary"
-                      : "bg-primary"
-                    : "invisible",
-                )}
-              />
-            </button>
-          );
-        })}
+        {cells.map((cell) => (
+          <DayCell
+            key={cell.iso}
+            cell={cell}
+            selected={cell.iso === selectedDate}
+            marked={markedDates?.has(cell.iso) ?? false}
+            today={cell.iso === todayIso}
+            onSelect={onSelect}
+            dayClassName={dayClassName}
+          />
+        ))}
       </div>
     </div>
   );

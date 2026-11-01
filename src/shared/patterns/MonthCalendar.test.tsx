@@ -1,11 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { monthLabel } from "@/lib/calendar";
+import { monthLabel, monthOfIso } from "@/lib/calendar";
 import { Weekday } from "@/lib/enums";
-import { formatIsoDay } from "@/lib/utils";
+import { formatIsoDay, todayLocalIso } from "@/lib/utils";
 
-import { MonthCalendar } from "./MonthCalendar";
+import { DEFAULT_NAV_LABELS, MonthCalendar } from "./MonthCalendar";
 
 // November 2026 opens on a Sunday: a Monday-start grid pads with
 // 2026-10-26…31 while a Sunday-start grid begins on the 1st itself.
@@ -15,18 +15,18 @@ const MONTH_LABEL = monthLabel(2026, 10);
 const IN_MONTH_ISO = "2026-11-16"; // a Monday
 const PAD_ISO = "2026-10-26"; // leading padding cell, Monday-start
 const OTHER_ISO = "2026-11-17";
-
-// The component's default nav copy mirrors CALENDAR_PREVIOUS_LABEL /
-// CALENDAR_NEXT_LABEL; @/lib/labels is banned inside src/shared, so the
-// expected copy is re-declared here rather than imported.
-const PREVIOUS = "Previous month";
-const NEXT = "Next month";
+const FALLBACK_ISO = "2026-11-18";
 
 const HEADER_SHORTS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
+// A cell inside the grid that is guaranteed neither marked nor today —
+// today may land inside the displayed window on some runs.
+const TODAY_ISO = todayLocalIso();
+const UNMARKED_ISO = OTHER_ISO === TODAY_ISO ? FALLBACK_ISO : OTHER_ISO;
+
 const day = (iso: string) =>
   screen.getByRole("button", { name: formatIsoDay(iso) });
-// The marker row is the only span inside a day cell.
+// The marker dot is the only span inside a day cell.
 const markerOf = (iso: string) => day(iso).querySelector("span");
 
 function renderCalendar({
@@ -65,16 +65,20 @@ describe("MonthCalendar", () => {
 
   it("dims cells outside the displayed month", () => {
     renderCalendar();
-    expect(day(PAD_ISO)).toHaveClass("opacity-50");
-    expect(day(IN_MONTH_ISO)).not.toHaveClass("opacity-50");
+    expect(day(PAD_ISO)).toHaveClass("text-text-muted");
+    expect(day(IN_MONTH_ISO)).not.toHaveClass("text-text-muted");
   });
 
   it("shifts the month through onMonthShift", () => {
     const onMonthShift = vi.fn();
     renderCalendar({ onMonthShift });
-    fireEvent.click(screen.getByRole("button", { name: PREVIOUS }));
+    fireEvent.click(
+      screen.getByRole("button", { name: DEFAULT_NAV_LABELS.previous }),
+    );
     expect(onMonthShift).toHaveBeenCalledWith(-1);
-    fireEvent.click(screen.getByRole("button", { name: NEXT }));
+    fireEvent.click(
+      screen.getByRole("button", { name: DEFAULT_NAV_LABELS.next }),
+    );
     expect(onMonthShift).toHaveBeenCalledWith(1);
   });
 
@@ -98,28 +102,49 @@ describe("MonthCalendar", () => {
     expect(onSelect).toHaveBeenCalledWith(PAD_ISO);
   });
 
-  it("marks selectedDate with aria-current and the selected fill", () => {
+  it("marks selectedDate with aria-current and the soft highlight", () => {
     renderCalendar({ selectedDate: IN_MONTH_ISO });
     expect(day(IN_MONTH_ISO)).toHaveAttribute("aria-current", "date");
-    expect(day(IN_MONTH_ISO)).toHaveClass("bg-primary", "text-on-primary");
-    expect(day(OTHER_ISO)).not.toHaveAttribute("aria-current");
-    expect(day(OTHER_ISO)).not.toHaveClass("bg-primary");
+    expect(day(IN_MONTH_ISO)).toHaveClass("bg-primary/20");
+    expect(day(UNMARKED_ISO)).not.toHaveAttribute("aria-current");
+    expect(day(UNMARKED_ISO)).not.toHaveClass("bg-primary/20");
   });
 
-  it("renders the marker dot on markedDates cells only", () => {
+  it("renders the dot on markedDates cells only", () => {
     renderCalendar({ markedDates: new Set([IN_MONTH_ISO]) });
     const marked = markerOf(IN_MONTH_ISO);
     expect(marked).toHaveClass("bg-primary");
     expect(marked).toHaveAttribute("aria-hidden", "true");
-    expect(markerOf(OTHER_ISO)).toHaveClass("invisible");
+    expect(markerOf(UNMARKED_ISO)).toBeNull();
   });
 
-  it("inverts the marker on a marked selected date", () => {
+  it("marks today's cell with the same dot", () => {
+    renderCalendar({ month: new Date(monthOfIso(TODAY_ISO)) });
+    const dot = markerOf(TODAY_ISO);
+    expect(dot).toHaveClass("bg-primary");
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps the primary dot on a marked selected date", () => {
     renderCalendar({
       selectedDate: IN_MONTH_ISO,
       markedDates: new Set([IN_MONTH_ISO]),
     });
-    expect(markerOf(IN_MONTH_ISO)).toHaveClass("bg-on-primary");
+    expect(markerOf(IN_MONTH_ISO)).toHaveClass("bg-primary");
+  });
+
+  it("lets callers restyle cells through dayClassName state", () => {
+    renderCalendar({
+      markedDates: new Set([IN_MONTH_ISO]),
+      dayClassName: (cell, state) =>
+        state.marked
+          ? "font-semibold"
+          : cell.iso === UNMARKED_ISO && !state.today
+            ? "italic"
+            : "",
+    });
+    expect(day(IN_MONTH_ISO)).toHaveClass("font-semibold");
+    expect(day(UNMARKED_ISO)).toHaveClass("italic");
   });
 
   it("rotates the weekday header row to weekStart", () => {
