@@ -15,6 +15,8 @@ import {
   ESTIMATED_TIME_LABEL,
   OPTIONAL_FIELD_LABEL,
   TITLE_FIELD_LABEL,
+  HOURS_UNIT_LABEL,
+  MINUTES_UNIT_LABEL,
 } from "@/lib/labels";
 import { DurationField } from "@/shared/patterns/DurationField";
 import { Field } from "@/shared/ui/Field";
@@ -70,6 +72,7 @@ export function TaskFormFields({
       idPrefix={`${idPrefix}-est`}
       names={{ hours: "estHours", minutes: "estMinutes" }}
       register={register}
+      captions={{ hours: HOURS_UNIT_LABEL, minutes: MINUTES_UNIT_LABEL }}
       inputLabels={{
         hours: ESTIMATED_HOURS_LABEL,
         minutes: ESTIMATED_MINUTES_LABEL,

@@ -29,15 +29,17 @@ const SWATCH_CLASSES =
 /// (spec §283): swatch radios plus a custom member backed by a
 /// color input overlay. Used by the global and per-category
 /// threshold sections.
+interface ColorRadiosProps {
+  label: string;
+  value: string;
+  onChange: (color: string) => void;
+}
+
 export function ColorRadios({
   label,
   value,
   onChange,
-}: Readonly<{
-  label: string;
-  value: string;
-  onChange: (color: string) => void;
-}>) {
+}: Readonly<ColorRadiosProps>) {
   const colorInputRef = useRef<HTMLInputElement>(null);
   const customSelected = !(CATEGORY_COLORS as readonly string[]).includes(
     value,
@@ -79,6 +81,15 @@ export function ColorRadios({
           <RadioGroup.Radio
             value={CUSTOM_SWATCH_VALUE}
             aria-label={CUSTOM_COLOR_LABEL}
+            onKeyDown={(e) => {
+              // Value-change alone can't reopen the picker: activating
+              // the already-selected radio is a no-op, so Space gets a
+              // direct path — pointer presses land on the input overlay.
+              if (customSelected && e.key === " ") {
+                e.preventDefault();
+                colorInputRef.current?.click();
+              }
+            }}
             className={cn(
               SWATCH_CLASSES,
               "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface data-[unchecked]:group-hover:scale-110",
