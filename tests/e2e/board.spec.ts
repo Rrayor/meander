@@ -67,7 +67,7 @@ const mondayTask = {
   id: 2,
   title: "Monday chore",
   status: TaskStatus.InProgress,
-  placement: TaskPlacement.Scheduled,
+  placement: TaskPlacement.WeeklyBacklog,
   scheduled_date: days[0],
   spent_minutes: 30,
 };
@@ -722,7 +722,7 @@ test("dragging a card to another day sends the combined move on the wire", async
   const calls = await getInvocations(page);
   expect(calls.find((c) => c.cmd === COMMANDS.boardMove)?.args).toEqual({
     taskId: mondayTask.id,
-    placement: "scheduled",
+    placement: "weekly_backlog",
     date: days[2],
     status: "todo",
   });

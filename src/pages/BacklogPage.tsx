@@ -58,21 +58,9 @@ export function BacklogPage() {
     queryKey: QUERY_KEYS.tasks,
     queryFn: listTasks,
   });
-  // One backlog entry per series — the anchor row stands in for it.
-  // Persisted later instances belong to the series, not the backlog.
-  const anchorBySeries = new Map<number, number>();
-  for (const t of allTasks ?? []) {
-    if (t.series_id === null) continue;
-    const current = anchorBySeries.get(t.series_id);
-    if (current === undefined || t.id < current) {
-      anchorBySeries.set(t.series_id, t.id);
-    }
-  }
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<TaskSort>(TaskSort.Manual);
-  const scoped = allTasks?.filter(
-    (t) => t.series_id === null || anchorBySeries.get(t.series_id) === t.id,
-  );
+  const scoped = allTasks;
   // View-time transforms only (spec §360/§364) — search narrows and
   // the pick reorders the slice; manual order stays the stored truth.
   // `tasks` stays undefined until the list resolves — an empty

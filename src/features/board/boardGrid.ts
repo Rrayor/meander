@@ -27,8 +27,7 @@ export const decodeCellId = (id: string) => {
   return {
     date,
     status,
-    placement:
-      date === null ? TaskPlacement.WeeklyBacklog : TaskPlacement.Scheduled,
+    placement: TaskPlacement.WeeklyBacklog,
   } as const;
 };
 
@@ -38,7 +37,7 @@ export const decodeCellId = (id: string) => {
 export const columnMembers = (tasks: Task[], column: string | null) =>
   tasks.filter((t) =>
     column === null
-      ? t.placement === TaskPlacement.WeeklyBacklog
+      ? t.placement === TaskPlacement.WeeklyBacklog && t.scheduled_date === null
       : t.scheduled_date === column,
   );
 
