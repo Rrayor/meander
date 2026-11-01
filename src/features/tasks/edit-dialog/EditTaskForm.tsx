@@ -20,6 +20,8 @@ import {
   STATUS_LABELS,
   TASK_STATUS_FIELD_LABEL,
   auditTimestampsLabel,
+  HOURS_UNIT_LABEL,
+  MINUTES_UNIT_LABEL,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { DurationField } from "@/shared/patterns/DurationField";
@@ -102,6 +104,7 @@ export function EditTaskForm({
             idPrefix="edit-task-spent"
             names={{ hours: "spentHours", minutes: "spentMinutes" }}
             register={register}
+            captions={{ hours: HOURS_UNIT_LABEL, minutes: MINUTES_UNIT_LABEL }}
             inputLabels={{
               hours: SPENT_HOURS_LABEL,
               minutes: SPENT_MINUTES_LABEL,
