@@ -31,7 +31,6 @@ export const carryOverToWire = (rule: CarryOverRule) =>
 export enum TaskPlacement {
   Backlog = "backlog",
   WeeklyBacklog = "weekly_backlog",
-  Scheduled = "scheduled",
 }
 
 export enum Weekday {
