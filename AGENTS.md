@@ -1,6 +1,6 @@
 # Meander — Agent Guide
 
-Weekly kanban planner. Tauri desktop app: Rust backend, React (Vite) + Tailwind CSS + shadcn/ui frontend, SQLite storage.
+Weekly kanban planner. Tauri desktop app: Rust backend, React (Vite) + Tailwind CSS + Base UI frontend, SQLite storage.
 
 ## Documentation (read first)
 
@@ -76,6 +76,40 @@ For any UI task, create the design with Stitch before implementing:
   `HexColor`), `src/lib/` on the frontend. Domain types a second module
   legitimately produces or consumes (e.g. a series materializing `TaskTitle`s)
   may be shared directly; private helpers and implementation details may not.
+
+## Frontend component architecture
+
+Design:
+`docs/superpowers/specs/2026-11-01-frontend-component-architecture-design.md`.
+Component-authoring rules (props, composition, styling, state, tests):
+`docs/architecture/component-standards.md` — read it before writing or
+touching a component.
+
+- `src/shared/ui/` — primitives: styled `@base-ui/react` parts and styled
+  native elements. No domain knowledge: never imports `api/`,
+  `lib/labels`, `features/`, `pages/`, or `layout/`; all copy and data
+  arrive via props. Enforced by eslint `no-restricted-imports`.
+- `src/shared/patterns/` — composed generics (`ConfirmDialog`,
+  `WeekdayPicker`, …): may combine `shared/ui` pieces and `lib` types,
+  still no domain/API knowledge.
+- `src/shared/hooks/` — generic reusable hooks (`usePagination`, …).
+- `src/layout/` — app chrome (`AppShell`, `SideNav`, `ProfileSwitcher`).
+  Unlike `shared/`, it may own queries, mutations, and labels.
+- `src/features/<domain>/` — domain slices. Cross-slice imports may only
+  reach a sibling slice's root-level files (its public API), never its
+  subdirectories.
+- `src/pages/` — thin route entries: composition and route state only.
+- Interactive controls wrap `@base-ui/react` parts — never hand-roll
+  focus traps, escape handling, or overlay dismissal. Behavior-free
+  elements are styled natives.
+- Variant APIs over separate components: `Button variant="danger"`, never
+  `<DangerButton>`. Recipes use `cva` colocated in the component file;
+  variant/size option sets are string enums in `src/lib/enums.ts`.
+- Keep component files under ~400 lines — decompose at natural seams
+  rather than growing mega-files.
+- When migrating a control onto a primitive, preserve observable behavior
+  (dismissal, keyboard, focus). Tests asserting behavior are kept; tests
+  coupled to implementation details are rewritten as part of the move.
 
 ## Validation
 

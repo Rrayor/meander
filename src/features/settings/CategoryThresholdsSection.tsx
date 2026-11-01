@@ -24,6 +24,10 @@ import {
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { ColorRadios } from "@/features/settings/ColorRadios";
+import { Button } from "@/shared/ui/Button";
+import { Field } from "@/shared/ui/Field";
+import { Fieldset } from "@/shared/ui/Fieldset";
+import { Input } from "@/shared/ui/Input";
 
 const schema = z.object({
   rows: z.record(
@@ -39,6 +43,10 @@ const schema = z.object({
   ),
 });
 type FormValues = z.infer<typeof schema>;
+
+const setValueAs = (v: string) => (v === "" ? null : Number(v));
+
+const RANGE_MESSAGE = `${formatMinutes(1)}–${formatMinutes(MAX_DURATION_MINUTES)}`;
 
 /// Per-category per-day thresholds (spec §285): each category may get
 /// its own minutes limit and color; unset means no threshold for it.
@@ -154,58 +162,68 @@ export function CategoryThresholdsSection() {
       <div className="mt-4 flex flex-col gap-4">
         {(categories ?? []).map((c) => {
           const rowError = errors.rows?.[c.id]?.minutes;
+          const daysError = errors.rows?.[c.id]?.day_minutes;
+          const rowErrorId = `cat-threshold-${c.id}-error`;
+          const daysErrorId = `cat-threshold-${c.id}-days-error`;
           const color = rows?.[c.id]?.color ?? "";
           return (
             <div key={c.id} className="rounded-lg bg-surface p-4">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-text">{c.title}</span>
-                <label className="text-sm text-text-muted">
-                  {THRESHOLD_FIELD_LABEL}
-                  <input
-                    type="number"
-                    min={1}
-                    max={MAX_DURATION_MINUTES}
-                    placeholder={String(MAX_DURATION_MINUTES)}
-                    aria-label={thresholdColorLabel(c.title)}
-                    aria-invalid={rowError != null}
-                    aria-describedby={
-                      rowError != null
-                        ? `cat-threshold-${c.id}-error`
-                        : undefined
-                    }
-                    {...register(`rows.${c.id}.minutes`, {
-                      setValueAs: (v: string) => (v === "" ? null : Number(v)),
-                    })}
-                    className="mt-1 block w-24 rounded-md border border-border bg-surface-raised px-2 py-1 text-sm text-text placeholder:text-text-muted"
-                  />
-                </label>
-                {rowError && (
-                  <p
-                    id={`cat-threshold-${c.id}-error`}
-                    role="alert"
-                    className="mt-1 text-sm text-error"
-                  >
-                    {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
-                  </p>
-                )}
+                {/* The visible "Minutes per day" caption is a plain span:
+                    the input's accessible name stays the per-category
+                    aria-label it had before — a Field.Label would win
+                    the name computation and rename the control. */}
+                <Field.Root
+                  invalid={rowError != null}
+                  className="flex-row items-center gap-4"
+                >
+                  <span className="flex flex-col gap-1 text-sm text-text-muted">
+                    {THRESHOLD_FIELD_LABEL}
+                    <Field.Control
+                      render={
+                        <Input className="w-24 px-2 py-1 placeholder:text-text-muted" />
+                      }
+                      type="number"
+                      min={1}
+                      max={MAX_DURATION_MINUTES}
+                      placeholder={String(MAX_DURATION_MINUTES)}
+                      aria-label={thresholdColorLabel(c.title)}
+                      {...register(`rows.${c.id}.minutes`, { setValueAs })}
+                    />
+                  </span>
+                  {rowError && (
+                    <Field.Error match={true} id={rowErrorId}>
+                      {RANGE_MESSAGE}
+                    </Field.Error>
+                  )}
+                </Field.Root>
               </div>
               {/* §285 per-weekday overrides: an empty day inherits the
-                  category's own minutes, shown as the placeholder. */}
-              <fieldset className="mt-3">
-                <legend className="text-xs text-text-muted">
+                  category's own minutes, shown as the placeholder. One
+                  Field.Root per control keeps each input's aria-invalid
+                  scoped to its own error; the shared error mounts on the
+                  wrapping root (see DurationField for the structure). */}
+              <Field.Root
+                invalid={daysError != null}
+                render={<Fieldset.Root className="mt-3" />}
+              >
+                <Fieldset.Legend className="font-normal">
                   {THRESHOLD_DAYS_FIELDSET_LABEL}
-                </legend>
+                </Fieldset.Legend>
                 <div className="mt-2 flex gap-2">
                   {WEEKDAY_OPTIONS.map((o) => {
                     const dayError =
                       errors.rows?.[c.id]?.day_minutes?.[o.value];
                     return (
-                      <label
-                        key={o.value}
-                        className="text-center text-xs text-text-muted"
-                      >
-                        {o.short}
-                        <input
+                      <Field.Root key={o.value} invalid={dayError != null}>
+                        <span className="text-center text-xs text-text-muted">
+                          {o.short}
+                        </span>
+                        <Field.Control
+                          render={
+                            <Input className="w-16 px-2 py-1 placeholder:text-text-muted" />
+                          }
                           type="number"
                           min={1}
                           max={MAX_DURATION_MINUTES}
@@ -218,32 +236,20 @@ export function CategoryThresholdsSection() {
                             c.title,
                             o.label,
                           )}
-                          aria-invalid={dayError != null}
-                          aria-describedby={
-                            dayError != null
-                              ? `cat-threshold-${c.id}-days-error`
-                              : undefined
-                          }
                           {...register(`rows.${c.id}.day_minutes.${o.value}`, {
-                            setValueAs: (v: string) =>
-                              v === "" ? null : Number(v),
+                            setValueAs,
                           })}
-                          className="mt-1 block w-16 rounded-md border border-border bg-surface-raised px-2 py-1 text-sm text-text placeholder:text-text-muted"
                         />
-                      </label>
+                      </Field.Root>
                     );
                   })}
                 </div>
-                {errors.rows?.[c.id]?.day_minutes && (
-                  <p
-                    id={`cat-threshold-${c.id}-days-error`}
-                    role="alert"
-                    className="mt-2 text-sm text-error"
-                  >
-                    {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
-                  </p>
+                {daysError && (
+                  <Field.Error match={true} id={daysErrorId}>
+                    {RANGE_MESSAGE}
+                  </Field.Error>
                 )}
-              </fieldset>
+              </Field.Root>
               {/* A category without a threshold has no color to pick —
                   an unset row must not read as a custom selection. A
                   day-only threshold still counts as a threshold. */}
@@ -269,14 +275,13 @@ export function CategoryThresholdsSection() {
         </p>
       )}
       <div className="mt-4 flex gap-3">
-        <button
+        <Button
           type="button"
           disabled={!isDirty || save.isPending}
           onClick={() => void handleSubmit((v) => save.mutate(v))()}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {SAVE_BUTTON_LABEL}
-        </button>
+        </Button>
       </div>
     </section>
   );

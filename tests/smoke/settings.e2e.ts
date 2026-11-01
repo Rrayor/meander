@@ -10,6 +10,7 @@ import {
   NAV_LABEL,
   SAVE_BUTTON_LABEL,
   CATEGORY_THRESHOLDS_HEADING_ID,
+  PROFILES_HEADING_ID,
   THRESHOLD_FIELD_LABEL,
   THRESHOLD_HEADING_ID,
   WEEKDAY_OPTIONS,
@@ -192,7 +193,9 @@ describe("Settings smoke", () => {
     const nav = await $(`aria/${NAV_LABEL}`);
     await nav.$(`=${settingsRoute.label}`).click();
 
-    const section = await $(`section[aria-labelledby='profiles-heading']`);
+    const section = await $(
+      `section[aria-labelledby='${PROFILES_HEADING_ID}']`,
+    );
     await expect(section).toExist();
 
     // Unique per attempt — the sandbox DB persists across wdio retries,
@@ -206,7 +209,7 @@ describe("Settings smoke", () => {
     await browser.waitUntil(() => deleteButton.isExisting());
     await deleteButton.click();
 
-    const dialog = await $("dialog");
+    const dialog = await $(`[role='dialog']`);
     await expect(dialog).toExist();
     const confirm = await dialog.$("aria/" + DELETE_CONFIRM_INPUT_LABEL);
     const destroy = await dialog.$(`button=${DELETE_BUTTON_LABEL}`);
@@ -232,7 +235,9 @@ describe("Settings smoke", () => {
     // seeded name specifically, so a retried attempt still works after
     // a previous try already deleted the seeded profile.
     const name = `SmokeActive-${Date.now()}`;
-    const section = await $(`section[aria-labelledby='profiles-heading']`);
+    const section = await $(
+      `section[aria-labelledby='${PROFILES_HEADING_ID}']`,
+    );
     await section.$("input#profile-name").setValue(name);
     await section.$(`button=${CREATE_PROFILE_LABEL}`).click();
     await browser.waitUntil(() =>
@@ -260,13 +265,15 @@ describe("Settings smoke", () => {
       section.$(`button[aria-label='${deleteProfileLabel(n)}']`);
     const deleteProfile = async (n: string) => {
       await (await deleteByAria(n)).click();
-      const dialog = await $("dialog");
+      const dialog = await $(`[role='dialog']`);
       await browser.waitUntil(() => dialog.isDisplayed());
       await (
         await dialog.$(`aria/${DELETE_CONFIRM_INPUT_LABEL}`)
       ).setValue(deleteProfileSentence(n));
       await (await dialog.$(`button=${DELETE_BUTTON_LABEL}`)).click();
-      await browser.waitUntil(async () => !(await $("dialog").isExisting()));
+      await browser.waitUntil(
+        async () => !(await $(`[role='dialog']`).isExisting()),
+      );
     };
 
     // 1) Deleting the ACTIVE profile falls back to a remaining one.

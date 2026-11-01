@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { PAGE_SIZE } from "@/lib/labels";
+import { PAGE_SIZE } from "@/lib/constants";
 
 /// Slices a list into 50-item pages (spec §205/§224). The returned index
 /// clamps against the live item count — shrinking under the current page

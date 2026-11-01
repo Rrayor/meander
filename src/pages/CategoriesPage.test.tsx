@@ -26,7 +26,7 @@ import {
   EDIT_CATEGORY_HEADING,
 } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
-import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
+import { ProfileSwitcher } from "@/layout/ProfileSwitcher";
 import { CategoriesPage } from "@/pages/CategoriesPage";
 import { testQueryClient } from "@/test/queryClient";
 

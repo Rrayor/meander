@@ -59,7 +59,6 @@ export const IMPORT_SETTINGS_LABEL = "Import settings from…";
 export const renameProfileLabel = (name: string) => `Rename ${name}`;
 
 export const ADD_TASK_LABEL = "Add task";
-export const PAGE_SIZE = 50;
 export const PAGINATION_LABEL = "Pagination";
 export const PAGINATION_PREVIOUS_LABEL = "Previous page";
 export const PAGINATION_NEXT_LABEL = "Next page";
@@ -77,7 +76,10 @@ export const EMPTY_BACKLOG_MESSAGE =
 export const ESTIMATED_HOURS_LABEL = "Estimated hours";
 export const ESTIMATED_MINUTES_LABEL = "Estimated minutes";
 
+export const SETTINGS_HEADING = "Settings";
 export const PROFILES_HEADING = "Profiles";
+export const PROFILES_HEADING_ID = "profiles-heading";
+export const PROFILES_HINT = "Each profile has its own tasks and settings.";
 export const PROFILE_NAME_LABEL = "Profile name";
 export const CREATE_PROFILE_LABEL = "Create profile";
 export const CURRENT_PROFILE_LABEL = "Current";
@@ -317,6 +319,7 @@ export const THRESHOLD_CLEAR_LABEL = "Clear threshold";
 // The design system's threshold-red, lowercased to match native
 // <input type="color"> normalization.
 export const THRESHOLD_COLOR_DEFAULT = "#f87171";
+export const DATABASE_CHOOSE_LABEL = "Choose database file";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;
 export const dayTotalsLabel = (estimated: number, spent: number) =>
