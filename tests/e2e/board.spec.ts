@@ -3,7 +3,10 @@ import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   CALENDAR_NEXT_LABEL,
   CALENDAR_PREVIOUS_LABEL,
+  CARRY_OVER_APPLY_LABEL,
+  CARRY_OVER_CARRY_LABEL,
   CARRY_OVER_DISMISS_LABEL,
+  CARRY_OVER_RETURN_LABEL,
   BOARD_HEADING,
   BOARD_NEXT_WEEK_LABEL,
   BOARD_PREVIOUS_WEEK_LABEL,
@@ -412,14 +415,14 @@ test("the carry-over prompt lists undecided tasks and applies the choice", async
   });
   await page.goto("/");
 
-  const prompt = page.getByRole("dialog", { name: /week started/i });
+  const prompt = page.getByRole("alertdialog", { name: /week started/i });
   await expect(prompt).toBeVisible();
-  await expect(prompt.getByText("Leftover")).toBeVisible();
+  await expect(prompt.getByText(stray.title)).toBeVisible();
 
   // Apply stays disabled until every listed task has a decision.
-  const apply = prompt.getByRole("button", { name: "Apply decisions" });
+  const apply = prompt.getByRole("button", { name: CARRY_OVER_APPLY_LABEL });
   await expect(apply).toBeDisabled();
-  await prompt.getByRole("button", { name: "Carry over" }).click();
+  await prompt.getByRole("radio", { name: CARRY_OVER_CARRY_LABEL }).click();
   await apply.click();
   await expect(prompt).toBeHidden();
 });
@@ -446,19 +449,19 @@ test("the carry-over prompt sends a return decision to the backend", async ({
   });
   await page.goto("/");
 
-  const prompt = page.getByRole("dialog", { name: /week started/i });
+  const prompt = page.getByRole("alertdialog", { name: /week started/i });
   await prompt
     .getByRole("listitem")
-    .filter({ hasText: "Leftover" })
-    .getByRole("button", { name: "Backlog" })
+    .filter({ hasText: stray.title })
+    .getByRole("radio", { name: CARRY_OVER_RETURN_LABEL })
     .click();
   // Dismiss is a per-task outcome — it deletes the task outright.
   await prompt
     .getByRole("listitem")
-    .filter({ hasText: "Dropped" })
-    .getByRole("button", { name: CARRY_OVER_DISMISS_LABEL })
+    .filter({ hasText: dismissed.title })
+    .getByRole("radio", { name: CARRY_OVER_DISMISS_LABEL })
     .click();
-  await prompt.getByRole("button", { name: "Apply decisions" }).click();
+  await prompt.getByRole("button", { name: CARRY_OVER_APPLY_LABEL }).click();
   await expect(prompt).toBeHidden();
   const calls = await getInvocations(page);
   expect(
