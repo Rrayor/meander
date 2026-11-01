@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { cn } from "cn";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -24,10 +25,12 @@ import {
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { ColorRadios } from "@/features/settings/ColorRadios";
+import { SettingsSection } from "@/shared/patterns/SettingsSection";
 import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Fieldset } from "@/shared/ui/Fieldset";
 import { Input } from "@/shared/ui/Input";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const schema = z.object({
   rows: z.record(
@@ -141,25 +144,29 @@ export function CategoryThresholdsSection() {
   });
 
   if (categoriesError) {
+    // The section's chrome (heading + hint) stays mounted on load
+    // failure — the aria-labelledby target must exist and the error
+    // reads as the section's content.
     return (
-      <section aria-labelledby={CATEGORY_THRESHOLDS_HEADING_ID}>
-        <p role="alert" className="text-sm text-error">
+      <SettingsSection
+        title={CATEGORY_THRESHOLDS_HEADING}
+        id={CATEGORY_THRESHOLDS_HEADING_ID}
+        description={CATEGORY_THRESHOLDS_HINT}
+      >
+        <p role="alert" className={ERROR_TEXT}>
           {errorMessage(categoriesError)}
         </p>
-      </section>
+      </SettingsSection>
     );
   }
   if ((categories ?? []).length === 0) return null;
   return (
-    <section aria-labelledby={CATEGORY_THRESHOLDS_HEADING_ID}>
-      <h2
-        id={CATEGORY_THRESHOLDS_HEADING_ID}
-        className="text-base font-semibold text-text"
-      >
-        {CATEGORY_THRESHOLDS_HEADING}
-      </h2>
-      <p className="mt-1 text-sm text-text-muted">{CATEGORY_THRESHOLDS_HINT}</p>
-      <div className="mt-4 flex flex-col gap-4">
+    <SettingsSection
+      title={CATEGORY_THRESHOLDS_HEADING}
+      id={CATEGORY_THRESHOLDS_HEADING_ID}
+      description={CATEGORY_THRESHOLDS_HINT}
+    >
+      <div className="flex flex-col gap-4">
         {(categories ?? []).map((c) => {
           const rowError = errors.rows?.[c.id]?.minutes;
           const daysError = errors.rows?.[c.id]?.day_minutes;
@@ -270,7 +277,7 @@ export function CategoryThresholdsSection() {
         })}
       </div>
       {save.isError && (
-        <p role="alert" className="mt-3 text-sm text-error">
+        <p role="alert" className={cn("mt-3", ERROR_TEXT)}>
           {errorMessage(save.error)}
         </p>
       )}
@@ -283,6 +290,6 @@ export function CategoryThresholdsSection() {
           {SAVE_BUTTON_LABEL}
         </Button>
       </div>
-    </section>
+    </SettingsSection>
   );
 }

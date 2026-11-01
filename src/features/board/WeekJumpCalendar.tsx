@@ -13,7 +13,7 @@ import { weekDates } from "@/lib/utils";
 import { MonthCalendar } from "@/shared/patterns/MonthCalendar";
 
 import type { MonthCalendarDayClassName } from "@/shared/patterns/MonthCalendar";
-import type { WeekdayLabel } from "@/shared/patterns/WeekdayPicker";
+import type { WeekdayLabel } from "@/lib/calendar";
 
 // labels.ts stays the single source of weekday copy: MonthCalendar's own
 // default derives the same strings from the wire name, but its formatDay

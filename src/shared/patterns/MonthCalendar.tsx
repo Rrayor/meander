@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components -- the
+   DEFAULT_NAV_LABELS constant is exported so the colocated test asserts
+   the nav-copy defaults through the same constant the component reads. */
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Fragment, useMemo } from "react";
@@ -8,9 +11,8 @@ import { formatIsoDay, todayLocalIso } from "@/lib/utils";
 
 import { IconButton } from "../ui/IconButton";
 
-import type { MonthCell } from "@/lib/calendar";
+import type { MonthCell, WeekdayLabel } from "@/lib/calendar";
 import type { ComponentProps, ReactNode } from "react";
-import type { WeekdayLabel } from "./WeekdayPicker";
 
 /** Accessible names for the previous/next month nav buttons — required,
  * callers pass the labels registry copy. */

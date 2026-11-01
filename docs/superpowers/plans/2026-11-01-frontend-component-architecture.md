@@ -429,7 +429,7 @@ Open via `userEvent.click` on trigger, options listed `role="listbox"`, selectio
 
 **Files:**
 
-- Delete: `src/components/` (`DeleteButton` — all call sites now `Button variant={ButtonVariant.Danger}`), `src/features/calendar/`, `src/features/pagination/` (already empty/deleted).
+- Delete: `src/components/` (`DeleteButton` — both call sites now use the ghost `IconButton` with `Trash2`, matching the affordance it always rendered), `src/features/calendar/`, `src/features/pagination/` (already empty/deleted).
 - Modify: any stragglers found by the sweep.
 
 - [ ] **Step 1: grep sweep** — `rg "<button" src/` (only inside `shared/ui`), `rg "fixed inset-0" src/` (only `shared/ui/Dialog`), `rg "role=\"tablist\"" src/` (only `Tabs`), `rg "<select" src/` (zero outside primitives). Every hit outside `shared/` gets migrated or justified in the PR description.

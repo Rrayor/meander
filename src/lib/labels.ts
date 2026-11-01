@@ -75,6 +75,8 @@ export const addToWeekLabel = (title: string) =>
 export const CREATE_TASK_LABEL = "Create task";
 export const EMPTY_BACKLOG_MESSAGE =
   "No tasks yet — created tasks will appear here.";
+export const BACKLOG_HEADING = "Backlog";
+export const BACKLOG_SUBTITLE = "Tasks waiting to be planned";
 export const ESTIMATED_HOURS_LABEL = "Estimated hours";
 export const ESTIMATED_MINUTES_LABEL = "Estimated minutes";
 
@@ -148,6 +150,7 @@ export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
 // Accessible group names for the chip groups inside the repeat section.
 export const REPEAT_UNIT_GROUP_LABEL = "Repeat unit";
 export const REPEAT_NTH_GROUP_LABEL = "Which occurrence";
+export const REPEAT_MONTH_MODE_GROUP_LABEL = "Monthly schedule mode";
 export const REPEAT_UNIT_OPTIONS = [
   { value: RepeatUnit.Day, label: "days" },
   { value: RepeatUnit.Week, label: "weeks" },
@@ -324,6 +327,9 @@ export const THRESHOLD_CLEAR_LABEL = "Clear threshold";
 // The design system's threshold-red, lowercased to match native
 // <input type="color"> normalization.
 export const THRESHOLD_COLOR_DEFAULT = "#f87171";
+export const DATABASE_HEADING = "Database";
+export const DATABASE_HEADING_ID = "database-heading";
+export const DATABASE_HINT = "Tasks and settings are stored in this file.";
 export const DATABASE_CHOOSE_LABEL = "Choose database file";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;

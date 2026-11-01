@@ -21,6 +21,7 @@ import { Dialog } from "@/shared/ui/Dialog";
 import { Field } from "@/shared/ui/Field";
 import { IconButton } from "@/shared/ui/IconButton";
 import { Input } from "@/shared/ui/Input";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 // Composed on Dialog parts rather than ConfirmDialog: the legacy surface
 // dismissed on outside press (a real button covering the backdrop), and
@@ -94,7 +95,7 @@ export function DeleteProfileDialog({
               />
             </Field.Root>
             {serverError && (
-              <p role="alert" className="text-sm text-danger">
+              <p role="alert" className={ERROR_TEXT}>
                 {serverError}
               </p>
             )}

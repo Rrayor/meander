@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { cn } from "cn";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -25,10 +26,12 @@ import {
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { ColorRadios } from "@/features/settings/ColorRadios";
+import { SettingsSection } from "@/shared/patterns/SettingsSection";
 import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Fieldset } from "@/shared/ui/Fieldset";
 import { Input } from "@/shared/ui/Input";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const schema = z.object({
   minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
@@ -125,15 +128,12 @@ export function ThresholdSection() {
   };
 
   return (
-    <section aria-labelledby={THRESHOLD_HEADING_ID}>
-      <h2
-        id={THRESHOLD_HEADING_ID}
-        className="text-base font-semibold text-text"
-      >
-        {THRESHOLD_HEADING}
-      </h2>
-      <p className="mt-1 text-sm text-text-muted">{THRESHOLD_HINT}</p>
-      <div className="mt-4 rounded-lg bg-surface p-4">
+    <SettingsSection
+      title={THRESHOLD_HEADING}
+      id={THRESHOLD_HEADING_ID}
+      description={THRESHOLD_HINT}
+    >
+      <div className="rounded-lg bg-surface p-4">
         <div className="flex items-center gap-4">
           <Field.Root invalid={minutesInvalid}>
             <Field.Label className="text-sm font-normal">
@@ -181,7 +181,7 @@ export function ThresholdSection() {
         />
       </div>
       {save.isError && (
-        <p role="alert" className="mt-3 text-sm text-error">
+        <p role="alert" className={cn("mt-3", ERROR_TEXT)}>
           {errorMessage(save.error)}
         </p>
       )}
@@ -221,6 +221,6 @@ export function ThresholdSection() {
           {SAVE_BUTTON_LABEL}
         </Button>
       </div>
-    </section>
+    </SettingsSection>
   );
 }

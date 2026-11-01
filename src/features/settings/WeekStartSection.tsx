@@ -15,9 +15,11 @@ import {
   WEEK_START_LABEL,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
+import { SettingsSection } from "@/shared/patterns/SettingsSection";
 import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Select } from "@/shared/ui/Select";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 export function WeekStartSection() {
   const queryClient = useQueryClient();
@@ -43,13 +45,15 @@ export function WeekStartSection() {
   });
 
   return (
-    <section
-      aria-labelledby={WEEK_START_HEADING_ID}
+    // `contents` keeps the section's own gap-3 spacing the children —
+    // the pre-pattern layout had no body container.
+    <SettingsSection
+      title={WEEK_START_HEADING}
+      id={WEEK_START_HEADING_ID}
       className="flex flex-col gap-3"
+      headingClassName="text-lg font-semibold"
+      bodyClassName="contents"
     >
-      <h2 id={WEEK_START_HEADING_ID} className="text-lg font-semibold">
-        {WEEK_START_HEADING}
-      </h2>
       <div className="flex items-end gap-3">
         <Field.Root>
           <Field.Label>{WEEK_START_LABEL}</Field.Label>
@@ -89,10 +93,10 @@ export function WeekStartSection() {
         </Button>
       </div>
       {save.isError && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {errorMessage(save.error)}
         </p>
       )}
-    </section>
+    </SettingsSection>
   );
 }

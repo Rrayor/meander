@@ -3,7 +3,7 @@
 ## Technological stack
 
 - Tauri application: Rust "backend", React frontend (built with Vite)
-- Tailwind CSS + shadcn/ui
+- Tailwind CSS + Base UI (`@base-ui/react` headless primitives)
 - SQLite database
 - Vitest + React Testing Library for frontend unit/component tests
 - Playwright for frontend e2e testing (against the Vite dev server)
@@ -20,12 +20,12 @@ This is both for separation of concerns and to allow for a possible migration to
 
 Database interactions need to be more robust for this reason than the minimum requirement of interacting with SQLite. We have a persistence layer responsible for transforming Rust objects into database entities and vice versa, a connection layer that currently only allows for connecting to SQLite but it is set up so in the future other SQL databases can be easily connected as well. And we have a service layer, where every operation happens with the involvement of Rust objects representing database entities. Business logic and validation happen here.
 
-The frontend is a React application built with Vite, styled with Tailwind CSS and composed from shadcn/ui components. React doesn't enforce structure the way Angular does, so the frontend follows explicit conventions:
+The frontend is a React application built with Vite, styled with Tailwind CSS, and composed from a shared component layer that wraps `@base-ui/react` parts. React doesn't enforce structure the way Angular does, so the frontend follows explicit conventions:
 
 - Feature-based structure: `src/features/<domain>` (kanban, backlog, categories, profiles, settings, ...) holds that domain's components, hooks and API calls. Route-level views stay thin — they compose feature components and hold no logic themselves.
 - Backend communication is isolated in an API layer wrapping Tauri `invoke` calls in typed functions. Components never call `invoke` directly; they consume backend state through hooks. TypeScript types for backend entities are declared in one shared place so they stay in sync with the Rust objects.
 - Consistent with the backend boundary: the Rust side owns state consistency and validation. The frontend may mirror validation for UX (e.g. form feedback) but never duplicates business rules.
-- shadcn/ui primitives live in `src/components/ui` and aren't modified in place. Shared composed components live in `src/components` and reusable cross-feature hooks in `src/hooks`.
+- A layered component architecture (see `docs/architecture/component-standards.md`): styled `@base-ui/react` primitives and styled natives live in `src/shared/ui`, composed domain-agnostic patterns in `src/shared/patterns`, generic reusable hooks in `src/shared/hooks`, and app chrome in `src/layout`. The `shared/` layer has no domain knowledge — it never imports `api/`, `lib/labels`, `features/`, `pages/`, or `layout/`.
 - Every Tauri command is async server state: consume it through TanStack Query — `useQuery` for loads, `useMutation` for writes — never `useEffect` + manual promise handling. Errors surface declaratively from `query.error`/`mutation.error`; `onError` callbacks are for side effects (toasts, logging), not for rendering errors.
 - Frontend error handling has three tiers: _expected, actionable_ failures (incompatible db file, validation) render inline near the action via `role="alert"`; _unexpected_ backend failures route through the `QueryClient` global error handlers (`queryCache.onError`/`mutationCache.onError`) to a shared notification channel; _render crashes_ are caught by an error boundary around the router outlet. The global tier and boundary are introduced with the first feature that produces a second error surface.
 - UI work is designed with Stitch first (see `docs/CONTRIBUTION.md`): generated screens are converted into modular components following the above conventions rather than copied as raw markup.

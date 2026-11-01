@@ -30,6 +30,7 @@ import { EmptyState } from "@/shared/patterns/EmptyState";
 import { PageHeader } from "@/shared/patterns/PageHeader";
 import { Button } from "@/shared/ui/Button";
 import { IconButton } from "@/shared/ui/IconButton";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 // A NULL color means "no pick" — the same default the backend stores on
 // create. Stored colors are hex values applied inline since they are data,
@@ -103,7 +104,7 @@ export function CategoriesPage() {
           </Button>
         </div>
         {(error ?? del.error) && (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className={ERROR_TEXT}>
             {errorMessage(error ?? del.error!)}
           </p>
         )}

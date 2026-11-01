@@ -17,6 +17,7 @@ import {
 } from "@/lib/labels";
 import { unicodeTrim } from "@/lib/utils";
 import { Combobox } from "@/shared/ui/Combobox";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 interface CategoryMultiSelectProps {
   idPrefix: string;
@@ -213,7 +214,7 @@ export function CategoryMultiSelect({
         )}
       </Combobox.Root>
       {error && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {error}
         </p>
       )}

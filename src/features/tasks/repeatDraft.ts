@@ -257,5 +257,6 @@ export const WEEKDAY_CHIP_CLASSES =
 export const SEGMENT_TOGGLE_CLASSES =
   "border-0 rounded text-text-muted hover:text-text data-[pressed]:bg-surface-raised data-[pressed]:text-primary";
 
-export const SEGMENT_GROUP_CLASSES =
-  "rounded border border-border bg-surface-dim p-0.5";
+// The source's `bg-surface-dim` never resolved — no such @theme token —
+// so the transparent group background it always rendered is kept as-is.
+export const SEGMENT_GROUP_CLASSES = "rounded border border-border p-0.5";
