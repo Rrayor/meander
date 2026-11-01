@@ -327,6 +327,9 @@ export const THRESHOLD_CLEAR_LABEL = "Clear threshold";
 // The design system's threshold-red, lowercased to match native
 // <input type="color"> normalization.
 export const THRESHOLD_COLOR_DEFAULT = "#f87171";
+export const DATABASE_HEADING = "Database";
+export const DATABASE_HEADING_ID = "database-heading";
+export const DATABASE_HINT = "Tasks and settings are stored in this file.";
 export const DATABASE_CHOOSE_LABEL = "Choose database file";
 export const taskCountLabel = (count: number) =>
   `${count} ${count === 1 ? "task" : "tasks"}`;

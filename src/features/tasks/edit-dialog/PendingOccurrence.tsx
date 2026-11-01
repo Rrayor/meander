@@ -3,6 +3,7 @@ import {
   INSTANCE_MATERIALIZING_MESSAGE,
   SCHEDULED_INSTANCE_PENDING_MESSAGE,
 } from "@/lib/labels";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 import { PendingSharedFields } from "./PendingSharedFields";
 
@@ -26,7 +27,7 @@ export function PendingOccurrence({
             : SCHEDULED_INSTANCE_PENDING_MESSAGE}
         </p>
         {materializeError && (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className={ERROR_TEXT}>
             {materializeError}
           </p>
         )}

@@ -11,6 +11,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Fieldset } from "@/shared/ui/Fieldset";
 import { RadioGroup } from "@/shared/ui/RadioGroup";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 interface DeleteConfirmPanelProps {
   isSeries: boolean;
@@ -88,7 +89,7 @@ export function DeleteConfirmPanel({
       )}
       <p className="text-xs text-text-muted">{DELETE_UNDO_WARNING}</p>
       {error && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {error}
         </p>
       )}

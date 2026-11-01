@@ -26,6 +26,7 @@ import { DurationField } from "@/shared/patterns/DurationField";
 import { Button } from "@/shared/ui/Button";
 import { Fieldset } from "@/shared/ui/Fieldset";
 import { RadioGroup } from "@/shared/ui/RadioGroup";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 import { SaveScopeFieldset } from "./SaveScopeFieldset";
 import { lockedStartFor } from "./utils";
@@ -182,7 +183,7 @@ export function EditTaskForm({
           />
         )}
       {serverError && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {serverError}
         </p>
       )}

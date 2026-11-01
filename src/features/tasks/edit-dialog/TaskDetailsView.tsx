@@ -37,8 +37,16 @@ import { NoteList } from "@/features/tasks/NoteList";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 import { PendingOccurrence } from "./PendingOccurrence";
+
+// A category with no stored color renders a fully muted chip here —
+// unlike TaskCard, which falls back to DEFAULT_CATEGORY_COLOR, the
+// details view leaves text and dot uncolored; this neutral tint only
+// backs the pill so it still reads as a chip (deliberate since the
+// view was introduced, not the spec'd accent default).
+const UNCOLORED_CHIP_TINT = "#859490";
 
 export interface TaskDetailsViewProps {
   viewed: Task;
@@ -177,7 +185,7 @@ export function TaskDetailsView({
                 className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
                 style={{
                   color: category.color ?? undefined,
-                  backgroundColor: `${category.color ?? "#859490"}26`,
+                  backgroundColor: `${category.color ?? UNCOLORED_CHIP_TINT}26`,
                 }}
               >
                 <span
@@ -217,7 +225,7 @@ export function TaskDetailsView({
       )}
       {notesSection}
       {(moveError ?? scheduleError) && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {moveError ?? scheduleError}
         </p>
       )}

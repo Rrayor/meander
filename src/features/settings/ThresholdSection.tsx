@@ -26,6 +26,7 @@ import {
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { ColorRadios } from "@/features/settings/ColorRadios";
+import { SettingsSection } from "@/shared/patterns/SettingsSection";
 import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Fieldset } from "@/shared/ui/Fieldset";
@@ -127,15 +128,12 @@ export function ThresholdSection() {
   };
 
   return (
-    <section aria-labelledby={THRESHOLD_HEADING_ID}>
-      <h2
-        id={THRESHOLD_HEADING_ID}
-        className="text-base font-semibold text-text"
-      >
-        {THRESHOLD_HEADING}
-      </h2>
-      <p className="mt-1 text-sm text-text-muted">{THRESHOLD_HINT}</p>
-      <div className="mt-4 rounded-lg bg-surface p-4">
+    <SettingsSection
+      title={THRESHOLD_HEADING}
+      id={THRESHOLD_HEADING_ID}
+      description={THRESHOLD_HINT}
+    >
+      <div className="rounded-lg bg-surface p-4">
         <div className="flex items-center gap-4">
           <Field.Root invalid={minutesInvalid}>
             <Field.Label className="text-sm font-normal">
@@ -223,6 +221,6 @@ export function ThresholdSection() {
           {SAVE_BUTTON_LABEL}
         </Button>
       </div>
-    </section>
+    </SettingsSection>
   );
 }

@@ -1,3 +1,5 @@
+import { cn } from "cn";
+
 import { MonthMode, type Weekday } from "@/lib/enums";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
@@ -136,7 +138,10 @@ export function MonthlySection({
               key={o.value}
               value={String(o.value)}
               aria-label={o.aria}
-              className={`${SEGMENT_TOGGLE_CLASSES} px-1.5 py-0.5 text-[11px]`}
+              className={cn(
+                SEGMENT_TOGGLE_CLASSES,
+                "px-1.5 py-0.5 text-[11px]",
+              )}
             >
               {o.label}
             </ToggleGroup.Toggle>

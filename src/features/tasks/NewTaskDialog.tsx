@@ -35,6 +35,7 @@ import {
 import { unicodeTrim } from "@/lib/utils";
 import { FormDialog } from "@/shared/patterns/FormDialog";
 import { Button } from "@/shared/ui/Button";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const schema = z
   .object(taskFieldSchemas)
@@ -239,7 +240,7 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
           />
         )}
         {serverError && (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className={ERROR_TEXT}>
             {serverError}
           </p>
         )}

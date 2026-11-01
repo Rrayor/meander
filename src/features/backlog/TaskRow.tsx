@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { cn } from "cn";
 import { CalendarPlus, GripVertical, Trash2 } from "lucide-react";
 
 import type { Task } from "@/api/tasks";
@@ -83,7 +84,10 @@ export function TaskRow({
           </span>
         )}
         <span
-          className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[task.status]}`}
+          className={cn(
+            "rounded px-1.5 py-0.5 text-xs font-medium",
+            STATUS_BADGE[task.status],
+          )}
         >
           {STATUS_LABELS[task.status]}
         </span>

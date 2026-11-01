@@ -24,6 +24,7 @@ import {
 import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Textarea } from "@/shared/ui/Textarea";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 import { NoteRow } from "./NoteRow";
 import { noteSchema } from "./noteForm";
@@ -112,7 +113,7 @@ export function NoteList({ target }: Readonly<{ target: NotesTarget }>) {
   let listBody: ReactNode = null;
   if (error !== null) {
     listBody = (
-      <p role="alert" className="text-sm text-danger">
+      <p role="alert" className={ERROR_TEXT}>
         {serverErrorMessage(error)}
       </p>
     );
@@ -188,7 +189,7 @@ export function NoteList({ target }: Readonly<{ target: NotesTarget }>) {
         </form>
       </div>
       {failed !== null && failed !== error ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {serverErrorMessage(failed)}
         </p>
       ) : null}

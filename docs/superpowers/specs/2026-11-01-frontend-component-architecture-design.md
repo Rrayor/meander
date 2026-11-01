@@ -106,6 +106,7 @@ src/
   features/
     tasks/        # TaskCard, dialogs, notes, recurrence, calendar wrapper
     board/        # board grid pieces, WeekJumpCalendar, CarryOverPrompt
+    backlog/      # TaskRow — backlog-only domain component
     categories/   # CategoryDialog, CategoryMultiSelect
     settings/     # the settings sections
     pagination/   # gone — Pagination/Paged are generic, move to shared
@@ -249,8 +250,9 @@ fragments per recipe)
 
 - `BoardPage`: DnD context + week state + composing columns/toolbar/
   dialogs; `DroppableCell`/`BoardCard` extracted to `features/board/`.
-- `BacklogPage`: `TaskRow` extracted to `features/tasks/` or kept inline
-  if it stays small after primitives land. Builder's call.
+- `BacklogPage`: `TaskRow` extracted to `features/backlog/` — it is
+  backlog-only (the board renders `BoardCard`, not rows), so it gets its
+  own slice rather than living under `features/tasks/`.
 - `CategoriesPage`, `SettingsPage`: compose via `PageHeader` +
   `SettingsSection`.
 
@@ -300,7 +302,6 @@ fragments per recipe)
 - Whether `NotesTabs` survives as a domain component or folds into its
   parent.
 - `ViewToolbar`/`viewFilters` slice placement.
-- `TaskRow` extraction threshold.
 - Whether `Button`/`IconButton` wrap `@base-ui/react/button` or stay
   styled natives (Base UI's button mainly adds `focusableWhenDisabled`).
 - `components/ui` vs keeping a stray `components/` dir — this doc deletes

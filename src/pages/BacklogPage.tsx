@@ -41,6 +41,7 @@ import { EmptyState } from "@/shared/patterns/EmptyState";
 import { PageHeader } from "@/shared/patterns/PageHeader";
 import { Paged } from "@/shared/patterns/Pagination";
 import { Button } from "@/shared/ui/Button";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 export function BacklogPage() {
   const queryClient = useQueryClient();
@@ -188,7 +189,7 @@ export function BacklogPage() {
           </Button>
         </div>
         {(error ?? addToWeek.error ?? del.error ?? move.error) && (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className={ERROR_TEXT}>
             {errorMessage(
               (error ?? addToWeek.error ?? del.error ?? move.error)!,
             )}

@@ -18,8 +18,10 @@ import {
   weekdaysFrom,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
+import { SettingsSection } from "@/shared/patterns/SettingsSection";
 import { WeekdayPicker } from "@/shared/patterns/WeekdayPicker";
 import { Button } from "@/shared/ui/Button";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const sameDays = (a: readonly Weekday[], b: readonly Weekday[]) =>
   a.length === b.length && a.every((d) => b.includes(d));
@@ -60,13 +62,15 @@ export function WorkDaysSection() {
   const orderedDays = weekdaysFrom(weekStart);
 
   return (
-    <section
-      aria-labelledby={WORK_DAYS_HEADING_ID}
+    // `contents` keeps the section's own gap-3 spacing the children —
+    // the pre-pattern layout had no body container.
+    <SettingsSection
+      title={WORK_DAYS_HEADING}
+      id={WORK_DAYS_HEADING_ID}
       className="flex flex-col gap-3"
+      headingClassName="text-lg font-semibold"
+      bodyClassName="contents"
     >
-      <h2 id={WORK_DAYS_HEADING_ID} className="text-lg font-semibold">
-        {WORK_DAYS_HEADING}
-      </h2>
       <div className="flex items-end gap-3">
         <WeekdayPicker
           aria-label={WORK_DAYS_FIELD_LABEL}
@@ -98,10 +102,10 @@ export function WorkDaysSection() {
         </Button>
       </div>
       {save.isError && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className={ERROR_TEXT}>
           {errorMessage(save.error)}
         </p>
       )}
-    </section>
+    </SettingsSection>
   );
 }
