@@ -12,7 +12,17 @@ const BUTTON_TEXT = "Save changes";
 const button = () => screen.getByRole("button", { name: BUTTON_TEXT });
 
 const VARIANT_CASES: Array<[ButtonVariant, string[]]> = [
-  [ButtonVariant.Primary, ["bg-primary", "font-semibold", "text-on-primary"]],
+  [
+    ButtonVariant.Primary,
+    [
+      "bg-primary",
+      "font-semibold",
+      "text-on-primary",
+      // The source recipe animates the brightness hover — regression pin.
+      "transition-all",
+      "hover:brightness-110",
+    ],
+  ],
   [
     ButtonVariant.Secondary,
     ["border", "border-border", "hover:bg-surface-raised"],

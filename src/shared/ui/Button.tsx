@@ -16,8 +16,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // The source recipe animates the brightness hover via
+        // transition-all; cn() merges it over the base transition-colors.
         [ButtonVariant.Primary]:
-          "bg-primary font-semibold text-on-primary hover:brightness-110",
+          "bg-primary font-semibold text-on-primary transition-all hover:brightness-110",
         [ButtonVariant.Secondary]:
           "border border-border font-medium text-text hover:bg-surface-raised",
         [ButtonVariant.Danger]:
