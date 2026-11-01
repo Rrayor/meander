@@ -2,7 +2,7 @@ import { Weekday } from "@/lib/enums";
 
 import { ToggleGroup } from "../ui/ToggleGroup";
 
-import type { ToggleGroupRootProps } from "../ui/ToggleGroup";
+import type { ToggleGroupRootProps, ToggleProps } from "../ui/ToggleGroup";
 
 /** Display copy for one weekday chip. */
 export interface WeekdayLabel {
@@ -44,6 +44,9 @@ interface WeekdayPickerProps extends Omit<
   minSelected?: number;
   /** Chip copy — defaults to capitalizing the Weekday wire name. */
   formatDay?: (day: Weekday) => WeekdayLabel;
+  /** Extra classes merged onto every chip — the channel for per-site
+   * pressed-look overrides (e.g. `data-[pressed]:border-primary`). */
+  chipClassName?: ToggleProps<Weekday>["className"];
 }
 
 export function WeekdayPicker({
@@ -52,6 +55,7 @@ export function WeekdayPicker({
   order,
   minSelected = 0,
   formatDay = defaultFormatDay,
+  chipClassName,
   ...rest
 }: Readonly<WeekdayPickerProps>) {
   const handleValueChange = (next: Weekday[]) => {
@@ -68,7 +72,12 @@ export function WeekdayPicker({
       {order.map((day) => {
         const { label, short } = formatDay(day);
         return (
-          <ToggleGroup.Toggle key={day} value={day} aria-label={label}>
+          <ToggleGroup.Toggle
+            key={day}
+            value={day}
+            aria-label={label}
+            className={chipClassName}
+          >
             {short}
           </ToggleGroup.Toggle>
         );

@@ -26,3 +26,8 @@ export const PAGE_SIZE = 50;
 /// The seeded profile's name — mirrors `DEFAULT_PROFILE_NAME` in
 /// `src-tauri/src/db/seed.rs`.
 export const DEFAULT_PROFILE_NAME = "Default";
+
+/// File types the database-location picker offers (SQLite files).
+export const DATABASE_FILE_FILTERS = [
+  { name: "SQLite", extensions: ["db", "sqlite", "sqlite3"] },
+];

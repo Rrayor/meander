@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pickFile } from "@/api/dialog";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import { currentDatabasePath, selectDatabaseFile } from "@/api/settings";
+import { DATABASE_FILE_FILTERS } from "@/lib/constants";
+import { DATABASE_CHOOSE_LABEL } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
+import { Button } from "@/shared/ui/Button";
 
 export function DatabaseSection() {
   const queryClient = useQueryClient();
@@ -14,9 +17,7 @@ export function DatabaseSection() {
 
   const select = useMutation({
     mutationFn: async () => {
-      const selected = await pickFile({
-        filters: [{ name: "SQLite", extensions: ["db", "sqlite", "sqlite3"] }],
-      });
+      const selected = await pickFile({ filters: DATABASE_FILE_FILTERS });
       return selected ? selectDatabaseFile(selected) : null;
     },
     onSuccess: (newPath) => {
@@ -45,14 +46,14 @@ export function DatabaseSection() {
         <code className="truncate rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-text">
           {path ?? "…"}
         </code>
-        <button
+        <Button
           type="button"
+          className="shrink-0"
           onClick={() => select.mutate()}
           disabled={select.isPending}
-          className="shrink-0 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         >
-          Choose database file
-        </button>
+          {DATABASE_CHOOSE_LABEL}
+        </Button>
       </div>
       {error && (
         <p role="alert" className="text-sm text-danger">

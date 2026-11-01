@@ -6,7 +6,7 @@ import {
   weekStart as fetchWeekStart,
 } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { Weekday } from "@/lib/enums";
+import { ComponentSize, Weekday } from "@/lib/enums";
 import {
   SAVE_BUTTON_LABEL,
   WEEKDAY_OPTIONS,
@@ -15,6 +15,9 @@ import {
   WEEK_START_LABEL,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
+import { Button } from "@/shared/ui/Button";
+import { Field } from "@/shared/ui/Field";
+import { Select } from "@/shared/ui/Select";
 
 export function WeekStartSection() {
   const queryClient = useQueryClient();
@@ -48,31 +51,42 @@ export function WeekStartSection() {
         {WEEK_START_HEADING}
       </h2>
       <div className="flex items-end gap-3">
-        <label className="flex flex-col gap-1.5" htmlFor="week-start-select">
-          <span className="text-xs font-medium text-text-muted">
-            {WEEK_START_LABEL}
-          </span>
-          <select
-            id="week-start-select"
+        <Field.Root>
+          <Field.Label>{WEEK_START_LABEL}</Field.Label>
+          {/* `items` feeds Select.Value the option label — without it the
+              trigger would render the raw weekday wire name. */}
+          <Select.Root
+            items={WEEKDAY_OPTIONS}
             value={current}
-            onChange={(e) => setSelected(e.target.value as Weekday)}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text"
+            onValueChange={(day) => setSelected(day ?? undefined)}
           >
-            {WEEKDAY_OPTIONS.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
+            <Select.Trigger className="w-44">
+              <Select.Value />
+              <Select.Icon />
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Positioner>
+                <Select.Popup>
+                  {WEEKDAY_OPTIONS.map(({ value, label }) => (
+                    <Select.Item key={value} value={value}>
+                      <Select.ItemText>{label}</Select.ItemText>
+                      <Select.ItemIndicator />
+                    </Select.Item>
+                  ))}
+                </Select.Popup>
+              </Select.Positioner>
+            </Select.Portal>
+          </Select.Root>
+        </Field.Root>
+        <Button
           type="button"
+          size={ComponentSize.Sm}
+          className="px-4"
           onClick={() => save.mutate(current)}
           disabled={save.isPending || !dirty}
-          className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-on-primary transition-colors disabled:opacity-50"
         >
           {SAVE_BUTTON_LABEL}
-        </button>
+        </Button>
       </div>
       {save.isError && (
         <p role="alert" className="text-sm text-danger">

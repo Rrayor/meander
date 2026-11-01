@@ -212,13 +212,18 @@ test("saving a week start sends it on the wire", async ({ page }) => {
 
   const section = page.getByRole("region", { name: WEEK_START_HEADING });
   const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
-  await section.getByLabel(WEEK_START_LABEL).selectOption(sunday.value);
+  // The combobox popup is portaled to <body> — the option is picked off
+  // `page`, not scoped to the settings section.
+  await section.getByRole("combobox", { name: WEEK_START_LABEL }).click();
+  await page.getByRole("option", { name: sunday.label }).click();
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
   const calls = await getInvocations<{ weekday: string }>(page);
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setWeekStart);
   expect(saveCall?.args).toEqual({ weekday: sunday.value });
-  await expect(section.getByLabel(WEEK_START_LABEL)).toHaveValue(sunday.value);
+  await expect(
+    section.getByRole("combobox", { name: WEEK_START_LABEL }),
+  ).toHaveText(sunday.label);
 });
 
 test("a failed week-start save surfaces the error", async ({ page }) => {
@@ -235,7 +240,9 @@ test("a failed week-start save surfaces the error", async ({ page }) => {
   await page.goto(`/#${settingsPath}`);
 
   const section = page.getByRole("region", { name: WEEK_START_HEADING });
-  await section.getByLabel(WEEK_START_LABEL).selectOption(Weekday.Sunday);
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+  await section.getByRole("combobox", { name: WEEK_START_LABEL }).click();
+  await page.getByRole("option", { name: sunday.label }).click();
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
   await expect(section.getByRole("alert")).toHaveText(message);
 });
