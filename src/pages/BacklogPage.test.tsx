@@ -131,20 +131,6 @@ describe("BacklogPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows only the anchor row of a series, not its instances", async () => {
-    // Persisted later instances belong to the series — the backlog lists
-    // one entry per series, not every materialized row.
-    vi.mocked(listTasks).mockResolvedValue([
-      task({ id: 1, title: TITLE_A, series_id: 7 }),
-      task({ id: 2, title: TITLE_B, series_id: 7 }),
-      task({ id: 3, title: TITLE_C }),
-    ]);
-    renderPage();
-    expect(await screen.findByText(TITLE_A)).toBeInTheDocument();
-    expect(screen.queryByText(TITLE_B)).not.toBeInTheDocument();
-    expect(screen.getByText(TITLE_C)).toBeInTheDocument();
-  });
-
   it("surfaces a load error", async () => {
     vi.mocked(listTasks).mockRejectedValue(new Error(LOAD_ERROR_MESSAGE));
     renderPage();
@@ -478,6 +464,21 @@ describe("BacklogPage", () => {
     await waitFor(() =>
       expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(1),
     );
+  });
+
+  it("renders every row listTasks returns — dated members are the backend's job", async () => {
+    // The anchor-row dedup is gone (spec §57): the backend contract is
+    // that list() only yields undated backlog rows, so the page renders
+    // whatever it is given — including series-linked rows — unfiltered.
+    vi.mocked(listTasks).mockResolvedValue([
+      task({ id: 1, title: TITLE_A, series_id: 7 }),
+      task({ id: 2, title: TITLE_B, series_id: 7 }),
+      task({ id: 3, title: TITLE_C }),
+    ]);
+    renderPage();
+    expect(await screen.findByText(TITLE_A)).toBeInTheDocument();
+    expect(screen.getByText(TITLE_B)).toBeInTheDocument();
+    expect(screen.getByText(TITLE_C)).toBeInTheDocument();
   });
 
   it("shows the add-to-week action without requiring hover", async () => {

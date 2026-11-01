@@ -112,18 +112,27 @@ describe("Backlog smoke", () => {
     await browser.waitUntil(async () => (await dialog()).isDisplayed(), {
       timeout: 10000,
     });
-    await (
-      await (await dialog()).$(`input[type='date']`)
-    ).setValue("2027-03-15");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      "0",
+    )}-${String(now.getDate()).padStart(2, "0")}`;
+    await (await (await dialog()).$(`input[type='date']`)).setValue(today);
     await (await (await dialog()).$(`button=${MOVE_TO_DATE_LABEL}`)).click();
     await browser.waitUntil(async () => (await $$("dialog")).length === 0, {
       timeout: 15000,
     });
-    // Scheduled tasks leave the backlog list entirely (§24).
+    // Scheduled tasks leave the backlog list entirely (§24) — they are
+    // dated board entities, so the card lands on today's column.
     await browser.waitUntil(
       async () =>
         (await $$(`button[aria-label='${editTaskLabel(title)}1']`)).length ===
         0,
+      { timeout: 10000 },
+    );
+    await nav.$(`=${boardRoute.label}`).click();
+    await browser.waitUntil(
+      async () => (await $$(`aria/${editTaskLabel(title)}1`)).length > 0,
       { timeout: 10000 },
     );
     await expect(

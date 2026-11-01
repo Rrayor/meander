@@ -1067,6 +1067,25 @@ fn task_creation_failed(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "creation unexpectedly succeeded");
 }
 
+#[then(expr = "a task titled {string} is not in the backlog")]
+fn task_titled_not_in_backlog(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let found = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .iter()
+        .any(|t| t.title == title);
+    assert!(!found, "{title} must not be a backlog row");
+}
+
+#[then(expr = "a task titled {string} exists")]
+fn task_titled_exists_anywhere(world: &mut MeanderWorld, title: String) {
+    task_by_title(world, &title);
+}
+
 #[then("a task titled Plan the week exists in the backlog")]
 fn plan_task_in_backlog(world: &mut MeanderWorld) {
     let state = world.state.as_ref().expect("no app state in world");
@@ -1093,6 +1112,24 @@ fn task_on_default_profile(world: &mut MeanderWorld) {
         .block_on(meander_lib::tasks::list(&pool, active))
         .expect("task list failed");
     assert_eq!(tasks[0].profile_id, active);
+}
+
+#[given(expr = "a corrupt dated backlog task titled {word}")]
+fn corrupt_dated_backlog_task(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    world
+        .rt()
+        .block_on(
+            sqlx::query(
+                "INSERT INTO tasks (profile_id, title, placement, scheduled_date)                  VALUES (?, ?, 'backlog', '2026-10-30')",
+            )
+            .bind(active)
+            .bind(&title)
+            .execute(&pool),
+        )
+        .expect("corrupt insert failed");
 }
 
 #[given(expr = "a backlog task titled {word}")]
@@ -1672,17 +1709,7 @@ fn task_update_failed(world: &mut MeanderWorld) {
 
 #[then(expr = "the task {string} has status done")]
 fn task_has_status_done(world: &mut MeanderWorld, title: String) {
-    let state = world.state.as_ref().expect("no app state in world");
-    let pool = state.pool();
-    let active = state.active_profile_id();
-    let tasks = world
-        .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed");
-    let task = tasks
-        .iter()
-        .find(|t| t.title == title)
-        .expect("task missing");
+    let task = task_by_title(world, &title);
     assert_eq!(task.status, meander_lib::tasks::TaskStatus::Done);
 }
 
@@ -1766,13 +1793,7 @@ fn add_schedule_to(world: &mut MeanderWorld, title: &str) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    let task = world
-        .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .find(|t| t.title == title)
-        .expect("task missing");
+    let task = task_by_title(world, title);
     world.task_id = Some(task.id);
     if let Err(e) = world.rt().block_on(meander_lib::tasks::update(
         &pool,
@@ -1808,14 +1829,7 @@ fn repeats_weekly_monday(world: &mut MeanderWorld, title: &str) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    let tasks = world
-        .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed");
-    let task = tasks
-        .iter()
-        .find(|t| t.title == title)
-        .expect("task not found");
+    let task = task_by_title(world, title);
     let series = world
         .rt()
         .block_on(meander_lib::series::list(&pool, active))
@@ -1847,15 +1861,19 @@ fn task_is_same(world: &mut MeanderWorld, title: String) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    let matching: Vec<_> = world
+    // "Still the same task" = exactly one row still carries the title —
+    // pool-independent, since the updated row may now be dated.
+    let matching: Vec<i64> = world
         .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .filter(|t| t.title == title)
-        .collect();
+        .block_on(
+            sqlx::query_scalar("SELECT id FROM tasks WHERE profile_id = ? AND title = ?")
+                .bind(active)
+                .bind(&title)
+                .fetch_all(&pool),
+        )
+        .expect("title lookup failed");
     assert_eq!(matching.len(), 1, "the task was replaced, not updated");
-    assert_eq!(matching[0].id, world.task_id.expect("no captured task id"));
+    assert_eq!(matching[0], world.task_id.expect("no captured task id"));
 }
 
 #[when(expr = "I try to create a task titled {string} whose repeat ends before it starts")]
@@ -1932,13 +1950,7 @@ fn remove_repeat(world: &mut MeanderWorld, title: String) {
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    let task = world
-        .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .find(|t| t.title == title)
-        .expect("task missing");
+    let task = task_by_title(world, &title);
     let series_id = task.series_id.expect("the task does not repeat");
     if let Err(e) = world
         .rt()
@@ -1981,21 +1993,15 @@ fn add_later_instance(world: &mut MeanderWorld, title: &str, instance_title: &st
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
-    let task = world
-        .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .find(|t| t.title == title)
-        .expect("task missing");
+    let task = task_by_title(world, title);
     let series_id = task.series_id.expect("the task does not repeat");
     world
         .rt()
         .block_on(
             sqlx::query(
                 "INSERT INTO tasks (profile_id, title, description, carry_over_rule, \
-                 estimated_minutes, series_id, scheduled_date, sort_order) \
-                 VALUES (?, ?, NULL, 'return', NULL, ?, ?, 0)",
+                 estimated_minutes, series_id, scheduled_date, placement, sort_order) \
+                 VALUES (?, ?, NULL, 'return', NULL, ?, ?, 'weekly_backlog', 0)",
             )
             .bind(active)
             .bind(instance_title)
@@ -2446,16 +2452,22 @@ fn reschedule_series_unreadable(world: &mut MeanderWorld, title: String) {
 }
 
 fn task_by_title(world: &mut MeanderWorld, title: &str) -> meander_lib::tasks::Task {
+    // Dated tasks are board entities — never in tasks::list — so
+    // steps resolve by title directly, not through the backlog view.
     let state = world.state.as_ref().expect("no app state in world");
     let pool = state.pool();
     let active = state.active_profile_id();
     world
         .rt()
-        .block_on(meander_lib::tasks::list(&pool, active))
-        .expect("task list failed")
-        .into_iter()
-        .find(|t| t.title == title)
-        .unwrap_or_else(|| panic!("task missing: {title}"))
+        .block_on(
+            sqlx::query_as::<_, meander_lib::tasks::Task>(
+                "SELECT * FROM tasks WHERE profile_id = ? AND title = ?",
+            )
+            .bind(active)
+            .bind(title)
+            .fetch_one(&pool),
+        )
+        .unwrap_or_else(|_| panic!("task missing: {title}"))
 }
 
 #[when(expr = "I add a note {string} to {word}")]
@@ -3202,7 +3214,7 @@ fn scheduled_task(world: &mut MeanderWorld, title: String, date: String) {
         .rt()
         .block_on(async {
             sqlx::query(
-                "UPDATE tasks SET placement = 'scheduled', scheduled_date = ? \
+                "UPDATE tasks SET placement = 'weekly_backlog', scheduled_date = ? \
                  WHERE profile_id = ? AND title = ?",
             )
             .bind(&date)
@@ -3223,7 +3235,7 @@ fn scheduled_task_today(world: &mut MeanderWorld, title: String) {
         .rt()
         .block_on(async {
             sqlx::query(
-                "UPDATE tasks SET placement = 'scheduled', \
+                "UPDATE tasks SET placement = 'weekly_backlog', \
                  scheduled_date = date('now', 'localtime') \
                  WHERE profile_id = ? AND title = ?",
             )
@@ -3244,7 +3256,7 @@ fn scheduled_task_days_from_today(world: &mut MeanderWorld, title: String, days:
         .rt()
         .block_on(async {
             sqlx::query(
-                "UPDATE tasks SET placement = 'scheduled', \
+                "UPDATE tasks SET placement = 'weekly_backlog', \
                  scheduled_date = date('now', 'localtime', ? || ' days') \
                  WHERE profile_id = ? AND title = ?",
             )
@@ -3271,7 +3283,7 @@ fn scheduled_past_task_with_rule(world: &mut MeanderWorld, title: String, days: 
         .rt()
         .block_on(async {
             sqlx::query(
-                "UPDATE tasks SET placement = 'scheduled', carry_over_rule = ?,                  scheduled_date = date('now', 'localtime', ? || ' days')                  WHERE profile_id = ? AND title = ?",
+                "UPDATE tasks SET placement = 'weekly_backlog', carry_over_rule = ?,                  scheduled_date = date('now', 'localtime', ? || ' days')                  WHERE profile_id = ? AND title = ?",
             )
             .bind(rule)
             .bind(format!("-{days}"))
@@ -3308,7 +3320,7 @@ fn scheduled_past_done_task(world: &mut MeanderWorld, title: String, days: i64) 
         .rt()
         .block_on(async {
             sqlx::query(
-                "UPDATE tasks SET placement = 'scheduled', status = 'done', \
+                "UPDATE tasks SET placement = 'weekly_backlog', status = 'done', \
                  scheduled_date = date('now', 'localtime', ? || ' days') \
                  WHERE profile_id = ? AND title = ?",
             )
@@ -3473,7 +3485,7 @@ fn board_move_task(world: &mut MeanderWorld, title: String, date: String, status
         &pool,
         active,
         task_id,
-        meander_lib::tasks::TaskPlacement::Scheduled,
+        meander_lib::tasks::TaskPlacement::WeeklyBacklog,
         Some(&date),
         step_status(&status),
     )) {
@@ -3505,7 +3517,7 @@ fn board_move_unknown(world: &mut MeanderWorld, date: String, status: String) {
         &pool,
         active,
         9999,
-        meander_lib::tasks::TaskPlacement::Scheduled,
+        meander_lib::tasks::TaskPlacement::WeeklyBacklog,
         Some(&date),
         step_status(&status),
     )) {
@@ -3523,7 +3535,7 @@ fn board_move_fails(world: &mut MeanderWorld) {
 fn task_scheduled_for(world: &mut MeanderWorld, title: String, date: String) {
     assert_eq!(
         task_placement(world, &title),
-        meander_lib::tasks::TaskPlacement::Scheduled
+        meander_lib::tasks::TaskPlacement::WeeklyBacklog
     );
     let (pool, _) = active_profile_pool(world);
     let id = task_id_by_title(world, &title);
@@ -3564,7 +3576,6 @@ fn task_placement(world: &mut MeanderWorld, title: &str) -> meander_lib::tasks::
     match raw.as_str() {
         "backlog" => meander_lib::tasks::TaskPlacement::Backlog,
         "weekly_backlog" => meander_lib::tasks::TaskPlacement::WeeklyBacklog,
-        "scheduled" => meander_lib::tasks::TaskPlacement::Scheduled,
         other => panic!("unknown placement {other}"),
     }
 }
@@ -3690,7 +3701,7 @@ fn scheduled_task_on_second_profile(world: &mut MeanderWorld, date: String) {
         .block_on(
             sqlx::query(
                 "INSERT INTO tasks (profile_id, title, placement, scheduled_date) \
-                 VALUES (?, 'Other task', 'scheduled', ?)",
+                 VALUES (?, 'Other task', 'weekly_backlog', ?)",
             )
             .bind(other.id)
             .bind(&date)
