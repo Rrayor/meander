@@ -1,6 +1,6 @@
 import { createHashRouter } from "react-router-dom";
 
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShell } from "@/layout/AppShell";
 import { ROUTES } from "@/lib/routes";
 
 // Hash router: Tauri production builds serve the app from a custom protocol

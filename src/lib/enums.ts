@@ -110,3 +110,17 @@ export enum BoardLayout {
   StatusRows = "status-rows",
   DayRows = "day-rows",
 }
+
+// Component variant option sets — not wire values; they drive cva
+// recipes in src/shared/ui.
+export enum ButtonVariant {
+  Primary = "primary",
+  Secondary = "secondary",
+  Danger = "danger",
+  Ghost = "ghost",
+}
+
+export enum ComponentSize {
+  Sm = "sm",
+  Md = "md",
+}

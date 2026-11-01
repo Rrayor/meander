@@ -6,7 +6,7 @@ import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
 import { addTaskToWeek, deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
-import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
+import { ProfileSwitcher } from "@/layout/ProfileSwitcher";
 import { BacklogPage } from "@/pages/BacklogPage";
 import {
   ADD_TASK_LABEL,
