@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { deleteProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
 import { serverErrorMessage } from "@/lib/errors";
+import { ButtonVariant } from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
-  CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
   DELETE_BUTTON_LABEL,
   DELETE_CONFIRM_INPUT_LABEL,
@@ -15,27 +16,35 @@ import {
   DELETE_UNDO_WARNING,
   deleteProfileSentence,
 } from "@/lib/labels";
+import { Button } from "@/shared/ui/Button";
+import { Dialog } from "@/shared/ui/Dialog";
+import { Field } from "@/shared/ui/Field";
+import { IconButton } from "@/shared/ui/IconButton";
+import { Input } from "@/shared/ui/Input";
+
+// Composed on Dialog parts rather than ConfirmDialog: the legacy surface
+// dismissed on outside press (a real button covering the backdrop), and
+// AlertDialog — which ConfirmDialog is built on — never does. Per the
+// design doc's per-call-site rule, parity wins. Escape dismissal, the
+// focus trap, and focus return now come from the Base UI parts, so the
+// hand-rolled keydown listener and the imperative focus effect are gone;
+// `initialFocus` lands focus in the confirmation input instead. The
+// chrome (max-w-md gap-4 popup, title + icon close header row,
+// justify-end footer) mirrors the ConfirmDialog recipe.
+
+interface DeleteProfileDialogProps {
+  profile: Profile;
+  onClose(): void;
+}
 
 export function DeleteProfileDialog({
   profile,
   onClose,
-}: Readonly<{
-  profile: Profile;
-  onClose: () => void;
-}>) {
+}: Readonly<DeleteProfileDialogProps>) {
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const required = deleteProfileSentence(profile.name);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const remove = useMutation({
     mutationFn: () => deleteProfile(profile.id),
@@ -51,90 +60,64 @@ export function DeleteProfileDialog({
   const confirmed = confirmation === required;
   const serverError = serverErrorMessage(remove.error);
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label={CLOSE_DIALOG_LABEL}
-        onClick={onClose}
-        tabIndex={-1}
-        className="absolute inset-0 h-full w-full cursor-default bg-black/60"
-      />
-      <dialog
-        open
-        aria-labelledby="delete-profile-title"
-        className="relative m-0 flex w-full max-w-md flex-col gap-4 rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
-      >
-        <div className="flex items-center justify-between">
-          <h2
-            id="delete-profile-title"
-            className="font-title text-lg font-semibold text-text"
-          >
-            {DELETE_PROFILE_HEADING}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={CLOSE_LABEL}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <p className="text-sm text-text">
-          {DELETE_PROFILE_WARNING} {DELETE_UNDO_WARNING}
-        </p>
-        <p className="rounded bg-surface-raised px-3 py-2 font-mono text-sm text-text">
-          {required}
-        </p>
-        <div className="flex flex-col gap-1.5">
-          <label
-            htmlFor="delete-profile-confirm"
-            className="text-xs font-medium text-text-muted"
-          >
-            {DELETE_CONFIRM_INPUT_LABEL}
-          </label>
-          <input
-            ref={inputRef}
-            id="delete-profile-confirm"
-            type="text"
-            value={confirmation}
-            onChange={(e) => setConfirmation(e.target.value)}
-            className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-        {serverError && (
-          <p role="alert" className="text-sm text-danger">
-            {serverError}
-          </p>
-        )}
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text transition-colors duration-150 ease-out hover:bg-surface-raised focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {CANCEL_BUTTON_LABEL}
-          </button>
-          <button
-            type="button"
-            disabled={!confirmed || remove.isPending}
-            onClick={() => remove.mutate()}
-            className="rounded-lg bg-danger px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-danger disabled:opacity-50"
-          >
-            {DELETE_BUTTON_LABEL}
-          </button>
-        </div>
-      </dialog>
-    </div>
+    <Dialog.Root open onOpenChange={handleOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Viewport>
+          <Dialog.Backdrop />
+          <Dialog.Popup className="max-w-md gap-4" initialFocus={inputRef}>
+            <div className="flex items-center justify-between">
+              <Dialog.Title>{DELETE_PROFILE_HEADING}</Dialog.Title>
+              <Dialog.Close
+                render={<IconButton icon={X} label={CLOSE_LABEL} />}
+              />
+            </div>
+            {/* The warning keeps the source's full-contrast `text-text`,
+                not the muted description recipe. */}
+            <Dialog.Description className="text-text">
+              {DELETE_PROFILE_WARNING} {DELETE_UNDO_WARNING}
+            </Dialog.Description>
+            <p className="rounded bg-surface-raised px-3 py-2 font-mono text-sm text-text">
+              {required}
+            </p>
+            <Field.Root>
+              <Field.Label>{DELETE_CONFIRM_INPUT_LABEL}</Field.Label>
+              <Field.Control
+                render={<Input />}
+                ref={inputRef}
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+              />
+            </Field.Root>
+            {serverError && (
+              <p role="alert" className="text-sm text-danger">
+                {serverError}
+              </p>
+            )}
+            <div className="flex justify-end gap-3">
+              <Dialog.Close
+                render={
+                  <Button type="button" variant={ButtonVariant.Secondary}>
+                    {CANCEL_BUTTON_LABEL}
+                  </Button>
+                }
+              />
+              <Button
+                type="button"
+                variant={ButtonVariant.Danger}
+                disabled={!confirmed || remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                {DELETE_BUTTON_LABEL}
+              </Button>
+            </div>
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

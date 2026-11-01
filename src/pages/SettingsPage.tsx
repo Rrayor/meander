@@ -9,6 +9,8 @@ import { WorkDaysSection } from "@/features/settings/WorkDaysSection";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
 import { CategoryThresholdsSection } from "@/features/settings/CategoryThresholdsSection";
 import { ThresholdSection } from "@/features/settings/ThresholdSection";
+import { SETTINGS_HEADING } from "@/lib/labels";
+import { PageHeader } from "@/shared/patterns/PageHeader";
 
 export function SettingsPage() {
   // Profile-scoped sections hold unsaved drafts in local state — keying
@@ -26,11 +28,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <header className="flex items-center border-b border-border px-6 py-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-text">
-          Settings
-        </h1>
-      </header>
+      <PageHeader title={SETTINGS_HEADING} />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="flex max-w-3xl flex-col gap-8">
           <ProfilesSection />

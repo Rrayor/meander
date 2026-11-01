@@ -76,7 +76,10 @@ export const EMPTY_BACKLOG_MESSAGE =
 export const ESTIMATED_HOURS_LABEL = "Estimated hours";
 export const ESTIMATED_MINUTES_LABEL = "Estimated minutes";
 
+export const SETTINGS_HEADING = "Settings";
 export const PROFILES_HEADING = "Profiles";
+export const PROFILES_HEADING_ID = "profiles-heading";
+export const PROFILES_HINT = "Each profile has its own tasks and settings.";
 export const PROFILE_NAME_LABEL = "Profile name";
 export const CREATE_PROFILE_LABEL = "Create profile";
 export const CURRENT_PROFILE_LABEL = "Current";
