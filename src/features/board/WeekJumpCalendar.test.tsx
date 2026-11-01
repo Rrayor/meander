@@ -8,6 +8,7 @@ import {
   weekdaysFrom,
 } from "@/lib/labels";
 import { WeekJumpCalendar } from "@/features/board/WeekJumpCalendar";
+import { monthCells, monthOfIso, shiftMonth } from "@/lib/calendar";
 import { formatIsoDay, shiftDays, todayLocalIso, weekDates } from "@/lib/utils";
 
 const todayIso = todayLocalIso();
@@ -55,9 +56,13 @@ describe("WeekJumpCalendar", () => {
         screen.getByRole("button", { name: formatIsoDay(iso) }).className,
       ).toContain("bg-primary/20");
     }
-    const other = weekDates(shiftDays(days[0], -7), Weekday.Monday);
+    // A rendered in-month day outside the selected week — derived from the
+    // displayed grid so the assertion holds across month boundaries.
+    const outside = monthCells(monthOfIso(todayIso), Weekday.Monday).find(
+      (c) => c.inMonth && !days.includes(c.iso),
+    )!.iso;
     expect(
-      screen.getByRole("button", { name: formatIsoDay(other[0]) }).className,
+      screen.getByRole("button", { name: formatIsoDay(outside) }).className,
     ).not.toContain("bg-primary/20");
   });
 
@@ -103,11 +108,14 @@ describe("WeekJumpCalendar", () => {
     fireEvent.click(
       screen.getByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
     );
-    const older = weekDates(shiftDays(days[0], -35), Weekday.Monday);
-    fireEvent.click(
-      screen.getByRole("button", { name: formatIsoDay(older[0]) }),
-    );
-    expect(onPick).toHaveBeenCalledWith(older[0]);
+    // Any day inside the displayed (previous) month — derived from the
+    // grid rather than a fixed offset so it stays valid at month edges.
+    const older = monthCells(
+      shiftMonth(monthOfIso(todayIso), -1),
+      Weekday.Monday,
+    ).find((c) => c.inMonth)!.iso;
+    fireEvent.click(screen.getByRole("button", { name: formatIsoDay(older) }));
+    expect(onPick).toHaveBeenCalledWith(older);
   });
 
   it("orders the weekday header from the configured week start", () => {

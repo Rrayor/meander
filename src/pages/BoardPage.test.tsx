@@ -22,6 +22,7 @@ import {
 } from "@/api/tasks";
 import { BoardLayout, TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
+  CALENDAR_PREVIOUS_LABEL,
   CARRY_OVER_APPLY_LABEL,
   CARRY_OVER_CARRY_LABEL,
   BOARD_NEXT_WEEK_LABEL,
@@ -428,9 +429,16 @@ describe("BoardPage", () => {
       }),
     );
     const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
-    fireEvent.click(
-      screen.getByRole("button", { name: formatIsoDay(prior[0]) }),
-    );
+    // The calendar opens on the anchor week's month — near a month
+    // boundary the picked week needs navigating back to become visible.
+    const targetDay = () =>
+      screen.queryByRole("button", { name: formatIsoDay(prior[0]) });
+    for (let i = 0; i < 3 && !targetDay(); i++) {
+      fireEvent.click(
+        screen.getByRole("button", { name: CALENDAR_PREVIOUS_LABEL }),
+      );
+    }
+    fireEvent.click(targetDay()!);
 
     await waitFor(() =>
       expect(
