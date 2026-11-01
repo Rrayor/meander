@@ -281,6 +281,11 @@ Feature: Tasks
     Then the task list has 1 task
     And the task list order is "Alpha"
 
+  Scenario: a corrupt dated backlog row never surfaces in the backlog
+    Given an application state on a temporary seeded database
+    And a corrupt dated backlog task titled Corrupt
+    Then a task titled "Corrupt" is not in the backlog
+
   Scenario: another profile's tasks never appear in the backlog list
     Given an application state on a temporary seeded database
     And a task exists on a second profile

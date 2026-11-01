@@ -203,7 +203,7 @@ export function BoardPage() {
     <>
       <BoardHeader
         week={days}
-        anchorIso={anchor}
+        anchorIso={days[0]}
         weekStart={start ?? Weekday.Monday}
         isCurrentWeek={isCurrentWeek}
         totals={taskTotals(tasks ?? [])}

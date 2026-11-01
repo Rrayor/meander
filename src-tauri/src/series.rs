@@ -1732,8 +1732,8 @@ mod tests {
     async fn add_instance(pool: &SqlitePool, profile_id: i64, series_id: i64, iso: &str) -> i64 {
         sqlx::query(
             "INSERT INTO tasks (profile_id, title, description, carry_over_rule, \
-             estimated_minutes, series_id, scheduled_date, sort_order) \
-             VALUES (?, ?, 'custom notes', 'carry', 5, ?, ?, 0)",
+             estimated_minutes, series_id, scheduled_date, placement, sort_order) \
+             VALUES (?, ?, 'custom notes', 'carry', 5, ?, ?, 'weekly_backlog', 0)",
         )
         .bind(profile_id)
         .bind(INSTANCE_FIXTURE_TITLE)
@@ -2081,16 +2081,16 @@ mod tests {
             assert_eq!(moved.description.as_deref(), Some("weekly chore"));
         }
 
-        // The backlog shows one entry per series — the earliest
-        // instance, which sits on the prior segment (spec §146: a
-        // continuing series, not a new entry).
+        // Dated instances are board entities — none of them can be
+        // backlog rows under the pool semantics (spec §57: the
+        // anchor-row workaround is gone).
         let backlog: Vec<i64> = crate::tasks::list(&pool, pid)
             .await
             .unwrap()
             .into_iter()
             .map(|t| t.id)
             .collect();
-        assert!(backlog.contains(&first));
+        assert!(!backlog.contains(&first));
         assert!(!backlog.contains(&second));
         assert!(!backlog.contains(&third));
 

@@ -138,7 +138,7 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
     while friday <= today {
         let done = friday < week_start;
         let result = sqlx::query(
-            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes,              carry_over_rule, series_id, scheduled_date, sort_order)              VALUES (?, 'Weekly review', ?, 30, ?, 'carry', ?, ?,              (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes,              carry_over_rule, series_id, scheduled_date, placement, sort_order)              VALUES (?, 'Weekly review', ?, 30, ?, 'carry', ?, ?, 'weekly_backlog',              (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
         )
         .bind(profile_id)
         .bind(if done { "done" } else { "todo" })
@@ -177,7 +177,7 @@ pub async fn seed_demo(pool: &SqlitePool) -> Result<usize> {
             }
         };
         let result = sqlx::query(
-            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes,              placement, scheduled_date, sort_order) VALUES (?, ?, ?, ?, ?, 'scheduled', ?,              (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
+            "INSERT INTO tasks (profile_id, title, status, estimated_minutes, spent_minutes,              placement, scheduled_date, sort_order) VALUES (?, ?, ?, ?, ?, 'weekly_backlog', ?,              (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tasks WHERE profile_id = ?))",
         )
         .bind(profile_id)
         .bind(TASK_TITLES[idx % TASK_TITLES.len()])
@@ -239,7 +239,7 @@ mod tests {
         assert_eq!(seed_demo(&pool).await.unwrap(), 0);
 
         let earliest: Option<String> = sqlx::query_scalar(
-            "SELECT MIN(scheduled_date) FROM tasks WHERE placement = 'scheduled'",
+            "SELECT MIN(scheduled_date) FROM tasks WHERE scheduled_date IS NOT NULL",
         )
         .fetch_one(&pool)
         .await
@@ -247,7 +247,7 @@ mod tests {
         assert!(earliest.is_some());
         let range: f64 = sqlx::query_scalar(
             "SELECT julianday(MAX(scheduled_date)) - julianday(MIN(scheduled_date)) \
-             FROM tasks WHERE placement = 'scheduled'",
+             FROM tasks WHERE scheduled_date IS NOT NULL",
         )
         .fetch_one(&pool)
         .await
@@ -334,7 +334,7 @@ mod tests {
         let pool = seeded_pool().await;
         seed_demo(&pool).await.unwrap();
         let unfinished_past: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM tasks WHERE placement = 'scheduled' AND status != 'done'              AND scheduled_date < date('now', 'weekday 1', '-7 days')",
+            "SELECT COUNT(*) FROM tasks WHERE scheduled_date IS NOT NULL AND status != 'done'              AND scheduled_date < date('now', 'weekday 1', '-7 days')",
         )
         .fetch_one(&pool)
         .await
@@ -372,14 +372,16 @@ mod tests {
     async fn demo_seed_places_weekly_backlog_and_backlog_rows() {
         let pool = seeded_pool().await;
         seed_demo(&pool).await.unwrap();
-        let weekly: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE placement = 'weekly_backlog'")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        // The weekly backlog column is the undated weekly_backlog pool —
+        // dated rows share the pool but land on their day column.
+        let weekly: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE placement = 'weekly_backlog' AND scheduled_date IS NULL",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(weekly, WEEKLY_BACKLOG_TITLES.len() as i64);
-        // Backlog rows are undated — materialized series instances
-        // keep the backlog placement too, but they carry a date.
+        // Backlog rows are undated by CHECK; the AND is documentation.
         let backlog: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM tasks WHERE placement = 'backlog' AND scheduled_date IS NULL",
         )
