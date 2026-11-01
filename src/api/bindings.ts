@@ -51,7 +51,7 @@ export type Recurrence = { kind: "daily"; interval_days: number } | { kind: "wee
 export type Weekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday"
 export type TaskStatus = "todo" | "in_progress" | "done"
 export type CarryOverRule = "carry" | "return"
-export type TaskPlacement = "backlog" | "weekly_backlog" | "scheduled"
+export type TaskPlacement = "backlog" | "weekly_backlog"
 export type Note = { id: number; task_id: number | null; series_id: number | null; body: string; created_at: string; updated_at: string | null }
 /**
  * The IPC-facing error payload — HTTP-shaped (`{code, kind, message}`) so a

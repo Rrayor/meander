@@ -54,7 +54,7 @@ const instance = (iso: string): Task => ({
   carry_over_rule: CarryOverRule.Return,
   estimated_minutes: null,
   spent_minutes: null,
-  placement: "scheduled",
+  placement: "weekly_backlog",
   scheduled_date: iso,
   series_id: series.id,
   sort_order: 0,
