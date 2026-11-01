@@ -164,6 +164,24 @@ describe("CategoryMultiSelect", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the popup open and the query typed after a filtered pick", async () => {
+    renderSelect();
+    fireEvent.focus(input());
+    await screen.findByRole("option", { name: /Errands/ });
+    fireEvent.change(input(), { target: { value: "e" } });
+    fireEvent.click(screen.getByRole("option", { name: /Errands/ }));
+    // Picking an item must not dismiss the list nor clear the needle —
+    // the hand-rolled control let you toggle several filtered options in
+    // one open cycle.
+    expect(input()).toHaveValue("e");
+    expect(screen.getByRole("option", { name: /Errands/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: removeTaskCategoryLabel(ERRANDS.title),
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("does not offer to create a title that already exists", async () => {
     renderSelect();
     fireEvent.focus(input());

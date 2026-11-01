@@ -116,8 +116,13 @@ export function CategoryMultiSelect({
           // Multiple-mode parity: picking an item while a filter is typed
           // auto-closes a popup whose input sits outside it — the
           // hand-rolled list stayed open (and kept the query), so this
-          // close is refused.
-          if (!nextOpen && details.reason === ITEM_PRESS_REASON) return;
+          // close is refused. cancel() is required, not just ignoring the
+          // request: without it the close path proceeds and clears the
+          // typed input (AriaCombobox unmount-cleanup setInputValue('')).
+          if (!nextOpen && details.reason === ITEM_PRESS_REASON) {
+            details.cancel();
+            return;
+          }
           setOpen(nextOpen);
         }}
         onValueChange={handleValueChange}

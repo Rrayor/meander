@@ -21,11 +21,9 @@ const CUSTOM_SWATCH_VALUE = "__custom__";
 
 // Shared swatch states: a filled circle that takes a ring while checked
 // and scales on hover while unchecked — carried via Base UI's
-// data-checked/data-unchecked attributes. inline-block is required —
-// Base UI radios render <span>, which ignores h-*/w-* utilities while
-// inline and would collapse the swatch to 0×0.
+// data-checked/data-unchecked attributes.
 const SWATCH_CLASSES =
-  "inline-block h-6 w-6 rounded-full transition-transform data-[checked]:ring-2 data-[checked]:ring-text data-[checked]:ring-offset-2 data-[checked]:ring-offset-surface data-[unchecked]:hover:scale-110";
+  "h-6 w-6 rounded-full transition-transform data-[checked]:ring-2 data-[checked]:ring-text data-[checked]:ring-offset-2 data-[checked]:ring-offset-surface data-[unchecked]:hover:scale-110";
 
 /// The shared palette-or-custom color control for threshold colors
 /// (spec §283): swatch radios plus a custom member backed by a

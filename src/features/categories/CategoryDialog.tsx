@@ -90,10 +90,8 @@ const COLOR_LABEL_ID = "category-color-label";
 const DEFAULT_SWATCH_VALUE = "__default__";
 const CUSTOM_SWATCH_VALUE = "__custom__";
 
-// inline-block is required — Base UI radios render <span>, which ignores
-// h-*/w-* utilities while inline and would collapse the swatch to 0×0.
 const SWATCH_CLASSES =
-  "inline-block h-6 w-6 rounded-full transition-all data-[checked]:ring-2 data-[checked]:ring-primary data-[checked]:ring-offset-2 data-[checked]:ring-offset-surface data-[unchecked]:hover:scale-110";
+  "h-6 w-6 rounded-full transition-all data-[checked]:ring-2 data-[checked]:ring-primary data-[checked]:ring-offset-2 data-[checked]:ring-offset-surface data-[unchecked]:hover:scale-110";
 
 interface CategoryDialogProps {
   /** When set, the dialog edits this category; otherwise it creates one. */
@@ -267,7 +265,7 @@ export function CategoryDialog({
                     aria-label={DEFAULT_COLOR_LABEL}
                     // Unlike the palette swatches the default stays put
                     // on hover — the dashed ring is its only affordance.
-                    className="inline-block h-6 w-6 rounded-full border border-dashed border-border transition-all data-[checked]:ring-2 data-[checked]:ring-primary data-[checked]:ring-offset-2 data-[checked]:ring-offset-surface"
+                    className="h-6 w-6 rounded-full border border-dashed border-border transition-all data-[checked]:ring-2 data-[checked]:ring-primary data-[checked]:ring-offset-2 data-[checked]:ring-offset-surface"
                   />
                   {CATEGORY_COLORS.map((color) => (
                     <RadioGroup.Radio
