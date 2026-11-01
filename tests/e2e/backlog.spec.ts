@@ -11,6 +11,7 @@ import {
   RepeatNth,
   RepeatUnit,
   TaskPlacement,
+  TaskSort,
   TaskStatus,
   Weekday,
 } from "@/lib/enums";
@@ -62,6 +63,7 @@ import {
   reorderLabel,
   SEARCH_TASKS_LABEL,
   SORT_TASKS_LABEL,
+  TASK_SORT_LABELS,
   WEEKLY_BACKLOG_LABEL,
 } from "@/lib/labels";
 import {
@@ -1705,7 +1707,12 @@ test("search narrows the rows and the sort pick reorders — no wire calls", asy
 
   await search.fill("");
   const before = (await getInvocations(page)).length;
-  await page.getByLabel(SORT_TASKS_LABEL).selectOption("title");
+  // The sort combobox popup is portaled to <body> — the option is
+  // picked off `page`, matching the other migrated selects.
+  await page.getByRole("combobox", { name: SORT_TASKS_LABEL }).click();
+  await page
+    .getByRole("option", { name: TASK_SORT_LABELS[TaskSort.Title] })
+    .click();
   const rows = await page.locator("li").allTextContents();
   expect(rows[0]).toContain("Alpha");
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "@/api/bindings";
 import { TaskSort } from "@/lib/enums";
-import { matchesSearch, sortTasks } from "@/features/viewFilters";
+import { matchesSearch, sortTasks } from "@/features/board/viewFilters";
 
 const task = (id: number, patch: Partial<Task>): Task => ({
   id,
