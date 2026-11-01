@@ -1,5 +1,5 @@
 import { formatIsoDay } from "@/lib/utils";
-import { BOARD_NEXT_WEEK_LABEL } from "@/lib/labels";
+import { BOARD_NEXT_WEEK_LABEL, CALENDAR_PREVIOUS_LABEL } from "@/lib/labels";
 import {
   ADD_TASK_LABEL,
   BOARD_HEADING,
@@ -77,7 +77,13 @@ describe("Board smoke", () => {
     ).padStart(2, "0")}-${String(prior.getDate()).padStart(2, "0")}`;
 
     await (await $$("header button"))[1].click();
-    await (await $(`aria/${formatIsoDay(priorIso)}`)).click();
+    // The jump calendar opens on the anchor week's month — near a month
+    // boundary the picked week needs navigating back to become visible.
+    const dayButton = () => $(`aria/${formatIsoDay(priorIso)}`);
+    for (let i = 0; i < 3 && !(await dayButton().isExisting()); i++) {
+      await (await $(`aria/${CALENDAR_PREVIOUS_LABEL}`)).click();
+    }
+    await (await dayButton()).click();
     await browser.waitUntil(
       async () => (await $$("th[scope='col']")).length === 7,
     );
