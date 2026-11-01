@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 
 import { monthCells, monthLabel } from "@/lib/calendar";
 import { ComponentSize, Weekday } from "@/lib/enums";
@@ -9,7 +9,7 @@ import { formatIsoDay, todayLocalIso } from "@/lib/utils";
 import { IconButton } from "../ui/IconButton";
 
 import type { MonthCell } from "@/lib/calendar";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { WeekdayLabel } from "./WeekdayPicker";
 
 /** Accessible names for the previous/next month nav buttons. */
@@ -36,6 +36,16 @@ export type MonthCalendarDayClassName = (
   cell: MonthCell,
   state: MonthCalendarDayState,
 ) => string;
+
+/** Full per-cell renderer for domain wrappers whose days aren't the
+ * uniform button DayCell paints — InstanceCalendar's inert spans and
+ * filled/hollow markers. When set, the cell's markup (label, selectable
+ * affordance, marker) is entirely the callback's; the calendar still
+ * supplies the nav, weekday header, and grid. */
+export type MonthCalendarRenderDay = (
+  cell: MonthCell,
+  state: MonthCalendarDayState,
+) => ReactNode;
 
 // shared/ cannot import @/lib/labels (layering rule, eslint.config.js),
 // so the nav copy defaults mirror CALENDAR_PREVIOUS_LABEL /
@@ -101,6 +111,9 @@ interface MonthCalendarProps extends Omit<
   /** Extra classes per day cell, applied last so domain wrappers can
    * restyle cells (week bands, hollow rings) without baked variants. */
   dayClassName?: MonthCalendarDayClassName;
+  /** Replaces the default DayCell per cell — see the type's note. The
+      callback owns onSelect wiring for the cells it renders. */
+  renderDay?: MonthCalendarRenderDay;
 }
 
 interface DayCellProps {
@@ -163,6 +176,7 @@ export function MonthCalendar({
   navLabels = DEFAULT_NAV_LABELS,
   formatDay = defaultFormatDay,
   dayClassName,
+  renderDay,
   className,
   ...rest
 }: Readonly<MonthCalendarProps>) {
@@ -212,17 +226,27 @@ export function MonthCalendar({
             </span>
           );
         })}
-        {cells.map((cell) => (
-          <DayCell
-            key={cell.iso}
-            cell={cell}
-            selected={cell.iso === selectedDate}
-            marked={markedDates?.has(cell.iso) ?? false}
-            today={cell.iso === todayIso}
-            onSelect={onSelect}
-            dayClassName={dayClassName}
-          />
-        ))}
+        {cells.map((cell) => {
+          const state: MonthCalendarDayState = {
+            selected: cell.iso === selectedDate,
+            marked: markedDates?.has(cell.iso) ?? false,
+            today: cell.iso === todayIso,
+            inMonth: cell.inMonth,
+          };
+          return renderDay ? (
+            <Fragment key={cell.iso}>{renderDay(cell, state)}</Fragment>
+          ) : (
+            <DayCell
+              key={cell.iso}
+              cell={cell}
+              selected={state.selected}
+              marked={state.marked}
+              today={state.today}
+              onSelect={onSelect}
+              dayClassName={dayClassName}
+            />
+          );
+        })}
       </div>
     </div>
   );

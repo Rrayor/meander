@@ -267,11 +267,21 @@ describe("BacklogPage", () => {
       await screen.findByRole("heading", { name: EDIT_TASK_HEADING }),
     ).toBeInTheDocument();
 
+    // The open dialog is a modal — the page behind it is inert, so the
+    // switcher is reached through the hidden-elements query. The switch
+    // still fires: real users can't reach it, but the regression guard
+    // covers the programmatic path.
     fireEvent.click(
-      screen.getByRole("button", { name: new RegExp(FIRST_PROFILE.name) }),
+      screen.getByRole("button", {
+        name: new RegExp(FIRST_PROFILE.name),
+        hidden: true,
+      }),
     );
     fireEvent.click(
-      await screen.findByRole("menuitem", { name: SECOND_PROFILE.name }),
+      await screen.findByRole("menuitem", {
+        name: SECOND_PROFILE.name,
+        hidden: true,
+      }),
     );
 
     await waitFor(() => expect(screen.getByText(TITLE_B)).toBeInTheDocument());

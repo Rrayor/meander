@@ -45,7 +45,11 @@ describe("Task notes smoke", () => {
     // document-wide and "Close" also hits the backdrop's "Close dialog",
     // so match the exact aria-label inside the open dialog instead.
     const closeDialog = async () =>
-      (await $(`dialog[open] button[aria-label='${CLOSE_LABEL}']`)).click();
+      (
+        await $(
+          `:is(dialog, [role='dialog']) button[aria-label='${CLOSE_LABEL}']`,
+        )
+      ).click();
     await closeDialog();
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
     await browser.waitUntil(async () =>

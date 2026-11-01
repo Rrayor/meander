@@ -40,7 +40,7 @@ describe("Series instance smoke", () => {
     );
 
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
-    const dialog = "dialog[open]";
+    const dialog = `:is(${OPEN_DIALOG})`;
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

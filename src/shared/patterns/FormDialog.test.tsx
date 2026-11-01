@@ -9,6 +9,7 @@ const TITLE = "Edit category";
 const CLOSE_LABEL = "Close dialog";
 const BODY_TEXT = "Form body";
 const FOOTER_LABEL = "Save changes";
+const ACTION_LABEL = "Header action";
 
 const dialog = () => screen.getByRole("dialog");
 
@@ -16,7 +17,9 @@ interface RenderFormDialogOptions {
   open?: boolean;
   onClose?: () => void;
   footer?: React.ReactNode;
+  headerActions?: React.ReactNode;
   initialFocus?: ComponentProps<typeof FormDialog>["initialFocus"];
+  popupRef?: ComponentProps<typeof FormDialog>["popupRef"];
 }
 
 const DEFAULT_FOOTER = <button type="button">{FOOTER_LABEL}</button>;
@@ -113,6 +116,23 @@ describe("FormDialog", () => {
     fireEvent.click(dialog());
     fireEvent.click(screen.getByText(BODY_TEXT));
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("renders headerActions before the close button", () => {
+    renderFormDialog({
+      headerActions: <button type="button">{ACTION_LABEL}</button>,
+    });
+    const action = screen.getByRole("button", { name: ACTION_LABEL });
+    const close = screen.getByRole("button", { name: CLOSE_LABEL });
+    expect(
+      action.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("forwards popupRef to the popup element", () => {
+    const popupRef = { current: null as HTMLDivElement | null };
+    renderFormDialog({ popupRef });
+    expect(popupRef.current).toBe(dialog());
   });
 
   it("moves open focus to the initialFocus target", async () => {

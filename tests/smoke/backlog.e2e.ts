@@ -3,6 +3,11 @@ import { dirname, join } from "node:path";
 
 import { PAGE_SIZE } from "@/lib/constants";
 import { ROUTES } from "@/lib/routes";
+
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either.
+const OPEN_DIALOG = "dialog, [role='dialog']";
 import {
   NAV_LABEL,
   MOVE_TO_DATE_LABEL,
@@ -108,7 +113,7 @@ describe("Backlog smoke", () => {
       timeout: 10000,
     });
     await (await row()).click();
-    const dialog = () => $("dialog");
+    const dialog = () => $(OPEN_DIALOG);
     await browser.waitUntil(async () => (await dialog()).isDisplayed(), {
       timeout: 10000,
     });
@@ -116,7 +121,7 @@ describe("Backlog smoke", () => {
       await (await dialog()).$(`input[type='date']`)
     ).setValue("2027-03-15");
     await (await (await dialog()).$(`button=${MOVE_TO_DATE_LABEL}`)).click();
-    await browser.waitUntil(async () => (await $$("dialog")).length === 0, {
+    await browser.waitUntil(async () => (await $$(OPEN_DIALOG)).length === 0, {
       timeout: 15000,
     });
     // Scheduled tasks leave the backlog list entirely (§24).
