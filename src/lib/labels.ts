@@ -75,6 +75,8 @@ export const addToWeekLabel = (title: string) =>
 export const CREATE_TASK_LABEL = "Create task";
 export const EMPTY_BACKLOG_MESSAGE =
   "No tasks yet — created tasks will appear here.";
+export const BACKLOG_HEADING = "Backlog";
+export const BACKLOG_SUBTITLE = "Tasks waiting to be planned";
 export const ESTIMATED_HOURS_LABEL = "Estimated hours";
 export const ESTIMATED_MINUTES_LABEL = "Estimated minutes";
 
