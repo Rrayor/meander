@@ -831,7 +831,7 @@ pub async fn list(pool: &SqlitePool, profile_id: i64) -> Result<Vec<Task>> {
     // through `succeeded_by`.
     Ok(sqlx::query_as::<_, Task>(
         "SELECT * FROM tasks WHERE profile_id = ? AND placement = 'backlog' \
-         ORDER BY sort_order, id",
+         AND scheduled_date IS NULL ORDER BY sort_order, id",
     )
     .bind(profile_id)
     .fetch_all(pool)

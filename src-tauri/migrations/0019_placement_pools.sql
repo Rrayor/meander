@@ -22,8 +22,14 @@ INSERT INTO tasks_new (id, profile_id, title, description, status,
     scheduled_date, series_id, sort_order, created_at, updated_at)
 SELECT id, profile_id, title, description, status, carry_over_rule,
     estimated_minutes, spent_minutes,
-    CASE WHEN placement = 'scheduled' THEN 'weekly_backlog' ELSE placement END,
+    -- Any dated row is a board entity — including backlog rows carrying
+    -- stray dates that older writes could leave behind.
+    -- allow-rewrite: tasks.placement
+    CASE WHEN scheduled_date IS NOT NULL OR placement = 'scheduled'
+         THEN 'weekly_backlog' ELSE placement END,
     scheduled_date, series_id, sort_order, created_at, updated_at
 FROM tasks;
 DROP TABLE tasks;
 ALTER TABLE tasks_new RENAME TO tasks;
+CREATE INDEX idx_tasks_profile ON tasks (profile_id);
+CREATE INDEX idx_tasks_series ON tasks (series_id);

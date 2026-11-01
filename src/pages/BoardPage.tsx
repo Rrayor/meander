@@ -437,10 +437,7 @@ export function BoardPage() {
     ];
     const task = tasks?.find((t) => t.id === active.id);
     if (!task) return;
-    const placement =
-      col === "weekly-backlog"
-        ? TaskPlacement.WeeklyBacklog
-        : TaskPlacement.WeeklyBacklog;
+    const placement = TaskPlacement.WeeklyBacklog;
     const date = col === "weekly-backlog" ? null : col;
     if (
       task.placement === placement &&
