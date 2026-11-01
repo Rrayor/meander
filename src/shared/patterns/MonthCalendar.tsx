@@ -12,7 +12,8 @@ import type { MonthCell } from "@/lib/calendar";
 import type { ComponentProps } from "react";
 import type { WeekdayLabel } from "./WeekdayPicker";
 
-/** Accessible names for the previous/next month nav buttons. */
+/** Accessible names for the previous/next month nav buttons — required,
+ * callers pass the labels registry copy. */
 export interface MonthCalendarNavLabels {
   previous: string;
   next: string;
@@ -45,10 +46,6 @@ export type MonthCalendarDayClassName = (
 // (InstanceCalendar, WeekJumpCalendar) so labels.ts stays the single
 // source of copy — the same arrangement WeekdayPicker documents for
 // `formatDay`.
-export const DEFAULT_NAV_LABELS: MonthCalendarNavLabels = {
-  previous: "Previous month",
-  next: "Next month",
-};
 
 // Weekday is declared Monday-first; the header row rotates it to the
 // caller's weekStart — the same rotation weekdaysFrom() performs on
@@ -95,7 +92,7 @@ interface MonthCalendarProps extends Omit<
   onMonthShift(delta: number): void;
   /** Nav button accessible names — defaults mirror the labels registry
    * (`CALENDAR_PREVIOUS_LABEL` / `CALENDAR_NEXT_LABEL`). */
-  navLabels?: MonthCalendarNavLabels;
+  navLabels: MonthCalendarNavLabels;
   /** Column-header copy — defaults derive from the Weekday wire name. */
   formatDay?: (day: Weekday) => WeekdayLabel;
   /** Extra classes per day cell, applied last so domain wrappers can
@@ -160,7 +157,7 @@ export function MonthCalendar({
   markedDates,
   onSelect,
   onMonthShift,
-  navLabels = DEFAULT_NAV_LABELS,
+  navLabels,
   formatDay = defaultFormatDay,
   dayClassName,
   className,

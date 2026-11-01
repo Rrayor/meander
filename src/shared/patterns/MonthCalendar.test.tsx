@@ -5,7 +5,7 @@ import { monthLabel, monthOfIso } from "@/lib/calendar";
 import { Weekday } from "@/lib/enums";
 import { formatIsoDay, todayLocalIso } from "@/lib/utils";
 
-import { DEFAULT_NAV_LABELS, MonthCalendar } from "./MonthCalendar";
+import { MonthCalendar } from "./MonthCalendar";
 
 // November 2026 opens on a Sunday: a Monday-start grid pads with
 // 2026-10-26…31 while a Sunday-start grid begins on the 1st itself.
@@ -34,6 +34,7 @@ function renderCalendar({
   weekStart = Weekday.Monday,
   onSelect = vi.fn(),
   onMonthShift = vi.fn(),
+  navLabels = { previous: "back", next: "forward" },
   ...rest
 }: Partial<Parameters<typeof MonthCalendar>[0]> = {}) {
   return render(
@@ -42,6 +43,7 @@ function renderCalendar({
       weekStart={weekStart}
       onSelect={onSelect}
       onMonthShift={onMonthShift}
+      navLabels={navLabels}
       {...rest}
     />,
   );
@@ -72,13 +74,9 @@ describe("MonthCalendar", () => {
   it("shifts the month through onMonthShift", () => {
     const onMonthShift = vi.fn();
     renderCalendar({ onMonthShift });
-    fireEvent.click(
-      screen.getByRole("button", { name: DEFAULT_NAV_LABELS.previous }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "back" }));
     expect(onMonthShift).toHaveBeenCalledWith(-1);
-    fireEvent.click(
-      screen.getByRole("button", { name: DEFAULT_NAV_LABELS.next }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "forward" }));
     expect(onMonthShift).toHaveBeenCalledWith(1);
   });
 
@@ -177,6 +175,7 @@ describe("MonthCalendar", () => {
         weekStart={Weekday.Monday}
         onSelect={vi.fn()}
         onMonthShift={vi.fn()}
+        navLabels={{ previous: "back", next: "forward" }}
       />,
     );
     expect(screen.getByText(monthLabel(2026, 11))).toBeInTheDocument();
