@@ -1,5 +1,6 @@
 import {
   ADD_TASK_LABEL,
+  BOARD_HEADING,
   CALENDAR_NEXT_LABEL,
   NAV_LABEL,
   CREATE_TASK_LABEL,
@@ -19,8 +20,10 @@ describe("Series instance smoke", () => {
     const taskTitle = `Smoke series ${Date.now()}`;
 
     const nav = await $(`aria/${NAV_LABEL}`);
-    const backlogRoute = ROUTES.find(({ label }) => label === "Backlog")!;
-    await nav.$(`=${backlogRoute.label}`).click();
+    // A created-with-schedule task is a dated board entity — its first
+    // occurrence lands on today's column, never in the backlog (§57).
+    const boardRoute = ROUTES.find(({ label }) => label === BOARD_HEADING)!;
+    await nav.$(`=${boardRoute.label}`).click();
 
     await (await $(`aria/${ADD_TASK_LABEL}`)).click();
     await (await $("#new-task-title-input")).setValue(taskTitle);
@@ -67,8 +70,8 @@ describe("Series instance smoke", () => {
     // Cleanup: delete the whole series through the real backend. The
     // delete affordance lives in the read-only view, so reopen the dialog.
     await browser.keys("Escape");
-    // The materialized instance also lists in the backlog with the same
-    // title — either row opens a series-instance dialog for the cleanup.
+    // The materialized instance also renders on its day column with the
+    // same title — either card opens a series-instance dialog.
     const rows = await $$(`aria/${editTaskLabel(taskTitle)}`);
     await rows[0].click();
     const reopened = await $(dialog);
