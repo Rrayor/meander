@@ -1246,14 +1246,15 @@ describe("EditTaskDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("moves focus into the dialog when it opens in view mode", () => {
+  it("moves focus into the dialog when it opens in view mode", async () => {
     render(
       <QueryClientProvider client={testQueryClient()}>
         <EditTaskDialog task={baseTask} onClose={vi.fn()} />
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole("dialog")).toHaveFocus();
+    // Base UI's FocusManager applies the open-time focus asynchronously.
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
   });
 
   it("does not render the calendar until the instances query resolves", async () => {
@@ -1334,7 +1335,8 @@ describe("EditTaskDialog", () => {
     );
     expect(
       screen.getByRole("radio", { name: STATUS_LABELS.todo }),
-    ).toBeDisabled();
+      // Base UI radios are spans — the disabled state is aria-disabled.
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByLabelText(SPENT_HOURS_LABEL)).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/Title/), {
@@ -1380,7 +1382,7 @@ describe("EditTaskDialog", () => {
     expect(starts).toHaveAttribute("readonly");
     expect(
       screen.getByRole("radio", { name: STATUS_LABELS.todo }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByLabelText(SPENT_HOURS_LABEL)).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/Title/), {
@@ -1428,7 +1430,7 @@ describe("EditTaskDialog", () => {
     renderDialog({ ...baseTask, series_id: baseSeries.id });
     expect(
       screen.getByRole("radio", { name: TASK_SCOPE_FUTURE_LABEL }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("sends an edited schedule with the series-scope save", async () => {

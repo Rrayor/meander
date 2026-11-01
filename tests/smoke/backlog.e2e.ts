@@ -12,6 +12,11 @@ import {
   editTaskLabel,
 } from "@/lib/labels";
 
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either.
+const OPEN_DIALOG = "dialog, [role='dialog']";
+
 /// The smoke backend keeps its DB next to the sandbox binary — one level
 /// up from the exported XDG_CONFIG_HOME.
 const dbPath = join(dirname(process.env.XDG_CONFIG_HOME!), "meander.db");
@@ -108,7 +113,7 @@ describe("Backlog smoke", () => {
       timeout: 10000,
     });
     await (await row()).click();
-    const dialog = () => $("dialog");
+    const dialog = () => $(OPEN_DIALOG);
     await browser.waitUntil(async () => (await dialog()).isDisplayed(), {
       timeout: 10000,
     });
@@ -119,7 +124,7 @@ describe("Backlog smoke", () => {
     )}-${String(now.getDate()).padStart(2, "0")}`;
     await (await (await dialog()).$(`input[type='date']`)).setValue(today);
     await (await (await dialog()).$(`button=${MOVE_TO_DATE_LABEL}`)).click();
-    await browser.waitUntil(async () => (await $$("dialog")).length === 0, {
+    await browser.waitUntil(async () => (await $$(OPEN_DIALOG)).length === 0, {
       timeout: 15000,
     });
     // Scheduled tasks leave the backlog list entirely (§24) — they are

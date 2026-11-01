@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -79,22 +80,28 @@ describe("NotesTabs", () => {
     expect(seriesTab()).toHaveAttribute("tabindex", "0");
   });
 
-  it("arrow keys move focus and activate the adjacent tab", () => {
+  it("arrow keys move focus and activate the adjacent tab", async () => {
     renderTabs();
-    instanceTab().focus();
+    // Programmatic focus must be flushed through act() so the composite's
+    // roving index tracks the focused item before the keydown lands.
+    act(() => instanceTab().focus());
     fireEvent.keyDown(instanceTab(), { key: "ArrowRight" });
-    expect(seriesTab()).toHaveFocus();
+    // The composite moves focus inside a queued microtask.
+    await waitFor(() => expect(seriesTab()).toHaveFocus());
     expect(seriesTab()).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(seriesTab(), { key: "ArrowLeft" });
-    expect(instanceTab()).toHaveFocus();
+    await waitFor(() => expect(instanceTab()).toHaveFocus());
     expect(instanceTab()).toHaveAttribute("aria-selected", "true");
   });
 
-  it("arrow keys wrap around the ends of the tab list", () => {
+  it("arrow keys wrap around the ends of the tab list", async () => {
     renderTabs();
+    act(() => instanceTab().focus());
     fireEvent.keyDown(instanceTab(), { key: "ArrowLeft" });
+    await waitFor(() => expect(seriesTab()).toHaveFocus());
     expect(seriesTab()).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(seriesTab(), { key: "ArrowRight" });
+    await waitFor(() => expect(instanceTab()).toHaveFocus());
     expect(instanceTab()).toHaveAttribute("aria-selected", "true");
   });
 

@@ -173,6 +173,34 @@ describe("MonthCalendar", () => {
     expect(screen.getByText("monday")).toHaveAttribute("title", "full-monday");
   });
 
+  it("replaces the default cells with renderDay output and its state", () => {
+    renderCalendar({
+      selectedDate: IN_MONTH_ISO,
+      renderDay: (cell, state) =>
+        state.inMonth ? (
+          <button
+            type="button"
+            aria-label={cell.iso}
+            aria-current={state.selected ? "date" : undefined}
+          >
+            {cell.day}
+          </button>
+        ) : (
+          <span data-testid={`pad-${cell.iso}`} />
+        ),
+    });
+    // The callback owns the label (raw ISO here), the cell markup, and
+    // which days are interactive — default cells are not rendered.
+    expect(screen.getByRole("button", { name: IN_MONTH_ISO })).toHaveAttribute(
+      "aria-current",
+      "date",
+    );
+    expect(
+      screen.queryByRole("button", { name: formatIsoDay(PAD_ISO) }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId(`pad-${PAD_ISO}`)).toBeInTheDocument();
+  });
+
   it("follows the month prop when it changes", () => {
     const { rerender } = renderCalendar();
     rerender(

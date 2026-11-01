@@ -32,7 +32,9 @@ export const PROFILE_NAME_REQUIRED_MESSAGE = "Profile name is required";
 export const NEW_TASK_HEADING = "New task";
 export const EDIT_TASK_HEADING = "Edit task";
 export const TITLE_FIELD_LABEL = "Title";
+export const TITLE_PLACEHOLDER = "e.g. Renew passport";
 export const DESCRIPTION_FIELD_LABEL = "Description";
+export const DESCRIPTION_PLACEHOLDER = "Add details, links, or context";
 export const OPTIONAL_FIELD_LABEL = "(optional)";
 export const ESTIMATED_TIME_LABEL = "Estimated time";
 export const SPENT_TIME_LABEL = "Time spent";
@@ -143,6 +145,9 @@ export const REPEAT_ENDS_BEFORE_START_MESSAGE =
   "Ends must not be before Starts.";
 export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
   "The schedule never occurs on or before this date.";
+// Accessible group names for the chip groups inside the repeat section.
+export const REPEAT_UNIT_GROUP_LABEL = "Repeat unit";
+export const REPEAT_NTH_GROUP_LABEL = "Which occurrence";
 export const REPEAT_UNIT_OPTIONS = [
   { value: RepeatUnit.Day, label: "days" },
   { value: RepeatUnit.Week, label: "weeks" },

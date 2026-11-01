@@ -12,6 +12,11 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either. Scope into it with :is().
+const OPEN_DIALOG = "dialog, [role='dialog']";
+
 // Real end-to-end path: editing a scheduled-but-unpersisted date goes
 // through get_or_create_instance IPC and SQLite — the Edit click is what
 // materializes the row, and the dialog must enter edit mode on it.
@@ -30,7 +35,7 @@ describe("Series instance smoke", () => {
     // Expanding the repeat section emits a daily schedule by default, so
     // tomorrow is a scheduled-but-unpersisted occurrence.
     await (
-      await $("dialog[open] button[aria-controls$='-repeat-panel']")
+      await $(`:is(${OPEN_DIALOG}) button[aria-controls$='-repeat-panel']`)
     ).click();
     await (await $(`aria/${CREATE_TASK_LABEL}`)).click();
     await browser.waitUntil(async () =>
@@ -38,7 +43,7 @@ describe("Series instance smoke", () => {
     );
 
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
-    const dialog = "dialog[open]";
+    const dialog = `:is(${OPEN_DIALOG})`;
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
