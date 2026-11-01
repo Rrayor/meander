@@ -1067,6 +1067,20 @@ fn task_creation_failed(world: &mut MeanderWorld) {
     assert!(world.error.is_some(), "creation unexpectedly succeeded");
 }
 
+#[then(expr = "a task titled {string} is not in the backlog")]
+fn task_titled_not_in_backlog(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    let found = world
+        .rt()
+        .block_on(meander_lib::tasks::list(&pool, active))
+        .expect("task list failed")
+        .iter()
+        .any(|t| t.title == title);
+    assert!(!found, "{title} must not be a backlog row");
+}
+
 #[then(expr = "a task titled {string} exists")]
 fn task_titled_exists_anywhere(world: &mut MeanderWorld, title: String) {
     task_by_title(world, &title);

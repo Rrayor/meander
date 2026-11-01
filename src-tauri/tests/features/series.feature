@@ -8,6 +8,7 @@ Feature: Repeating tasks
     When I create a task titled "Standup" repeating weekly on Monday
     Then the task creation succeeds
     And a task titled "Standup" exists
+    And a task titled "Standup" is not in the backlog
     And Standup repeats weekly on Monday
 
   Scenario: making an existing task repeat

@@ -70,7 +70,7 @@ import {
 } from "@/lib/errors";
 import { ROUTES } from "@/lib/routes";
 
-import { WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
+import { todayLocalIso, WEEKDAYS_BY_JS_DAY } from "@/lib/utils";
 
 import { expect, test } from "./fixtures";
 import type { Locator } from "@playwright/test";
@@ -82,6 +82,8 @@ import {
 } from "./stubs";
 
 const TITLE_DRAFT_NOTES = "Draft weekly reflection notes";
+const TITLE_WEEKLY_REPEAT = "Weekly standup";
+const DB_PATH = "/data/main.db";
 const WEEK_UNIT = REPEAT_UNIT_OPTIONS.find((o) => o.value === RepeatUnit.Week)!;
 const MONTH_UNIT = REPEAT_UNIT_OPTIONS.find(
   (o) => o.value === RepeatUnit.Month,
@@ -1711,4 +1713,59 @@ test("search narrows the rows and the sort pick reorders — no wire calls", asy
 
   // View-time transforms fire no backend traffic.
   expect(await getInvocations(page)).toHaveLength(before);
+});
+
+test("a task created with a repeat lands on the board, not in the backlog", async ({
+  page,
+}) => {
+  // Pool semantics (spec §57): a dated task is a board entity — it never
+  // becomes a backlog row, it renders on its day column instead.
+  const today = todayLocalIso();
+  const seriesTask = {
+    ...tasks[0],
+    id: 42,
+    title: TITLE_WEEKLY_REPEAT,
+    placement: TaskPlacement.WeeklyBacklog,
+    scheduled_date: today,
+    series_id: 7,
+  };
+  await stubTauriCommands(page, {
+    [COMMANDS.listTaskNotes]: [],
+    [COMMANDS.listSeriesNotes]: [],
+    [COMMANDS.listTaskSeries]: [],
+    [COMMANDS.listSeriesInstances]: [],
+    [COMMANDS.listTasks]: stubSequence([[], []]),
+    [COMMANDS.currentProfile]: current,
+    [COMMANDS.currentDbPath]: DB_PATH,
+    [COMMANDS.weekStart]: "monday",
+    [COMMANDS.listWeekTasks]: [seriesTask],
+    [COMMANDS.listTaskCategories]: [],
+    [COMMANDS.listCategories]: [],
+    [COMMANDS.createTask]: seriesTask,
+  });
+  await page.goto(`/#${backlogPath}`);
+
+  await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Title/).fill(TITLE_WEEKLY_REPEAT);
+  await dialog
+    .getByRole("button", { name: new RegExp(REPEAT_SECTION_LABEL) })
+    .click();
+  await dialog.getByRole("button", { name: CREATE_TASK_LABEL }).click();
+
+  // The created series task is not a backlog row — it lives on the board.
+  await expect(dialog).toBeHidden();
+  expect(
+    await page
+      .getByRole("button", { name: editTaskLabel(TITLE_WEEKLY_REPEAT) })
+      .count(),
+  ).toBe(0);
+  await page
+    .getByRole("link", {
+      name: ROUTES.find(({ label }) => label === "Board")!.label,
+    })
+    .click();
+  await expect(
+    page.getByRole("button", { name: editTaskLabel(TITLE_WEEKLY_REPEAT) }),
+  ).toBeVisible();
 });
