@@ -2731,12 +2731,13 @@ mod tests {
         // Dated tasks are board entities — even a corrupt backlog+date
         // row (no write path produces one) stays invisible to list().
         let (pool, pid) = seeded_pool().await;
-        let dated = create(&pool, pid, &task("Dated")).await.unwrap();
+        let dated = create(&pool, pid, &task(TITLE_A)).await.unwrap();
         schedule(&pool, pid, dated.id, "2026-10-30").await.unwrap();
         sqlx::query(
-            "INSERT INTO tasks (profile_id, title, placement, scheduled_date)              VALUES (?, 'Corrupt', 'backlog', '2026-10-31')",
+            "INSERT INTO tasks (profile_id, title, placement, scheduled_date)              VALUES (?, ?, 'backlog', '2026-10-31')",
         )
         .bind(pid)
+        .bind(TITLE_B)
         .execute(&pool)
         .await
         .unwrap();
@@ -2747,8 +2748,8 @@ mod tests {
             .into_iter()
             .map(|t| t.title.to_string())
             .collect();
-        assert!(!titles.contains(&"Dated".to_string()));
-        assert!(!titles.contains(&"Corrupt".to_string()));
+        assert!(!titles.contains(&TITLE_A.to_string()));
+        assert!(!titles.contains(&TITLE_B.to_string()));
     }
 
     #[tokio::test]
