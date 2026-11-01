@@ -2,11 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useForm } from "react-hook-form";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  DurationField,
-  HOURS_UNIT_CAPTION,
-  MINUTES_UNIT_CAPTION,
-} from "./DurationField";
+import { DurationField } from "./DurationField";
 
 const GROUP_LABEL = "Estimated time";
 const ID_PREFIX = "edit-task-est";
@@ -20,10 +16,8 @@ interface FormValues {
   estMinutes: string;
 }
 
-const hoursInput = () =>
-  screen.getByRole("spinbutton", { name: HOURS_UNIT_CAPTION });
-const minutesInput = () =>
-  screen.getByRole("spinbutton", { name: MINUTES_UNIT_CAPTION });
+const hoursInput = () => screen.getByRole("spinbutton", { name: "h" });
+const minutesInput = () => screen.getByRole("spinbutton", { name: "min" });
 
 interface HarnessProps {
   inputLabels?: { hours: string; minutes: string };
@@ -49,6 +43,7 @@ function Harness({
     <form onSubmit={handleSubmit(onSubmit)}>
       <DurationField
         label={GROUP_LABEL}
+        captions={{ hours: "h", minutes: "min" }}
         idPrefix={ID_PREFIX}
         names={{ hours: "estHours", minutes: "estMinutes" }}
         register={

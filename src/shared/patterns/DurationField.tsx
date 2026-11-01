@@ -32,27 +32,21 @@ import type { FieldValues, Path, UseFormRegister } from "react-hook-form";
 // `names` carries the react-hook-form paths; summing to minutes stays
 // in the caller.
 
-// Unit captions name the two controls inside the legend-named group.
-// lib/labels is banned in shared/ and the prop signature carries no
-// per-input labels, so the captions are exported constants — tests
-// assert against them instead of duplicating the literals. Call sites
-// whose inputs were originally aria-labeled (task estimate/spent) pass
-// `inputLabels` instead: aria-label wins over the htmlFor caption, so
-// the accessible name stays the full "Estimated hours"-style name while
-// the visible caption remains "h"/"min".
-export const HOURS_UNIT_CAPTION = "h";
-export const MINUTES_UNIT_CAPTION = "min";
-
-// One entry per input: `key` doubles as the `names` key and the
-// `{idPrefix}-{key}` id suffix. Mapped so the Field.Root pair cell is
-// written once.
-const UNITS = [
-  { key: "hours", caption: HOURS_UNIT_CAPTION },
-  { key: "minutes", caption: MINUTES_UNIT_CAPTION },
-] as const;
+// Call sites whose inputs were originally aria-labeled (task
+// estimate/spent) pass `inputLabels`: aria-label wins over the htmlFor
+// caption, so the accessible name stays the full "Estimated hours"-style
+// name while the visible caption remains "h"/"min".
+// One entry per input: `key` doubles as the `names` key, the
+// `{idPrefix}-{key}` id suffix, and the `captions` lookup. Mapped so
+// the Field.Root pair cell is written once.
+const UNITS = [{ key: "hours" }, { key: "minutes" }] as const;
 
 interface DurationFieldProps<T extends FieldValues> {
   label: string;
+  /** Unit captions naming the two controls — callers pass the labels
+   * registry copy (`HOURS_UNIT_LABEL` / `MINUTES_UNIT_LABEL`); shared/
+   * cannot import it. */
+  captions: { hours: string; minutes: string };
   idPrefix: string;
   names: { hours: Path<T>; minutes: Path<T> };
   register: UseFormRegister<T>;
@@ -68,6 +62,7 @@ interface DurationFieldProps<T extends FieldValues> {
 
 export function DurationField<T extends FieldValues>({
   label,
+  captions,
   idPrefix,
   names,
   register,
@@ -102,7 +97,7 @@ export function DurationField<T extends FieldValues>({
                 {...register(names[unit.key])}
               />
               <label htmlFor={unitId} className="text-xs text-text-muted">
-                {unit.caption}
+                {captions[unit.key]}
               </label>
             </Field.Root>
           );
