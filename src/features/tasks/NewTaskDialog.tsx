@@ -1,93 +1,45 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { addTaskCategory, removeTaskCategory } from "@/api/categories";
 import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import {
-  MAX_DURATION_MINUTES,
-  MAX_TASK_DESCRIPTION_LENGTH,
-  MAX_TASK_TITLE_LENGTH,
-  createTask,
-  updateTask,
-} from "@/api/tasks";
-import {
-  DURATION_RANGE_MESSAGE,
-  TASK_DESCRIPTION_TOO_LONG_MESSAGE,
-  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
-  TASK_TITLE_TOO_LONG_MESSAGE,
-  serverErrorMessage,
-} from "@/lib/errors";
-import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
+import { createTask, updateTask } from "@/api/tasks";
+import { DURATION_RANGE_MESSAGE, serverErrorMessage } from "@/lib/errors";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import { TaskFormFields } from "@/features/tasks/TaskFormFields";
+import {
+  ESTIMATE_DURATION_FIELDS,
+  durationPartsToMinutes,
+  refineDurationRange,
+  taskFieldSchemas,
+} from "@/features/tasks/formSchema";
 import type { NewSeries } from "@/api/bindings";
 import { CarryOverRule, TaskStatus, carryOverToWire } from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
-  CARRY_OVER_FIELD_LABEL,
-  CATEGORIES_FIELD_LABEL,
-  CARRY_OVER_OPTIONS,
   CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
   CREATE_TASK_LABEL,
-  DESCRIPTION_FIELD_LABEL,
-  ESTIMATED_HOURS_LABEL,
-  ESTIMATED_MINUTES_LABEL,
-  ESTIMATED_TIME_LABEL,
-  HOURS_UNIT_LABEL,
-  MINUTES_UNIT_LABEL,
+  DESCRIPTION_PLACEHOLDER,
   NEW_TASK_HEADING,
-  OPTIONAL_FIELD_LABEL,
-  TITLE_FIELD_LABEL,
-  TITLE_REQUIRED_MESSAGE,
+  TITLE_PLACEHOLDER,
 } from "@/lib/labels";
-import { codePointsWithin, unicodeTrim } from "@/lib/utils";
-
-const optionalDurationPart = (unit: string) =>
-  z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
+import { unicodeTrim } from "@/lib/utils";
 
 const schema = z
-  .object({
-    title: z
-      .string()
-      .transform(unicodeTrim)
-      .pipe(
-        z
-          .string()
-          .min(1, TITLE_REQUIRED_MESSAGE)
-          .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
-            message: TASK_TITLE_TOO_LONG_MESSAGE,
-          })
-          .refine((s) => !/\p{Cc}/u.test(s), {
-            message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
-          }),
-      ),
-    description: z
-      .string()
-      .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
-        message: TASK_DESCRIPTION_TOO_LONG_MESSAGE,
-      }),
-    estHours: optionalDurationPart("Hours"),
-    estMinutes: optionalDurationPart("Minutes"),
-    carryOver: z.enum(CarryOverRule),
-  })
+  .object(taskFieldSchemas)
   .superRefine(({ estHours, estMinutes }, ctx) => {
-    if (estHours.trim() === "" && estMinutes.trim() === "") {
-      return;
-    }
-    const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
-    if (total < 1 || total > MAX_DURATION_MINUTES) {
-      for (const field of ["estHours", "estMinutes"] as const) {
-        ctx.addIssue({
-          code: "custom",
-          path: [field],
-          message: DURATION_RANGE_MESSAGE,
-        });
-      }
-    }
+    refineDurationRange(
+      estHours,
+      estMinutes,
+      ESTIMATE_DURATION_FIELDS,
+      DURATION_RANGE_MESSAGE,
+      ctx,
+    );
   });
 
 type FormValues = z.infer<typeof schema>;
@@ -212,18 +164,15 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
     estMinutes,
     carryOver,
   }: FormValues) => {
-    const hasEstimate = estHours.trim() !== "" || estMinutes.trim() !== "";
-    const total = (Number(estHours) || 0) * 60 + (Number(estMinutes) || 0);
     create.mutate({
       title,
       description: unicodeTrim(description) || null,
-      estimated_minutes: hasEstimate ? total : null,
+      estimated_minutes: durationPartsToMinutes(estHours, estMinutes),
       carry_over_rule: carryOverToWire(carryOver),
       series,
     });
   };
 
-  const estimateError = errors.estHours?.message ?? errors.estMinutes?.message;
   const serverError = serverErrorMessage(create.error);
 
   // The backdrop is a real button (pointer + keyboard dismiss) and the panel
@@ -268,167 +217,16 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
           </button>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="new-task-title-input"
-              className="text-xs font-medium text-text-muted"
-            >
-              {TITLE_FIELD_LABEL} *
-            </label>
-            <input
-              id="new-task-title-input"
-              type="text"
-              placeholder="e.g. Renew passport"
-              aria-invalid={!!errors.title}
-              aria-describedby={
-                errors.title ? "new-task-title-error" : undefined
-              }
-              className="w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none ring-primary placeholder:text-text-muted focus:border-primary focus:ring-1"
-              {...register("title")}
-            />
-            {errors.title && (
-              <p
-                id="new-task-title-error"
-                role="alert"
-                className="text-sm text-danger"
-              >
-                {errors.title.message}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="new-task-description"
-              className="text-xs font-medium text-text-muted"
-            >
-              {DESCRIPTION_FIELD_LABEL}{" "}
-              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-            </label>
-            <textarea
-              id="new-task-description"
-              rows={3}
-              placeholder="Add details, links, or context"
-              aria-invalid={!!errors.description}
-              aria-describedby={
-                errors.description ? "new-task-description-error" : undefined
-              }
-              className="w-full resize-none rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-              {...register("description")}
-            />
-            {errors.description && (
-              <p
-                id="new-task-description-error"
-                role="alert"
-                className="text-sm text-danger"
-              >
-                {errors.description.message}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-muted">
-              {CATEGORIES_FIELD_LABEL}{" "}
-              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-            </span>
-            <CategoryMultiSelect
-              idPrefix="new-task"
-              selected={categories}
-              onChange={setCategories}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-text-muted">
-              {ESTIMATED_TIME_LABEL}{" "}
-              <span className="text-text-muted">{OPTIONAL_FIELD_LABEL}</span>
-            </span>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <input
-                  id="new-task-est-hours"
-                  aria-label={ESTIMATED_HOURS_LABEL}
-                  aria-invalid={!!errors.estHours}
-                  aria-describedby={
-                    estimateError ? "new-task-estimate-error" : undefined
-                  }
-                  type="number"
-                  placeholder="0"
-                  className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-                  {...register("estHours")}
-                />
-                <label
-                  htmlFor="new-task-est-hours"
-                  className="text-xs text-text-muted"
-                >
-                  {HOURS_UNIT_LABEL}
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  id="new-task-est-minutes"
-                  aria-label={ESTIMATED_MINUTES_LABEL}
-                  aria-invalid={!!errors.estMinutes}
-                  aria-describedby={
-                    estimateError ? "new-task-estimate-error" : undefined
-                  }
-                  type="number"
-                  placeholder="0"
-                  className="w-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted/60 focus:border-primary focus:ring-1 focus:ring-primary"
-                  {...register("estMinutes")}
-                />
-                <label
-                  htmlFor="new-task-est-minutes"
-                  className="text-xs text-text-muted"
-                >
-                  {MINUTES_UNIT_LABEL}
-                </label>
-              </div>
-            </div>
-            {estimateError && (
-              <p
-                id="new-task-estimate-error"
-                role="alert"
-                className="text-sm text-danger"
-              >
-                {estimateError}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span
-              id="new-task-carry-over-label"
-              className="text-xs font-medium text-text-muted"
-            >
-              {CARRY_OVER_FIELD_LABEL}
-            </span>
-            <Controller
-              name="carryOver"
-              control={control}
-              render={({ field: { value, onChange } }) => (
-                <div
-                  role="radiogroup"
-                  aria-labelledby="new-task-carry-over-label"
-                  className="flex gap-1 rounded-lg border border-border bg-surface-raised p-1"
-                >
-                  {CARRY_OVER_OPTIONS.map(({ value: option, label }) => (
-                    <button
-                      key={option || "ask"}
-                      type="button"
-                      role="radio"
-                      aria-checked={value === option}
-                      onClick={() => onChange(option)}
-                      className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors ${
-                        value === option
-                          ? "bg-primary text-on-primary"
-                          : "text-text-muted hover:text-text"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            />
-          </div>
+          <TaskFormFields
+            idPrefix="new-task"
+            register={register}
+            control={control}
+            errors={errors}
+            categories={categories}
+            onCategoriesChange={setCategories}
+            titlePlaceholder={TITLE_PLACEHOLDER}
+            descriptionPlaceholder={DESCRIPTION_PLACEHOLDER}
+          />
           {!linkedToSeries && (
             <RepeatScheduleFields
               idPrefix="new-task"

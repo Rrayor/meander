@@ -35,7 +35,11 @@ import type { FieldValues, Path, UseFormRegister } from "react-hook-form";
 // Unit captions name the two controls inside the legend-named group.
 // lib/labels is banned in shared/ and the prop signature carries no
 // per-input labels, so the captions are exported constants — tests
-// assert against them instead of duplicating the literals.
+// assert against them instead of duplicating the literals. Call sites
+// whose inputs were originally aria-labeled (task estimate/spent) pass
+// `inputLabels` instead: aria-label wins over the htmlFor caption, so
+// the accessible name stays the full "Estimated hours"-style name while
+// the visible caption remains "h"/"min".
 export const HOURS_UNIT_CAPTION = "h";
 export const MINUTES_UNIT_CAPTION = "min";
 
@@ -52,7 +56,13 @@ interface DurationFieldProps<T extends FieldValues> {
   idPrefix: string;
   names: { hours: Path<T>; minutes: Path<T> };
   register: UseFormRegister<T>;
+  /** Accessible names for the two inputs. Set when the visible "h"/"min"
+      caption must not be the input's name — see the caption note above. */
+  inputLabels?: { hours: string; minutes: string };
   error?: string;
+  /** Explicit id for the error alert — call sites whose tests reference
+      the alert by id pass it; an id is generated otherwise. */
+  errorId?: string;
   disabled?: boolean;
 }
 
@@ -61,7 +71,9 @@ export function DurationField<T extends FieldValues>({
   idPrefix,
   names,
   register,
+  inputLabels,
   error,
+  errorId,
   disabled = false,
 }: Readonly<DurationFieldProps<T>>) {
   const invalid = error != null;
@@ -86,6 +98,7 @@ export function DurationField<T extends FieldValues>({
                 id={unitId}
                 type="number"
                 placeholder="0"
+                aria-label={inputLabels?.[unit.key]}
                 {...register(names[unit.key])}
               />
               <label htmlFor={unitId} className="text-xs text-text-muted">
@@ -95,7 +108,11 @@ export function DurationField<T extends FieldValues>({
           );
         })}
       </div>
-      {error != null && <Field.Error match={true}>{error}</Field.Error>}
+      {error != null && (
+        <Field.Error match={true} id={errorId}>
+          {error}
+        </Field.Error>
+      )}
     </Field.Root>
   );
 }

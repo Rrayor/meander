@@ -20,9 +20,6 @@ import {
 import type { Category } from "@/api/categories";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import {
-  MAX_DURATION_MINUTES,
-  MAX_TASK_DESCRIPTION_LENGTH,
-  MAX_TASK_TITLE_LENGTH,
   deleteTask,
   returnTaskToBacklog,
   scheduleTask,
@@ -32,9 +29,6 @@ import type { Task } from "@/api/tasks";
 import {
   DURATION_RANGE_MESSAGE,
   SPENT_RANGE_MESSAGE,
-  TASK_DESCRIPTION_TOO_LONG_MESSAGE,
-  TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
-  TASK_TITLE_TOO_LONG_MESSAGE,
   serverErrorMessage,
 } from "@/lib/errors";
 import { CategoryMultiSelect } from "@/features/categories/CategoryMultiSelect";
@@ -42,6 +36,15 @@ import { InstanceCalendar } from "@/features/tasks/InstanceCalendar";
 import { NoteList } from "@/features/tasks/NoteList";
 import { NotesTabs } from "@/features/tasks/NotesTabs";
 import { RepeatScheduleFields } from "@/features/tasks/RepeatScheduleFields";
+import {
+  ESTIMATE_DURATION_FIELDS,
+  SPENT_DURATION_FIELDS,
+  durationHoursPart,
+  durationMinutesPart,
+  durationPartsToMinutes,
+  refineDurationRange,
+  taskFieldSchemas,
+} from "@/features/tasks/formSchema";
 import type { NewSeries, TaskSeries, UpdateSeries } from "@/api/bindings";
 import {
   CarryOverRule,
@@ -103,76 +106,28 @@ import {
   TASK_SCOPE_GROUP_LABEL,
   TASK_SCOPE_INSTANCE_LABEL,
   TASK_SCOPE_SERIES_LABEL,
-  TITLE_REQUIRED_MESSAGE,
   auditTimestampsLabel,
   describeRecurrence,
   formatMinutes,
   seriesAuditLabel,
 } from "@/lib/labels";
 import { isScheduledOn } from "@/lib/recurrence";
-import {
-  codePointsWithin,
-  formatDate,
-  formatIsoDay,
-  unicodeTrim,
-} from "@/lib/utils";
-
-const optionalDurationPart = (unit: string) =>
-  z.string().regex(/^\d*$/, `${unit} must be a positive whole number`);
+import { formatDate, formatIsoDay, unicodeTrim } from "@/lib/utils";
 
 const schema = z
   .object({
-    title: z
-      .string()
-      .transform(unicodeTrim)
-      .pipe(
-        z
-          .string()
-          .min(1, TITLE_REQUIRED_MESSAGE)
-          .refine((s) => codePointsWithin(s, MAX_TASK_TITLE_LENGTH), {
-            message: TASK_TITLE_TOO_LONG_MESSAGE,
-          })
-          .refine((s) => !/\p{Cc}/u.test(s), {
-            message: TASK_TITLE_INVALID_CHARACTERS_MESSAGE,
-          }),
-      ),
-    description: z
-      .string()
-      .refine((s) => codePointsWithin(s, MAX_TASK_DESCRIPTION_LENGTH), {
-        message: TASK_DESCRIPTION_TOO_LONG_MESSAGE,
-      }),
-    estHours: optionalDurationPart("Hours"),
-    estMinutes: optionalDurationPart("Minutes"),
-    spentHours: optionalDurationPart("Hours"),
-    spentMinutes: optionalDurationPart("Minutes"),
+    ...taskFieldSchemas,
+    spentHours: durationHoursPart,
+    spentMinutes: durationMinutesPart,
     status: z.enum(TaskStatus),
-    carryOver: z.enum(CarryOverRule),
   })
   .superRefine(({ estHours, estMinutes, spentHours, spentMinutes }, ctx) => {
     // The schema CHECK allows 1–1440 minutes for both duration fields.
     for (const [hours, minutes, fields, message] of [
-      [
-        estHours,
-        estMinutes,
-        ["estHours", "estMinutes"],
-        DURATION_RANGE_MESSAGE,
-      ],
-      [
-        spentHours,
-        spentMinutes,
-        ["spentHours", "spentMinutes"],
-        SPENT_RANGE_MESSAGE,
-      ],
+      [estHours, estMinutes, ESTIMATE_DURATION_FIELDS, DURATION_RANGE_MESSAGE],
+      [spentHours, spentMinutes, SPENT_DURATION_FIELDS, SPENT_RANGE_MESSAGE],
     ] as const) {
-      if (hours.trim() === "" && minutes.trim() === "") {
-        continue;
-      }
-      const total = (Number(hours) || 0) * 60 + (Number(minutes) || 0);
-      if (total < 1 || total > MAX_DURATION_MINUTES) {
-        for (const field of fields) {
-          ctx.addIssue({ code: "custom", path: [field], message });
-        }
-      }
+      refineDurationRange(hours, minutes, fields, message, ctx);
     }
   });
 
@@ -681,12 +636,6 @@ function seriesUpdatePayload(
     end_date: schedule.end_date,
     category_ids: categoryIds,
   };
-}
-
-function toMinutes(hours: string, minutes: string) {
-  return hours.trim() === "" && minutes.trim() === ""
-    ? null
-    : (Number(hours) || 0) * 60 + (Number(minutes) || 0);
 }
 
 // The delete scope picks the command: an instance (or a non-series task)
@@ -1560,7 +1509,10 @@ export function EditTaskDialog({
     const shared = {
       title: values.title,
       description: unicodeTrim(values.description) || null,
-      estimated_minutes: toMinutes(values.estHours, values.estMinutes),
+      estimated_minutes: durationPartsToMinutes(
+        values.estHours,
+        values.estMinutes,
+      ),
       carry_over_rule: carryOverToWire(values.carryOver),
     };
     if (saveScope !== TaskScope.Instance) {
@@ -1584,7 +1536,10 @@ export function EditTaskDialog({
     }
     update.mutate({
       ...shared,
-      spent_minutes: toMinutes(values.spentHours, values.spentMinutes),
+      spent_minutes: durationPartsToMinutes(
+        values.spentHours,
+        values.spentMinutes,
+      ),
       status: values.status,
       series,
     });
