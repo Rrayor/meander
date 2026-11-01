@@ -28,11 +28,15 @@ import {
   ADD_TASK_LABEL,
   ADD_TO_WEEK_LABEL,
   EMPTY_BACKLOG_MESSAGE,
+  PAGINATION_LABEL,
+  PAGINATION_NEXT_LABEL,
+  PAGINATION_PREVIOUS_LABEL,
   STATUS_LABELS,
   addToWeekLabel,
   deleteTaskLabel,
   editTaskLabel,
   formatMinutes,
+  pageXOfYLabel,
   reorderLabel,
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
@@ -41,7 +45,7 @@ import type { Task } from "@/api/tasks";
 import { DeleteButton } from "@/components/DeleteButton";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
-import { Paged } from "@/features/pagination/Pagination";
+import { Paged } from "@/shared/patterns/Pagination";
 
 const STATUS_BADGE = {
   todo: "bg-surface-raised text-text-muted",
@@ -318,7 +322,14 @@ export function BacklogPage() {
           </div>
         )}
         {tasks && tasks.length > 0 && (
-          <Paged key={`${profile?.id}-${sort}-${query}`} items={tasks}>
+          <Paged
+            key={`${profile?.id}-${sort}-${query}`}
+            items={tasks}
+            navLabel={PAGINATION_LABEL}
+            previousLabel={PAGINATION_PREVIOUS_LABEL}
+            nextLabel={PAGINATION_NEXT_LABEL}
+            formatPageIndicator={pageXOfYLabel}
+          >
             {(pageItems) => (
               <DndContext
                 sensors={sensors}

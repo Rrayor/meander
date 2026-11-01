@@ -20,6 +20,9 @@ export const CATEGORY_COLORS = [
 /// Duration bound shared with the backend's CHECK (1–1440 minutes).
 export const MAX_DURATION_MINUTES = 24 * 60;
 
+/// List page size (spec §205/§224) — usePagination slices by this.
+export const PAGE_SIZE = 50;
+
 /// The seeded profile's name — mirrors `DEFAULT_PROFILE_NAME` in
 /// `src-tauri/src/db/seed.rs`.
 export const DEFAULT_PROFILE_NAME = "Default";
