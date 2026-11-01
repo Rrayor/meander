@@ -215,9 +215,9 @@ test("creating a task with a category sends the association", async ({
   await page.getByRole("button", { name: ADD_TASK_LABEL }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox").focus();
-  await dialog
-    .getByRole("option", { name: /Errands/ })
-    .dispatchEvent("mousedown");
+  // The combobox popup is portaled to <body> — the option is picked off
+  // the page, not scoped inside the dialog.
+  await page.getByRole("option", { name: /Errands/ }).click();
   await expect(
     dialog.getByRole("button", { name: "Remove Errands" }),
   ).toBeVisible();

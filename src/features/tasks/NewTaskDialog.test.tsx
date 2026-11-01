@@ -209,7 +209,10 @@ describe("NewTaskDialog", () => {
       .mockResolvedValue(undefined);
     renderDialog();
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fillTitle();
     submit();
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -225,7 +228,10 @@ describe("NewTaskDialog", () => {
       .mockResolvedValue(undefined);
     renderDialog();
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fillTitle();
     submit();
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -247,7 +253,10 @@ describe("NewTaskDialog", () => {
     mockedUpdate.mockResolvedValue({ id: 42, series_id: 7 } as never);
     renderDialog();
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fillTitle();
     submit();
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -278,7 +287,10 @@ describe("NewTaskDialog", () => {
       .mockResolvedValue(undefined);
     renderDialog();
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fillTitle();
     submit();
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -308,8 +320,11 @@ describe("NewTaskDialog", () => {
     );
     renderDialog();
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
-    fireEvent.mouseDown(screen.getByRole("option", { name: /Work/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Work/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fillTitle();
     submit();
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -319,6 +334,9 @@ describe("NewTaskDialog", () => {
         name: removeTaskCategoryLabel(ERRANDS.title),
       }),
     );
+    // Chip removal returns focus to the input, which reopens the
+    // dropdown — close it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     submit();
     await waitFor(() =>
       expect(mockedRemoveTaskCategory).toHaveBeenCalledWith(42, ERRANDS.id),
@@ -343,7 +361,10 @@ describe("NewTaskDialog", () => {
     mockedCreate.mockResolvedValue({ id: 42 } as never);
     renderDialog();
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fillTitle();
     submit();
     await waitFor(() =>
