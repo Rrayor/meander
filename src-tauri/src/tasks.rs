@@ -2727,6 +2727,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_never_returns_a_dated_task() {
+        // Dated tasks are board entities — even a corrupt backlog+date
+        // row (no write path produces one) stays invisible to list().
+        let (pool, pid) = seeded_pool().await;
+        let dated = create(&pool, pid, &task("Dated")).await.unwrap();
+        schedule(&pool, pid, dated.id, "2026-10-30").await.unwrap();
+        sqlx::query(
+            "INSERT INTO tasks (profile_id, title, placement, scheduled_date)              VALUES (?, 'Corrupt', 'backlog', '2026-10-31')",
+        )
+        .bind(pid)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let titles: Vec<String> = list(&pool, pid)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|t| t.title.to_string())
+            .collect();
+        assert!(!titles.contains(&"Dated".to_string()));
+        assert!(!titles.contains(&"Corrupt".to_string()));
+    }
+
+    #[tokio::test]
     async fn the_backlog_stays_undated_by_write_paths() {
         // No write path can produce backlog+date: scheduling flips the
         // pool, and every backlog transition clears the date — the

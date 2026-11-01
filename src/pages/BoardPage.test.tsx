@@ -294,6 +294,27 @@ describe("BoardPage", () => {
     ).toContain(WEEKLY_BACKLOG_LABEL);
   });
 
+  it("keeps a dated weekly-backlog row off the backlog column", async () => {
+    // A dated task is a board entity — even one pooled weekly_backlog
+    // renders under its day column, never the backlog column (§57).
+    mockedListWeekTasks.mockResolvedValue([
+      { ...weeklyTask, scheduled_date: todayIso },
+    ]);
+    renderBoard();
+
+    const card = await screen.findByRole("button", {
+      name: editTaskLabel(BACKLOG_TITLE),
+    });
+    const cell = card.closest("td")!;
+    const headers =
+      document.querySelectorAll<HTMLTableCellElement>("thead tr th");
+    const headerText = [...headers].find(
+      (th) => th.cellIndex === cell.cellIndex,
+    )?.textContent;
+    expect(headerText).not.toContain(WEEKLY_BACKLOG_LABEL);
+    expect(headerText).toContain(shortWeekdayLabel(todayIso));
+  });
+
   it("totals tasks with missing estimate and spent values as zero", async () => {
     mockedListWeekTasks.mockResolvedValue([
       {

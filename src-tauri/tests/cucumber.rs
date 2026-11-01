@@ -1114,6 +1114,24 @@ fn task_on_default_profile(world: &mut MeanderWorld) {
     assert_eq!(tasks[0].profile_id, active);
 }
 
+#[given(expr = "a corrupt dated backlog task titled {word}")]
+fn corrupt_dated_backlog_task(world: &mut MeanderWorld, title: String) {
+    let state = world.state.as_ref().expect("no app state in world");
+    let pool = state.pool();
+    let active = state.active_profile_id();
+    world
+        .rt()
+        .block_on(
+            sqlx::query(
+                "INSERT INTO tasks (profile_id, title, placement, scheduled_date)                  VALUES (?, ?, 'backlog', '2026-10-30')",
+            )
+            .bind(active)
+            .bind(&title)
+            .execute(&pool),
+        )
+        .expect("corrupt insert failed");
+}
+
 #[given(expr = "a backlog task titled {word}")]
 fn backlog_task(world: &mut MeanderWorld, title: String) {
     create_task(world, &title);
