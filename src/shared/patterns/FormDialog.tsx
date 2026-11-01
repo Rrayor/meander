@@ -4,6 +4,7 @@ import { Dialog } from "../ui/Dialog";
 import { IconButton } from "../ui/IconButton";
 
 import type { ReactNode } from "react";
+import type { DialogPopupProps } from "../ui/Dialog";
 
 // Composed form surface shared by the edit/create dialogs (NewTaskDialog,
 // CategoryDialog, EditTaskDialog): the Dialog overlay chrome plus the
@@ -29,6 +30,9 @@ interface FormDialogProps {
   children: ReactNode;
   /** Action row content — caller composes Buttons (cancel/submit). */
   footer?: ReactNode;
+  /** Element receiving focus on open — forwarded to Dialog.Popup
+      (Base UI `initialFocus`). Omit for the default first-tabbable. */
+  initialFocus?: DialogPopupProps["initialFocus"];
 }
 
 export function FormDialog({
@@ -38,6 +42,7 @@ export function FormDialog({
   closeLabel,
   children,
   footer,
+  initialFocus,
 }: Readonly<FormDialogProps>) {
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) onClose();
@@ -48,7 +53,7 @@ export function FormDialog({
       <Dialog.Portal>
         <Dialog.Viewport>
           <Dialog.Backdrop />
-          <Dialog.Popup>
+          <Dialog.Popup initialFocus={initialFocus}>
             <div className="flex items-center justify-between">
               <Dialog.Title>{title}</Dialog.Title>
               <Dialog.Close

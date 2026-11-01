@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -18,10 +18,14 @@ import {
   taskFieldSchemas,
 } from "@/features/tasks/formSchema";
 import type { NewSeries } from "@/api/bindings";
-import { CarryOverRule, TaskStatus, carryOverToWire } from "@/lib/enums";
+import {
+  ButtonVariant,
+  CarryOverRule,
+  TaskStatus,
+  carryOverToWire,
+} from "@/lib/enums";
 import {
   CANCEL_BUTTON_LABEL,
-  CLOSE_DIALOG_LABEL,
   CLOSE_LABEL,
   CREATE_TASK_LABEL,
   DESCRIPTION_PLACEHOLDER,
@@ -29,6 +33,8 @@ import {
   TITLE_PLACEHOLDER,
 } from "@/lib/labels";
 import { unicodeTrim } from "@/lib/utils";
+import { FormDialog } from "@/shared/patterns/FormDialog";
+import { Button } from "@/shared/ui/Button";
 
 const schema = z
   .object(taskFieldSchemas)
@@ -44,10 +50,23 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
+// FormDialog's footer row renders outside the body slot, so the submit
+// button associates with the form by id rather than by nesting.
+const NEW_TASK_FORM_ID = "new-task-form";
+// Title input id owned by TaskFormFields (`{idPrefix}-title-input`) —
+// the open-focus target below resolves it.
+const NEW_TASK_TITLE_INPUT_ID = "new-task-title-input";
+
 interface NewTaskDialogProps {
   onClose: () => void;
 }
 
+// Chrome parity comes from the parts: Escape/outside-press dismissal and
+// the focus trap are Dialog behavior (the hand-rolled backdrop button and
+// document keydown listener are gone). Escape pressed inside the open
+// category dropdown still closes only the dropdown — the multiselect
+// stopPropagation()s the keydown before it reaches the Dialog's document
+// listener.
 export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   const queryClient = useQueryClient();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -58,31 +77,16 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
   // a later milestone).
   const [linkedToSeries, setLinkedToSeries] = useState(false);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   const {
     register,
     control,
     handleSubmit,
-    setFocus,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onTouched",
     defaultValues: { carryOver: CarryOverRule.Ask },
   });
-
-  // Focus lands on the first field when the dialog opens — standard modal
-  // behavior.
-  useEffect(() => {
-    setFocus("title");
-  }, [setFocus]);
 
   // Set once create_task succeeds: a failed association leaves the task in
   // place, so a retry must reconcile with it — update the (possibly edited)
@@ -175,90 +179,71 @@ export function NewTaskDialog({ onClose }: Readonly<NewTaskDialogProps>) {
 
   const serverError = serverErrorMessage(create.error);
 
-  // The backdrop is a real button (pointer + keyboard dismiss) and the panel
-  // a native <dialog>; Escape is handled by the document listener above.
+  // The caller mounts this dialog conditionally, so `open` is constant.
+  // Focus lands on the title field on open (standard modal behavior —
+  // FocusManager owns the mechanism now, not a post-mount setFocus).
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label={CLOSE_DIALOG_LABEL}
-        onClick={onClose}
-        tabIndex={-1}
-        className="absolute inset-0 h-full w-full cursor-default bg-black/60"
-      />
-      <dialog
-        open
-        aria-labelledby="new-task-title"
-        className="relative m-0 flex max-h-[90vh] w-full max-w-lg flex-col gap-6 overflow-y-auto rounded-lg border border-border bg-surface p-6 text-text shadow-2xl"
-      >
-        <div className="flex items-center justify-between">
-          <h2
-            id="new-task-title"
-            className="font-title text-lg font-semibold text-text"
-          >
-            {NEW_TASK_HEADING}
-          </h2>
-          <button
+    <FormDialog
+      open
+      onClose={onClose}
+      title={NEW_TASK_HEADING}
+      closeLabel={CLOSE_LABEL}
+      initialFocus={() => document.getElementById(NEW_TASK_TITLE_INPUT_ID)}
+      footer={
+        <>
+          {/* mousedown preventDefault keeps focus in the field on press —
+              otherwise the blur's onTouched validation mounts an alert
+              mid-gesture and the footer slides out from under the
+              pointer, eating the click. */}
+          <Button
             type="button"
+            variant={ButtonVariant.Ghost}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClose}
-            aria-label={CLOSE_LABEL}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <TaskFormFields
+            {CANCEL_BUTTON_LABEL}
+          </Button>
+          <Button
+            type="submit"
+            form={NEW_TASK_FORM_ID}
+            onMouseDown={(e) => e.preventDefault()}
+            disabled={create.isPending || seriesError !== null}
+          >
+            {CREATE_TASK_LABEL}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={NEW_TASK_FORM_ID}
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+      >
+        <TaskFormFields
+          idPrefix="new-task"
+          register={register}
+          control={control}
+          errors={errors}
+          categories={categories}
+          onCategoriesChange={setCategories}
+          titlePlaceholder={TITLE_PLACEHOLDER}
+          descriptionPlaceholder={DESCRIPTION_PLACEHOLDER}
+        />
+        {!linkedToSeries && (
+          <RepeatScheduleFields
             idPrefix="new-task"
-            register={register}
-            control={control}
-            errors={errors}
-            categories={categories}
-            onCategoriesChange={setCategories}
-            titlePlaceholder={TITLE_PLACEHOLDER}
-            descriptionPlaceholder={DESCRIPTION_PLACEHOLDER}
+            onChange={(next, error) => {
+              setSeries(next);
+              setSeriesError(error);
+            }}
           />
-          {!linkedToSeries && (
-            <RepeatScheduleFields
-              idPrefix="new-task"
-              onChange={(next, error) => {
-                setSeries(next);
-                setSeriesError(error);
-              }}
-            />
-          )}
-          {serverError && (
-            <p role="alert" className="text-sm text-danger">
-              {serverError}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-raised hover:text-text"
-            >
-              {CANCEL_BUTTON_LABEL}
-            </button>
-            <button
-              type="submit"
-              disabled={create.isPending || seriesError !== null}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-all hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-            >
-              {CREATE_TASK_LABEL}
-            </button>
-          </div>
-        </form>
-      </dialog>
-    </div>
+        )}
+        {serverError && (
+          <p role="alert" className="text-sm text-danger">
+            {serverError}
+          </p>
+        )}
+      </form>
+    </FormDialog>
   );
 }
