@@ -13,6 +13,11 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either. Scope into it with :is().
+const OPEN_DIALOG = "dialog, [role='dialog']";
+
 // Real end-to-end path: the release build's webview hits the real
 // SQLite backend — the board's column layout and the per-week
 // materialization of a repeating task are exercised, not stubbed.
@@ -49,7 +54,7 @@ describe("Board smoke", () => {
     await (await $("#new-task-title-input")).setValue(title);
     // Expanding the repeat section emits a daily schedule by default.
     await (
-      await $("dialog[open] button[aria-controls$='-repeat-panel']")
+      await $(`:is(${OPEN_DIALOG}) button[aria-controls$='-repeat-panel']`)
     ).click();
     await (await $(`aria/${CREATE_TASK_LABEL}`)).click();
 
@@ -103,11 +108,11 @@ describe("Board smoke", () => {
 
     // Unique per attempt — the sandbox DB persists across wdio retries.
     await (await $(`button=${ADD_TASK_LABEL}`)).click();
-    const dialog = await $("dialog");
+    const dialog = await $(OPEN_DIALOG);
     await browser.waitUntil(() => dialog.isDisplayed());
     await (await dialog.$("#new-task-title-input")).setValue(title);
     await (await dialog.$(`button=${CREATE_TASK_LABEL}`)).click();
-    await browser.waitUntil(async () => !(await $("dialog").isExisting()));
+    await browser.waitUntil(async () => !(await $(OPEN_DIALOG).isExisting()));
 
     // Board-created tasks land in the backlog — the real proof that the
     // create flowed through the backend is finding it there.
@@ -124,8 +129,8 @@ describe("Board smoke", () => {
 
     // Create from the board — lands in the backlog.
     await (await $(`button=${ADD_TASK_LABEL}`)).click();
-    const dialog = () => $("dialog");
-    const noDialog = async () => (await $$("dialog")).length === 0;
+    const dialog = () => $(OPEN_DIALOG);
+    const noDialog = async () => (await $$(OPEN_DIALOG)).length === 0;
     await browser.waitUntil(async () => (await dialog()).isDisplayed());
     await (await (await dialog()).$("#new-task-title-input")).setValue(title);
     await (await (await dialog()).$(`button=${CREATE_TASK_LABEL}`)).click();
