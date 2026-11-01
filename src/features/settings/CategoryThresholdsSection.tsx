@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { cn } from "cn";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -28,6 +29,7 @@ import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Fieldset } from "@/shared/ui/Fieldset";
 import { Input } from "@/shared/ui/Input";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const schema = z.object({
   rows: z.record(
@@ -143,7 +145,7 @@ export function CategoryThresholdsSection() {
   if (categoriesError) {
     return (
       <section aria-labelledby={CATEGORY_THRESHOLDS_HEADING_ID}>
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className={ERROR_TEXT}>
           {errorMessage(categoriesError)}
         </p>
       </section>
@@ -270,7 +272,7 @@ export function CategoryThresholdsSection() {
         })}
       </div>
       {save.isError && (
-        <p role="alert" className="mt-3 text-sm text-error">
+        <p role="alert" className={cn("mt-3", ERROR_TEXT)}>
           {errorMessage(save.error)}
         </p>
       )}

@@ -1,6 +1,7 @@
 import { MonthMode, type Weekday } from "@/lib/enums";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
+  REPEAT_MONTH_MODE_GROUP_LABEL,
   REPEAT_MONTHLY_CLAMP_HINT,
   REPEAT_NTH_GROUP_LABEL,
   REPEAT_NTH_OPTIONS,
@@ -9,6 +10,7 @@ import {
   REPEAT_ON_THE_LABEL,
 } from "@/lib/labels";
 import { Input } from "@/shared/ui/Input";
+import { RadioGroup } from "@/shared/ui/RadioGroup";
 import { ToggleGroup } from "@/shared/ui/ToggleGroup";
 
 import type { RepeatDraft } from "./repeatDraft";
@@ -27,8 +29,14 @@ type MonthlyPatch = Partial<
   Pick<RepeatDraft, "monthMode" | "day" | "nth" | "weekday">
 >;
 
+// The mode radios' classic circle+dot look — the same recipe the other
+// migrated radio groups (SaveScopeFieldset, DeleteConfirmPanel) use.
+const MODE_RADIO_CLASSES = "group flex items-center gap-2 text-xs text-text";
+const MODE_RADIO_CIRCLE_CLASSES =
+  "flex h-4 w-4 items-center justify-center rounded-full border border-border group-data-[checked]:border-primary";
+const MODE_RADIO_DOT_CLASSES = "h-2 w-2 rounded-full bg-primary";
+
 interface MonthlySectionProps {
-  idPrefix: string;
   monthMode: MonthMode;
   day: number;
   nth: number;
@@ -44,7 +52,6 @@ interface MonthlySectionProps {
 // The monthly schedule editor: a day-of-month input against the "On day"
 // mode, and an nth-occurrence segment plus weekday row against "On the".
 export function MonthlySection({
-  idPrefix,
   monthMode,
   day,
   nth,
@@ -71,22 +78,21 @@ export function MonthlySection({
   };
 
   return (
-    <div className="flex flex-col gap-2 pt-1">
+    <RadioGroup.Root
+      aria-label={REPEAT_MONTH_MODE_GROUP_LABEL}
+      className="flex-col items-stretch gap-2 pt-1"
+      value={monthMode}
+      onValueChange={onModeChange}
+    >
       <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-repeat-month-day`}
-          name={`${idPrefix}-repeat-month-mode`}
-          type="radio"
-          checked={monthMode === MonthMode.Day}
-          onChange={() => onModeChange(MonthMode.Day)}
-          className="text-primary focus:ring-0"
-        />
-        <label
-          htmlFor={`${idPrefix}-repeat-month-day`}
-          className="text-xs text-text"
-        >
+        <RadioGroup.Radio value={MonthMode.Day} className={MODE_RADIO_CLASSES}>
+          {/* Circle + mounted-on-check dot mirrors the native
+              accent-primary radio this replaces. */}
+          <span aria-hidden="true" className={MODE_RADIO_CIRCLE_CLASSES}>
+            <RadioGroup.RadioIndicator className={MODE_RADIO_DOT_CLASSES} />
+          </span>
           {REPEAT_ON_DAY_LABEL}
-        </label>
+        </RadioGroup.Radio>
         <Input
           aria-label={REPEAT_DAY_OF_MONTH_LABEL}
           type="number"
@@ -108,20 +114,17 @@ export function MonthlySection({
         </p>
       )}
       <div className="flex items-center gap-2">
-        <input
-          id={`${idPrefix}-repeat-month-weekday`}
-          name={`${idPrefix}-repeat-month-mode`}
-          type="radio"
-          checked={monthMode === MonthMode.Weekday}
-          onChange={() => onModeChange(MonthMode.Weekday)}
-          className="text-primary focus:ring-0"
-        />
-        <label
-          htmlFor={`${idPrefix}-repeat-month-weekday`}
-          className="text-xs text-text"
+        <RadioGroup.Radio
+          value={MonthMode.Weekday}
+          className={MODE_RADIO_CLASSES}
         >
+          {/* Circle + mounted-on-check dot mirrors the native
+              accent-primary radio this replaces. */}
+          <span aria-hidden="true" className={MODE_RADIO_CIRCLE_CLASSES}>
+            <RadioGroup.RadioIndicator className={MODE_RADIO_DOT_CLASSES} />
+          </span>
           {REPEAT_ON_THE_LABEL}
-        </label>
+        </RadioGroup.Radio>
         <ToggleGroup.Root
           aria-label={REPEAT_NTH_GROUP_LABEL}
           className={SEGMENT_GROUP_CLASSES}
@@ -159,6 +162,6 @@ export function MonthlySection({
           ))}
         </ToggleGroup.Root>
       )}
-    </div>
+    </RadioGroup.Root>
   );
 }

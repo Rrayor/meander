@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { cn } from "cn";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -29,6 +30,7 @@ import { Button } from "@/shared/ui/Button";
 import { Field } from "@/shared/ui/Field";
 import { Fieldset } from "@/shared/ui/Fieldset";
 import { Input } from "@/shared/ui/Input";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const schema = z.object({
   minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
@@ -181,7 +183,7 @@ export function ThresholdSection() {
         />
       </div>
       {save.isError && (
-        <p role="alert" className="mt-3 text-sm text-error">
+        <p role="alert" className={cn("mt-3", ERROR_TEXT)}>
           {errorMessage(save.error)}
         </p>
       )}

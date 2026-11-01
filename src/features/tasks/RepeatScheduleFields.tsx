@@ -41,7 +41,7 @@ import {
   validateDraft,
 } from "./repeatDraft";
 
-import type { WeekdayLabel } from "@/shared/patterns/WeekdayPicker";
+import type { WeekdayLabel } from "@/lib/calendar";
 
 interface RepeatScheduleFieldsProps {
   idPrefix: string;
@@ -227,7 +227,6 @@ export function RepeatScheduleFields({
           )}
           {draft.unit === RepeatUnit.Month && (
             <MonthlySection
-              idPrefix={idPrefix}
               monthMode={draft.monthMode}
               day={draft.day}
               nth={draft.nth}

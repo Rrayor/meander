@@ -150,6 +150,7 @@ export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
 // Accessible group names for the chip groups inside the repeat section.
 export const REPEAT_UNIT_GROUP_LABEL = "Repeat unit";
 export const REPEAT_NTH_GROUP_LABEL = "Which occurrence";
+export const REPEAT_MONTH_MODE_GROUP_LABEL = "Monthly schedule mode";
 export const REPEAT_UNIT_OPTIONS = [
   { value: RepeatUnit.Day, label: "days" },
   { value: RepeatUnit.Week, label: "weeks" },

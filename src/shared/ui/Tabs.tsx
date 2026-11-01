@@ -20,8 +20,8 @@ import type {
 // NotesTabs — the only tablist in the app: a bordered row of tab
 // buttons whose selected member carries a primary bottom underline and
 // primary text while inactive members stay muted until hover. Base UI
-// mirrors the selected tab onto `data-active` (the brief's
-// `data-[selected]` — the attribute this version actually emits; the
+// mirrors the selected tab onto `data-active` — the attribute this
+// version actually emits (the brief called it `data-selected`). The
 // inactive branch is scoped with `not-data-[active]:` so the hover
 // colour can never fight the active colour. Focus ring and disabled
 // dim match the other interactive primitives (Toggle, Radio).

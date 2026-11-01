@@ -20,13 +20,16 @@ import type {
 // The chip recipe consolidates the `aria-pressed` toggle buttons repeated
 // across RepeatScheduleFields (weekday chips, repeat-unit and
 // nth-occurrence segments), WorkDaysSection, and CarryOverPrompt: a
-// bordered text chip that fills with the primary color when pressed. Base
-// UI's Toggle mirrors its state onto `data-pressed`, so pressed styling
-// rides the attribute variant instead of conditional class strings at
-// call sites. Focus ring, color transition, and disabled dim match the
-// other interactive primitives (Button).
+// bordered text chip, muted until hover, that fills with the primary
+// color when pressed — every source chip was `text-text-muted
+// hover:text-text` unpressed. Base UI's Toggle mirrors its state onto
+// `data-pressed`, so pressed styling rides the attribute variant instead
+// of conditional class strings at call sites; the data variant sorts
+// after `hover:` in the stylesheet, so a pressed chip keeps its
+// on-primary text while hovered. Focus ring, color transition, and
+// disabled dim match the other interactive primitives (Button).
 const TOGGLE_CLASSES = cn(
-  "rounded-md border border-border px-3 py-2 text-sm text-text transition-colors",
+  "rounded-md border border-border px-3 py-2 text-sm text-text-muted transition-colors hover:text-text",
   FOCUS_RING,
   "disabled:opacity-50",
   "data-[pressed]:bg-primary data-[pressed]:text-on-primary",
