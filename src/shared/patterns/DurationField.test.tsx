@@ -2,14 +2,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useForm } from "react-hook-form";
 import { describe, expect, it, vi } from "vitest";
 
-import { DurationField } from "./DurationField";
+import {
+  DurationField,
+  HOURS_UNIT_CAPTION,
+  MINUTES_UNIT_CAPTION,
+} from "./DurationField";
 
 const GROUP_LABEL = "Estimated time";
 const ID_PREFIX = "edit-task-est";
 const ERROR_MESSAGE = "Enter a positive estimate";
 const SUBMIT_LABEL = "Save";
-const HOURS_UNIT = "h";
-const MINUTES_UNIT = "min";
 const TYPED_HOURS = "2";
 const TYPED_MINUTES = "45";
 
@@ -18,9 +20,10 @@ interface FormValues {
   estMinutes: string;
 }
 
-const hoursInput = () => screen.getByRole("spinbutton", { name: HOURS_UNIT });
+const hoursInput = () =>
+  screen.getByRole("spinbutton", { name: HOURS_UNIT_CAPTION });
 const minutesInput = () =>
-  screen.getByRole("spinbutton", { name: MINUTES_UNIT });
+  screen.getByRole("spinbutton", { name: MINUTES_UNIT_CAPTION });
 
 interface HarnessProps {
   error?: string;

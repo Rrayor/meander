@@ -32,6 +32,21 @@ import type { FieldValues, Path, UseFormRegister } from "react-hook-form";
 // `names` carries the react-hook-form paths; summing to minutes stays
 // in the caller.
 
+// Unit captions name the two controls inside the legend-named group.
+// lib/labels is banned in shared/ and the prop signature carries no
+// per-input labels, so the captions are exported constants — tests
+// assert against them instead of duplicating the literals.
+export const HOURS_UNIT_CAPTION = "h";
+export const MINUTES_UNIT_CAPTION = "min";
+
+// One entry per input: `key` doubles as the `names` key and the
+// `{idPrefix}-{key}` id suffix. Mapped so the Field.Root pair cell is
+// written once.
+const UNITS = [
+  { key: "hours", caption: HOURS_UNIT_CAPTION },
+  { key: "minutes", caption: MINUTES_UNIT_CAPTION },
+] as const;
+
 interface DurationFieldProps<T extends FieldValues> {
   label: string;
   idPrefix: string;
@@ -49,46 +64,36 @@ export function DurationField<T extends FieldValues>({
   error,
   disabled = false,
 }: Readonly<DurationFieldProps<T>>) {
-  const hoursId = `${idPrefix}-hours`;
-  const minutesId = `${idPrefix}-minutes`;
+  const invalid = error != null;
   return (
     <Field.Root
-      invalid={error != null}
+      invalid={invalid}
       disabled={disabled}
       render={<Fieldset.Root disabled={disabled} />}
     >
       <Fieldset.Legend>{label}</Fieldset.Legend>
       <div className={cn("flex items-center gap-4", disabled && "opacity-50")}>
-        <Field.Root
-          invalid={error != null}
-          className="flex-row items-center gap-2"
-        >
-          <Field.Control
-            render={<Input className="w-20" />}
-            id={hoursId}
-            type="number"
-            placeholder="0"
-            {...register(names.hours)}
-          />
-          <label htmlFor={hoursId} className="text-xs text-text-muted">
-            h
-          </label>
-        </Field.Root>
-        <Field.Root
-          invalid={error != null}
-          className="flex-row items-center gap-2"
-        >
-          <Field.Control
-            render={<Input className="w-20" />}
-            id={minutesId}
-            type="number"
-            placeholder="0"
-            {...register(names.minutes)}
-          />
-          <label htmlFor={minutesId} className="text-xs text-text-muted">
-            min
-          </label>
-        </Field.Root>
+        {UNITS.map((unit) => {
+          const unitId = `${idPrefix}-${unit.key}`;
+          return (
+            <Field.Root
+              key={unit.key}
+              invalid={invalid}
+              className="flex-row items-center gap-2"
+            >
+              <Field.Control
+                render={<Input className="w-20" />}
+                id={unitId}
+                type="number"
+                placeholder="0"
+                {...register(names[unit.key])}
+              />
+              <label htmlFor={unitId} className="text-xs text-text-muted">
+                {unit.caption}
+              </label>
+            </Field.Root>
+          );
+        })}
       </div>
       {error != null && <Field.Error match={true}>{error}</Field.Error>}
     </Field.Root>
