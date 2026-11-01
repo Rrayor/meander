@@ -7,6 +7,8 @@ import { formatIsoDay, todayLocalIso } from "@/lib/utils";
 
 import { MonthCalendar } from "./MonthCalendar";
 
+const NAV_LABELS = { previous: "back", next: "forward" };
+
 // November 2026 opens on a Sunday: a Monday-start grid pads with
 // 2026-10-26…31 while a Sunday-start grid begins on the 1st itself.
 const MONTH = new Date(Date.UTC(2026, 10, 1));
@@ -34,7 +36,7 @@ function renderCalendar({
   weekStart = Weekday.Monday,
   onSelect = vi.fn(),
   onMonthShift = vi.fn(),
-  navLabels = { previous: "back", next: "forward" },
+  navLabels = NAV_LABELS,
   ...rest
 }: Partial<Parameters<typeof MonthCalendar>[0]> = {}) {
   return render(
@@ -74,16 +76,20 @@ describe("MonthCalendar", () => {
   it("shifts the month through onMonthShift", () => {
     const onMonthShift = vi.fn();
     renderCalendar({ onMonthShift });
-    fireEvent.click(screen.getByRole("button", { name: "back" }));
+    fireEvent.click(screen.getByRole("button", { name: NAV_LABELS.previous }));
     expect(onMonthShift).toHaveBeenCalledWith(-1);
-    fireEvent.click(screen.getByRole("button", { name: "forward" }));
+    fireEvent.click(screen.getByRole("button", { name: NAV_LABELS.next }));
     expect(onMonthShift).toHaveBeenCalledWith(1);
   });
 
   it("uses caller-supplied nav labels", () => {
-    renderCalendar({ navLabels: { previous: "back", next: "forward" } });
-    expect(screen.getByRole("button", { name: "back" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "forward" })).toBeInTheDocument();
+    renderCalendar({ navLabels: NAV_LABELS });
+    expect(
+      screen.getByRole("button", { name: NAV_LABELS.previous }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: NAV_LABELS.next }),
+    ).toBeInTheDocument();
   });
 
   it("reports the clicked date through onSelect", () => {
@@ -175,7 +181,7 @@ describe("MonthCalendar", () => {
         weekStart={Weekday.Monday}
         onSelect={vi.fn()}
         onMonthShift={vi.fn()}
-        navLabels={{ previous: "back", next: "forward" }}
+        navLabels={NAV_LABELS}
       />,
     );
     expect(screen.getByText(monthLabel(2026, 11))).toBeInTheDocument();

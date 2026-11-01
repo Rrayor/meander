@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { DurationField } from "./DurationField";
 
 const GROUP_LABEL = "Estimated time";
+const HOURS_CAPTION = "h";
+const MINUTES_CAPTION = "min";
 const ID_PREFIX = "edit-task-est";
 const ERROR_MESSAGE = "Enter a positive estimate";
 const SUBMIT_LABEL = "Save";
@@ -16,8 +18,10 @@ interface FormValues {
   estMinutes: string;
 }
 
-const hoursInput = () => screen.getByRole("spinbutton", { name: "h" });
-const minutesInput = () => screen.getByRole("spinbutton", { name: "min" });
+const hoursInput = () =>
+  screen.getByRole("spinbutton", { name: HOURS_CAPTION });
+const minutesInput = () =>
+  screen.getByRole("spinbutton", { name: MINUTES_CAPTION });
 
 interface HarnessProps {
   error?: string;
@@ -39,7 +43,7 @@ function Harness({
     <form onSubmit={handleSubmit(onSubmit)}>
       <DurationField
         label={GROUP_LABEL}
-        captions={{ hours: "h", minutes: "min" }}
+        captions={{ hours: HOURS_CAPTION, minutes: MINUTES_CAPTION }}
         idPrefix={ID_PREFIX}
         names={{ hours: "estHours", minutes: "estMinutes" }}
         register={
