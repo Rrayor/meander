@@ -145,6 +145,9 @@ export const REPEAT_ENDS_BEFORE_START_MESSAGE =
   "Ends must not be before Starts.";
 export const REPEAT_ENDS_NO_OCCURRENCE_MESSAGE =
   "The schedule never occurs on or before this date.";
+// Accessible group names for the chip groups inside the repeat section.
+export const REPEAT_UNIT_GROUP_LABEL = "Repeat unit";
+export const REPEAT_NTH_GROUP_LABEL = "Which occurrence";
 export const REPEAT_UNIT_OPTIONS = [
   { value: RepeatUnit.Day, label: "days" },
   { value: RepeatUnit.Week, label: "weeks" },
