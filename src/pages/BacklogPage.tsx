@@ -16,8 +16,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarPlus } from "lucide-react";
-import { matchesSearch, sortTasks } from "@/features/viewFilters";
-import { ViewToolbar } from "@/features/ViewToolbar";
+import { matchesSearch, sortTasks } from "@/features/board/viewFilters";
+import { ViewToolbar } from "@/features/board/ViewToolbar";
 import { TaskSort } from "@/lib/enums";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";

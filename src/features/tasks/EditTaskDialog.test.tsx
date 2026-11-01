@@ -560,7 +560,10 @@ describe("EditTaskDialog", () => {
     renderDialog();
     // Pick Work while the stored associations are still in flight.
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Work/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     pending.resolve([ERRANDS]);
     // Both must be selected: the stored Errands and the early Work pick.
     await screen.findByRole("button", {
@@ -589,7 +592,10 @@ describe("EditTaskDialog", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: EDIT_BUTTON_LABEL }));
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Work/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
     );
@@ -612,11 +618,14 @@ describe("EditTaskDialog", () => {
     const combobox = screen.getByRole("combobox");
     fireEvent.focus(combobox);
     fireEvent.change(combobox, { target: { value: CREATED.title } });
-    fireEvent.mouseDown(
+    fireEvent.click(
       screen.getByRole("option", {
         name: new RegExp(createCategoryOptionLabel(CREATED.title)),
       }),
     );
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(combobox);
     await screen.findByRole("button", {
       name: removeTaskCategoryLabel(CREATED.title),
     });
@@ -685,7 +694,10 @@ describe("EditTaskDialog", () => {
       }),
     );
     fireEvent.focus(screen.getByRole("combobox"));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Work/ }));
+    // The open dropdown's popup owns AT while open (combobox semantics);
+    // blurring the input closes it like a user moving to the next field.
+    fireEvent.blur(screen.getByRole("combobox"));
     fireEvent.submit(
       screen.getByRole("button", { name: SAVE_BUTTON_LABEL }).closest("form")!,
     );

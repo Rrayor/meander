@@ -506,13 +506,13 @@ describe("BoardPage", () => {
     mockedPendingCarryOver.mockResolvedValue([stray]);
     mockedResolveCarryOver.mockResolvedValue(undefined);
     renderBoard();
-    const prompt = await screen.findByRole("dialog", {
+    const prompt = await screen.findByRole("alertdialog", {
       name: /week started/i,
     });
-    expect(within(prompt).getByText("Leftover")).toBeInTheDocument();
+    expect(within(prompt).getByText(stray.title)).toBeInTheDocument();
 
     fireEvent.click(
-      within(prompt).getByRole("button", { name: CARRY_OVER_CARRY_LABEL }),
+      within(prompt).getByRole("radio", { name: CARRY_OVER_CARRY_LABEL }),
     );
     fireEvent.click(
       within(prompt).getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
@@ -522,7 +522,7 @@ describe("BoardPage", () => {
     );
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: /week started/i }),
+        screen.queryByRole("alertdialog", { name: /week started/i }),
       ).not.toBeInTheDocument(),
     );
   });
@@ -540,11 +540,11 @@ describe("BoardPage", () => {
     mockedListWeekTasks.mockResolvedValueOnce([baseTask, weeklyTask]);
     mockedListWeekTasks.mockResolvedValue([baseTask, weeklyTask, carried]);
     renderBoard();
-    const prompt = await screen.findByRole("dialog", {
+    const prompt = await screen.findByRole("alertdialog", {
       name: /week started/i,
     });
     fireEvent.click(
-      within(prompt).getByRole("button", { name: CARRY_OVER_CARRY_LABEL }),
+      within(prompt).getByRole("radio", { name: CARRY_OVER_CARRY_LABEL }),
     );
     fireEvent.click(
       within(prompt).getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
@@ -583,7 +583,7 @@ describe("BoardPage", () => {
       ).not.toBeInTheDocument(),
     );
     expect(
-      screen.queryByRole("dialog", { name: /week started/i }),
+      screen.queryByRole("alertdialog", { name: /week started/i }),
     ).not.toBeInTheDocument();
   });
 

@@ -1,10 +1,30 @@
-import { useMemo, useState } from "react";
+import { cn } from "cn";
+import { useState } from "react";
 
-import { MonthNav } from "@/features/calendar/MonthNav";
-import { monthCells, monthLabel, monthOfIso, shiftMonth } from "@/lib/calendar";
+import { monthLabel, monthOfIso, shiftMonth } from "@/lib/calendar";
 import { Weekday } from "@/lib/enums";
-import { BOARD_JUMP_HINT_LABEL, weekdaysFrom } from "@/lib/labels";
-import { formatIsoDay, todayLocalIso, weekDates } from "@/lib/utils";
+import {
+  BOARD_JUMP_HINT_LABEL,
+  CALENDAR_NEXT_LABEL,
+  CALENDAR_PREVIOUS_LABEL,
+  WEEKDAY_OPTIONS,
+} from "@/lib/labels";
+import { weekDates } from "@/lib/utils";
+import { MonthCalendar } from "@/shared/patterns/MonthCalendar";
+
+import type { MonthCalendarDayClassName } from "@/shared/patterns/MonthCalendar";
+import type { WeekdayLabel } from "@/shared/patterns/WeekdayPicker";
+
+// labels.ts stays the single source of weekday copy: MonthCalendar's own
+// default derives the same strings from the wire name, but its formatDay
+// contract exists so feature callers keep the registry authoritative.
+const formatDay = (day: Weekday): WeekdayLabel => {
+  const option = WEEKDAY_OPTIONS.find((o) => o.value === day);
+  return {
+    label: option?.label ?? day,
+    short: option?.short ?? day.slice(0, 2),
+  };
+};
 
 interface WeekJumpCalendarProps {
   // A date inside the currently-viewed week — its month renders first
@@ -14,67 +34,54 @@ interface WeekJumpCalendarProps {
   onPick: (iso: string) => void;
 }
 
+/// Thin domain wrapper over MonthCalendar: the pattern supplies the
+/// month grid, nav, weekday header, and today dot; this wrapper owns the
+/// week band — a selected WEEK, not a single date, so the emphasis rides
+/// dayClassName rather than selectedDate (which would also add an
+/// aria-current the legacy markup never had). The popover chrome around
+/// it (open state, backdrop, Escape) stays BoardHeader's.
 export function WeekJumpCalendar({
   anchorIso,
   weekStart,
   onPick,
 }: Readonly<WeekJumpCalendarProps>) {
-  const todayIso = todayLocalIso();
-  const weekOrder = weekdaysFrom(weekStart);
   const selectedWeek = weekDates(anchorIso, weekStart);
-
   const [month, setMonth] = useState(() => monthOfIso(anchorIso));
+  const monthDate = new Date(month);
 
-  const cells = useMemo(() => monthCells(month, weekStart), [month, weekStart]);
-
-  const inSelectedWeek = (iso: string) => selectedWeek.includes(iso);
+  // Band cells keep the legacy look: bg-primary/20 with no hover wash
+  // (the default cell's hover:bg-surface is overridden here), padding
+  // days muted like the rest of the grid.
+  const dayClassName: MonthCalendarDayClassName = (cell) =>
+    selectedWeek.includes(cell.iso)
+      ? cn(
+          "bg-primary/20 hover:bg-primary/20",
+          cell.inMonth ? "text-text" : "text-text-muted",
+        )
+      : "";
 
   return (
-    <dialog
-      open
+    <div
+      role="dialog"
       aria-label={monthLabel(
-        new Date(month).getUTCFullYear(),
-        new Date(month).getUTCMonth(),
+        monthDate.getUTCFullYear(),
+        monthDate.getUTCMonth(),
       )}
       className="rounded-lg border border-border bg-surface-raised p-4"
     >
-      <MonthNav
-        month={month}
-        onShift={(delta) => setMonth((m) => shiftMonth(m, delta))}
+      <MonthCalendar
+        month={monthDate}
+        weekStart={weekStart}
+        onSelect={onPick}
+        onMonthShift={(delta) => setMonth((m) => shiftMonth(m, delta))}
+        navLabels={{
+          previous: CALENDAR_PREVIOUS_LABEL,
+          next: CALENDAR_NEXT_LABEL,
+        }}
+        formatDay={formatDay}
+        dayClassName={dayClassName}
       />
-      <div className="mt-2 grid grid-cols-7 gap-px">
-        {weekOrder.map((w) => (
-          <span
-            key={w.value}
-            className="py-1 text-center text-xs font-medium text-text-muted"
-          >
-            {w.label.slice(0, 2)}
-          </span>
-        ))}
-        {cells.map((cell) => {
-          const selected = inSelectedWeek(cell.iso);
-          return (
-            <button
-              key={cell.iso}
-              type="button"
-              aria-label={formatIsoDay(cell.iso)}
-              onClick={() => onPick(cell.iso)}
-              className={`relative py-1 text-center text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                selected ? "bg-primary/20 text-text" : "hover:bg-surface"
-              } ${cell.inMonth ? "" : "text-text-muted"}`}
-            >
-              {cell.day}
-              {cell.iso === todayIso && (
-                <span
-                  aria-hidden
-                  className="absolute inset-x-0 bottom-0.5 mx-auto h-1 w-1 rounded-full bg-primary"
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
       <p className="mt-2 text-xs text-text-muted">{BOARD_JUMP_HINT_LABEL}</p>
-    </dialog>
+    </div>
   );
 }

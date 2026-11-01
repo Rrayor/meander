@@ -61,10 +61,10 @@ describe("CarryOverPrompt", () => {
   it("applies each task's picked rule and closes", async () => {
     renderPrompt();
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[0],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[0],
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_RETURN_LABEL })[1],
+      screen.getAllByRole("radio", { name: CARRY_OVER_RETURN_LABEL })[1],
     );
     fireEvent.click(
       screen.getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
@@ -79,11 +79,11 @@ describe("CarryOverPrompt", () => {
     const apply = screen.getByRole("button", { name: CARRY_OVER_APPLY_LABEL });
     expect(apply).toBeDisabled();
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[0],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[0],
     );
     expect(apply).toBeDisabled();
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_RETURN_LABEL })[1],
+      screen.getAllByRole("radio", { name: CARRY_OVER_RETURN_LABEL })[1],
     );
     expect(apply).toBeEnabled();
   });
@@ -91,13 +91,13 @@ describe("CarryOverPrompt", () => {
   it("lets a choice be switched before applying", async () => {
     renderPrompt();
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[0],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[0],
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_RETURN_LABEL })[0],
+      screen.getAllByRole("radio", { name: CARRY_OVER_RETURN_LABEL })[0],
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[1],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[1],
     );
     fireEvent.click(
       screen.getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
@@ -111,10 +111,10 @@ describe("CarryOverPrompt", () => {
     mockedResolve.mockRejectedValue(new Error("backend refused"));
     renderPrompt();
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[0],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[0],
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[1],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[1],
     );
     fireEvent.click(
       screen.getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
@@ -126,10 +126,10 @@ describe("CarryOverPrompt", () => {
   it("dismisses a task by deleting it", async () => {
     renderPrompt();
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_DISMISS_LABEL })[0],
+      screen.getAllByRole("radio", { name: CARRY_OVER_DISMISS_LABEL })[0],
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: CARRY_OVER_CARRY_LABEL })[1],
+      screen.getAllByRole("radio", { name: CARRY_OVER_CARRY_LABEL })[1],
     );
     fireEvent.click(
       screen.getByRole("button", { name: CARRY_OVER_APPLY_LABEL }),
@@ -150,13 +150,30 @@ describe("CarryOverPrompt", () => {
     expect(mockedDelete).not.toHaveBeenCalled();
   });
 
-  it("marks the picked choice as pressed for screen readers", () => {
+  it("marks the picked choice as checked for screen readers", () => {
     renderPrompt();
-    const carry = screen.getAllByRole("button", {
+    const carry = screen.getAllByRole("radio", {
       name: CARRY_OVER_CARRY_LABEL,
     })[0];
-    expect(carry).toHaveAttribute("aria-pressed", "false");
+    expect(carry).not.toBeChecked();
     fireEvent.click(carry);
-    expect(carry).toHaveAttribute("aria-pressed", "true");
+    expect(carry).toBeChecked();
+  });
+
+  it("groups each task's radios under the task's name", () => {
+    renderPrompt();
+    for (const t of tasks) {
+      expect(
+        screen.getByRole("radiogroup", { name: t.title }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("stays open on Escape — decisions and Defer are the only exits", () => {
+    renderPrompt();
+    fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
   });
 });

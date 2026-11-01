@@ -4,7 +4,7 @@ import { useState } from "react";
 import { deleteTask, resolveCarryOver } from "@/api/tasks";
 import { QUERY_KEYS } from "@/api/queryKeys";
 import type { Task } from "@/api/bindings";
-import { CarryOverDecision } from "@/lib/enums";
+import { ButtonVariant, CarryOverDecision } from "@/lib/enums";
 import {
   CARRY_OVER_APPLY_LABEL,
   CARRY_OVER_CARRY_LABEL,
@@ -14,6 +14,24 @@ import {
   CARRY_OVER_RETURN_LABEL,
   CARRY_OVER_TITLE,
 } from "@/lib/labels";
+import { AlertDialog } from "@/shared/ui/AlertDialog";
+import { Button } from "@/shared/ui/Button";
+import { RadioGroup } from "@/shared/ui/RadioGroup";
+import { ERROR_TEXT } from "@/shared/ui/styles";
+
+// The three per-task outcomes, in display order (spec §79/§356):
+// Carry/Return serialize to the wire's CarryOverRule; Dismiss deletes.
+const DECISIONS = [
+  [CarryOverDecision.Carry, CARRY_OVER_CARRY_LABEL],
+  [CarryOverDecision.Return, CARRY_OVER_RETURN_LABEL],
+  [CarryOverDecision.Dismiss, CARRY_OVER_DISMISS_LABEL],
+] as const;
+
+// A decision radio's segment-pill look: it fills with the primary color
+// while checked — carried via data-checked/data-unchecked so the state
+// styling rides the attributes like every other migrated control.
+const DECISION_RADIO_CLASSES =
+  "px-3 py-1.5 data-[checked]:bg-primary data-[checked]:font-medium data-[checked]:text-on-primary data-[unchecked]:text-text-muted data-[unchecked]:hover:text-text";
 
 interface CarryOverPromptProps {
   tasks: Task[];
@@ -23,6 +41,14 @@ interface CarryOverPromptProps {
 /// Week-start prompt (spec §344/§356): incomplete tasks from past weeks
 /// without a carry-over rule get an explicit decision — carry into this
 /// week's weekly backlog or return to the global backlog.
+///
+/// Composed on AlertDialog parts rather than ConfirmDialog for the same
+/// reason DeleteProfileDialog composes on Dialog parts: parity decides
+/// the primitive per call site. The legacy surface was NON-DISMISSIBLE —
+/// no Escape, no outside press, no close affordance. AlertDialog already
+/// suppresses outside press, and with `open` controlled and no
+/// onOpenChange wired, Escape's close request has no effect either —
+/// only the Defer and Apply buttons leave (both via onDone).
 export function CarryOverPrompt({
   tasks,
   onDone,
@@ -72,73 +98,69 @@ export function CarryOverPrompt({
     setChoices((c) => ({ ...c, [id]: rule }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60" aria-hidden />
-      <dialog
-        open
-        aria-labelledby="carry-over-title"
-        className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-surface p-6 text-text"
-      >
-        <h2 id="carry-over-title" className="text-base font-semibold">
-          {CARRY_OVER_TITLE}
-        </h2>
-        <p className="mt-1 text-sm text-text-muted">{CARRY_OVER_HINT}</p>
-        <ul className="mt-4 space-y-2">
-          {tasks.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-center justify-between gap-4 rounded-md bg-surface-raised px-3 py-2"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
-              <fieldset className="m-0 flex overflow-hidden rounded-md border border-border p-0 text-xs">
-                {(
-                  [
-                    [CarryOverDecision.Carry, CARRY_OVER_CARRY_LABEL],
-                    [CarryOverDecision.Return, CARRY_OVER_RETURN_LABEL],
-                    [CarryOverDecision.Dismiss, CARRY_OVER_DISMISS_LABEL],
-                  ] as const
-                ).map(([rule, label]) => (
-                  <button
-                    key={rule}
-                    type="button"
-                    aria-pressed={choices[t.id] === rule}
-                    onClick={() => choose(t.id, rule)}
-                    className={`px-3 py-1.5 transition-colors ${
-                      choices[t.id] === rule
-                        ? "bg-primary font-medium text-on-primary"
-                        : "text-text-muted hover:text-text"
-                    }`}
+    <AlertDialog.Root open>
+      <AlertDialog.Portal>
+        <AlertDialog.Viewport>
+          <AlertDialog.Backdrop />
+          <AlertDialog.Popup className="gap-4">
+            <AlertDialog.Title>{CARRY_OVER_TITLE}</AlertDialog.Title>
+            <AlertDialog.Description>{CARRY_OVER_HINT}</AlertDialog.Description>
+            <ul className="space-y-2">
+              {tasks.map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-center justify-between gap-4 rounded-md bg-surface-raised px-3 py-2"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {t.title}
+                  </span>
+                  {/* Each task's group is named after the task so screen
+                      readers announce which row the radios decide. The
+                      empty-string value stands in for "undecided" — no
+                      radio carries it, so nothing reports checked. */}
+                  <RadioGroup.Root
+                    aria-label={t.title}
+                    className="overflow-hidden rounded-md border border-border text-xs"
+                    value={choices[t.id] ?? ""}
+                    onValueChange={(value) => choose(t.id, value)}
                   >
-                    {label}
-                  </button>
-                ))}
-              </fieldset>
-            </li>
-          ))}
-        </ul>
-        {apply.isError && (
-          <p role="alert" className="mt-3 text-sm text-error">
-            {apply.error.message}
-          </p>
-        )}
-        <div className="mt-5 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onDone}
-            className="rounded-lg px-3 py-2 text-sm text-text-muted transition-colors hover:text-text"
-          >
-            {CARRY_OVER_DEFER_LABEL}
-          </button>
-          <button
-            type="button"
-            disabled={resolved < tasks.length || apply.isPending}
-            onClick={() => apply.mutate()}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {CARRY_OVER_APPLY_LABEL}
-          </button>
-        </div>
-      </dialog>
-    </div>
+                    {DECISIONS.map(([rule, label]) => (
+                      <RadioGroup.Radio
+                        key={rule}
+                        value={rule}
+                        className={DECISION_RADIO_CLASSES}
+                      >
+                        {label}
+                      </RadioGroup.Radio>
+                    ))}
+                  </RadioGroup.Root>
+                </li>
+              ))}
+            </ul>
+            {apply.isError && (
+              <p role="alert" className={ERROR_TEXT}>
+                {apply.error.message}
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              <Button
+                type="button"
+                variant={ButtonVariant.Ghost}
+                onClick={onDone}
+              >
+                {CARRY_OVER_DEFER_LABEL}
+              </Button>
+              <Button
+                type="button"
+                disabled={resolved < tasks.length || apply.isPending}
+                onClick={() => apply.mutate()}
+              >
+                {CARRY_OVER_APPLY_LABEL}
+              </Button>
+            </div>
+          </AlertDialog.Popup>
+        </AlertDialog.Viewport>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   );
 }
