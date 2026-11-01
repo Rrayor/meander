@@ -3,11 +3,6 @@ import { dirname, join } from "node:path";
 
 import { PAGE_SIZE } from "@/lib/constants";
 import { ROUTES } from "@/lib/routes";
-
-// Transitional selector: migrated dialogs render as portaled
-// div[role='dialog'] popups while unmigrated ones stay native
-// <dialog open> — the union matches either.
-const OPEN_DIALOG = "dialog, [role='dialog']";
 import {
   NAV_LABEL,
   MOVE_TO_DATE_LABEL,
@@ -16,6 +11,11 @@ import {
   PAGINATION_PREVIOUS_LABEL,
   editTaskLabel,
 } from "@/lib/labels";
+
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either.
+const OPEN_DIALOG = "dialog, [role='dialog']";
 
 /// The smoke backend keeps its DB next to the sandbox binary — one level
 /// up from the exported XDG_CONFIG_HOME.
