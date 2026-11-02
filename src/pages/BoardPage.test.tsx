@@ -35,6 +35,7 @@ import {
   boardWeekRangeLabel,
   dayTotalsLabel,
   editTaskLabel,
+  shortDateLabel,
   shortWeekdayLabel,
   taskCountLabel,
 } from "@/lib/labels";
@@ -219,7 +220,7 @@ describe("BoardPage", () => {
     expect(cell.cellIndex).toBeGreaterThan(0);
     expect(
       [...headers].find((th) => th.cellIndex === cell.cellIndex)?.textContent,
-    ).toContain("Oct");
+    ).toContain(shortDateLabel(days[0]));
     // Weekly totals aggregate every visible task.
     expect(
       screen.getByText(`${taskCountLabel(2)} · ${dayTotalsLabel(120, 30)}`),

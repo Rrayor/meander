@@ -1,3 +1,5 @@
+import { cn } from "cn";
+
 import { MonthMode, type Weekday } from "@/lib/enums";
 import {
   REPEAT_DAY_OF_MONTH_LABEL,
@@ -54,12 +56,15 @@ export function MonthlySection({
   onPatch,
 }: Readonly<MonthlySectionProps>) {
   // Single-select ToggleGroups report an empty array when the pressed chip
-  // is re-clicked; a monthly pick is never cleared, so the deselect is a
-  // no-op.
+  // is re-clicked. On a weekday-mode schedule that deselect is a no-op — the
+  // nth pick is never cleared; on a day-mode schedule the click means "use
+  // this nth choice", so it switches modes instead of dead-ending.
   const handleNthChange = (next: string[]) => {
     const value = next[0];
     if (value !== undefined) {
       onPatch({ monthMode: MonthMode.Weekday, nth: Number(value) });
+    } else if (monthMode !== MonthMode.Weekday) {
+      onPatch({ monthMode: MonthMode.Weekday, nth });
     }
   };
 
@@ -133,7 +138,10 @@ export function MonthlySection({
               key={o.value}
               value={String(o.value)}
               aria-label={o.aria}
-              className={`${SEGMENT_TOGGLE_CLASSES} px-1.5 py-0.5 text-[11px]`}
+              className={cn(
+                SEGMENT_TOGGLE_CLASSES,
+                "px-1.5 py-0.5 text-[11px]",
+              )}
             >
               {o.label}
             </ToggleGroup.Toggle>
