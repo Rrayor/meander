@@ -52,13 +52,13 @@ export function WeekJumpCalendar({
   // Band cells keep the legacy look: bg-primary/20 with no hover wash
   // (the default cell's hover:bg-surface is overridden here), padding
   // days muted like the rest of the grid.
-  const dayClassName: MonthCalendarDayClassName = (cell) =>
-    selectedWeek.includes(cell.iso)
-      ? cn(
-          "bg-primary/20 hover:bg-primary/20",
-          cell.inMonth ? "text-text" : "text-text-muted",
-        )
-      : "";
+  const dayClassName: MonthCalendarDayClassName = (cell) => {
+    if (!selectedWeek.includes(cell.iso)) return "";
+    return cn(
+      "bg-primary/20 hover:bg-primary/20",
+      cell.inMonth ? "text-text" : "text-text-muted",
+    );
+  };
 
   return (
     <div
