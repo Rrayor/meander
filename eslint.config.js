@@ -42,10 +42,38 @@ export default tseslint.config(
       ],
       // Transport seam: only src/api may call Tauri — everything else goes
       // through the Transport interface so IPC can later become REST.
+      // Feature slices expose their root-level files as their public API —
+      // cross-slice imports into a sibling's subdirectories are banned.
       "no-restricted-imports": [
         "error",
         {
-          patterns: [{ group: ["@tauri-apps/*"] }],
+          patterns: [{ group: ["@tauri-apps/*", "@/features/*/*/**"] }],
+        },
+      ],
+    },
+  },
+  {
+    // shared/ is the domain-agnostic layer: primitives, patterns, and
+    // generic hooks never reach into api, labels, or the layers above
+    // (layout, features, pages). no-restricted-imports does not merge
+    // across config blocks, so the Tauri restriction is repeated here.
+    files: ["src/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@tauri-apps/*",
+                "@/api/**",
+                "@/lib/labels",
+                "@/features/**",
+                "@/pages/**",
+                "@/layout/**",
+              ],
+            },
+          ],
         },
       ],
     },

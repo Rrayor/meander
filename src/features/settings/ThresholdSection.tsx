@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { globalThreshold, setGlobalThreshold } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { Weekday } from "@/lib/enums";
+import { ButtonVariant, Weekday } from "@/lib/enums";
 import { MAX_DURATION_MINUTES } from "@/lib/constants";
 import {
   SAVE_BUTTON_LABEL,
@@ -25,6 +25,10 @@ import {
 } from "@/lib/labels";
 import { errorMessage } from "@/lib/utils";
 import { ColorRadios } from "@/features/settings/ColorRadios";
+import { Button } from "@/shared/ui/Button";
+import { Field } from "@/shared/ui/Field";
+import { Fieldset } from "@/shared/ui/Fieldset";
+import { Input } from "@/shared/ui/Input";
 
 const schema = z.object({
   minutes: z.number().int().min(1).max(MAX_DURATION_MINUTES).nullable(),
@@ -35,6 +39,8 @@ const schema = z.object({
   ),
 });
 type FormValues = z.infer<typeof schema>;
+
+const setValueAs = (v: string) => (v === "" ? null : Number(v));
 
 /// The global per-day estimate threshold (spec §295–§298): the user sets
 /// a daily minutes budget and a tint color; unset means no tint. The
@@ -77,6 +83,8 @@ export function ThresholdSection() {
   const color = watch("color");
   const minutesTouched = touchedFields.minutes === true;
   const invalid = errors.minutes != null;
+  const minutesInvalid = minutesTouched && invalid;
+  const daysInvalid = errors.day_minutes != null;
 
   const save = useMutation({
     mutationFn: async (v: {
@@ -92,6 +100,30 @@ export function ThresholdSection() {
     },
   });
 
+  const dayField = (o: (typeof WEEKDAY_OPTIONS)[number]) => {
+    const dayError = errors.day_minutes?.[o.value];
+    return (
+      // One Field.Root per control: a root names a single control, so
+      // each day input needs its own (see DurationField for the same
+      // structure). The visible short caption is a plain span — the
+      // input's accessible name stays the full-day aria-label.
+      <Field.Root key={o.value} invalid={dayError != null}>
+        <span className="text-center text-xs text-text-muted">{o.short}</span>
+        <Field.Control
+          render={
+            <Input className="w-16 px-2 py-1 placeholder:text-text-muted" />
+          }
+          type="number"
+          min={1}
+          max={MAX_DURATION_MINUTES}
+          placeholder={minutes != null ? String(minutes) : ""}
+          aria-label={o.label}
+          {...register(`day_minutes.${o.value}`, { setValueAs })}
+        />
+      </Field.Root>
+    );
+  };
+
   return (
     <section aria-labelledby={THRESHOLD_HEADING_ID}>
       <h2
@@ -103,82 +135,45 @@ export function ThresholdSection() {
       <p className="mt-1 text-sm text-text-muted">{THRESHOLD_HINT}</p>
       <div className="mt-4 rounded-lg bg-surface p-4">
         <div className="flex items-center gap-4">
-          <label className="text-sm text-text-muted">
-            {THRESHOLD_FIELD_LABEL}
-            <input
+          <Field.Root invalid={minutesInvalid}>
+            <Field.Label className="text-sm font-normal">
+              {THRESHOLD_FIELD_LABEL}
+            </Field.Label>
+            <Field.Control
+              render={<Input className="w-28 py-1.5" />}
               type="number"
               min={1}
               max={MAX_DURATION_MINUTES}
-              aria-invalid={minutesTouched && invalid}
-              aria-describedby={
-                minutesTouched && invalid
-                  ? THRESHOLD_MINUTES_ERROR_ID
-                  : undefined
-              }
-              {...register("minutes", {
-                setValueAs: (v: string) => (v === "" ? null : Number(v)),
-              })}
-              className="mt-1 block w-28 rounded-md border border-border bg-surface-raised px-3 py-1.5 text-sm text-text aria-invalid:border-error"
+              {...register("minutes", { setValueAs })}
             />
-          </label>
+            {minutesInvalid && (
+              <Field.Error match={true} id={THRESHOLD_MINUTES_ERROR_ID}>
+                {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
+              </Field.Error>
+            )}
+          </Field.Root>
           {minutes != null && !invalid && (
             <span className="self-end pb-2 text-sm text-text-muted">
               {formatMinutes(minutes)}
             </span>
           )}
         </div>
-        {minutesTouched && invalid && (
-          <p
-            id={THRESHOLD_MINUTES_ERROR_ID}
-            role="alert"
-            className="mt-2 text-sm text-error"
-          >
-            {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
-          </p>
-        )}
         {/* §291 — per-weekday overrides; an empty field inherits the
             global minutes shown as the placeholder. */}
-        <fieldset className="mt-4">
-          <legend className="text-sm text-text-muted">
+        <Field.Root
+          invalid={daysInvalid}
+          render={<Fieldset.Root className="mt-4" />}
+        >
+          <Fieldset.Legend className="text-sm font-normal">
             {THRESHOLD_DAYS_FIELDSET_LABEL}
-          </legend>
-          <div className="mt-2 flex gap-2">
-            {WEEKDAY_OPTIONS.map((o) => (
-              <label
-                key={o.value}
-                className="text-center text-xs text-text-muted"
-              >
-                {o.short}
-                <input
-                  type="number"
-                  min={1}
-                  max={MAX_DURATION_MINUTES}
-                  placeholder={minutes != null ? String(minutes) : ""}
-                  aria-label={o.label}
-                  aria-invalid={errors.day_minutes?.[o.value] != null}
-                  aria-describedby={
-                    errors.day_minutes?.[o.value] != null
-                      ? THRESHOLD_DAYS_ERROR_ID
-                      : undefined
-                  }
-                  {...register(`day_minutes.${o.value}`, {
-                    setValueAs: (v: string) => (v === "" ? null : Number(v)),
-                  })}
-                  className="mt-1 block w-16 rounded-md border border-border bg-surface-raised px-2 py-1 text-sm text-text placeholder:text-text-muted"
-                />
-              </label>
-            ))}
-          </div>
-          {errors.day_minutes && (
-            <p
-              id={THRESHOLD_DAYS_ERROR_ID}
-              role="alert"
-              className="mt-2 text-sm text-error"
-            >
+          </Fieldset.Legend>
+          <div className="mt-2 flex gap-2">{WEEKDAY_OPTIONS.map(dayField)}</div>
+          {daysInvalid && (
+            <Field.Error match={true} id={THRESHOLD_DAYS_ERROR_ID}>
               {formatMinutes(1)}–{formatMinutes(MAX_DURATION_MINUTES)}
-            </p>
+            </Field.Error>
           )}
-        </fieldset>
+        </Field.Root>
         <ColorRadios
           label={THRESHOLD_COLOR_LABEL}
           value={color}
@@ -191,17 +186,18 @@ export function ThresholdSection() {
         </p>
       )}
       <div className="mt-4 flex gap-3">
-        <button
+        <Button
           type="button"
+          variant={ButtonVariant.Ghost}
+          className="px-3"
           disabled={stored?.minutes == null}
           onClick={() =>
             save.mutate({ minutes: null, color: null, dayMinutes: {} })
           }
-          className="rounded-lg px-3 py-2 text-sm text-text-muted transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
         >
           {THRESHOLD_CLEAR_LABEL}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           disabled={!isDirty || save.isPending}
           // handleSubmit revalidates on click even for untouched fields —
@@ -221,10 +217,9 @@ export function ThresholdSection() {
               });
             })()
           }
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {SAVE_BUTTON_LABEL}
-        </button>
+        </Button>
       </div>
     </section>
   );

@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { PAGE_SIZE } from "@/lib/labels";
+import { PAGE_SIZE } from "@/lib/constants";
 
 import { usePagination } from "./usePagination";
 

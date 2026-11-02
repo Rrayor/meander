@@ -2,6 +2,7 @@ import { COMMANDS } from "@/api/commands";
 import { TaskPlacement, TaskStatus, Weekday } from "@/lib/enums";
 import {
   CALENDAR_NEXT_LABEL,
+  CALENDAR_PREVIOUS_LABEL,
   CARRY_OVER_DISMISS_LABEL,
   BOARD_HEADING,
   BOARD_NEXT_WEEK_LABEL,
@@ -324,7 +325,13 @@ test("the calendar jumps the board to a picked past week", async ({ page }) => {
     .getByRole("button", { name: boardWeekRangeLabel(days[0], days[6]) })
     .click();
   const prior = weekDates(shiftDays(days[0], -14), Weekday.Monday);
-  await page.getByRole("button", { name: formatIsoDay(prior[0]) }).click();
+  const targetDay = page.getByRole("button", { name: formatIsoDay(prior[0]) });
+  // The jump calendar opens on the anchor week's month — near a month
+  // boundary the picked week needs navigating back to become visible.
+  for (let i = 0; i < 3 && !(await targetDay.isVisible()); i++) {
+    await page.getByRole("button", { name: CALENDAR_PREVIOUS_LABEL }).click();
+  }
+  await targetDay.click();
 
   await expect(backlog).toBeHidden();
   await expect(

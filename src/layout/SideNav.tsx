@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 
-import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
+import { ProfileSwitcher } from "@/layout/ProfileSwitcher";
 import { NAV_LABEL } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 

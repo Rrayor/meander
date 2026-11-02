@@ -4,6 +4,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { pickFile } from "@/api/dialog";
 import { currentDatabasePath, selectDatabaseFile } from "@/api/settings";
 import { DatabaseSection } from "@/features/settings/DatabaseSection";
+import { DATABASE_FILE_FILTERS } from "@/lib/constants";
+import { DATABASE_CHOOSE_LABEL } from "@/lib/labels";
 import { testQueryClient } from "@/test/queryClient";
 
 vi.mock("@/api/dialog", () => ({ pickFile: vi.fn() }));
@@ -35,7 +37,7 @@ describe("DatabaseSection", () => {
       </QueryClientProvider>,
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Choose database file" }),
+      await screen.findByRole("button", { name: DATABASE_CHOOSE_LABEL }),
     );
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith());
   });
@@ -53,13 +55,13 @@ describe("DatabaseSection", () => {
       .mockResolvedValue("/other/app.db");
     renderSection();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Choose database file" }),
+      await screen.findByRole("button", { name: DATABASE_CHOOSE_LABEL }),
     );
     await waitFor(() =>
       expect(selectDatabaseFile).toHaveBeenCalledWith("/other/app.db"),
     );
     expect(pickFile).toHaveBeenCalledWith({
-      filters: [{ name: "SQLite", extensions: ["db", "sqlite", "sqlite3"] }],
+      filters: DATABASE_FILE_FILTERS,
     });
     expect(await screen.findByText("/other/app.db")).toBeInTheDocument();
   });
@@ -68,7 +70,7 @@ describe("DatabaseSection", () => {
     vi.mocked(pickFile).mockResolvedValue(null);
     renderSection();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Choose database file" }),
+      await screen.findByRole("button", { name: DATABASE_CHOOSE_LABEL }),
     );
     await waitFor(() => expect(pickFile).toHaveBeenCalled());
     expect(selectDatabaseFile).not.toHaveBeenCalled();

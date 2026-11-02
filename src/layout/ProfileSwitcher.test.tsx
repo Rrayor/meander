@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { currentProfile, listProfiles, switchProfile } from "@/api/profiles";
 import type { Profile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
+import { ProfileSwitcher } from "@/layout/ProfileSwitcher";
 import { DEFAULT_PROFILE_NAME } from "@/lib/constants";
 import { testQueryClient } from "@/test/queryClient";
 

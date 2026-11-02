@@ -8,6 +8,7 @@ import {
   deleteProfileLabel,
   deleteProfileSentence,
   PROFILES_HEADING,
+  PROFILES_HEADING_ID,
   PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
   EDIT_BUTTON_LABEL,
@@ -212,13 +213,18 @@ test("saving a week start sends it on the wire", async ({ page }) => {
 
   const section = page.getByRole("region", { name: WEEK_START_HEADING });
   const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
-  await section.getByLabel(WEEK_START_LABEL).selectOption(sunday.value);
+  // The combobox popup is portaled to <body> — the option is picked off
+  // `page`, not scoped to the settings section.
+  await section.getByRole("combobox", { name: WEEK_START_LABEL }).click();
+  await page.getByRole("option", { name: sunday.label }).click();
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
 
   const calls = await getInvocations<{ weekday: string }>(page);
   const saveCall = calls.find((c) => c.cmd === COMMANDS.setWeekStart);
   expect(saveCall?.args).toEqual({ weekday: sunday.value });
-  await expect(section.getByLabel(WEEK_START_LABEL)).toHaveValue(sunday.value);
+  await expect(
+    section.getByRole("combobox", { name: WEEK_START_LABEL }),
+  ).toHaveText(sunday.label);
 });
 
 test("a failed week-start save surfaces the error", async ({ page }) => {
@@ -235,7 +241,9 @@ test("a failed week-start save surfaces the error", async ({ page }) => {
   await page.goto(`/#${settingsPath}`);
 
   const section = page.getByRole("region", { name: WEEK_START_HEADING });
-  await section.getByLabel(WEEK_START_LABEL).selectOption(Weekday.Sunday);
+  const sunday = WEEKDAY_OPTIONS.find((o) => o.value === Weekday.Sunday)!;
+  await section.getByRole("combobox", { name: WEEK_START_LABEL }).click();
+  await page.getByRole("option", { name: sunday.label }).click();
   await section.getByRole("button", { name: SAVE_BUTTON_LABEL }).click();
   await expect(section.getByRole("alert")).toHaveText(message);
 });
@@ -706,9 +714,10 @@ test("profile edit offers a settings import that hits the wire", async ({
   await page.goto(`/#${settingsPath}`);
 
   await page.getByRole("button", { name: EDIT_BUTTON_LABEL }).first().click();
-  await page
-    .getByRole("combobox", { name: IMPORT_SETTINGS_LABEL })
-    .selectOption(String(profiles[1].id));
+  // The combobox popup is portaled to <body> — the option is picked off
+  // `page`, not scoped to the settings section.
+  await page.getByRole("combobox", { name: IMPORT_SETTINGS_LABEL }).click();
+  await page.getByRole("option", { name: profiles[1].name }).click();
   await page.getByRole("button", { name: SAVE_BUTTON_LABEL }).first().click();
 
   const calls = await getInvocations<{ id: number; sourceId: number }>(page);
@@ -760,7 +769,7 @@ test("profile deletion requires the typed sentence and hits the wire", async ({
   // The refetched list drops the deleted profile's row.
   await expect(
     page
-      .locator("section[aria-labelledby='profiles-heading']")
+      .locator(`section[aria-labelledby='${PROFILES_HEADING_ID}']`)
       .getByRole("button", { name: profiles[0].name, exact: true }),
   ).toBeHidden();
 });

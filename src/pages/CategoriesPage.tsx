@@ -1,4 +1,4 @@
-import { Paged } from "@/features/pagination/Pagination";
+import { Paged } from "@/shared/patterns/Pagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -17,9 +17,13 @@ import {
   CATEGORIES_HEADING,
   CATEGORIES_SUBTITLE,
   EMPTY_CATEGORIES_MESSAGE,
+  PAGINATION_LABEL,
+  PAGINATION_NEXT_LABEL,
+  PAGINATION_PREVIOUS_LABEL,
   categoryCreatedLabel,
   deleteCategoryLabel,
   editCategoryLabel,
+  pageXOfYLabel,
 } from "@/lib/labels";
 import { errorMessage, formatDate } from "@/lib/utils";
 
@@ -108,7 +112,14 @@ export function CategoriesPage() {
             {EMPTY_CATEGORIES_MESSAGE}
           </p>
         )}
-        <Paged key={profile?.id} items={categories}>
+        <Paged
+          key={profile?.id}
+          items={categories}
+          navLabel={PAGINATION_LABEL}
+          previousLabel={PAGINATION_PREVIOUS_LABEL}
+          nextLabel={PAGINATION_NEXT_LABEL}
+          formatPageIndicator={pageXOfYLabel}
+        >
           {(items) => (
             <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
               {items?.map((category) => (

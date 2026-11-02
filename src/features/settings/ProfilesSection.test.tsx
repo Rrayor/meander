@@ -18,12 +18,17 @@ import {
 import type { Profile } from "@/api/profiles";
 import { ProfilesSection } from "@/features/settings/ProfilesSection";
 import {
+  CANCEL_BUTTON_LABEL,
+  CLOSE_LABEL,
+  CREATE_PROFILE_LABEL,
   DELETE_BUTTON_LABEL,
   DELETE_CONFIRM_INPUT_LABEL,
   EDIT_BUTTON_LABEL,
+  SAVE_BUTTON_LABEL,
   deleteProfileLabel,
   deleteProfileSentence,
   IMPORT_SETTINGS_LABEL,
+  PROFILE_NAME_LABEL,
   PROFILE_NAME_REQUIRED_MESSAGE,
   renameProfileLabel,
 } from "@/lib/labels";
@@ -43,7 +48,6 @@ const DEFAULT_PROFILE_NAME = "Default";
 const NEW_PROFILE_NAME = "  Work  ";
 const RENAMED_PROFILE_NAME = "Personal";
 const BACKEND_ERROR_MESSAGE = "name taken";
-const CREATE_PROFILE_BUTTON = "Create profile";
 
 const SECOND_PROFILE: Profile = {
   id: 2,
@@ -84,7 +88,7 @@ describe("ProfilesSection", () => {
   it("rejects an empty profile name without calling the backend", async () => {
     renderSection();
     fireEvent.click(
-      await screen.findByRole("button", { name: CREATE_PROFILE_BUTTON }),
+      await screen.findByRole("button", { name: CREATE_PROFILE_LABEL }),
     );
     expect(
       await screen.findByText(PROFILE_NAME_REQUIRED_MESSAGE),
@@ -94,11 +98,9 @@ describe("ProfilesSection", () => {
 
   it("creates a profile and clears the input", async () => {
     renderSection();
-    const input = await screen.findByLabelText("Profile name");
+    const input = await screen.findByLabelText(PROFILE_NAME_LABEL);
     fireEvent.change(input, { target: { value: NEW_PROFILE_NAME } });
-    fireEvent.click(
-      screen.getByRole("button", { name: CREATE_PROFILE_BUTTON }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: CREATE_PROFILE_LABEL }));
     await waitFor(() =>
       expect(vi.mocked(createProfile).mock.calls[0][0]).toBe(NEW_PROFILE_NAME),
     );
@@ -113,7 +115,7 @@ describe("ProfilesSection", () => {
       renameProfileLabel(DEFAULT_PROFILE_NAME),
     );
     fireEvent.change(editor, { target: { value: RENAMED_PROFILE_NAME } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
       expect(vi.mocked(renameProfile).mock.calls[0].slice(0, 2)).toEqual([
         1,
@@ -159,13 +161,27 @@ describe("ProfilesSection", () => {
       new Error(BACKEND_ERROR_MESSAGE),
     );
     renderSection();
-    const input = await screen.findByLabelText("Profile name");
+    const input = await screen.findByLabelText(PROFILE_NAME_LABEL);
     fireEvent.change(input, { target: { value: "Dup" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: CREATE_PROFILE_BUTTON }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: CREATE_PROFILE_LABEL }));
     expect(await screen.findByText(BACKEND_ERROR_MESSAGE)).toBeInTheDocument();
   });
+
+  // Base UI's select commits an item on pointerdown+click (mouse selection
+  // order); the trigger opens on a plain click — see Select.test.tsx. The
+  // popup is portaled to <body>, so options are found on `screen`, not
+  // scoped to the section.
+  const pickImportSource = async (sourceName: string) => {
+    fireEvent.click(
+      screen.getByRole("combobox", { name: IMPORT_SETTINGS_LABEL }),
+    );
+    const option = await screen.findByRole("option", { name: sourceName });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+  };
 
   it("imports settings from another profile on selection", async () => {
     const source = SECOND_PROFILE;
@@ -176,24 +192,26 @@ describe("ProfilesSection", () => {
     fireEvent.click(
       (await screen.findAllByRole("button", { name: EDIT_BUTTON_LABEL }))[0],
     );
-    const select = await screen.findByRole("combobox", {
-      name: IMPORT_SETTINGS_LABEL,
-    });
-    fireEvent.change(select, { target: { value: String(source.id) } });
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: IMPORT_SETTINGS_LABEL }),
+    );
+    // The edited profile itself is not offered as a source.
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([source.name]);
+    const option = screen.getByRole("option", { name: source.name });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
     // Staged only — the import must not fire until Save.
     expect(vi.mocked(importProfileSettings)).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: SAVE_BUTTON_LABEL }));
     await waitFor(() =>
       expect(
         vi.mocked(importProfileSettings).mock.calls[0].slice(0, 2),
       ).toEqual([profiles[0].id, source.id]),
     );
-    // The edited profile itself is not offered as a source.
-    const options = Array.from(select.querySelectorAll("option")).map(
-      (o) => o.textContent,
-    );
-    expect(options).toContain(source.name);
-    expect(options.filter((t) => t === profiles[0].name)).toHaveLength(0);
   });
 
   it("does not import when the edit is cancelled", async () => {
@@ -204,11 +222,8 @@ describe("ProfilesSection", () => {
     fireEvent.click(
       (await screen.findAllByRole("button", { name: EDIT_BUTTON_LABEL }))[0],
     );
-    const select = await screen.findByRole("combobox", {
-      name: IMPORT_SETTINGS_LABEL,
-    });
-    fireEvent.change(select, { target: { value: String(source.id) } });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await pickImportSource(source.name);
+    fireEvent.click(screen.getByRole("button", { name: CANCEL_BUTTON_LABEL }));
     await waitFor(() =>
       expect(vi.mocked(importProfileSettings)).not.toHaveBeenCalled(),
     );
@@ -276,14 +291,16 @@ describe("ProfilesSection", () => {
         }),
       );
       const dialog = await screen.findByRole("dialog");
-      fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: CANCEL_BUTTON_LABEL }),
+      );
       expect(vi.mocked(deleteProfile)).not.toHaveBeenCalled();
       await waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
       );
     });
 
-    it("closes on Escape or backdrop without deleting", async () => {
+    it("closes on Escape, outside press, or the header close button without deleting", async () => {
       vi.mocked(listProfiles).mockResolvedValue(profiles);
       vi.mocked(currentProfile).mockResolvedValue(profiles[0]);
       renderSection();
@@ -293,23 +310,28 @@ describe("ProfilesSection", () => {
             name: deleteProfileLabel(profiles[0].name),
           }),
         );
+      const expectClosed = () =>
+        waitFor(() =>
+          expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+        );
 
       await open();
       fireEvent.keyDown(document, { key: "Escape" });
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
+      await expectClosed();
 
+      // A press outside the popup (the viewport/dim layer) dismisses too.
       await open();
       const dialog = await screen.findByRole("dialog");
+      fireEvent.click(dialog.parentElement!);
+      await expectClosed();
+
+      await open();
       fireEvent.click(
-        within(dialog.parentElement!).getByRole("button", {
-          name: "Close dialog",
+        within(await screen.findByRole("dialog")).getByRole("button", {
+          name: CLOSE_LABEL,
         }),
       );
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
+      await expectClosed();
       expect(vi.mocked(deleteProfile)).not.toHaveBeenCalled();
     });
 

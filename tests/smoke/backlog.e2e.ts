@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 
+import { PAGE_SIZE } from "@/lib/constants";
 import { ROUTES } from "@/lib/routes";
 import {
   NAV_LABEL,
-  PAGE_SIZE,
   MOVE_TO_DATE_LABEL,
   PAGINATION_LABEL,
   PAGINATION_NEXT_LABEL,
