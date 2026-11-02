@@ -82,6 +82,11 @@ describe("NewTaskDialog", () => {
     mockedUpdate.mockReset().mockResolvedValue({} as never);
   });
 
+  it("focuses the title field when the dialog opens", async () => {
+    renderDialog();
+    await waitFor(() => expect(screen.getByLabelText(/Title/)).toHaveFocus());
+  });
+
   it("validates the title on blur before submit", async () => {
     renderDialog();
     const title = screen.getByLabelText(/Title/);

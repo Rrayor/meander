@@ -12,6 +12,11 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either.
+const OPEN_DIALOG = "dialog, [role='dialog']";
+
 // Real end-to-end path: writing a note on a task goes through
 // create_task_note / list_task_notes IPC and SQLite, so the note must
 // survive a reopen of the task's details view.
@@ -42,10 +47,13 @@ describe("Task notes smoke", () => {
     ).toExist();
 
     // Reopen the task: the persisted note must render. aria/ matches
-    // document-wide and "Close" also hits the backdrop's "Close dialog",
-    // so match the exact aria-label inside the open dialog instead.
+    // document-wide, so scope the exact aria-label inside the open dialog
+    // (now a portaled div[role='dialog'], native <dialog> before the
+    // migration).
     const closeDialog = async () =>
-      (await $(`dialog[open] button[aria-label='${CLOSE_LABEL}']`)).click();
+      (
+        await $(`:is(${OPEN_DIALOG}) button[aria-label='${CLOSE_LABEL}']`)
+      ).click();
     await closeDialog();
     await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
     await browser.waitUntil(async () =>

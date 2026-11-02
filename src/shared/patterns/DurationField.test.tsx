@@ -24,14 +24,18 @@ const minutesInput = () =>
   screen.getByRole("spinbutton", { name: MINUTES_CAPTION });
 
 interface HarnessProps {
+  inputLabels?: { hours: string; minutes: string };
   error?: string;
+  errorId?: string;
   disabled?: boolean;
   onSubmit?: (values: FormValues) => void;
   refSpy?: (el: unknown) => void;
 }
 
 function Harness({
+  inputLabels,
   error,
+  errorId,
   disabled,
   onSubmit = vi.fn(),
   refSpy,
@@ -60,7 +64,9 @@ function Harness({
               }
             : register
         }
+        inputLabels={inputLabels}
         error={error}
+        errorId={errorId}
         disabled={disabled}
       />
       <button type="submit">{SUBMIT_LABEL}</button>
@@ -103,6 +109,29 @@ describe("DurationField", () => {
       expect(input).toHaveAttribute("aria-invalid", "true");
       expect(input.getAttribute("aria-describedby")).toContain(alert.id);
     }
+  });
+
+  it("names the inputs by inputLabels over the visible captions", () => {
+    render(
+      <Harness
+        inputLabels={{ hours: "Estimated hours", minutes: "Estimated minutes" }}
+      />,
+    );
+    expect(
+      screen.getByRole("spinbutton", { name: "Estimated hours" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "Estimated minutes" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the alert under errorId while still describing the inputs", () => {
+    render(<Harness error={ERROR_MESSAGE} errorId="task-estimate-error" />);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveAttribute("id", "task-estimate-error");
+    expect(hoursInput().getAttribute("aria-describedby")).toContain(
+      "task-estimate-error",
+    );
   });
 
   it("disables both inputs and dims the pair when disabled", () => {

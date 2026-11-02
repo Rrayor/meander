@@ -1,19 +1,19 @@
-import { useRef, useState } from "react";
-
 import { NoteList } from "@/features/tasks/NoteList";
 import { NotesTab } from "@/lib/enums";
 import { NOTES_TAB_INSTANCE_LABEL, NOTES_TAB_SERIES_LABEL } from "@/lib/labels";
+import { Tabs } from "@/shared/ui/Tabs";
 
 const TABS = [
   { id: NotesTab.Instance, label: NOTES_TAB_INSTANCE_LABEL },
   { id: NotesTab.Series, label: NOTES_TAB_SERIES_LABEL },
 ] as const;
 
-const ARROW_DELTAS: Record<string, number> = {
-  ArrowRight: 1,
-  ArrowLeft: -1,
-};
-
+// The instance/series note tabs on a series task's details view. APG
+// tab semantics (roving tabindex, arrow-key move-and-activate, linked
+// panels) come from the shared Tabs parts; `activateOnFocus` keeps the
+// source behavior where arrows switch the tab, and `keepMounted` keeps
+// the inactive panel's NoteList alive so a typed draft isn't dropped by
+// a tab round-trip.
 export function NotesTabs({
   taskId,
   seriesId,
@@ -21,55 +21,17 @@ export function NotesTabs({
   taskId: number;
   seriesId: number;
 }>) {
-  const [active, setActive] = useState<NotesTab>(NotesTab.Instance);
-  const refs = useRef(new Map<NotesTab, HTMLButtonElement>());
-
-  // APG tabs: arrow keys move focus and activate the focused tab.
-  const onKeyDown = (e: React.KeyboardEvent, index: number) => {
-    const delta = ARROW_DELTAS[e.key] ?? 0;
-    if (delta === 0) return;
-    e.preventDefault();
-    const next = TABS[(index + delta + TABS.length) % TABS.length];
-    setActive(next.id);
-    refs.current.get(next.id)?.focus();
-  };
-
   return (
-    <div>
-      <div role="tablist" className="flex gap-4 border-b border-border">
-        {TABS.map((tab, index) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            ref={(el) => {
-              if (el) refs.current.set(tab.id, el);
-            }}
-            aria-selected={active === tab.id}
-            aria-controls={`notes-panel-${tab.id}`}
-            id={`notes-tab-${tab.id}`}
-            tabIndex={active === tab.id ? 0 : -1}
-            onClick={() => setActive(tab.id)}
-            onKeyDown={(e) => onKeyDown(e, index)}
-            className={`-mb-px border-b-2 pb-2 text-sm transition-colors ${
-              active === tab.id
-                ? "border-primary font-medium text-primary"
-                : "border-transparent text-text-muted hover:text-text"
-            }`}
-          >
+    <Tabs.Root defaultValue={NotesTab.Instance}>
+      <Tabs.List activateOnFocus>
+        {TABS.map((tab) => (
+          <Tabs.Tab key={tab.id} value={tab.id}>
             {tab.label}
-          </button>
+          </Tabs.Tab>
         ))}
-      </div>
+      </Tabs.List>
       {TABS.map((tab) => (
-        <div
-          key={tab.id}
-          role="tabpanel"
-          id={`notes-panel-${tab.id}`}
-          aria-labelledby={`notes-tab-${tab.id}`}
-          hidden={active !== tab.id}
-          className="py-3"
-        >
+        <Tabs.Panel key={tab.id} value={tab.id} keepMounted>
           {/* Keyed by the target id: switching to another instance remounts
               the list, so a draft or inline edit can never be saved against
               the newly selected instance. */}
@@ -77,8 +39,8 @@ export function NotesTabs({
             key={tab.id === NotesTab.Instance ? taskId : seriesId}
             target={tab.id === NotesTab.Instance ? { taskId } : { seriesId }}
           />
-        </div>
+        </Tabs.Panel>
       ))}
-    </div>
+    </Tabs.Root>
   );
 }

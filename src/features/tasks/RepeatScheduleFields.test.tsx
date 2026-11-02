@@ -156,10 +156,11 @@ describe("RepeatScheduleFields", () => {
     fireEvent.change(screen.getByLabelText(REPEAT_STARTS_LABEL), {
       target: { value: FRIDAY_ISO },
     });
+    // WeekdayPicker emits the selection sequenced by the week order.
     expect(lastSeries(onChange)?.recurrence).toEqual({
       kind: RecurrenceKind.Weekly,
       interval_weeks: 1,
-      weekdays: [Weekday.Wednesday, Weekday.Monday],
+      weekdays: [Weekday.Monday, Weekday.Wednesday],
     });
   });
 

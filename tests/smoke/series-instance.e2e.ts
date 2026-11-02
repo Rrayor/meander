@@ -12,6 +12,11 @@ import {
 } from "@/lib/labels";
 import { ROUTES } from "@/lib/routes";
 
+// Transitional selector: migrated dialogs render as portaled
+// div[role='dialog'] popups while unmigrated ones stay native
+// <dialog open> — the union matches either. Scope into it with :is().
+const OPEN_DIALOG = "dialog, [role='dialog']";
+
 // Real end-to-end path: editing a scheduled-but-unpersisted date goes
 // through get_or_create_instance IPC and SQLite — the Edit click is what
 // materializes the row, and the dialog must enter edit mode on it.
@@ -30,26 +35,37 @@ describe("Series instance smoke", () => {
     // Expanding the repeat section emits a daily schedule by default, so
     // tomorrow is a scheduled-but-unpersisted occurrence.
     await (
-      await $("dialog[open] button[aria-controls$='-repeat-panel']")
+      await $(`:is(${OPEN_DIALOG}) button[aria-controls$='-repeat-panel']`)
     ).click();
     await (await $(`aria/${CREATE_TASK_LABEL}`)).click();
-    await browser.waitUntil(async () =>
-      (await $(`aria/${editTaskLabel(taskTitle)}`)).isExisting(),
+    await browser.waitUntil(
+      async () => (await $$(`aria/${editTaskLabel(taskTitle)}`)).length > 0,
     );
+    await (await $$(`aria/${editTaskLabel(taskTitle)}`))[0].click();
+    const dialog = `:is(${OPEN_DIALOG})`;
 
-    await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
-    const dialog = "dialog[open]";
+    // A date far enough out is scheduled-but-unmaterialized: the board
+    // materializes the displayed week eagerly, so a near date may already
+    // have a row — the pending flow needs a date with no instance yet.
+    const target = new Date();
+    target.setDate(target.getDate() + 40);
+    const pick = `${target.getFullYear()}-${String(
+      target.getMonth() + 1,
+    ).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const pick = `${tomorrow.getFullYear()}-${String(
-      tomorrow.getMonth() + 1,
-    ).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
-    // When tomorrow falls into the next month, navigate the grid first.
-    if (!(await $(`${dialog} button[aria-label='${pick}']`).isExisting())) {
-      await $(`${dialog} button[aria-label='${CALENDAR_NEXT_LABEL}']`).click();
+    // The instance calendar mounts once the series queries resolve —
+    // wait for it before navigating to the target month.
+    const dayButton = () => $(`${dialog} button[aria-label='${pick}']`);
+    const nextMonth = () =>
+      $(`${dialog} button[aria-label='${CALENDAR_NEXT_LABEL}']`);
+    await browser.waitUntil(
+      async () =>
+        (await nextMonth()).isExisting() || (await dayButton()).isExisting(),
+    );
+    for (let i = 0; i < 4 && !(await dayButton().isExisting()); i++) {
+      await (await nextMonth()).click();
     }
-    await (await $(`${dialog} button[aria-label='${pick}']`)).click();
+    await (await dayButton()).click();
 
     // The pending placeholder shows until the Edit click materializes
     // the instance; a future date opens straight into edit mode.

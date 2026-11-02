@@ -3,7 +3,8 @@ import { X } from "lucide-react";
 import { Dialog } from "../ui/Dialog";
 import { IconButton } from "../ui/IconButton";
 
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
+import type { DialogPopupProps } from "../ui/Dialog";
 
 // Composed form surface shared by the edit/create dialogs (NewTaskDialog,
 // CategoryDialog, EditTaskDialog): the Dialog overlay chrome plus the
@@ -29,6 +30,16 @@ interface FormDialogProps {
   children: ReactNode;
   /** Action row content — caller composes Buttons (cancel/submit). */
   footer?: ReactNode;
+  /** Extra header content rendered before the close button — e.g. the
+      edit affordance of a view/edit dialog (EditTaskDialog). */
+  headerActions?: ReactNode;
+  /** Element receiving focus on open — forwarded to Dialog.Popup
+      (Base UI `initialFocus`). Omit for the default first-tabbable. */
+  initialFocus?: DialogPopupProps["initialFocus"];
+  /** Forwarded to Dialog.Popup — a caller whose `initialFocus` target is
+      the popup itself (a view-first dialog with no field to focus) needs
+      the element. */
+  popupRef?: Ref<HTMLDivElement>;
 }
 
 export function FormDialog({
@@ -38,6 +49,9 @@ export function FormDialog({
   closeLabel,
   children,
   footer,
+  headerActions,
+  initialFocus,
+  popupRef,
 }: Readonly<FormDialogProps>) {
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) onClose();
@@ -48,12 +62,15 @@ export function FormDialog({
       <Dialog.Portal>
         <Dialog.Viewport>
           <Dialog.Backdrop />
-          <Dialog.Popup>
+          <Dialog.Popup ref={popupRef} initialFocus={initialFocus}>
             <div className="flex items-center justify-between">
               <Dialog.Title>{title}</Dialog.Title>
-              <Dialog.Close
-                render={<IconButton icon={X} label={closeLabel} />}
-              />
+              <div className="flex items-center gap-1">
+                {headerActions}
+                <Dialog.Close
+                  render={<IconButton icon={X} label={closeLabel} />}
+                />
+              </div>
             </div>
             {children}
             {footer != null && (
