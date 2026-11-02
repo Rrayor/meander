@@ -2,7 +2,7 @@ import type { Category, GlobalThreshold, Task } from "@/api/bindings";
 import { TaskPlacement, TaskSort, TaskStatus } from "@/lib/enums";
 import { weekdayNameOf } from "@/lib/utils";
 
-import { matchesSearch, sortTasks } from "./viewFilters";
+import { matchesSearch, sortTasks } from "@/lib/viewFilters";
 
 // Spec §312–§316: the board's three state rows, in render order.
 export const STATUS_ROWS = [

@@ -22,7 +22,7 @@ import { currentDatabasePath } from "@/api/settings";
 import { boardMove, listPendingCarryOver, listWeekTasks } from "@/api/tasks";
 import { BoardHeader } from "@/features/board/BoardHeader";
 import { CarryOverPrompt } from "@/features/board/CarryOverPrompt";
-import { ViewToolbar } from "@/features/board/ViewToolbar";
+import { ViewToolbar } from "@/features/tasks/ViewToolbar";
 import { WeekColumns } from "@/features/board/WeekColumns";
 import { decodeCellId, taskTotals } from "@/features/board/boardGrid";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
