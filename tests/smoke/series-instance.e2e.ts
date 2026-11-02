@@ -38,11 +38,14 @@ describe("Series instance smoke", () => {
       await $(`:is(${OPEN_DIALOG}) button[aria-controls$='-repeat-panel']`)
     ).click();
     await (await $(`aria/${CREATE_TASK_LABEL}`)).click();
-    await browser.waitUntil(async () =>
-      (await $(`aria/${editTaskLabel(taskTitle)}`)).isExisting(),
+    // A daily series renders one occurrence card per day — the labels
+    // share the title prefix, so strict `$` collides. Any occurrence is a
+    // valid edit-intent entry; the picked date is chosen in the dialog.
+    await browser.waitUntil(
+      async () => (await $$(`aria/${editTaskLabel(taskTitle)}`)).length > 0,
     );
 
-    await (await $(`aria/${editTaskLabel(taskTitle)}`)).click();
+    await (await $$(`aria/${editTaskLabel(taskTitle)}`))[0].click();
     const dialog = `:is(${OPEN_DIALOG})`;
 
     const tomorrow = new Date();
