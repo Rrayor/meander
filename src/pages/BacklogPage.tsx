@@ -13,6 +13,9 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { matchesSearch, sortTasks } from "@/lib/viewFilters";
+import { ViewToolbar } from "@/features/tasks/ViewToolbar";
+import { TaskSort } from "@/lib/enums";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -21,11 +24,8 @@ import { QUERY_KEYS } from "@/api/queryKeys";
 import { addTaskToWeek, deleteTask, listTasks, moveTask } from "@/api/tasks";
 import type { Task } from "@/api/tasks";
 import { TaskRow } from "@/features/backlog/TaskRow";
-import { matchesSearch, sortTasks } from "@/features/board/viewFilters";
-import { ViewToolbar } from "@/features/board/ViewToolbar";
 import { EditTaskDialog } from "@/features/tasks/EditTaskDialog";
 import { NewTaskDialog } from "@/features/tasks/NewTaskDialog";
-import { TaskSort } from "@/lib/enums";
 import {
   ADD_TASK_LABEL,
   BACKLOG_HEADING,
