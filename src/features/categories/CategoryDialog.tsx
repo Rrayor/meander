@@ -237,17 +237,13 @@ export function CategoryDialog({
               const customSelected =
                 value !== "" &&
                 !(CATEGORY_COLORS as readonly string[]).includes(value);
+              let swatchValue = value === "" ? DEFAULT_SWATCH_VALUE : value;
+              if (customSelected) swatchValue = CUSTOM_SWATCH_VALUE;
               return (
                 <RadioGroup.Root
                   aria-labelledby={COLOR_LABEL_ID}
                   className="flex-wrap gap-2"
-                  value={
-                    value === ""
-                      ? DEFAULT_SWATCH_VALUE
-                      : customSelected
-                        ? CUSTOM_SWATCH_VALUE
-                        : value
-                  }
+                  value={swatchValue}
                   onValueChange={(next) => {
                     // The custom swatch is a picker shortcut, not a
                     // stored value — activating it opens the color
