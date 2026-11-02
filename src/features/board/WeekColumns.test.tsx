@@ -33,7 +33,7 @@ const renderColumns = (onOpenTask = vi.fn(), tasks: Task[] = [TASK]) =>
         <table>
           <tbody>
             <WeekColumns
-              columns={[null, "2026-11-02"]}
+              columns={[null, TASK.scheduled_date]}
               transposed={false}
               tasks={tasks}
               query=""
