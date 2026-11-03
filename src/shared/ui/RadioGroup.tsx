@@ -35,8 +35,12 @@ import type {
 //       Label
 //     </RadioGroup.Radio>
 //   </RadioGroup.Root>
+// inline-block is required — Base UI radios render <span>, which ignores
+// h-*/w-* utilities while inline (the swatch recipes size the element
+// directly and would collapse to 0×0). Segment-pill radios are flex
+// children, where blockification makes the class a no-op.
 const RADIO_CLASSES = cn(
-  "cursor-pointer select-none transition-colors",
+  "inline-block cursor-pointer select-none transition-colors",
   FOCUS_RING,
   "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
 );

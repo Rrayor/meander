@@ -1,5 +1,6 @@
 import { Paged } from "@/shared/patterns/Pagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -10,7 +11,6 @@ import {
 import type { Category } from "@/api/categories";
 import { currentProfile } from "@/api/profiles";
 import { QUERY_KEYS } from "@/api/queryKeys";
-import { DeleteButton } from "@/components/DeleteButton";
 import { CategoryDialog } from "@/features/categories/CategoryDialog";
 import {
   ADD_CATEGORY_LABEL,
@@ -26,6 +26,10 @@ import {
   pageXOfYLabel,
 } from "@/lib/labels";
 import { errorMessage, formatDate } from "@/lib/utils";
+import { EmptyState } from "@/shared/patterns/EmptyState";
+import { PageHeader } from "@/shared/patterns/PageHeader";
+import { Button } from "@/shared/ui/Button";
+import { IconButton } from "@/shared/ui/IconButton";
 
 // A NULL color means "no pick" — the same default the backend stores on
 // create. Stored colors are hex values applied inline since they are data,
@@ -84,23 +88,19 @@ export function CategoriesPage() {
 
   return (
     <>
-      <header className="flex items-center border-b border-border px-6 py-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-text">
-            {CATEGORIES_HEADING}
-          </h1>
-          <p className="text-sm text-text-muted">{CATEGORIES_SUBTITLE}</p>
-        </div>
-      </header>
+      <PageHeader
+        title={CATEGORIES_HEADING}
+        description={CATEGORIES_SUBTITLE}
+      />
       <section className="flex-1 overflow-y-auto p-6">
         <div className="mb-4">
-          <button
+          <Button
             type="button"
             onClick={() => setDialogOpen(true)}
-            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-on-primary transition-colors duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="rounded-lg px-3 py-2 font-medium transition-colors duration-150 ease-out"
           >
             {ADD_CATEGORY_LABEL}
-          </button>
+          </Button>
         </div>
         {(error ?? del.error) && (
           <p role="alert" className="text-sm text-danger">
@@ -108,9 +108,7 @@ export function CategoriesPage() {
           </p>
         )}
         {categories?.length === 0 && (
-          <p className="py-12 text-center text-sm text-text-muted">
-            {EMPTY_CATEGORIES_MESSAGE}
-          </p>
+          <EmptyState title={EMPTY_CATEGORIES_MESSAGE} />
         )}
         <Paged
           key={profile?.id}
@@ -148,10 +146,17 @@ export function CategoriesPage() {
                   <span className="text-xs text-text-muted">
                     {categoryCreatedLabel(formatDate(category.created_at))}
                   </span>
-                  <DeleteButton
+                  <IconButton
+                    icon={Trash2}
                     label={deleteCategoryLabel(category.title)}
                     disabled={del.isPending}
-                    onDelete={() => del.mutate(category.id)}
+                    // The row itself opens the editor on click — the
+                    // delete affordance must not bubble up to it.
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      del.mutate(category.id);
+                    }}
+                    className="rounded p-1"
                   />
                 </li>
               ))}

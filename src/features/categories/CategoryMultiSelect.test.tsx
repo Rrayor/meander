@@ -84,7 +84,7 @@ describe("CategoryMultiSelect", () => {
   it("toggles a selection into a removable chip", async () => {
     renderSelect();
     fireEvent.focus(input());
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
     expect(
       screen.getByRole("button", {
         name: removeTaskCategoryLabel(ERRANDS.title),
@@ -127,12 +127,12 @@ describe("CategoryMultiSelect", () => {
     renderSelect();
     fireEvent.focus(input());
     const option = await screen.findByRole("option", { name: /Work/ });
-    fireEvent.mouseDown(option);
+    fireEvent.click(option);
     expect(screen.getByRole("option", { name: /Work/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    fireEvent.mouseDown(screen.getByRole("option", { name: /Work/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Work/ }));
     expect(screen.getByRole("option", { name: /Work/ })).toHaveAttribute(
       "aria-selected",
       "false",
@@ -146,7 +146,7 @@ describe("CategoryMultiSelect", () => {
     fireEvent.focus(input());
     await screen.findByRole("option", { name: /Errands/ });
     fireEvent.change(input(), { target: { value: NEW_TITLE } });
-    fireEvent.mouseDown(
+    fireEvent.click(
       screen.getByRole("option", {
         name: new RegExp(createCategoryOptionLabel(NEW_TITLE)),
       }),
@@ -160,6 +160,24 @@ describe("CategoryMultiSelect", () => {
     expect(
       await screen.findByRole("button", {
         name: removeTaskCategoryLabel(NEW_TITLE),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the popup open and the query typed after a filtered pick", async () => {
+    renderSelect();
+    fireEvent.focus(input());
+    await screen.findByRole("option", { name: /Errands/ });
+    fireEvent.change(input(), { target: { value: "e" } });
+    fireEvent.click(screen.getByRole("option", { name: /Errands/ }));
+    // Picking an item must not dismiss the list nor clear the needle —
+    // the hand-rolled control let you toggle several filtered options in
+    // one open cycle.
+    expect(input()).toHaveValue("e");
+    expect(screen.getByRole("option", { name: /Errands/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: removeTaskCategoryLabel(ERRANDS.title),
       }),
     ).toBeInTheDocument();
   });
@@ -190,8 +208,8 @@ describe("CategoryMultiSelect", () => {
   it("Backspace on an empty input removes the last chip only", async () => {
     renderSelect();
     fireEvent.focus(input());
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Errands/ }));
-    fireEvent.mouseDown(await screen.findByRole("option", { name: /Work/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Errands/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /Work/ }));
     // Backspace pops the most recent chip; typing guards against pops.
     fireEvent.keyDown(input(), { key: BACKSPACE });
     expect(
@@ -214,7 +232,7 @@ describe("CategoryMultiSelect", () => {
     fireEvent.focus(input());
     await screen.findByRole("option", { name: /Errands/ });
     fireEvent.change(input(), { target: { value: NEW_TITLE } });
-    fireEvent.mouseDown(screen.getByRole("option", { name: /Create/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Create/ }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 });

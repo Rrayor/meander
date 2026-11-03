@@ -303,11 +303,22 @@ test("an open editor does not survive a profile switch", async () => {
     screen.getByRole("heading", { name: EDIT_CATEGORY_HEADING }),
   ).toBeInTheDocument();
 
+  // The migrated dialog is a real modal: everything outside it is
+  // aria-hidden/inert, so the switcher can't be reached through the
+  // accessibility tree. `hidden: true` still exercises the
+  // close-on-switch guard — jsdom does not gate dispatched events on
+  // inert.
   fireEvent.click(
-    screen.getByRole("button", { name: new RegExp(PROFILE.name) }),
+    screen.getByRole("button", {
+      name: new RegExp(PROFILE.name),
+      hidden: true,
+    }),
   );
   fireEvent.click(
-    await screen.findByRole("menuitem", { name: OTHER_PROFILE.name }),
+    await screen.findByRole("menuitem", {
+      name: OTHER_PROFILE.name,
+      hidden: true,
+    }),
   );
 
   await waitFor(() =>

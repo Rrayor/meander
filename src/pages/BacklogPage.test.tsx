@@ -1,4 +1,4 @@
-import { TaskPlacement, TaskStatus } from "@/lib/enums";
+import { TaskPlacement, TaskSort, TaskStatus } from "@/lib/enums";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -16,6 +16,7 @@ import {
   EMPTY_BACKLOG_MESSAGE,
   SEARCH_TASKS_LABEL,
   SORT_TASKS_LABEL,
+  TASK_SORT_LABELS,
   PAGINATION_NEXT_LABEL,
   PAGINATION_PREVIOUS_LABEL,
   STATUS_LABELS,
@@ -625,9 +626,14 @@ test("a matching query narrows the list; the sort pick reorders it", async () =>
   });
 
   fireEvent.change(search, { target: { value: "" } });
-  fireEvent.change(screen.getByLabelText(SORT_TASKS_LABEL), {
-    target: { value: "title" },
+  // Base UI's select commits an item on pointerdown+click — see
+  // Select.test.tsx; the portaled popup is queried off `screen`.
+  fireEvent.click(screen.getByRole("combobox", { name: SORT_TASKS_LABEL }));
+  const titleSort = await screen.findByRole("option", {
+    name: TASK_SORT_LABELS[TaskSort.Title],
   });
+  fireEvent.pointerDown(titleSort);
+  fireEvent.click(titleSort);
   await waitFor(() => {
     const rows = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(rows[0]).toContain("Alpha");
