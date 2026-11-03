@@ -2,15 +2,8 @@ import { Weekday } from "@/lib/enums";
 
 import { ToggleGroup } from "../ui/ToggleGroup";
 
+import type { WeekdayLabel } from "@/lib/calendar";
 import type { ToggleGroupRootProps, ToggleProps } from "../ui/ToggleGroup";
-
-/** Display copy for one weekday chip. */
-export interface WeekdayLabel {
-  /** Full day name — the chip's accessible name (`aria-label`). */
-  label: string;
-  /** Short day text — the chip's visible content. */
-  short: string;
-}
 
 // shared/ cannot import @/lib/labels (layering rule), so the default chip
 // copy derives from the Weekday wire name: capitalize for the label, first

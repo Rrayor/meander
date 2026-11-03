@@ -47,6 +47,7 @@ import { Field } from "@/shared/ui/Field";
 import { Input } from "@/shared/ui/Input";
 import { RadioGroup } from "@/shared/ui/RadioGroup";
 import { Textarea } from "@/shared/ui/Textarea";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const schema = z.object({
   title: z
@@ -311,7 +312,7 @@ export function CategoryDialog({
           />
         </div>
         {serverError && (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className={ERROR_TEXT}>
             {serverError}
           </p>
         )}

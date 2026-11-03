@@ -106,6 +106,7 @@ src/
   features/
     tasks/        # TaskCard, dialogs, notes, recurrence, calendar wrapper
     board/        # board grid pieces, WeekJumpCalendar, CarryOverPrompt
+    backlog/      # TaskRow — backlog-only domain component
     categories/   # CategoryDialog, CategoryMultiSelect
     settings/     # the settings sections
     pagination/   # gone — Pagination/Paged are generic, move to shared
@@ -169,8 +170,8 @@ Base UI props. Sizes: `sm | md` where applicable.
 
 | Component                | Base                                              | Props (beyond native/passthrough)                                                                                 | Replaces                                                                                                                                       |
 | ------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                 | styled `<button>`                                 | `variant: "primary" \| "secondary" \| "danger" \| "ghost"`, `size`                                                | ~86 inline buttons incl. `DeleteButton`                                                                                                        |
-| `IconButton`             | styled `<button>`                                 | `icon: LucideIcon`, `label: string` (required a11y name), `variant`, `size`                                       | close/chevron icon buttons                                                                                                                     |
+| `Button`                 | styled `<button>`                                 | `variant: "primary" \| "secondary" \| "danger" \| "ghost"`, `size`                                                | ~86 inline buttons                                                                                                                             |
+| `IconButton`             | styled `<button>`                                 | `icon: LucideIcon`, `label: string` (required a11y name), `variant`, `size`                                       | close/chevron icon buttons, `DeleteButton` call sites                                                                                          |
 | `Dialog`                 | `@base-ui/react/dialog`                           | styled `Root/Backdrop/Popup/Title/Description/Close` parts, re-exported                                           | 5 hand-rolled overlays                                                                                                                         |
 | `AlertDialog`            | `@base-ui/react/alert-dialog`                     | same part structure                                                                                               | destructive-confirm surfaces where AlertDialog dismissal semantics already match current behavior (builder decides per call site; parity wins) |
 | `Field`                  | `@base-ui/react/field`                            | `Root/Label/Control/Error` parts; `Error` renders `role="alert"`, Control wires `aria-invalid`/`aria-describedby` | 39 hand-wired error spots                                                                                                                      |
@@ -195,17 +196,17 @@ fragments per recipe)
 
 ### shared/patterns — composed generics
 
-| Component             | Props                                                                                                                                                                                     | Notes                                                                                                                                                                                                                                                              |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `FormDialog`          | `open`, `onClose`, `title`, `children` (form body), `footer` (button slot)                                                                                                                | Dialog + header + scrollable body + footer. NewTask/Category/EditTask dialogs converge on it                                                                                                                                                                       |
-| `ConfirmDialog`       | `open`, `onClose`, `title`, `description?`, `children?` (custom body), `confirmLabel`, `cancelLabel`, `onConfirm`, `confirmDisabled?: boolean`, `destructive?: boolean`, `busy?: boolean` | On `AlertDialog`: fixed cancel/confirm footer + alert semantics. `children` carries type-to-confirm inputs (DeleteProfileDialog), per-task choice lists (CarryOverPrompt), etc. Differs from `FormDialog` in semantics (alert vs. form) and owning its button pair |
-| `PageHeader`          | `title: string`, `actions?: ReactNode`                                                                                                                                                    | The repeated `<h1 className="text-2xl font-semibold tracking-tight">` + action row on every page                                                                                                                                                                   |
-| `SettingsSection`     | `title`, `description?`, `children`                                                                                                                                                       | The repeated section card on SettingsPage                                                                                                                                                                                                                          |
-| `DurationField`       | `label`, `names: { hours; minutes }`, `register: UseFormRegister`, `idPrefix`, `error?`                                                                                                   | two `Input`s summing to minutes; extracted from EditTaskDialog, reused by estimate/spent (native inputs, not NumberField — see note above)                                                                                                                         |
-| `WeekdayPicker`       | `value: Weekday[]`, `onChange`, `order: Weekday[]`, `minSelected?: number`, `disabled?`                                                                                                   | Multi-select `ToggleGroup` of 7 day chips. `order` is caller-supplied (the feature computes it from the profile's `weekStart`) — the pattern itself fetches nothing. Single-select weekday rows (RepeatScheduleFields monthly mode) use `ToggleGroup` directly     |
-| `MonthCalendar`       | `month`, `selectedDate?`, `markedDates?: ReadonlySet<string>`, `onSelect(date)`, `onMonthShift(delta)`                                                                                    | Generic month grid + MonthNav. InstanceCalendar and WeekJumpCalendar become thin domain wrappers                                                                                                                                                                   |
-| `Pagination`, `Paged` | unchanged API                                                                                                                                                                             | Move from `features/pagination/` — nothing about them is domain-specific                                                                                                                                                                                           |
-| `EmptyState`          | `title`, `description?`, `action?`, `icon?`                                                                                                                                               | Notes empty state, backlog empty, categories empty                                                                                                                                                                                                                 |
+| Component             | Props                                                                                                                                                                                                        | Notes                                                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `FormDialog`          | `open`, `onClose`, `title`, `children` (form body), `footer` (button slot)                                                                                                                                   | Dialog + header + scrollable body + footer. NewTask/Category/EditTask dialogs converge on it                                                                                                                                                                       |
+| `ConfirmDialog`       | `open`, `onClose`, `title`, `description?`, `children?` (custom body), `confirmLabel`, `cancelLabel`, `onConfirm`, `confirmDisabled?: boolean`, `destructive?: boolean`, `busy?: boolean`                    | On `AlertDialog`: fixed cancel/confirm footer + alert semantics. `children` carries type-to-confirm inputs (DeleteProfileDialog), per-task choice lists (CarryOverPrompt), etc. Differs from `FormDialog` in semantics (alert vs. form) and owning its button pair |
+| `PageHeader`          | `title: string`, `actions?: ReactNode`                                                                                                                                                                       | The repeated `<h1 className="text-2xl font-semibold tracking-tight">` + action row on every page                                                                                                                                                                   |
+| `SettingsSection`     | `title`, `description?`, `children`                                                                                                                                                                          | The repeated section card on SettingsPage                                                                                                                                                                                                                          |
+| `DurationField`       | `label`, `names: { hours; minutes }`, `register: UseFormRegister`, `idPrefix`, `error?`                                                                                                                      | two `Input`s summing to minutes; extracted from EditTaskDialog, reused by estimate/spent (native inputs, not NumberField — see note above)                                                                                                                         |
+| `WeekdayPicker`       | `value: Weekday[]`, `onChange`, `order: Weekday[]`, `minSelected?: number`, `disabled?`                                                                                                                      | Multi-select `ToggleGroup` of 7 day chips. `order` is caller-supplied (the feature computes it from the profile's `weekStart`) — the pattern itself fetches nothing. Single-select weekday rows (RepeatScheduleFields monthly mode) use `ToggleGroup` directly     |
+| `MonthCalendar`       | `month`, `selectedDate?`, `markedDates?: ReadonlySet<string>`, `onSelect(date)`, `onMonthShift(delta)`                                                                                                       | Generic month grid + MonthNav. InstanceCalendar and WeekJumpCalendar become thin domain wrappers                                                                                                                                                                   |
+| `Pagination`, `Paged` | same state API (`page`, `pageCount`, `onPage` / `items` + `children` render prop); copy moved to props (`navLabel`, `previousLabel`, `nextLabel`, `formatPageIndicator`) — shared/ cannot import `labels.ts` | Move from `features/pagination/` — nothing about them is domain-specific                                                                                                                                                                                           |
+| `EmptyState`          | `title`, `description?`, `action?`, `icon?`                                                                                                                                                                  | Notes empty state, backlog empty, categories empty                                                                                                                                                                                                                 |
 
 ### features — domain components (destination after refactor)
 
@@ -249,8 +250,9 @@ fragments per recipe)
 
 - `BoardPage`: DnD context + week state + composing columns/toolbar/
   dialogs; `DroppableCell`/`BoardCard` extracted to `features/board/`.
-- `BacklogPage`: `TaskRow` extracted to `features/tasks/` or kept inline
-  if it stays small after primitives land. Builder's call.
+- `BacklogPage`: `TaskRow` extracted to `features/backlog/` — it is
+  backlog-only (the board renders `BoardCard`, not rows), so it gets its
+  own slice rather than living under `features/tasks/`.
 - `CategoriesPage`, `SettingsPage`: compose via `PageHeader` +
   `SettingsSection`.
 
@@ -275,8 +277,10 @@ fragments per recipe)
   — `shared/**` cannot import `layout/`, `features/`, `pages/`, `api/`, or
   `lib/labels`; cross-slice imports may only reach a slice's root-level
   files (the slice's public API), never its subdirectories.
-- **`DeleteButton`** (`src/components/`) is removed; call sites use
-  `Button variant="danger"`.
+- **`DeleteButton`** (`src/components/`) is removed; call sites use the
+  ghost `IconButton` (`Trash2` icon, per-row `label`) — the same muted
+  icon affordance the component always rendered, not a filled danger
+  button.
 
 ## Migration notes
 
@@ -298,7 +302,6 @@ fragments per recipe)
 - Whether `NotesTabs` survives as a domain component or folds into its
   parent.
 - `ViewToolbar`/`viewFilters` slice placement.
-- `TaskRow` extraction threshold.
 - Whether `Button`/`IconButton` wrap `@base-ui/react/button` or stay
   styled natives (Base UI's button mainly adds `focusableWhenDisabled`).
 - `components/ui` vs keeping a stray `components/` dir — this doc deletes

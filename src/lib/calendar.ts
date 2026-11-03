@@ -20,6 +20,16 @@ export interface MonthCell {
   day: number;
 }
 
+/// Display copy for one weekday — the weekday headers and day chips in
+/// shared/patterns (WeekdayPicker, MonthCalendar) take theirs via a
+/// `formatDay` callback returning this shape.
+export interface WeekdayLabel {
+  /// Full day name — the accessible name (`aria-label`, header `title`).
+  label: string;
+  /// Short day text — the visible chip/header content.
+  short: string;
+}
+
 /// The 42-cell month grid starting on the configured week day —
 /// shared by every calendar in the app (instance picker, week jump).
 export const monthCells = (month: number, weekStart: Weekday): MonthCell[] => {

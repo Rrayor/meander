@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { NavLink } from "react-router-dom";
 
 import { ProfileSwitcher } from "@/layout/ProfileSwitcher";
@@ -20,17 +21,21 @@ export function SideNav() {
               to={path}
               end={end}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary ${
+                cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 ease-out focus:outline-none focus:ring-1 focus:ring-primary",
                   isActive
                     ? "bg-surface-raised text-text"
-                    : "text-text-muted hover:bg-surface-raised hover:text-text"
-                }`
+                    : "text-text-muted hover:bg-surface-raised hover:text-text",
+                )
               }
             >
               {({ isActive }) => (
                 <>
                   <Icon
-                    className={`h-[18px] w-[18px] ${isActive ? "text-primary" : ""}`}
+                    className={cn(
+                      "h-[18px] w-[18px]",
+                      isActive && "text-primary",
+                    )}
                     aria-hidden
                   />
                   <span className={isActive ? "font-medium" : ""}>{label}</span>

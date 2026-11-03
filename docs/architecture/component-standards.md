@@ -17,8 +17,14 @@ Where existing code disagrees, the refactored form is the target.
 - No barrel `index.ts` files — imports name the file directly.
 - Tests colocate: `Button.test.tsx` beside `Button.tsx`.
 - cva variant recipes (`buttonVariants`) are module-level constants in
-  the component file, above the component. `allowConstantExport` keeps
-  the react-refresh rule happy.
+  the component file, above the component — and stay module-private.
+  `allowConstantExport` only exempts literal exports; a `cva()` result
+  or any other non-literal still trips
+  `react-refresh/only-export-components`. When a non-component export is
+  genuinely part of the file's API (part namespaces, test-facing
+  constants), suppress with the file-level justified
+  `/* eslint-disable react-refresh/only-export-components -- … */`
+  banner the sibling primitives use.
 - A `.tsx` file exports UI only. Non-rendering logic (payload builders,
   query orchestration, multi-step form math) lives in a sibling `.ts`
   file or hook — this is what keeps files under the ~400-line cap

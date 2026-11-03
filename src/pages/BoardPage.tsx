@@ -12,6 +12,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { cn } from "cn";
 import { useState } from "react";
 
 import type { Category, Task } from "@/api/bindings";
@@ -40,6 +41,7 @@ import { BOARD_SAVING_LABEL, TRANSPOSE_LAYOUT_LABEL } from "@/lib/labels";
 import { serverErrorMessage } from "@/lib/errors";
 import { errorMessage, todayLocalIso, weekDates } from "@/lib/utils";
 import { Button } from "@/shared/ui/Button";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 const layoutKey = (dbPath: string | undefined, profileId: number | undefined) =>
   `meander.boardLayout.${dbPath ?? "?"}.${profileId ?? 0}`;
@@ -211,7 +213,7 @@ export function BoardPage() {
         onAddTask={() => setDialogOpen(true)}
       />
       {(boardError != null || move.isError) && (
-        <p role="alert" className="px-6 pt-4 text-sm text-danger">
+        <p role="alert" className={cn("px-6 pt-4", ERROR_TEXT)}>
           {serverErrorMessage(boardError ?? move.error) ??
             errorMessage(boardError ?? move.error)}
         </p>

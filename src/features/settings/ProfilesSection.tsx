@@ -34,6 +34,7 @@ import { SettingsSection } from "@/shared/patterns/SettingsSection";
 import { Button } from "@/shared/ui/Button";
 import { Input } from "@/shared/ui/Input";
 import { Select } from "@/shared/ui/Select";
+import { ERROR_TEXT } from "@/shared/ui/styles";
 
 export function ProfilesSection() {
   const queryClient = useQueryClient();
@@ -284,7 +285,7 @@ export function ProfilesSection() {
           />
         )}
         {error && (
-          <p role="alert" className="text-sm text-danger">
+          <p role="alert" className={ERROR_TEXT}>
             {error}
           </p>
         )}
